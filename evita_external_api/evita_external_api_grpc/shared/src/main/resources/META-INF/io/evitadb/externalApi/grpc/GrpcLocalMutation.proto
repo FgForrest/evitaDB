@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcAttributeMutations.proto";
+import "GrpcAssociatedDataMutations.proto";
+import "GrpcPriceMutations.proto";
+import "GrpcEntityMutations.proto";
+import "GrpcReferenceMutations.proto";
+
+message GrpcLocalMutation {
+  oneof mutation {
+    GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;
+    GrpcUpsertAttributeMutation upsertAttributeMutation = 2;
+    GrpcRemoveAttributeMutation removeAttributeMutation = 3;
+    GrpcUpsertAssociatedDataMutation upsertAssociatedDataMutation = 4;
+    GrpcRemoveAssociatedDataMutation removeAssociatedDataMutation = 5;
+    GrpcUpsertPriceMutation upsertPriceMutation = 6;
+    GrpcRemovePriceMutation removePriceMutation = 7;
+    GrpcSetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation = 8;
+    GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;
+    GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;
+    GrpcInsertReferenceMutation insertReferenceMutation = 11;
+    GrpcRemoveReferenceMutation removeReferenceMutation = 12;
+    GrpcSetReferenceGroupMutation setReferenceGroupMutation = 13;
+    GrpcRemoveReferenceGroupMutation removeReferenceGroupMutation = 14;
+    GrpcReferenceAttributeMutation referenceAttributeMutation = 15;
+  }
+}

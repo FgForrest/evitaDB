@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEnums.proto";
+import "GrpcLocalMutation.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcEntityUpsertMutation {
+  string entityType = 1;
+  google.protobuf.Int32Value entityPrimaryKey = 2;
+  GrpcEntityExistence entityExistence = 3;
+  repeated GrpcLocalMutation mutations = 4;
+}
+
+message GrpcEntityRemoveMutation {
+  string entityType = 1;
+  int32 entityPrimaryKey = 2;
+}
+
+message GrpcEntityMutation {
+  oneof mutation {
+    GrpcEntityUpsertMutation entityUpsertMutation = 1;
+    GrpcEntityRemoveMutation entityRemoveMutation = 2;
+  }
+}

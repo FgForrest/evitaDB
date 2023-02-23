@@ -1,0 +1,87 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
+
+import graphql.execution.DataFetcherResult;
+import graphql.schema.DataFetcher;
+import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
+
+import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.Currency;
+import java.util.Locale;
+import java.util.Optional;
+
+/**
+ * Finds single price (even not sellable) for fetched entity and for specific price list.
+ * Currency is used from entity. If more prices for used currency and price list are found, validIn datetime is used
+ * to select the valid one at the moment. If not specified by user in entity, datetime of query execution start is used.
+ * Expects entity to be {@link EntityDecorator} to hold needed price parameters (validIn, currency ...).
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ */
+public class PriceDataFetcher implements DataFetcher<DataFetcherResult<PriceContract>> {
+
+    @Nonnull
+    @Override
+    public DataFetcherResult<PriceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+        final String priceList = environment.getArgument(PriceFieldHeaderDescriptor.PRICE_LIST.name());
+        final Currency customCurrency = environment.getArgument(PriceFieldHeaderDescriptor.CURRENCY.name());
+        final EntityQueryContext context = environment.getLocalContext();
+
+        final EntityDecorator entity = environment.getSource();
+        final Currency currency = Optional.ofNullable(customCurrency)
+            .or(() -> Optional.ofNullable(context.getDesiredPriceInCurrency()))
+            .orElseThrow(() -> new GraphQLInvalidArgumentException("Missing `currency` argument. You can use `" + PriceFieldHeaderDescriptor.CURRENCY.name() + "` parameter for specifying custom currency."));
+        final Collection<PriceContract> possiblePrices = entity.getPrices(currency, priceList);
+
+        PriceContract pickedPrice = null;
+        if (possiblePrices.size() == 1) {
+            pickedPrice = possiblePrices.iterator().next();
+        } else if (possiblePrices.size() > 1) {
+            final OffsetDateTime priceValidIn = Optional.ofNullable(context.getDesiredPriceValidIn())
+                .orElse(entity.getAlignedNow());
+
+            pickedPrice = possiblePrices.stream()
+                .filter(p -> p.getValidity() == null || p.isValid(priceValidIn))
+                .findFirst()
+                .orElse(null);
+        }
+
+        final Locale customLocale = environment.getArgument(PriceFieldHeaderDescriptor.LOCALE.name());
+        final EntityQueryContext newContext = context.toBuilder()
+            .desiredLocale(customLocale != null ? customLocale : context.getDesiredLocale())
+            .build();
+
+        return DataFetcherResult.<PriceContract>newResult()
+            .data(pickedPrice)
+            .localContext(newContext)
+            .build();
+    }
+}

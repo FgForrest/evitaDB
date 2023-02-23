@@ -1,0 +1,59 @@
+[
+  {
+	"title": "Introduction",
+	"path" : "/introduction.md"
+  },
+  {
+	"title": "Assignment",
+	"children": [
+	  {
+		"title": "Introduction",
+		"path" : "/assignment/index.md"
+	  },
+	  {
+		"title": "Data types",
+		"path" : "/assignment/model/data_types.md"
+	  },
+	  {
+		"title": "Associated data",
+		"path" : "/assignment/model/associated_data_implicit_conversion.md"
+	  },
+	  {
+		"title": "Price computation",
+		"path" : "/assignment/querying/price_computation.md"
+	  },
+	  {
+		"title": "Query API",
+		"path" : "/assignment/querying/query_api.md"
+	  },
+	  {
+		"title": "Query language",
+		"path" : "/assignment/querying/query_language.md"
+	  },
+	  {
+		"title": "Entity API",
+		"path" : "/assignment/updating/entity_api.md"
+	  },
+	  {
+		"title": "Schema API",
+		"path" : "/assignment/updating/schema_api.md"
+	  }
+	]
+  },
+  {
+  "title": "PostgreSQL prototype",
+  "path" : "/sql/thesis.md"
+  },
+  {
+	"title": "Elasticsearch prototype",
+	"path" : "/nosql/thesis.md"
+  },
+  {
+	"title": "In-memory prototype",
+	"path" : "/in-memory/thesis.md"
+  },
+  {
+	"title": "Evaluation",
+	"path" : "/evaluation/evaluation.md"
+  }
+]

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "google/protobuf/wrappers.proto";
+
+message GrpcSetHierarchicalPlacementMutation {
+  google.protobuf.Int32Value primaryKey = 1;
+  int32 orderAmongSiblings = 2;
+}
+
+message GrpcRemoveHierarchicalPlacementMutation {
+
+}

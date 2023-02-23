@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEntitySchemaMutation.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcCreateCatalogSchemaMutation {
+  string catalogName = 1;
+}
+
+message GrpcModifyCatalogSchemaDescriptionMutation {
+  google.protobuf.StringValue description = 1;
+}
+
+message GrpcModifyCatalogSchemaNameMutation {
+  string catalogName = 1;
+  string newCatalogName = 2;
+  bool overwriteTarget = 3;
+}
+
+message GrpcRemoveCatalogSchemaMutation {
+  string catalogName = 1;
+}
+
+message GrpcCreateEntitySchemaMutation {
+  string entityType = 1;
+}
+
+message GrpcModifyEntitySchemaMutation {
+  string entityType = 1;
+  repeated GrpcEntitySchemaMutation entitySchemaMutations = 2;
+}
+
+message GrpcModifyEntitySchemaNameMutation {
+  string name = 1;
+  string newName = 2;
+  bool overwriteTarget = 3;
+}
+
+message GrpcRemoveEntitySchemaMutation {
+  string name = 1;
+}

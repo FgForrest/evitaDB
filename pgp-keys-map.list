@@ -1,0 +1,150 @@
+net.bytebuddy                   = \
+                                  0xB4AC8CDC141AF0AE468D16921DA784CCB5C46DD5, \
+                                  0xF42B96B8648B5C4A1C43A62FBB2914C1FA0811C3
+
+org.junit.*                       = 0x141F43790A926D1FCF1CACA0CD539A8AD3B33EF0, \
+                                  0x23885E64C64E981E4884834D7C535299C0F2C580, \
+                                  0x4103F9A48267E62CE33EB33788AA1FEE831A7E89, \
+                                  0x58E79B6ABC762159DC0B1591164BD2247B936711, \
+                                  0xAED3727A7DC070975D8C5009C7CB325467893CC4, \
+                                  0xFF6E2C001948C5F2F38B0CC385911F425EC61B51
+
+com.google.code.findbugs        = 0x7616EB882DAF57A11477AAF559A252FB1199D873
+
+org.mockito                     = \
+                                  0x147B691A19097624902F4EA9689CBE64F4BC997F, \
+                                  0xCC4483CD6A3EB2939B948667A1B4460D8BA7B9AF
+
+com.google.*                    = 0x1DBB44E80F61493D6369B5FB95C15058A5EDA4F1
+
+ch.qos.logback                  = 0x475F3B8E59E6E63AA78067482C7B12F2A511E325, \
+                                  0x60200AC4AE761F1614D6C46766D68DAA073BE985
+
+org.objenesis                   = 0xE85AED155021AF8A6C6B7A4A7C7D8456294423BA
+
+org.opentest4j                  = 0xFF6E2C001948C5F2F38B0CC385911F425EC61B51
+
+org.apiguardian                 = 0xFF6E2C001948C5F2F38B0CC385911F425EC61B51
+
+commons-io                      = 0x2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB, \
+                                  0x6BDACA2C0493CCA133B372D09C4F7E9D98B1CC53, \
+                                  0xCD5464315F0B98C77E6E8ECD9DAADC1C9FCC82D0, \
+                                  0xD196A5E3E70732EEB2E5007F1861C322C56014B2
+
+commons-lang                    = 0x636DE9055C4C75C7BD9830771241BC872C5E4EC0, \
+                                  0xD196A5E3E70732EEB2E5007F1861C322C56014B2
+
+org.apache.commons              = 0x2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB, \
+                                  0x636DE9055C4C75C7BD9830771241BC872C5E4EC0, \
+                                  0xB6E73D84EA4FCC47166087253FAAD2CD5ECBB314, \
+                                  0xCD5464315F0B98C77E6E8ECD9DAADC1C9FCC82D0, \
+                                  0xCE8075A251547BEE249BC151A2115AE15F6B8B72
+
+commons-logging                 = 0x0CC641C3A62453AB390066C4A41F13C999945293, \
+                                  0xB920D295BF0E61CB4CF0896C33CD6733AF5EC452
+
+org.slf4j                       = 0x475F3B8E59E6E63AA78067482C7B12F2A511E325, \
+                                  0x60200AC4AE761F1614D6C46766D68DAA073BE985
+
+net.openhft                     = 0xA7D8BE3D575D6C5040E889331B6E3BDDD4415872
+
+org.antlr                       = 0x5719E50EAC5A4B1DD390B72C2A742740E08E7F8D, \
+                                  0x842AFB86375D805422835BFD82B5574242C20D6F, \
+                                  0xB2D1AC7BE5A3EEB9773A49FE6EB9DE4D7E01B1E1, \
+                                  0xB01128C8FD304FE48E6EED2C347CD0EAED975C5F, \
+                                  0xD54A395B5CF3F86EB45F6E426B1B008864323B92
+
+com.carrotsearch                = 0xA32C3BF4A5B04200A31E05370A9F96A917990CF6
+
+com.esotericsoftware            = 0x6A27B2F30F3DB8BF86D519F7EC5BCE97B4DEFA96, \
+                                  0x928A3A346452BF70204F31E31BC12D45B7A71DF3
+
+org.roaringbitmap               = 0x015479E1055341431B4545AB72475FD306B9CAB7
+
+com.fasterxml.*                 = 0x28118C070CB22A0175A2E8D43D12CA2AC19F3181, \
+                                  0x8A10792983023D5D14C93B488D7F1BEC1E2ECAE7, \
+                                  0x6214760097DC5CFAD0175AC2C9FBAA83A8753994, \
+                                  0x064F04959CD99ACCC4DFB54C9CD8549ACF9BD0CE
+
+org.jboss.*                     = noSig
+org.wildfly.*                   = noSig
+io.undertow.*                   = noSig
+
+com.github.javafaker            = 0x67FEE84A26D31DEE2DB2E2CDEA5E1E4C5F72DD79
+
+one.edee.oss                    = 0x9D1149B0C74E939DD766C7A93DE3CDCCF660797F
+
+dk.brics.automaton              = 0x5FF31904EDB5FA70567E9C1425ECEFD55FCEB2F9
+
+com.github.mifmif               = 0x890A711ECEFC9F46E7DC9A004083A52B1E69FF28
+
+org.yaml                        = 0x120D6F34E627ED3A772EBBFE55C7E5E701832382
+
+org.apache.httpcomponents.*     = 0x0785B3EFF60B1B1BEA94E0BB7C25280EAE63EBE5, \
+                                  0x2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB
+
+io.rest-assured                 = 0x07E20F0103D9DFC697C490D0368557390486F2C5
+
+org.codehaus.groovy             = 0x34441E504A937F43EB0DAEF96A65176A0FB1CD0B, \
+                                  0x7FAA0F2206DE228F0DB01AD741321490758AAD6F
+
+org.apache.groovy               = 0x34441E504A937F43EB0DAEF96A65176A0FB1CD0B, \
+                                  0x7FAA0F2206DE228F0DB01AD741321490758AAD6F
+
+commons-codec                   = 0x2DB4F1EF0FA761ECC4EA935C86FDC7E2A11262CB, \
+                                  0xB6E73D84EA4FCC47166087253FAAD2CD5ECBB314, \
+                                  0xBC87A3FD0A54480F0BADBEBD21939FF0CA2A6567
+
+org.reactivestreams             = 0x50A628FFAF58480736B1079FD1031D14464180E0, \
+                                  0xA5B2DDE7843E7CA3E8CAABD02383163BC40844FD, \
+                                  0xE83AABBB95CA37431E20422043203BE58F49479D
+
+org.ccil.cowan.tagsoup          = 0xEAA526B91DD83BA3E1B9636FA730529CA355A63E
+
+com.graphql-java                = 0x07EE2908793B6EAD3EC35AAFB453979C79892013
+
+org.hamcrest                    = 0x4DB1A49729B053CAF015CEE9A6ADFC93EF34893E, \
+                                  0xE3A9F95079E84CE201F7CF60BEDE11EAF1164480
+
+io.grpc.*                       = 0xB02335AA54CCF21E52BBF9ABD9C565AA72BA2FDD
+
+com.google.guava                = 0xBDB5FA4FE719D787FB3D3197F6D4A1D411E9D1AE, \
+                                  0x56ED3B4843DAACC79DE555557457CA33C3CE9E15
+
+com.google.errorprone           = 0xEE0CA873074092F806F59B65D364ABAA39A47320
+
+com.google.code.gson            = 0xC7BE5BCC9FEC15518CFDA882B0F3710FA64900E7
+
+com.google.protobuf             = 0x2E5B73C6EFD2EB453104C2EAE6EC76B4C6D3AE8E
+
+com.google.android              = 0x0F07D1201BDDAB67CFB84EB479752DB6C966F0B8
+
+org.codehaus.mojo               = 0xF254B35617DC255D9344BCFA873A8E86B4372146
+
+com.google.j2objc               = 0xB801E2F8EF035068EC1139CC29579F18FA8FD93B
+
+com.google.api.grpc             = 0x47504B76CF89C15C0512D9AFE16AB52D79FD224F
+
+org.checkerframework            = 0x19BEAB2D799C020F17C69126B16698A4ADF4D638
+
+io.perfmark                     = 0xC6F7D1C804C821F49AF3BFC13AD93C3C677A106E
+
+io.netty                        = 0x176E27B72061F21D6FE6286241CB03A1BB3BAD60, \
+                                  0x0D35D3F60078655126908E8AF3D1600878E85A3D
+
+jakarta.xml.bind                = 0xDD46DEC275B1F230ACCE4EEB083891AD4774845A
+
+jakarta.validation              = 0x84E640DF8E94CB8CD2BEB9AE99059A5DDE1B175D
+
+javax.activation                = 0x4F7E32D440EF90A83011A8FC6425559C47CC79C4
+
+jakarta.activation              = 0xCAE38BC93D90B852D88465DD3A1959EEF8726006
+
+io.swagger.*                    = 0x3E61D8C230332482009D7F0EDB901B24CAD38BC4
+
+org.openjdk.jmh                 = 0x019082BC00E0324E2AEF4CF00D3B328562A119A7
+
+org.apache.commons:commons-math3 = 0x41A1A08C62FCA78B79D3081164A16FAAEC16A4BE, \
+                                  0x12D16069219C90212A974D119AE296FD02E9F65B
+
+net.sf.jopt-simple              = 0x517B94F8D0A46317A28D8AB30DA8A5EC02D11EAD

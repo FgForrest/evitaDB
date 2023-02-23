@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEvitaDataTypes.proto";
+import "GrpcEnums.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcAllowCurrencyInEntitySchemaMutation {
+  repeated GrpcCurrency currencies = 1;
+}
+
+message GrpcAllowEvolutionModeInEntitySchemaMutation {
+  repeated GrpcEvolutionMode evolutionModes = 1;
+}
+
+message GrpcAllowLocaleInEntitySchemaMutation {
+  repeated GrpcLocale locales = 1;
+}
+
+message GrpcDisallowCurrencyInEntitySchemaMutation {
+  repeated GrpcCurrency currencies = 1;
+}
+
+message GrpcDisallowEvolutionModeInEntitySchemaMutation {
+  repeated GrpcEvolutionMode evolutionModes = 1;
+}
+
+message GrpcDisallowLocaleInEntitySchemaMutation {
+  repeated GrpcLocale locales = 1;
+}
+
+message GrpcModifyEntitySchemaDeprecationNoticeMutation {
+  google.protobuf.StringValue deprecationNotice = 1;
+}
+
+message GrpcModifyEntitySchemaDescriptionMutation {
+  google.protobuf.StringValue description = 1;
+}
+
+message GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation {
+  bool withGeneratedPrimaryKey = 1;
+}
+
+message GrpcSetEntitySchemaWithHierarchyMutation {
+  bool withHierarchy = 1;
+}
+
+message GrpcSetEntitySchemaWithPriceMutation {
+  bool withPrice = 1;
+  int32 indexedPricePlaces = 2;
+}

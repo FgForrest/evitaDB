@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "google/protobuf/wrappers.proto";
+import "GrpcEntity.proto";
+import "GrpcEvitaDataTypes.proto";
+import "GrpcEnums.proto";
+
+message GrpcHistogram {
+  GrpcBigDecimal min = 1;
+  GrpcBigDecimal max = 2;
+  int32 overallCount = 3;
+  message GrpcBucket {
+    int32 index = 1;
+    GrpcBigDecimal threshold = 2;
+    int32 occurrences = 3;
+  }
+  repeated GrpcBucket buckets = 4;
+}
+
+message GrpcFacetGroupStatisticsType {
+  map<int32, GrpcFacetGroupStatistics> facetGroupStatistics = 1;
+}
+
+message GrpcFacetGroupStatistics {
+  string referenceName = 1;
+  GrpcEntityReference groupEntityReference = 2;
+  GrpcSealedEntity groupEntity = 3;
+  repeated GrpcFacetStatistics facetStatistics = 4;
+}
+
+message GrpcFacetStatistics {
+  GrpcEntityReference facetEntityReference = 1;
+  GrpcSealedEntity facetEntity = 2;
+  bool requested = 3;
+  int32 count = 4;
+  google.protobuf.Int32Value impact = 5;
+}
+
+message GrpcHierarchyParentEntities {
+  map<int32, GrpcHierarchyParentEntity> hierarchyParentEntities = 1;
+}
+
+message GrpcHierarchyParentEntity {
+  repeated GrpcEntityReference entityReferences = 1;
+  repeated GrpcSealedEntity entities = 2;
+}
+
+message GrpcHierarchyParentsByReference {
+  map<int32, GrpcHierarchyParentEntities> hierarchyParentsByReference = 1;
+}
+
+message GrpcLevelInfos {
+  repeated GrpcLevelInfo levelInfos = 1;
+}
+
+message GrpcLevelInfo {
+  GrpcEntityReference entityReference = 1;
+  GrpcSealedEntity entity = 2;
+  int32 cardinality = 3;
+  repeated GrpcLevelInfo childrenStatistics = 4;
+}
+
+message GrpcQueryTelemetry {
+  GrpcQueryPhase operation = 1;
+  int64 start = 2;
+  repeated GrpcQueryTelemetry steps = 3;
+  repeated string arguments = 4;
+  int64 spentTime = 5;
+}
+
+message GrpcExtraResults {
+  repeated GrpcHistogram attributeHistograms = 1;
+  map<string, GrpcHistogram> attributeHistogram = 2;
+  GrpcHistogram priceHistogram = 3;
+  repeated GrpcFacetGroupStatistics facetGroupStatistics = 4;
+  GrpcHierarchyParentsByReference selfHierarchyParents = 5;
+  map<string, GrpcHierarchyParentsByReference> hierarchyParents = 6;
+  GrpcLevelInfos selfHierarchyStatistics = 7;
+  map<string, GrpcLevelInfos> hierarchyStatistics = 8;
+  GrpcQueryTelemetry queryTelemetry = 9;
+}

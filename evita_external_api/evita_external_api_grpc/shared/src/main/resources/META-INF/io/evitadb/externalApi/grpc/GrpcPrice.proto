@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "google/protobuf/wrappers.proto";
+import "GrpcEvitaDataTypes.proto";
+
+message GrpcPricesInPriceList {
+  repeated GrpcPrice prices = 1;
+}
+
+message GrpcPrice {
+  int32 priceId = 1;
+  string priceList = 2;
+  GrpcCurrency currency = 3;
+  google.protobuf.Int32Value innerRecordId = 4;
+  GrpcBigDecimal priceWithoutTax = 5;
+  GrpcBigDecimal taxRate = 6;
+  GrpcBigDecimal priceWithTax = 7;
+  GrpcDateTimeRange validity = 8;
+  bool sellable = 9;
+  int32 version = 10;
+}
+

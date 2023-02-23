@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEvitaDataTypes.proto";
+import "GrpcEnums.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcEntitySchema {
+  string name = 1;
+  int32 version = 2;
+  google.protobuf.StringValue description = 3;
+  google.protobuf.StringValue deprecationNotice = 4;
+  bool withGeneratedPrimaryKey = 5;
+  bool withHierarchy = 6;
+  bool withPrice = 7;
+  int32 indexedPricePlaces = 8;
+  repeated GrpcLocale locales = 9;
+  repeated GrpcCurrency currencies = 10;
+  map<string, GrpcAttributeSchema> attributes = 11;
+  map<string, GrpcAssociatedDataSchema> associatedData = 12;
+  map<string, GrpcReferenceSchema> references = 13;
+  repeated GrpcEvolutionMode evolutionMode = 14;
+}
+
+message GrpcAttributeSchema {
+  string name = 1;
+  bool global = 2;
+  google.protobuf.StringValue description = 3;
+  google.protobuf.StringValue deprecationNotice = 4;
+  bool unique = 5;
+  bool uniqueGlobally = 6;
+  bool filterable = 7;
+  bool sortable = 8;
+  bool localized = 9;
+  bool nullable = 10;
+  GrpcEvitaDataType type = 11;
+  GrpcEvitaValue defaultValue = 12;
+  int32 indexedDecimalPlaces = 13;
+}
+
+message GrpcAssociatedDataSchema {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+  google.protobuf.StringValue deprecationNotice = 3;
+  GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;
+  bool localized = 5;
+  bool nullable = 6;
+}
+
+message GrpcReferenceSchema {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+  google.protobuf.StringValue deprecationNotice = 3;
+  GrpcCardinality cardinality = 4;
+  string entityType = 5;
+  bool entityTypeRelatesToEntity = 6;
+  google.protobuf.StringValue groupType = 7;
+  bool groupTypeRelatesToEntity = 8;
+  bool indexed = 9;
+  bool faceted = 10;
+  map<string, GrpcAttributeSchema> attributes = 11;
+}

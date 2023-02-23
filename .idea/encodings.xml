@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/evita_api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_common/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_common/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_db/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_db/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_db_datastructures/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_db_datastructures/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_engine/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_engine/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_core/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_core/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_graphql/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_graphql/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/client/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/client/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/server/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/server/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/shared/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/shared/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/test/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/test/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_rest/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_rest/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_system/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_system/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_functional_tests/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_functional_tests/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_performance_tests/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_performance_tests/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_query/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_query/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_server/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_server/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_common/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_common/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_entity/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_entity/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_memtable/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_memtable/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_server/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_server/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_spi/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_spi/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_test_support/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_test_support/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/jacoco/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/jacoco/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/workaround/grpc/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/workaround/grpc/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/workaround/roaringBitmap/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/workaround/roaringBitmap/src/main/resources" charset="UTF-8" />
+  </component>
+</project>

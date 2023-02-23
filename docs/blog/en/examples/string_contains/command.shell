@@ -1,0 +1,1 @@
+docker run -i --rm --net=host index.docker.io/evitadb/evitadb:latest

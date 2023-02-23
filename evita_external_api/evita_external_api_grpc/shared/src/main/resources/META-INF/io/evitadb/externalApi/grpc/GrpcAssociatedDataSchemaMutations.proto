@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEnums.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcCreateAssociatedDataSchemaMutation {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+  google.protobuf.StringValue deprecationNotice = 3;
+  GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 4;
+  bool localized = 5;
+  bool nullable = 6;
+}
+
+message GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation {
+  string name = 1;
+  google.protobuf.StringValue deprecationNotice = 2;
+}
+
+message GrpcModifyAssociatedDataSchemaDescriptionMutation {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+}
+
+message GrpcModifyAssociatedDataSchemaNameMutation {
+  string name = 1;
+  string newName = 2;
+}
+
+message GrpcModifyAssociatedDataSchemaTypeMutation {
+  string name = 1;
+  GrpcEvitaAssociatedDataDataType.GrpcEvitaDataType type = 2;
+}
+
+message GrpcRemoveAssociatedDataSchemaMutation {
+  string name = 1;
+}
+
+message GrpcSetAssociatedDataSchemaLocalizedMutation {
+  string name = 1;
+  bool localized = 2;
+}
+
+message GrpcSetAssociatedDataSchemaNullableMutation {
+  string name = 1;
+  bool nullable = 2;
+}

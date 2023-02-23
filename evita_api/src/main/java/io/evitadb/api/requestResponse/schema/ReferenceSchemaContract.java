@@ -1,0 +1,199 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.api.requestResponse.schema;
+
+import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.require.FacetSummary;
+import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.utils.NamingConvention;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.Map;
+import java.util.function.Function;
+
+/**
+ * This is the definition object for {@link Reference} that is stored along with
+ * {@link Entity}. Definition objects allow to describe the structure of the entity type so that
+ * in any time everyone can consult complete structure of the entity type. Definition object is similar to Java reflection
+ * process where you can also at any moment see which fields and methods are available for the class.
+ *
+ * The references refer to other entities (of same or different entity type).
+ * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+ * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
+ * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
+ * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
+ *
+ * Reference id in one entity is unique and belongs to single reference group id. Among multiple entities reference may be part
+ * of different reference groups. Referenced entity type may represent type of another Evita entity or may refer
+ * to anything unknown to Evita that posses unique int key and is maintained by external systems (fe. tag assignment,
+ * group assignment, category assignment, stock assignment and so on). Not all these data needs to be present in
+ * Evita.
+ *
+ * References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
+ * The search query must contain specific {@link ReferenceContent} requirement in order references are fetched along with
+ * the entity.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ */
+public interface ReferenceSchemaContract extends NamedSchemaWithDeprecationContract, AttributeSchemaProvider<AttributeSchemaContract> {
+
+	/**
+	 * Name of the reference is propagated to the client API schemas and distinguish multiple different relations that
+	 * may target the very same {@link #getReferencedEntityType()}. The name is mandatory for the relation.
+	 *
+	 * As the example of such reference that targets the same entity type but has different meaning can be the reference
+	 * `alternativeProducts` that links products that can replace current product, and `variantProducts` that are only
+	 * different configurations of the very same product. We usually need to express multiple similar relations for
+	 * main entities and proper naming allows us to separate those and make them more comprehensible.
+	 */
+	@Nonnull
+	@Override
+	String getName();
+
+	/**
+	 * Method returns the name of the referenced type in specified naming convention. The names are kept in the schema
+	 * because the translation is computational expensive and also there is no guaranteed way that the name converted
+	 * from original to a version in specific naming convention could be reverted to the original - some information is
+	 * lost during the conversion. We also need to ensure that the name in all conventions stays unique.
+	 *
+	 * @param namingConvention    to get name variant for
+	 * @param entitySchemaFetcher function that allows fetching another entity schema from the catalog
+	 * @return attribute {@link #getName()} in specified naming convention
+	 */
+	@Nonnull
+	String getReferencedEntityTypeNameVariant(
+		@Nonnull NamingConvention namingConvention,
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher
+	);
+
+	/**
+	 * Method returns the name of the referenced group type in specified naming convention. The names are kept in the schema
+	 * because the translation is computational expensive and also there is no guaranteed way that the name converted
+	 * from original to a version in specific naming convention could be reverted to the original - some information is
+	 * lost during the conversion. We also need to ensure that the name in all conventions stays unique.
+	 *
+	 * @param namingConvention    to get name variant for
+	 * @param entitySchemaFetcher function that allows fetching another entity schema from the catalog
+	 * @return attribute {@link #getName()} in specified naming convention
+	 */
+	@Nullable
+	String getReferencedGroupTypeNameVariant(
+		@Nonnull NamingConvention namingConvention,
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher
+	);
+
+	/**
+	 * Cardinality describes the expected count of relations of this type. In evitaDB we define only one-way
+	 * relationship from the perspective of the entity. We stick to the ERD modelling
+	 * <a href="https://www.gleek.io/blog/crows-foot-notation.html">standards</a> here. Cardinality affect the design
+	 * of the client API (returning only single reference or collections) and also help us to protect the consistency
+	 * of the data so that conforms to the creator mental model.
+	 */
+	@Nonnull
+	Cardinality getCardinality();
+
+	/**
+	 * Reference to {@link EntitySchemaContract#getName()} of the referenced entity. Might be also any {@link String}
+	 * that identifies type some external resource not maintained by Evita.
+	 */
+	@Nonnull
+	String getReferencedEntityType();
+
+	/**
+	 * Map contains the {@link #getReferencedEntityType()} name variants in different {@link NamingConvention naming conventions}.
+	 * The name is guaranteed to be unique among other references in same convention. These names are used to quickly
+	 * translate to / from names used in different protocols. Each API protocol prefers names in different naming
+	 * conventions.
+	 *
+	 * These entity type variants are available only when {@link #isReferencedEntityTypeManaged()} is set to FALSE.
+	 */
+	@Nonnull
+	Map<NamingConvention, String> getEntityTypeNameVariants(
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher
+	);
+
+	/**
+	 * Contains TRUE if {@link #getReferencedEntityType()} refers to any existing {@link EntitySchemaContract#getName()} that is
+	 * maintained by Evita.
+	 */
+	boolean isReferencedEntityTypeManaged();
+
+	/**
+	 * Reference to {@link EntitySchemaContract#getName()} of the referenced group entity. Might be also {@link String}
+	 * that identifies type some external resource not maintained by Evita.
+	 */
+	@Nullable
+	String getReferencedGroupType();
+
+	/**
+	 * Map contains the {@link #getReferencedGroupType()} name variants in different {@link NamingConvention naming conventions}.
+	 * The name is guaranteed to be unique among other references in same convention. These names are used to quickly
+	 * translate to / from names used in different protocols. Each API protocol prefers names in different naming
+	 * conventions.
+	 *
+	 * These entity type variants are available only when {@link #isReferencedGroupTypeManaged()} is set to FALSE.
+	 */
+	@Nullable
+	Map<NamingConvention, String> getGroupTypeNameVariants(
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher
+	);
+
+	/**
+	 * Contains TRUE if {@link #getReferencedGroupType()} refers to any existing {@link EntitySchemaContract#getName()} that is
+	 * maintained by Evita.
+	 */
+	boolean isReferencedGroupTypeManaged();
+
+	/**
+	 * Contains TRUE if the index for this reference should be created and maintained allowing to filter by
+	 * {@link ReferenceHaving} filtering constraints. Index is also required when reference is
+	 * {@link #isFaceted() faceted}.
+	 *
+	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
+	 * indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed, the entity
+	 * cannot be looked up by reference attributes or relation existence itself, but the data is loaded alongside
+	 * other references and is available by calling {@link SealedEntity#getReferences()} method.
+	 */
+	boolean isFilterable();
+
+	/**
+	 * Contains TRUE if the statistics data for this reference should be maintained and this allowing to get
+	 * {@link FacetSummary} for this reference or use {@link FacetInSet}
+	 * filtering query.
+	 *
+	 * Do not mark reference as faceted unless you want it among {@link FacetStatistics}. Each faceted reference
+	 * occupies (memory/disk) space in the form of index.
+	 *
+	 * Reference that was marked as faceted is called Facet.
+	 */
+	boolean isFaceted();
+
+}

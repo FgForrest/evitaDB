@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEvitaDataTypes.proto";
+
+message GrpcApplyDeltaAttributeMutation {
+  string attributeName = 1;
+  GrpcLocale attributeLocale = 2;
+  oneof delta {
+    int32 integerDelta = 3;
+    int64 longDelta = 4;
+    GrpcBigDecimal bigDecimalDelta = 5;
+  }
+  oneof requiredRangeAfterApplication {
+    GrpcIntegerNumberRange integerRequiredRangeAfterApplication = 6;
+    GrpcLongNumberRange longRequiredRangeAfterApplication = 7;
+    GrpcBigDecimalNumberRange bigDecimalRequiredRangeAfterApplication = 8;
+  }
+}
+
+message GrpcUpsertAttributeMutation {
+  string attributeName = 1;
+  GrpcLocale attributeLocale = 2;
+  GrpcEvitaValue attributeValue = 3;
+}
+
+message GrpcRemoveAttributeMutation {
+  string attributeName = 1;
+  GrpcLocale attributeLocale = 2;
+}
+
+message GrpcAttributeMutation {
+  oneof mutation {
+      GrpcApplyDeltaAttributeMutation applyDeltaAttributeMutation = 1;
+      GrpcUpsertAttributeMutation upsertAttributeMutation = 2;
+      GrpcRemoveAttributeMutation removeAttributeMutation = 3;
+  }
+}

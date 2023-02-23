@@ -1,0 +1,192 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher;
+
+import graphql.execution.DataFetcherResult;
+import graphql.schema.DataFetcher;
+import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.require.Require;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityFetchRequireBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.SelectionSetWrapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.function.Function;
+
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.strip;
+
+/**
+ * Mutating data fetcher that deletes specified entity and returns it to client.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ */
+@Slf4j
+@RequiredArgsConstructor
+public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetcherResult<List<SealedEntity>>> {
+
+	/**
+	 * Resolves {@link FilterBy} from client argument.
+	 */
+	private final FilterConstraintResolver filterByResolver;
+	/**
+	 * Resolves {@link OrderBy} from client argument.
+	 */
+	private final OrderConstraintResolver orderByResolver;
+
+	@Nonnull
+	private EntitySchemaContract entitySchema;
+	/**
+	 * Function to fetch specific entity schema based on its name.
+	 */
+	@Nonnull
+	private final Function<String, EntitySchemaContract> entitySchemaFetcher;
+
+	public DeleteEntitiesMutatingDataFetcher(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
+		this.entitySchema = entitySchema;
+		this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
+		this.filterByResolver = new FilterConstraintResolver(catalogSchema, entitySchema.getName());
+		this.orderByResolver = new OrderConstraintResolver(catalogSchema, entitySchema.getName());
+	}
+
+	@Nonnull
+	@Override
+	public DataFetcherResult<List<SealedEntity>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		final Arguments arguments = Arguments.from(environment);
+
+		final FilterBy filterBy = buildFilterBy(arguments);
+		final OrderBy orderBy = buildOrderBy(arguments);
+		final Require require = buildRequire(environment, arguments, filterBy);
+		final Query query = query(
+			collection(entitySchema.getName()),
+			filterBy,
+			orderBy,
+			require
+		);
+		log.debug("Generated Evita query for entity deletion of type `{}` is `{}`.", entitySchema.getName(), query);
+
+		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
+		final SealedEntity[] deletedEntities = evitaSession.deleteEntitiesAndReturnBodies(query);
+
+		return DataFetcherResult.<List<SealedEntity>>newResult()
+			.data(Arrays.asList(deletedEntities))
+			.localContext(EntityQueryContext.builder().build())
+			.build();
+	}
+
+	@Nullable
+	private FilterBy buildFilterBy(@Nonnull Arguments arguments) {
+		if (arguments.filterBy() == null) {
+			return null;
+		}
+		return (FilterBy) filterByResolver.resolve(DeleteEntitiesMutationHeaderDescriptor.FILTER_BY.name(), arguments.filterBy());
+	}
+
+	@Nullable
+	private OrderBy buildOrderBy(Arguments arguments) {
+		if (arguments.orderBy() == null) {
+			return null;
+		}
+		return (OrderBy) orderByResolver.resolve(DeleteEntitiesMutationHeaderDescriptor.ORDER_BY.name(), arguments.orderBy());
+	}
+
+	@Nonnull
+	private Require buildRequire(@Nonnull DataFetchingEnvironment environment,
+	                             @Nonnull Arguments arguments,
+	                             @Nullable FilterBy filterBy) {
+
+		final List<RequireConstraint> requireConstraints = new LinkedList<>();
+
+		requireConstraints.add(
+			EntityFetchRequireBuilder.buildEntityRequirement(
+				SelectionSetWrapper.from(environment.getSelectionSet()),
+				extractDesiredLocale(filterBy),
+				entitySchema,
+				entitySchemaFetcher
+			)
+		);
+
+		if (arguments.offset() != null && arguments.limit() != null) {
+			requireConstraints.add(strip(arguments.offset(), arguments.limit()));
+		} else if (arguments.offset() != null) {
+			requireConstraints.add(strip(arguments.offset(), 20));
+		} else if (arguments.limit() != null) {
+			requireConstraints.add(strip(0, arguments.limit()));
+		}
+
+		return require(
+			requireConstraints.toArray(RequireConstraint[]::new)
+		);
+	}
+
+	@Nullable
+	private static Locale extractDesiredLocale(@Nullable FilterBy filterBy) {
+		return Optional.ofNullable(filterBy)
+			.map(it -> QueryUtils.findConstraint(it, EntityLocaleEquals.class))
+			.map(EntityLocaleEquals::getLocale)
+			.orElse(null);
+	}
+
+	/**
+	 * Holds parsed GraphQL query arguments relevant for deleting entity
+	 */
+	private record Arguments(@Nullable Object filterBy,
+	                         @Nullable Object orderBy,
+							 @Nullable Integer offset,
+	                         @Nullable Integer limit) {
+
+		private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
+			final Object filterBy = environment.getArgument(DeleteEntitiesMutationHeaderDescriptor.FILTER_BY.name());
+			final Object orderBy = environment.getArgument(DeleteEntitiesMutationHeaderDescriptor.ORDER_BY.name());
+			final Integer offset = environment.getArgument(DeleteEntitiesMutationHeaderDescriptor.OFFSET.name());
+			final Integer limit = environment.getArgument(DeleteEntitiesMutationHeaderDescriptor.LIMIT.name());
+
+			return new Arguments(filterBy, orderBy, offset, limit);
+		}
+	}
+}

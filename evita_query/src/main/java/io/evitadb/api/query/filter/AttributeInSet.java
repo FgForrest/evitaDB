@@ -1,0 +1,105 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.api.query.filter;
+
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
+import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+
+import javax.annotation.Nonnull;
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.Arrays;
+
+/**
+ * This `inSet` is query that compares value of the attribute with name passed in first argument with all the values passed
+ * in the second, third and additional arguments. First argument must be {@link String},
+ * additional arguments may be any of {@link Comparable} type.
+ * Type of the attribute value and additional arguments must be convertible one to another otherwise `in` function
+ * skips value comparison and ultimately returns false.
+ *
+ * Function returns true if attribute value is equal to at least one of additional values.
+ *
+ * Example:
+ *
+ * ```
+ * inSet('level', 1, 2, 3)
+ * ```
+ *
+ * Function supports attribute arrays and when attribute is of array type `inSet` returns true if *any of attribute* values
+ * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
+ * match:
+ *
+ * ```
+ * inSet('code','A','D')
+ * inSet('code','A', 'B')
+ * ```
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ */
+@ConstraintDef(
+	name = "inSet",
+	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute " +
+		"equals to at least one of the passed values. " +
+		"The constraint is equivalent to the multiple `equals` constraints combined with logical OR.",
+	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE},
+	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
+)
+public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implements IndexUsingConstraint {
+	@Serial private static final long serialVersionUID = 500395477991778874L;
+
+	private AttributeInSet(Serializable... arguments) {
+		super(arguments);
+	}
+
+	@ConstraintCreatorDef
+	public <T extends Serializable> AttributeInSet(@Nonnull @ConstraintClassifierParamDef String attributeName,
+	                                               @Nonnull @ConstraintValueParamDef T... set) {
+		super(concat(attributeName, set));
+	}
+
+	/**
+	 * Returns set of {@link Serializable} values that attribute value must be part of.
+	 */
+	public Serializable[] getSet() {
+		return Arrays.stream(getArguments())
+			.skip(1)
+			.toArray(Serializable[]::new);
+	}
+
+	@Override
+	public boolean isApplicable() {
+		return isArgumentsNonNull() && getArguments().length >= 2;
+	}
+
+	@Nonnull
+	@Override
+	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+		return new AttributeInSet(newArguments);
+	}
+}

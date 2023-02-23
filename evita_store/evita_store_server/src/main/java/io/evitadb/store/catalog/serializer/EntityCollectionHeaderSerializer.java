@@ -1,0 +1,107 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.store.catalog.serializer;
+
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.Serializer;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.spi.model.EntityCollectionHeader;
+import io.evitadb.store.spi.model.PersistentStorageHeader;
+
+import javax.annotation.Nonnull;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * This {@link Serializer} implementation reads/writes {@link EntityCollectionHeader} from/to binary format.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ */
+public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageHeaderSerializer<EntityCollectionHeader> {
+
+	@Override
+	public void write(Kryo kryo, Output output, EntityCollectionHeader object) {
+		output.writeString(object.getEntityType());
+		output.writeVarInt(object.getEntityTypePrimaryKey(), true);
+		output.writeVarLong(object.getVersion(), true);
+		output.writeVarInt(object.getLastPrimaryKey(), true);
+		output.writeVarInt(object.getLastEntityIndexPrimaryKey(), true);
+		output.writeVarInt(object.getRecordCount(), true);
+
+		final FileLocation memTableLocation = object.getFileLocation();
+		output.writeBoolean(memTableLocation != null);
+		if (memTableLocation != null) {
+			output.writeVarLong(memTableLocation.startingPosition(), true);
+			output.writeVarInt(memTableLocation.recordLength(), true);
+		}
+
+		serializeKeys(object.getCompressedKeys(), output, kryo);
+		kryo.writeObjectOrNull(output, object.getGlobalEntityIndexId(), Integer.class);
+		serializeEntityIndexIds(output, object);
+	}
+
+	@Override
+	public EntityCollectionHeader read(Kryo kryo, Input input, Class<? extends EntityCollectionHeader> type) {
+		final String entityType = input.readString();
+		final int entityTypePrimaryKey = input.readVarInt(true);
+		final long version = input.readVarLong(true);
+		final int lastPrimaryKey = input.readVarInt(true);
+		final int lastEntityIndexPrimaryKey = input.readVarInt(true);
+		final int entityCount = input.readVarInt(true);
+		final FileLocation memTableLocation = input.readBoolean() ?
+			new FileLocation(
+				input.readVarLong(true),
+				input.readVarInt(true)
+			) : null;
+		final Map<Integer, Object> keys = deserializeKeys(input, kryo);
+
+		final Integer globalIndexKey = kryo.readObjectOrNull(input, Integer.class);
+		final List<Integer> entityIndexIds = deserializeEntityIndexIds(input);
+
+		return new EntityCollectionHeader(
+			entityType, entityTypePrimaryKey, entityCount, lastPrimaryKey, lastEntityIndexPrimaryKey,
+			new PersistentStorageHeader(version, memTableLocation, keys),
+			globalIndexKey, entityIndexIds
+		);
+	}
+
+	private void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionHeader catalogEntityHeader) {
+		final int entityIndexCount = catalogEntityHeader.getUsedEntityIndexIds().size();
+		output.writeVarInt(entityIndexCount, true);
+		output.writeInts(catalogEntityHeader.getUsedEntityIndexIds().stream().mapToInt(it -> it).toArray(), 0, entityIndexCount, true);
+	}
+
+	@Nonnull
+	private List<Integer> deserializeEntityIndexIds(@Nonnull Input input) {
+		final int entityIndexCount = input.readVarInt(true);
+		return Arrays.stream(input.readInts(entityIndexCount, true))
+			.boxed()
+			.collect(Collectors.toList());
+	}
+
+}

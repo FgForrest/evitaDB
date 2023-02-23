@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEnums.proto";
+import "GrpcAttributeSchemaMutations.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcCreateReferenceSchemaMutation {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+  google.protobuf.StringValue deprecationNotice = 3;
+  GrpcCardinality cardinality = 4;
+  string referencedEntityType = 5;
+  bool referencedEntityTypeManaged = 6;
+  google.protobuf.StringValue referencedGroupType = 7;
+  bool referencedGroupTypeManaged = 8;
+  bool filterable = 9;
+  bool faceted = 10;
+}
+
+message GrpcModifyReferenceAttributeSchemaMutation {
+  string name = 1;
+  GrpcAttributeSchemaMutation attributeSchemaMutation = 2;
+}
+
+message GrpcModifyReferenceSchemaCardinalityMutation {
+  string name = 1;
+  GrpcCardinality cardinality = 2;
+}
+
+message GrpcModifyReferenceSchemaDeprecationNoticeMutation {
+  string name = 1;
+  google.protobuf.StringValue deprecationNotice = 2;
+}
+
+message GrpcModifyReferenceSchemaDescriptionMutation {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+}
+
+message GrpcModifyReferenceSchemaNameMutation {
+  string name = 1;
+  string newName = 2;
+}
+
+message GrpcModifyReferenceSchemaRelatedEntityGroupMutation {
+  string name = 1;
+  google.protobuf.StringValue referencedGroupType = 2;
+  bool referencedGroupTypeManaged = 3;
+}
+
+message GrpcModifyReferenceSchemaRelatedEntityMutation {
+  string name = 1;
+  string referencedEntityType = 2;
+  bool referencedEntityTypeManaged = 3;
+}
+
+message GrpcRemoveReferenceSchemaMutation {
+  string name = 1;
+}
+
+message GrpcSetReferenceSchemaFacetedMutation {
+  string name = 1;
+  bool faceted = 2;
+}
+
+message GrpcSetReferenceSchemaFilterableMutation {
+  string name = 1;
+  bool filterable = 2;
+}

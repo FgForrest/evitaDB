@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcAttribute.proto";
+import "GrpcPrice.proto";
+import "GrpcAssociatedData.proto";
+import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcEntityReference {
+  string entityType = 1;
+  int32 primaryKey = 2;
+  int32 version = 3;
+}
+
+message GrpcSealedEntity {
+  string entityType = 1;
+  int32 primaryKey = 2;
+  int32 version = 3;
+  int32 schemaVersion = 4;
+  GrpcHierarchicalPlacement hierarchicalPlacement = 5;
+  map<string, GrpcEvitaValue> globalAttributes = 6;
+  map<string, GrpcLocalizedAttribute> localizedAttributes = 7;
+  repeated GrpcPrice prices = 8;
+  GrpcPrice priceForSale = 9;
+  GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;
+  repeated GrpcReference references = 11;
+  map<string, GrpcEvitaAssociatedDataValue> globalAssociatedData = 12;
+  map<string, GrpcLocalizedAssociatedData> localizedAssociatedData = 13;
+  repeated GrpcLocale locales = 14;
+}
+
+message GrpcHierarchicalPlacement {
+  int32 version = 3;
+  int32 orderAmongSiblings = 13;
+  google.protobuf.Int32Value parentPrimaryKey = 14;
+}
+
+message GrpcBinaryEntity {
+  string entityType = 1;
+  int32 primaryKey = 2;
+  int32 schemaVersion = 4;
+  bytes entityStoragePart = 5;
+  repeated bytes attributeStorageParts = 6;
+  repeated bytes associatedDataStorageParts = 7;
+  bytes priceStoragePart = 8;
+  bytes referenceStoragePart = 9;
+}
+
+message GrpcReference {
+  string referenceName = 1;
+  int32 version = 2;
+  GrpcEntityReference referencedEntityReference = 3;
+  GrpcSealedEntity referencedEntity = 4;
+  oneof groupReferenceType {
+    GrpcEntityReference groupReferencedEntityReference = 5;
+    GrpcSealedEntity groupReferencedEntity = 6;
+  }
+  map<string, GrpcEvitaValue> globalAttributes = 7;
+  map<string, GrpcLocalizedAttribute> localizedAttributes = 8;
+  GrpcCardinality referenceCardinality = 9;
+}
+
+message GrpcTypeReferences {
+  repeated GrpcReference references = 1;
+}
+

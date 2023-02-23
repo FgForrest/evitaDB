@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEvitaDataTypes.proto";
+import "GrpcEnums.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcCreateAttributeSchemaMutation {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+  google.protobuf.StringValue deprecationNotice = 3;
+  bool unique = 4;
+  bool filterable = 5;
+  bool sortable = 6;
+  bool localized = 7;
+  bool nullable = 8;
+  GrpcEvitaDataType type = 9;
+  int32 indexedDecimalPlaces = 10;
+  GrpcEvitaValue defaultValue = 11;
+}
+
+message GrpcCreateGlobalAttributeSchemaMutation {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+  google.protobuf.StringValue deprecationNotice = 3;
+  bool unique = 4;
+  bool uniqueGlobally = 5;
+  bool filterable = 6;
+  bool sortable = 7;
+  bool localized = 8;
+  bool nullable = 9;
+  GrpcEvitaDataType type = 10;
+  int32 indexedDecimalPlaces = 11;
+  GrpcEvitaValue defaultValue = 12;
+}
+
+message GrpcModifyAttributeSchemaDefaultValueMutation {
+  string name = 1;
+  GrpcEvitaValue defaultValue = 2;
+}
+
+message GrpcModifyAttributeSchemaDeprecationNoticeMutation {
+  string name = 1;
+  google.protobuf.StringValue deprecationNotice = 2;
+}
+
+message GrpcModifyAttributeSchemaDescriptionMutation {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+}
+
+message GrpcModifyAttributeSchemaNameMutation {
+  string name = 1;
+  string newName = 2;
+}
+
+message GrpcModifyAttributeSchemaTypeMutation {
+  string name = 1;
+  GrpcEvitaDataType type = 2;
+  int32 indexedDecimalPlaces = 3;
+}
+
+message GrpcRemoveAttributeSchemaMutation {
+  string name = 1;
+}
+
+message GrpcSetAttributeSchemaFilterableMutation {
+  string name = 1;
+  bool filterable = 2;
+}
+
+message GrpcSetAttributeSchemaGloballyUniqueMutation {
+  string name = 1;
+  bool uniqueGlobally = 2;
+}
+
+message GrpcSetAttributeSchemaLocalizedMutation {
+  string name = 1;
+  bool localized = 2;
+}
+
+message GrpcSetAttributeSchemaNullableMutation {
+  string name = 1;
+  bool nullable = 2;
+}
+
+message GrpcSetAttributeSchemaSortableMutation {
+  string name = 1;
+  bool sortable = 2;
+}
+
+message GrpcSetAttributeSchemaUniqueMutation {
+  string name = 1;
+  bool unique = 2;
+}
+
+message GrpcUseGlobalAttributeSchemaMutation {
+  string name = 1;
+}
+
+message GrpcAttributeSchemaMutation {
+  oneof mutation {
+    GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 3;
+    GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 4;
+    GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 5;
+    GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 6;
+    GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 7;
+    GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 8;
+    GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 9;
+    GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 10;
+    GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 11;
+    GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 12;
+    GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;
+    GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;
+    GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;
+  }
+}

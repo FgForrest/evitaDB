@@ -1,0 +1,166 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.externalApi.graphql.api.builder;
+
+import graphql.schema.GraphQLEnumType;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.ByteNumberRange;
+import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
+import io.evitadb.externalApi.graphql.api.model.PropertyDataTypeDescriptorToGraphQLTypeTransformer;
+import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
+import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
+import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLInputFieldTransformer;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.util.Currency;
+import java.util.Locale;
+
+import static graphql.schema.GraphQLEnumType.newEnum;
+import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
+import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
+
+/**
+ * Common ancestor for all {@link graphql.schema.GraphQLSchema} builders.
+ *
+ * Builder should be mainly composed of `build...Field` and `build...Object` methods starting by `build...Field` method because
+ * fields are what clients see. Then, for those field backing objects are created. For those objects another fields are created
+ * and so on.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ */
+public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContext> {
+
+	protected final PropertyDataTypeDescriptorToGraphQLTypeTransformer propertyDataTypeBuilderTransformer;
+	protected final EndpointDescriptorToGraphQLFieldTransformer staticEndpointBuilderTransformer;
+	protected final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
+	protected final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
+	protected final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
+	protected final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
+	protected final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+	protected final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
+
+	@Nonnull
+	protected final C graphQLSchemaBuildingCtx;
+
+	protected GraphQLSchemaBuilder(@Nonnull C graphQLSchemaBuildingCtx) {
+		this.graphQLSchemaBuildingCtx = graphQLSchemaBuildingCtx;
+		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToGraphQLTypeTransformer(graphQLSchemaBuildingCtx);
+		this.staticEndpointBuilderTransformer = new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
+		this.argumentBuilderTransformer = new PropertyDescriptorToGraphQLArgumentTransformer(propertyDataTypeBuilderTransformer);
+		this.fieldBuilderTransformer = new PropertyDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
+		this.inputFieldBuilderTransformer = new PropertyDescriptorToGraphQLInputFieldTransformer(propertyDataTypeBuilderTransformer);
+		this.interfaceBuilderTransformer = new ObjectDescriptorToGraphQLInterfaceTransformer(fieldBuilderTransformer);
+		this.objectBuilderTransformer = new ObjectDescriptorToGraphQLObjectTransformer(fieldBuilderTransformer);
+		this.inputObjectBuilderTransformer = new ObjectDescriptorToGraphQLInputObjectTransformer(inputFieldBuilderTransformer);
+	}
+
+
+	@Nonnull
+	protected static GraphQLEnumType buildScalarEnum() {
+		final GraphQLEnumType.Builder scalarBuilder = newEnum()
+			.name(SCALAR_ENUM.name())
+			.description(SCALAR_ENUM.description());
+
+		registerScalarValue(scalarBuilder, String.class);
+		registerScalarValue(scalarBuilder, String[].class);
+		registerScalarValue(scalarBuilder, Byte.class);
+		registerScalarValue(scalarBuilder, Byte[].class);
+		registerScalarValue(scalarBuilder, Short.class);
+		registerScalarValue(scalarBuilder, Short[].class);
+		registerScalarValue(scalarBuilder, Integer.class);
+		registerScalarValue(scalarBuilder, Integer[].class);
+		registerScalarValue(scalarBuilder, Long.class);
+		registerScalarValue(scalarBuilder, Long[].class);
+		registerScalarValue(scalarBuilder, Boolean.class);
+		registerScalarValue(scalarBuilder, Boolean[].class);
+		registerScalarValue(scalarBuilder, Character.class);
+		registerScalarValue(scalarBuilder, Character[].class);
+		registerScalarValue(scalarBuilder, BigDecimal.class);
+		registerScalarValue(scalarBuilder, BigDecimal[].class);
+		registerScalarValue(scalarBuilder, OffsetDateTime.class);
+		registerScalarValue(scalarBuilder, OffsetDateTime[].class);
+		registerScalarValue(scalarBuilder, LocalDateTime.class);
+		registerScalarValue(scalarBuilder, LocalDateTime[].class);
+		registerScalarValue(scalarBuilder, LocalDate.class);
+		registerScalarValue(scalarBuilder, LocalDate[].class);
+		registerScalarValue(scalarBuilder, LocalTime.class);
+		registerScalarValue(scalarBuilder, LocalTime[].class);
+		registerScalarValue(scalarBuilder, DateTimeRange.class);
+		registerScalarValue(scalarBuilder, DateTimeRange[].class);
+		registerScalarValue(scalarBuilder, BigDecimalNumberRange.class);
+		registerScalarValue(scalarBuilder, BigDecimalNumberRange[].class);
+		registerScalarValue(scalarBuilder, ByteNumberRange.class);
+		registerScalarValue(scalarBuilder, ByteNumberRange[].class);
+		registerScalarValue(scalarBuilder, ShortNumberRange.class);
+		registerScalarValue(scalarBuilder, ShortNumberRange[].class);
+		registerScalarValue(scalarBuilder, IntegerNumberRange.class);
+		registerScalarValue(scalarBuilder, IntegerNumberRange[].class);
+		registerScalarValue(scalarBuilder, LongNumberRange.class);
+		registerScalarValue(scalarBuilder, LongNumberRange[].class);
+		registerScalarValue(scalarBuilder, Locale.class);
+		registerScalarValue(scalarBuilder, Locale[].class);
+		registerScalarValue(scalarBuilder, Currency.class);
+		registerScalarValue(scalarBuilder, Currency[].class);
+		registerScalarValue(scalarBuilder, ComplexDataObject.class);
+
+		return scalarBuilder.build();
+	}
+
+	@Nonnull
+	protected static GraphQLEnumType buildAssociatedDataScalarEnum(@Nonnull GraphQLEnumType scalarEnum) {
+		final GraphQLEnumType.Builder scalarBuilder = newEnum(scalarEnum)
+			.name(ASSOCIATED_DATA_SCALAR_ENUM.name())
+			.description(ASSOCIATED_DATA_SCALAR_ENUM.description());
+
+		registerScalarValue(scalarBuilder, ComplexDataObject.class);
+
+		return scalarBuilder.build();
+	}
+
+	private static void registerScalarValue(@Nonnull GraphQLEnumType.Builder scalarBuilder,
+	                                        @Nonnull Class<? extends Serializable> javaType) {
+		final String apiName;
+		if (javaType.isArray()) {
+			apiName = javaType.componentType().getSimpleName() + "Array";
+		} else {
+			apiName = javaType.getSimpleName();
+		}
+
+		scalarBuilder.value(apiName, javaType);
+	}
+}

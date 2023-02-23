@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
+import "GrpcAttributeMutations.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcInsertReferenceMutation {
+  string referenceName = 1;
+  int32 referencePrimaryKey = 2;
+  GrpcCardinality referenceCardinality = 3;
+  google.protobuf.StringValue referencedEntityType = 4;
+}
+
+message GrpcRemoveReferenceMutation {
+  string referenceName = 1;
+  int32 referencePrimaryKey = 2;
+}
+
+message GrpcSetReferenceGroupMutation {
+  string referenceName = 1;
+  int32 referencePrimaryKey = 2;
+  google.protobuf.StringValue groupType = 3;
+  int32 groupPrimaryKey = 4;
+}
+
+message GrpcRemoveReferenceGroupMutation {
+  string referenceName = 1;
+  int32 referencePrimaryKey = 2;
+}
+
+message GrpcReferenceAttributeMutation {
+  string referenceName = 1;
+  int32 referencePrimaryKey = 2;
+  GrpcAttributeMutation attributeMutation = 3;
+}
+
+message GrpcLocalizedAttributeMutationValue {
+  map<string, GrpcEvitaValue> attributes = 1;
+}

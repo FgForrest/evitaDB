@@ -1,0 +1,13 @@
+{
+  "intArray" : [ 78, 65 ],
+  "pojoArray" : [ {
+    "intArray" : null,
+    "pojoArray" : null,
+    "stringArray" : null
+  }, {
+    "intArray" : [ 7 ],
+    "pojoArray" : [ ],
+    "stringArray" : [ "ABC", "DEF" ]
+  } ],
+  "stringArray" : [ ]
+}

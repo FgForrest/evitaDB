@@ -1,0 +1,106 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.store.entity.serializer;
+
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.Serializer;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import lombok.RequiredArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+/**
+ * This {@link Serializer} implementation reads/writes {@link Reference} from/to binary format.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ */
+@RequiredArgsConstructor
+public class ReferenceSerializer extends Serializer<Reference> {
+
+	@Override
+	public void write(Kryo kryo, Output output, Reference reference) {
+		output.writeVarInt(reference.getVersion(), true);
+		final ReferenceKey referenceKey = reference.getReferenceKey();
+		output.writeString(referenceKey.referenceName());
+		output.writeInt(referenceKey.primaryKey());
+		output.writeBoolean(reference.isDropped());
+		final Optional<GroupEntityReference> group = reference.getGroup();
+		output.writeBoolean(group.isPresent());
+		group.ifPresent(it -> {
+			output.writeVarInt(it.getVersion(), true);
+			output.writeInt(it.getPrimaryKey());
+			output.writeBoolean(it.isDropped());
+		});
+		final Collection<AttributeValue> attributes = reference.getAttributeValues();
+		output.writeVarInt(attributes.size(), true);
+		for (AttributeValue attribute : attributes) {
+			kryo.writeObject(output, attribute);
+		}
+	}
+
+	@Override
+	public Reference read(Kryo kryo, Input input, Class<? extends Reference> type) {
+		final int version = input.readVarInt(true);
+		final String referenceName = input.readString();
+		final int entityPrimaryKey = input.readInt();
+		final boolean dropped = input.readBoolean();
+		final boolean groupExists = input.readBoolean();
+		final GroupEntityReference group;
+		if (groupExists) {
+			final int groupVersion = input.readVarInt(true);
+			final int groupPrimaryKey = input.readInt();
+			final boolean groupDropped = input.readBoolean();
+			final EntitySchema entitySchema = EntitySchemaContext.getEntitySchema();
+			final String groupType = Objects.requireNonNull(entitySchema.getReferenceOrThrowException(referenceName).getReferencedGroupType());
+			group = new GroupEntityReference(groupType, groupPrimaryKey, groupVersion, groupDropped);
+		} else {
+			group = null;
+		}
+		final EntitySchema schema = EntitySchemaContext.getEntitySchema();
+		final ReferenceSchemaContract reference = schema.getReferenceOrThrowException(referenceName);
+
+		final int attributeCount = input.readVarInt(true);
+		final List<AttributeValue> attributes = new ArrayList<>(attributeCount);
+		for (int i = 0; i < attributeCount; i++) {
+			attributes.add(kryo.readObject(input, AttributeValue.class));
+		}
+
+		return new Reference(
+			schema, version, referenceName, entityPrimaryKey, reference.getReferencedEntityType(), reference.getCardinality(),
+			group, attributes, dropped
+		);
+	}
+
+}

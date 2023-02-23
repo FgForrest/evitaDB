@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcAttributeSchemaMutations.proto";
+import "GrpcAssociatedDataSchemaMutations.proto";
+import "GrpcEntitySchemaMutations.proto";
+import "GrpcReferenceSchemaMutations.proto";
+
+message GrpcEntitySchemaMutation {
+  oneof mutation {
+    GrpcCreateAssociatedDataSchemaMutation createAssociatedDataSchemaMutation = 1;
+    GrpcModifyAssociatedDataSchemaDeprecationNoticeMutation modifyAssociatedDataSchemaDeprecationNoticeMutation = 2;
+    GrpcModifyAssociatedDataSchemaDescriptionMutation modifyAssociatedDataSchemaDescriptionMutation = 3;
+    GrpcModifyAssociatedDataSchemaNameMutation modifyAssociatedDataSchemaNameMutation = 4;
+    GrpcModifyAssociatedDataSchemaTypeMutation modifyAssociatedDataSchemaTypeMutation = 5;
+    GrpcRemoveAssociatedDataSchemaMutation removeAssociatedDataSchemaMutation = 6;
+    GrpcSetAssociatedDataSchemaLocalizedMutation setAssociatedDataSchemaLocalizedMutation = 7;
+    GrpcSetAssociatedDataSchemaNullableMutation setAssociatedDataSchemaNullableMutation = 8;
+
+    GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 9;
+    GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 10;
+    GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 11;
+    GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 12;
+    GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 13;
+    GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 14;
+    GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 15;
+    GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 16;
+    GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 17;
+    GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 18;
+    GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 19;
+    GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 20;
+    GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 21;
+
+    GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 22;
+    GrpcAllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchemaMutation = 23;
+    GrpcAllowLocaleInEntitySchemaMutation allowLocaleInEntitySchemaMutation = 24;
+    GrpcDisallowCurrencyInEntitySchemaMutation disallowCurrencyInEntitySchemaMutation = 25;
+    GrpcDisallowEvolutionModeInEntitySchemaMutation disallowEvolutionModeInEntitySchemaMutation = 26;
+    GrpcDisallowLocaleInEntitySchemaMutation disallowLocaleInEntitySchemaMutation = 27;
+    GrpcModifyEntitySchemaDeprecationNoticeMutation modifyEntitySchemaDeprecationNoticeMutation = 28;
+    GrpcModifyEntitySchemaDescriptionMutation modifyEntitySchemaDescriptionMutation = 29;
+    GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation setEntitySchemaWithGeneratedPrimaryKeyMutation = 30;
+    GrpcSetEntitySchemaWithHierarchyMutation setEntitySchemaWithHierarchyMutation = 31;
+    GrpcSetEntitySchemaWithPriceMutation setEntitySchemaWithPriceMutation = 32;
+
+    GrpcCreateReferenceSchemaMutation createReferenceSchemaMutation = 33;
+    GrpcModifyReferenceAttributeSchemaMutation modifyReferenceAttributeSchemaMutation = 34;
+    GrpcModifyReferenceSchemaCardinalityMutation modifyReferenceSchemaCardinalityMutation = 35;
+    GrpcModifyReferenceSchemaDeprecationNoticeMutation modifyReferenceSchemaDeprecationNoticeMutation = 36;
+    GrpcModifyReferenceSchemaDescriptionMutation modifyReferenceSchemaDescriptionMutation = 37;
+    GrpcModifyReferenceSchemaNameMutation modifyReferenceSchemaNameMutation = 38;
+    GrpcModifyReferenceSchemaRelatedEntityGroupMutation modifyReferenceSchemaRelatedEntityGroupMutation = 39;
+    GrpcModifyReferenceSchemaRelatedEntityMutation modifyReferenceSchemaRelatedEntityMutation = 40;
+    GrpcRemoveReferenceSchemaMutation removeReferenceSchemaMutation = 41;
+    GrpcSetReferenceSchemaFacetedMutation setReferenceSchemaFacetedMutation = 42;
+    GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 43;
+  }
+}

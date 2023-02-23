@@ -1,0 +1,279 @@
+[
+  {
+	"title": "Introduction",
+	"path" : "/index.md"
+  },
+  {
+	"title": "Get started",
+	"children" : [
+	  {
+		"title": "Run evitaDB",
+		"path" : "/get-started/run-evitadb.md"
+	  },
+	  {
+		"title": "Create your first database",
+		"path" : "/get-started/create-first-database.md"
+	  },
+	  {
+		"title": "Query our dataset",
+		"path": "/get-started/query-our-dataset.md"
+	  }
+	]
+  },
+  {
+	"title": "Use",
+	"children" : [
+	  {
+		"title": "Data model",
+		"children" : [
+		  {
+			"title": "Entity",
+			"path" : "/use/entity.md"
+		  },
+		  {
+			"title": "Data types",
+			"path" : "/use/data-types.md"
+		  },
+		  {
+			"title": "Schema",
+			"path" : "/use/schema.md"
+		  }
+		]
+	  },
+	  {
+		"title": "Connectors",
+		"children" : [
+		  {
+			"title": "GraphQL",
+			"path" : "/use/connectors/graphql.md"
+		  },
+		  {
+			"title": "REST",
+			"path" : "/use/connectors/rest.md"
+		  },
+		  {
+			"title": "gRPC",
+			"path" : "/use/connectors/grpc.md"
+		  },
+		  {
+			"title": "Java",
+			"path" : "/use/connectors/java.md"
+		  },
+		  {
+			"title": "C#",
+			"path" : "/use/connectors/c-sharp.md"
+		  }
+		]
+	  },
+	  {
+		"title": "API",
+		"children": [
+		  {
+			"title": "Define schema",
+			"path" : "/use/api/schema-api.md"
+		  },
+		  {
+			"title": "Upsert data",
+			"path" : "/use/api/write-data.md"
+		  },
+		  {
+			"title": "Query data",
+			"path" : "/use/api/query-data.md"
+		  },
+		  {
+			"title": "Write tests",
+			"path" : "/use/api/write-tests.md"
+		  },
+		  {
+			"title": "Troubleshoot",
+			"path" : "/use/api/troubleshoot.md"
+		  }
+		]
+	  }
+	]
+  },
+  {
+	"title": "Query",
+	"children": [
+	  {
+		"title": "Basics",
+		"path": "/query/basics.md"
+	  },
+	  {
+		"title": "Filtering",
+		"children": [
+		  {
+			"title": "Bitwise",
+			"path": "/query/filtering/bitwise.md"
+		  },
+		  {
+			"title": "Boolean",
+			"path": "/query/filtering/boolean.md"
+		  },
+		  {
+			"title": "Comparable",
+			"path": "/query/filtering/comparable.md"
+		  },
+		  {
+			"title": "String",
+			"path": "/query/filtering/string.md"
+		  },
+		  {
+			"title": "Locale",
+			"path": "/query/filtering/locale.md"
+		  },
+		  {
+			"title": "Range",
+			"path": "/query/filtering/range.md"
+		  },
+		  {
+			"title": "Price",
+			"path": "/query/filtering/price.md"
+		  },
+		  {
+			"title": "References",
+			"path": "/query/filtering/references.md"
+		  },
+		  {
+			"title": "Hierarchy",
+			"path": "/query/filtering/hierarchy.md"
+		  },
+		  {
+			"title": "Facet",
+			"path": "/query/filtering/facet.md"
+		  }
+		]
+	  },
+	  {
+		"title": "Ordering",
+		"path": "/query/ordering/ordering.md",
+		"children": [
+		  {
+			"title": "Natural",
+			"path": "/query/ordering/natural.md"
+		  },
+		  {
+			"title": "Price",
+			"path": "/query/ordering/price.md"
+		  },
+		  {
+			"title": "Reference",
+			"path": "/query/ordering/reference.md"
+		  },
+		  {
+			"title": "Random",
+			"path": "/query/ordering/random.md"
+		  }
+		]
+	  },
+	  {
+		"title": "Requirements",
+		"children": [
+		  {
+			"title": "Paging",
+			"path": "/query/requirements/paging.md"
+		  },
+		  {
+			"title": "Fetching",
+			"path": "/query/requirements/fetching.md"
+		  },
+		  {
+			"title": "Price",
+			"path": "/query/requirements/price.md"
+		  },
+		  {
+			"title": "Hierarchy",
+			"path": "/query/requirements/hierarchy.md"
+		  },
+		  {
+			"title": "Facet",
+			"path": "/query/requirements/facet.md"
+		  },
+		  {
+			"title": "Histogram",
+			"path": "/query/requirements/histogram.md"
+		  }
+		]
+	  }
+	]
+  },
+  {
+	"title": "Operate",
+	"children" : [
+	  {
+		"title": "Configure",
+		"path" : "/operate/configure.md"
+	  },
+	  {
+		"title": "Setup TLS",
+		"path" : "/operate/tls.md"
+	  },
+	  {
+		"title": "Run",
+		"path" : "/operate/run.md"
+	  },
+	  {
+		"title": "Backup & Restore",
+		"path": "/operate/backup-restore.md"
+	  },
+	  {
+		"title": "Monitor",
+		"path": "/operate/monitor.md"
+	  }
+	]
+  },
+  {
+	"title": "Deep dive",
+	"children" : [
+	  {
+		"title": "Storage model",
+		"path" : "/deep-dive/storage-model.md"
+	  },
+	  {
+		"title": "Bulk vs. incremental indexing",
+		"path" : "/deep-dive/bulk-vs-incremental-indexing.md"
+	  },
+	  {
+		"title": "Transactions",
+		"path": "/deep-dive/transactions.md"
+	  },
+	  {
+		"title": "Cache",
+		"path": "/deep-dive/cache.md"
+	  },
+	  {
+		"title": "Observe changes",
+		"path": "/deep-dive/observing.md"
+	  }
+	]
+  },
+  {
+	"title": "Solve",
+	"children" : [
+	  {
+		"title": "Render category menu",
+		"path" : "/solve/render-category-menu.md"
+	  },
+	  {
+		"title": "Filter products in category",
+		"path" : "/solve/filtering-products-in-category.md"
+	  },
+	  {
+		"title": "Render referenced brand",
+		"path": "/solve/render-referenced-brand.md"
+	  },
+	  {
+		"title": "Handle images & binaries",
+		"path": "/solve/handling-images-binaries.md"
+	  },
+	  {
+		"title": "External fulltext engine integration",
+		"path": "/solve/external-fulltext.md"
+	  },
+	  {
+		"title": "Model price policies",
+		"path": "/solve/model-price-policies.md"
+	  }
+	]
+  }
+]

@@ -1,0 +1,2 @@
+## old benchmark CI with 3 variants - memory, elastic, pgsql
+do_k8s_automation-POC/

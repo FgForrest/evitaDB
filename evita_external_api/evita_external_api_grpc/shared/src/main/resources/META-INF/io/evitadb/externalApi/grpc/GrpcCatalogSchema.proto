@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
+import "google/protobuf/wrappers.proto";
+
+message GrpcCatalogSchema {
+  string name = 1;
+  int32 version = 2;
+  google.protobuf.StringValue description = 3;
+  map<string, GrpcGlobalAttributeSchema> attributes = 4;
+}
+
+message GrpcGlobalAttributeSchema {
+  string name = 1;
+  google.protobuf.StringValue description = 2;
+  google.protobuf.StringValue deprecationNotice = 3;
+  bool unique = 4;
+  bool filterable = 5;
+  bool sortable = 6;
+  bool localized = 7;
+  bool nullable = 8;
+  GrpcEvitaDataType type = 9;
+  GrpcEvitaValue defaultValue = 10;
+  int32 indexedDecimalPlaces = 11;
+  bool uniqueGlobally = 12;
+}

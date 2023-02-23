@@ -1,0 +1,157 @@
+syntax = "proto3";
+
+package io.evitadb.externalApi.grpc.generated;
+option java_multiple_files = true;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "GrpcEnums.proto";
+
+message GrpcIntegerNumberRange {
+  google.protobuf.Int32Value from = 1;
+  google.protobuf.Int32Value to = 2;
+}
+
+message GrpcLongNumberRange {
+  google.protobuf.Int64Value from = 1;
+  google.protobuf.Int64Value to = 2;
+}
+
+message GrpcBigDecimalNumberRange {
+  GrpcBigDecimal from = 1;
+  GrpcBigDecimal to = 2;
+  int32 decimalPlacesToCompare = 3;
+}
+
+message GrpcDateTimeRange {
+  GrpcOffsetDateTime from = 1;
+  GrpcOffsetDateTime to = 2;
+}
+
+message GrpcBigDecimal {
+  uint32 scale = 1;
+  uint32 precision = 2;
+  bytes value = 3;
+  string valueString = 4;
+}
+
+message GrpcLocale {
+  string languageTag = 1;
+}
+
+message GrpcCurrency {
+  string code = 1;
+}
+
+message GrpcOffsetDateTime {
+  google.protobuf.Timestamp timestamp = 1;
+  string offset = 2;
+}
+
+message GrpcStringArray {
+  repeated string value = 1;
+}
+
+message GrpcIntegerArray {
+  repeated int32 value = 1;
+}
+
+message GrpcLongArray {
+  repeated int64 value = 1;
+}
+
+message GrpcBooleanArray {
+  repeated bool value = 1;
+}
+
+message GrpcBigDecimalArray {
+  repeated GrpcBigDecimal value = 1;
+}
+
+message GrpcDateTimeRangeArray {
+  repeated GrpcDateTimeRange value = 1;
+}
+
+message GrpcIntegerNumberRangeArray {
+  repeated GrpcIntegerNumberRange value = 1;
+}
+
+message GrpcLongNumberRangeArray {
+  repeated GrpcLongNumberRange value = 1;
+}
+
+message GrpcBigDecimalNumberRangeArray {
+  repeated GrpcBigDecimalNumberRange value = 1;
+}
+
+message GrpcOffsetDateTimeArray {
+  repeated GrpcOffsetDateTime value = 1;
+}
+
+message GrpcLocaleArray {
+  repeated GrpcLocale value = 1;
+}
+
+message GrpcCurrencyArray {
+  repeated GrpcCurrency value = 1;
+}
+
+message GrpcFacetStatisticsDepthArray {
+  repeated GrpcFacetStatisticsDepth value = 1;
+}
+
+message GrpcQueryPriceModeArray {
+  repeated GrpcQueryPriceMode value = 1;
+}
+
+message GrpcPriceContentModeArray {
+  repeated GrpcPriceContentMode value = 1;
+}
+
+message GrpcAttributeSpecialValueArray {
+  repeated GrpcAttributeSpecialValue value = 1;
+}
+
+message GrpcOrderDirectionArray {
+  repeated GrpcOrderDirection value = 1;
+}
+
+message GrpcEvitaValue {
+  oneof value {
+    string stringValue = 1;
+    int32 integerValue = 2;
+    int64 longValue = 3;
+    bool booleanValue = 4;
+    GrpcBigDecimal bigDecimalValue = 5;
+    GrpcDateTimeRange dateTimeRangeValue = 6;
+    GrpcIntegerNumberRange integerNumberRangeValue = 7;
+    GrpcLongNumberRange longNumberRangeValue = 8;
+    GrpcBigDecimalNumberRange bigDecimalNumberRangeValue = 9;
+    GrpcOffsetDateTime offsetDateTimeValue = 10;
+    GrpcLocale localeValue = 11;
+    GrpcCurrency currencyValue = 12;
+
+    GrpcStringArray stringArrayValue = 13;
+    GrpcIntegerArray integerArrayValue = 14;
+    GrpcLongArray longArrayValue = 15;
+    GrpcBooleanArray booleanArrayValue = 16;
+    GrpcBigDecimalArray bigDecimalArrayValue = 17;
+    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;
+    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;
+    GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;
+    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;
+    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;
+    GrpcLocaleArray localeArrayValue = 23;
+    GrpcCurrencyArray currencyArrayValue = 24;
+  }
+  GrpcEvitaDataType type = 30;
+  google.protobuf.Int32Value version = 31;
+}
+
+message GrpcEvitaAssociatedDataValue {
+  oneof value {
+    GrpcEvitaValue primitiveValue = 1;
+    string jsonValue = 2;
+  }
+  google.protobuf.Int32Value version = 3;
+}
