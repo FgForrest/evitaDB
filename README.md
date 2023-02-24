@@ -25,6 +25,8 @@
   <a href="https://twitter.com/evitadb_io" title="Twitter"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png" width="50px"/></a>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB/" title="GitHub"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png" width="50px"/></a>
+  &nbsp;
+  <a href="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f" title="PGP public key"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/fingerprint-scan.png" width="50px"/></a>
 </p>
 
 evitaDB is a specialized database with easy-to-use API for e-commerce systems. It is a low-latency NoSQL in-memory engine 
@@ -33,8 +35,6 @@ as a fast secondary lookup/search index used by front stores.
 
 We aim for an order of magnitude better latency (10x faster or better) for common e-commerce tasks than other SQL or 
 NoSQL database solutions on the same hardware specification. evitaDB should not be used for storing and processing primary data.
-
-PGP public key: [9d1149b0c74e939dd766c7a93de3cdccf660797f](https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f)
 
 ## Why should you consider using evitaDB instead of Elasticsearch, MongoDB or relational database?
 
