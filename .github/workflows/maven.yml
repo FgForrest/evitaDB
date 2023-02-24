@@ -11,8 +11,16 @@ name: Java CI with Maven
 on:
   push:
     branches: [ "dev" ]
+    paths:
+      - evita*/**/*.java
+      - evita*/**/pom.xml
+      - /.gitlab-ci.yml
   pull_request:
     branches: [ "dev" ]
+    paths:
+      - evita*/**/*.java
+      - evita*/**/pom.xml
+      - /.gitlab-ci.yml
 
 jobs:
   build:
@@ -37,28 +45,8 @@ jobs:
       with:
          report_paths: 'evita*/**/target/surefire-reports/TEST-*.xml'
 
-    - name: Fetch action
-      id: pl
-      uses: Rishabh510/Path-lister-action@master
-      with:
-        path: "."
-        type: ".xml"
-
-    - name: Output results
-      run: |
-        echo "Found ${{ steps.pl.outputs.path_count }} file(s) with this extension:"
-        for i in ${{ steps.pl.outputs.paths }}; do
-        echo $i
-        done
-
-    - name: Add coverage
-      id: jacoco
-      uses: madrapps/jacoco-report@v1.3
-      with:
-         paths: ${{ github.workspace }}/jacoco/target/site/jacoco-aggregate/jacoco.xml
-         token: ${{ secrets.GITHUB_TOKEN }}
-         min-coverage-overall: 60
-         min-coverage-changed-files: 40
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
