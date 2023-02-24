@@ -1,25 +1,27 @@
 # evitaDB
 
-<div class="absolute w-[360px] h-[360px] left-1/2 animate-show-fade top-[-20px] ml-[-120px] scale-[0.44] sm:top-[45px] sm:ml-[-30px] sm:scale-[0.56] md:top-[75px] md:scale-[0.64] lg:top-[95px] lg:ml-[70px] lg:scale-[0.72] xl:top-[145px] xl:ml-[110px] xl:scale-[0.86] 2xl:top-[235px] 2xl:ml-[120px] 2xl:scale-100"><img src="https://evitadb.io/img/evita-shadow.png" placeholder="blur" class="absolute max-w-none w-[600px] left-[-120px] top-[340px] opacity-75 PageHeading_pageHeading_shadow__p00Vw"><div class="PageHeading_pageHeading_evita__FY6FH"><img src="https://evitadb.io/img/evita.png" placeholder="blur" class="absolute w-[290px] left-[35px] top-[35px]"><img src="https://evitadb.io/img/eye.png" placeholder="blur" class="absolute w-[62px] left-[106px] top-[92px] PageHeading_pageHeading_eye__gtwBi"><img src="https://evitadb.io/img/eye.png" placeholder="blur" class="absolute w-[62px] left-[193px] top-[92px] PageHeading_pageHeading_eye__gtwBi"><img src="https://evitadb.io/img/hand.png" placeholder="blur" class="absolute w-[52px] left-[1px] top-[184px] PageHeading_pageHeading_hand__nOzP3"><img src="https://evitadb.io/img/hand.png" placeholder="blur" class="absolute w-[52px] left-[307px] top-[184px] PageHeading_pageHeading_hand__nOzP3"></div></div>
-
 <p align="center">
-    [![Build](https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver)](https://github.com/FgForrest/evitaDB)
-    &nbsp;
-    [![Platform](https://img.shields.io/badge/Built%20with-Java-red)](https://github.com/FgForrest/evitaDB)
-    &nbsp;
-    [![GitHub Workflow Status (with branch)](https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/maven.yml?branch=dev)](https://github.com/FgForrest/evitaDB) 
-    &nbsp;
-    [![License](https://img.shields.io/badge/license-BSL_1.1-blue.svg)](https://github.com/FgForrest/evitaDB/blob/master/LICENSE)
+  ![Evita Logo](/docs/assets/img/evita.png)
 </p>
 
 <p align="center">
-    [![Blog](https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png")](https://evitadb.io/en/blog)
+    [![Build][https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver]](https://github.com/FgForrest/evitaDB]
     &nbsp;
-    [![Research](https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png")](https://evitadb.io/research/introduction)
+    [![Platform][https://img.shields.io/badge/Built%20with-Java-red]][https://github.com/FgForrest/evitaDB]
     &nbsp;
-    [![Twitter](https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png)](https://twitter.com/evitadb_io)
+    [![GitHub Workflow Status [with branch]][https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/maven.yml?branch=dev]][https://github.com/FgForrest/evitaDB] 
     &nbsp;
-    [![GitHub](https://img.icons8.com/carbon-copy/100/FFFFFF/github.png)](https://github.com/FgForrest/evitaDB/)
+    [![License][https://img.shields.io/badge/license-BSL_1.1-blue.svg]][https://github.com/FgForrest/evitaDB/blob/master/LICENSE]
+</p>
+
+<p align="center">
+    [![Blog][https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png"]][https://evitadb.io/en/blog]
+    &nbsp;
+    [![Research][https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png"]][https://evitadb.io/research/introduction]
+    &nbsp;
+    [![Twitter][https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png]][https://twitter.com/evitadb_io]
+    &nbsp;
+    [![GitHub][https://img.icons8.com/carbon-copy/100/FFFFFF/github.png]][https://github.com/FgForrest/evitaDB/]
 </p>
 
 evitaDB is a specialized database with easy-to-use API for e-commerce systems. It is a low-latency NoSQL in-memory engine 
