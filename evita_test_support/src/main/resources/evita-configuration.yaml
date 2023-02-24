@@ -33,7 +33,8 @@ api:
       privateKeyPassword: ${api.certificate.custom.privateKeyPassword:null}
   endpoints:
     system:
-        host: ${api.system.host:localhost:5557}
+      enabled: ${api.endpoints.system.enabled:true}
+      host: ${api.endpoints.system.host:localhost:5557}
     graphQL:
       enabled: ${api.endpoints.graphQL.enabled:true}
       host: ${api.endpoints.graphQL.host:localhost:5555}
