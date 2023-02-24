@@ -23,14 +23,14 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+
+import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerFor;
 
 /**
  * This iterator is used only from {@link TransactionalComplexObjArray} to iterate over dynamic content of the array.
@@ -134,7 +134,7 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 					if (combiner != null) {
 						// combine both records
 						recordToReturn = originalRecord.makeClone();
-						TransactionalMemory.suppressTransactionalMemoryLayerFor(recordToReturn, it -> combiner.accept(it, lastInsertedRecord));
+						suppressTransactionalMemoryLayerFor(recordToReturn, it -> combiner.accept(it, lastInsertedRecord));
 					} else {
 						// return original record - skipping added one
 						recordToReturn = lastInsertedRecord.makeClone();
@@ -147,7 +147,7 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 						return recordToReturn;
 					} else if (reducer != null && obsoleteChecker != null) {
 						// if there are reducers - just reduce scope of the record
-						TransactionalMemory.suppressTransactionalMemoryLayerFor(recordToReturn, it -> reducer.accept(it, removedValue));
+						suppressTransactionalMemoryLayerFor(recordToReturn, it -> reducer.accept(it, removedValue));
 						// and if still not obsolete return it
 						if (!obsoleteChecker.test(recordToReturn)) {
 							return recordToReturn;
@@ -194,7 +194,7 @@ class TransactionalComplexObjArrayIterator<T extends TransactionalObject<T, ?> &
 				// if there is and reducer is present - clone original record at this position
 				final T originalRecordClone = this.original[this.position].makeClone();
 				// reduce the scope
-				TransactionalMemory.suppressTransactionalMemoryLayerFor(originalRecordClone, it -> reducer.accept(it, removedValue));
+				suppressTransactionalMemoryLayerFor(originalRecordClone, it -> reducer.accept(it, removedValue));
 				// and if the record is not yet obsolete - return it
 				if (obsoleteChecker != null && !obsoleteChecker.test(originalRecordClone)) {
 					return originalRecordClone;

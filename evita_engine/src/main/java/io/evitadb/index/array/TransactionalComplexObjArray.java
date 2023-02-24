@@ -41,9 +41,9 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayer;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayerIfExists;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.isTransactionalMemoryAvailable;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -295,9 +295,9 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 	@Override
 	public ComplexObjArrayChanges<T> createLayer() {
 		if (producer != null) {
-			return isTransactionalMemoryAvailable() ? new ComplexObjArrayChanges<>(objectType, delegate, producer, reducer, obsoleteChecker, deepComparator) : null;
+			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, delegate, producer, reducer, obsoleteChecker, deepComparator) : null;
 		} else {
-			return isTransactionalMemoryAvailable() ? new ComplexObjArrayChanges<>(objectType, delegate) : null;
+			return isTransactionAvailable() ? new ComplexObjArrayChanges<>(objectType, delegate) : null;
 		}
 	}
 

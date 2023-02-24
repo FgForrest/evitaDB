@@ -25,7 +25,6 @@ package io.evitadb.index.array;
 
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 
@@ -38,6 +37,9 @@ import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerFor;
+import static io.evitadb.core.Transaction.suppressTransactionalMemoryLayerForWithResult;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -144,7 +146,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			boolean reduced = false;
 			if (this.removals.length > removalsPeek && this.removals[removalsPeek] == i) {
 				// get record that is removed on that position
-				final T removedValue = getRemovalOnPositionWithoutDiscardingState(TransactionalMemory.getTransactionalMemoryLayer(), i);
+				final T removedValue = getRemovalOnPositionWithoutDiscardingState(getTransactionalMemoryLayer(), i);
 				// if reducer is present
 				if (reducer != null) {
 					// and the removed value doesn't happen on position of item in original array
@@ -153,7 +155,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 						// clone the original item
 						final T clonedOriginal = original[i].makeClone();
 						// apply reducer
-						TransactionalMemory.suppressTransactionalMemoryLayerFor(
+						suppressTransactionalMemoryLayerFor(
 							clonedOriginal, it -> reducer.accept(it, removedValue)
 						);
 						// and if there is something left increase removal index
@@ -274,20 +276,20 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 		}
 		final BiPredicate<T, Integer> couldBeRemoved = obsoleteChecker == null ? (originalValue, examinedPosition) -> true : (originalValue, examinedPosition) -> {
 			final T clonedValue = originalValue.makeClone();
-			return TransactionalMemory.suppressTransactionalMemoryLayerForWithResult(clonedValue, it -> {
+			return suppressTransactionalMemoryLayerForWithResult(clonedValue, it -> {
 				final int insertPoint = Arrays.binarySearch(this.insertions, this.removals[examinedPosition]);
 				if (insertPoint >= 0) {
 					final T[] insertedValuesRef = this.insertedValues[insertPoint];
 					final T insertedValue = insertedValuesRef[insertedValuesRef.length - 1];
 					if (insertedValue.compareTo(it) == 0) {
 						// we need to avoid creating additional transactional states here
-						TransactionalMemory.suppressTransactionalMemoryLayerFor(
+						suppressTransactionalMemoryLayerFor(
 							it, theIt -> combiner.accept(it, insertedValue)
 						);
 					}
 				}
 				// we need to avoid creating additional transactional states here
-				TransactionalMemory.suppressTransactionalMemoryLayerFor(
+				suppressTransactionalMemoryLayerFor(
 					it, theIt -> reducer.accept(theIt, this.removedValues[examinedPosition])
 				);
 				return obsoleteChecker.test(it);
@@ -369,7 +371,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 							// and if combiner is available - merge it to the cloned record
 							if (combiner != null) {
 								// we are inside transactional memory and combination would only record deltas - we need to avoid this and compute final contents
-								TransactionalMemory.suppressTransactionalMemoryLayerFor(
+								suppressTransactionalMemoryLayerFor(
 									lastDelegateRecordClone, it -> combiner.accept(it, lastInsertedRecord)
 								);
 							}
@@ -412,7 +414,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 							// just reduce values on already added position, there is guarantee that at least something will stay after reducing
 							if (reducer != null) {
 								// we are inside transactional memory and reduction would only record deltas - we need to avoid this and compute final contents
-								TransactionalMemory.suppressTransactionalMemoryLayerFor(
+								suppressTransactionalMemoryLayerFor(
 									lastDelegateRecordClone, it -> reducer.accept(it, removedValue)
 								);
 							}
@@ -424,7 +426,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 							// if reducer is available - reduce contents of the cloned record
 							if (reducer != null) {
 								// we are inside transactional memory and reduction would only record deltas - we need to avoid this and compute final contents
-								TransactionalMemory.suppressTransactionalMemoryLayerFor(
+								suppressTransactionalMemoryLayerFor(
 									lastDelegateRecordClone, it -> reducer.accept(it, removedValue)
 								);
 							}
@@ -665,7 +667,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 		// if the reducer exists, check whether removal does really remove something
 		if (reducer != null) {
 			final T originalClone = this.original[position].makeClone();
-			TransactionalMemory.suppressTransactionalMemoryLayerFor(
+			suppressTransactionalMemoryLayerFor(
 				originalClone, it -> reducer.accept(it, recordId)
 			);
 			if (deepComparator != null && deepComparator.test(originalClone, this.original[position])) {

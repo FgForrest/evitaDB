@@ -36,8 +36,8 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayer;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
  * This class envelopes simple atomic reference and makes it transactional. This means, that the reference can be updated

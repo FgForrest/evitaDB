@@ -39,7 +39,6 @@ import io.evitadb.index.histogram.InvertedIndex;
 import io.evitadb.index.histogram.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
@@ -55,6 +54,7 @@ import java.lang.reflect.Array;
 import java.util.Collection;
 import java.util.Map;
 
+import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.StringUtils.unknownToString;
@@ -187,7 +187,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			addRecordToHistogramAndValueIndex(recordId, (T) verifyValue(value));
 		}
 
-		if (!TransactionalMemory.isTransactionalMemoryAvailable()) {
+		if (!isTransactionAvailable()) {
 			this.memoizedAllRecordsFormula = null;
 		}
 		this.dirty.setToTrue();
@@ -227,7 +227,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			removeRecordFromHistogramAndValueIndex(recordId, (T) value);
 		}
 
-		if (!TransactionalMemory.isTransactionalMemoryAvailable()) {
+		if (!isTransactionAvailable()) {
 			this.memoizedAllRecordsFormula = null;
 		}
 		this.dirty.setToTrue();
@@ -280,7 +280,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	public Formula getAllRecordsFormula() {
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (TransactionalMemory.isTransactionalMemoryAvailable()) {
+		if (isTransactionAvailable()) {
 			return getHistogramOfAllRecords().getFormula();
 		} else {
 			if (this.memoizedAllRecordsFormula == null) {

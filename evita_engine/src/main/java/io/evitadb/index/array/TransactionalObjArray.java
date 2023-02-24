@@ -40,9 +40,10 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.function.ToIntBiFunction;
 
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayer;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayerIfExists;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.isTransactionalMemoryAvailable;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.Transaction.isTransactionAvailable;
+
 
 /**
  * This array keeps unique (distinct) Comparable values in strictly ordered fashion (naturally ordered - ascending).
@@ -232,7 +233,7 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 
 	@Override
 	public ObjArrayChanges<T> createLayer() {
-		return isTransactionalMemoryAvailable() ? new ObjArrayChanges<>(this.delegate) : null;
+		return isTransactionAvailable() ? new ObjArrayChanges<>(this.delegate) : null;
 	}
 
 	@Nonnull

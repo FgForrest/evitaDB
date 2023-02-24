@@ -30,7 +30,9 @@ import io.evitadb.api.exception.UnexpectedRollbackException;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.transactionalMemory.TransactionalLayerConsumer;
+import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
+import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.CatalogPersistenceService;
@@ -43,18 +45,21 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Optional.ofNullable;
 
@@ -67,6 +72,8 @@ import static java.util.Optional.ofNullable;
 public final class Transaction implements TransactionContract {
 	public static final String ERROR_MESSAGE_TIMEOUT = "Failed to commit transaction within timeout!";
 	private static final ReentrantLock LOCK = new ReentrantLock(true);
+	private static final ThreadLocal<Transaction> CURRENT_TRANSACTION = new ThreadLocal<>();
+
 	/**
 	 * Contains unique transactional id that gets incremented with each transaction opened in the catalog. Latest
 	 * committed transaction id gets printed into the {@link CatalogBootstrap} and is restored
@@ -78,9 +85,14 @@ public final class Transaction implements TransactionContract {
 	 */
 	@Getter private final long id;
 	/**
-	 * The {@link EvitaSession#getId()} this transaction is bound to.
+	 * Contains reference to the transactional memory that keeps the difference layer for this transaction.
 	 */
-	private final UUID sessionId;
+	@Getter private final TransactionalMemory transactionalMemory;
+	/**
+	 * Reference to catalog that is valid for this transaction. The transaction keeps SNAPSHOT isolation contract,
+	 * so that this reference cannot be changed.
+	 */
+	private final CatalogContract originalCatalog;
 	/**
 	 * Atomic reference, that will obtain pointer to a new version of catalog once it's created.
 	 */
@@ -104,6 +116,183 @@ public final class Transaction implements TransactionContract {
 	@Getter private boolean closed;
 
 	/**
+	 * Method initializes current session UUID to the thread context and binds transaction for particular session as
+	 * the "current" transaction.
+	 */
+	public static void executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Runnable lambda) {
+		if (transaction == null) {
+			lambda.run();
+		} else {
+			boolean bound = false;
+			try {
+				bound = transaction.bindTransactionToThread();
+				lambda.run();
+			} catch (Throwable ex) {
+				transaction.setRollbackOnly();
+				throw ex;
+			} finally {
+				if (bound) {
+					transaction.unbindTransactionFromThread();
+				}
+			}
+		}
+	}
+
+	/**
+	 * Method initializes current session UUID to the thread context and binds transaction for particular session as
+	 * the "current" transaction.
+	 */
+	public static <T> T executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Supplier<T> lambda) {
+		if (transaction == null) {
+			return lambda.get();
+		} else {
+			boolean bound = false;
+			try {
+				bound = transaction.bindTransactionToThread();
+				return lambda.get();
+			} catch (Throwable ex) {
+				transaction.setRollbackOnly();
+				throw ex;
+			} finally {
+				if (bound) {
+					transaction.unbindTransactionFromThread();
+				}
+			}
+		}
+	}
+
+	/**
+	 * Returns true if transaction is present and usable.
+	 */
+	public static boolean isTransactionAvailable() {
+		return CURRENT_TRANSACTION.get() != null;
+	}
+
+	/**
+	 * Returns transactional layer for states, that is isolated for this thread.
+	 */
+	@Nullable
+	public static <T> T getTransactionalMemoryLayerIfExists(@Nonnull TransactionalLayerCreator<T> layerCreator) {
+		// we may safely do this because transactionalLayer is stored in ThreadLocal and
+		// thus won't be accessed by multiple threads at once
+		final Transaction transaction = CURRENT_TRANSACTION.get();
+		if (transaction != null) {
+			return transaction.transactionalMemory.getTransactionalMemoryLayerIfExists(layerCreator);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
+	 */
+	@Nullable
+	public static TransactionalLayerMaintainer getTransactionalMemoryLayer() {
+		// we may safely do this because transactionalLayer is stored in ThreadLocal and
+		// thus won't be accessed by multiple threads at once
+		final Transaction transaction = CURRENT_TRANSACTION.get();
+		if (transaction != null) {
+			return transaction.transactionalMemory.getTransactionalMemoryLayer();
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
+	 */
+	@Nullable
+	public static <T> T getTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
+		// we may safely do this because transactionalLayer is stored in ThreadLocal and
+		// thus won't be accessed by multiple threads at once
+		final Transaction transaction = CURRENT_TRANSACTION.get();
+		if (transaction != null) {
+			return transaction.transactionalMemory.getTransactionalMemoryLayer(layerCreator);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * Removes transactional layer for passed layer creator.
+	 */
+	@Nullable
+	public static <T> T removeTransactionalMemoryLayerIfExists(@Nonnull TransactionalLayerCreator<T> layerCreator) {
+		// we may safely do this because transactionalLayer is stored in ThreadLocal and
+		// thus won't be accessed by multiple threads at once
+		final Transaction transaction = CURRENT_TRANSACTION.get();
+		if (transaction != null) {
+			// we may safely do this because transactionalLayer is stored in ThreadLocal and
+			// thus won't be accessed by multiple threads at once
+			return transaction.transactionalMemory.removeTransactionalMemoryLayerIfExists(layerCreator);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * This method will suppress creation of new transactional layer for passed `object` when it is asked for inside
+	 * the `objectConsumer` lambda. This makes the object effectively transactional-less for the scope of the lambda
+	 * function.
+	 */
+	public static <T, U> U suppressTransactionalMemoryLayerForWithResult(@Nonnull T object, @Nonnull Function<T, U> objectConsumer) {
+		// we may safely do this because transactionalLayer is stored in ThreadLocal and
+		// thus won't be accessed by multiple threads at once
+		final Transaction transaction = CURRENT_TRANSACTION.get();
+		if (transaction != null) {
+			// we may safely do this because transactionalLayer is stored in ThreadLocal and
+			// thus won't be accessed by multiple threads at once
+			return transaction.transactionalMemory.suppressTransactionalMemoryLayerForWithResult(object, objectConsumer);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * This method will suppress creation of new transactional layer for passed `object` when it is asked for inside
+	 * the `objectConsumer` lambda. This makes the object effectively transactional-less for the scope of the lambda
+	 * function.
+	 */
+	public static <T> void suppressTransactionalMemoryLayerFor(@Nonnull T object, @Nonnull Consumer<T> objectConsumer) {
+		// we may safely do this because transactionalLayer is stored in ThreadLocal and
+		// thus won't be accessed by multiple threads at once
+		final Transaction txMemory = CURRENT_TRANSACTION.get();
+		if (txMemory != null) {
+			// we may safely do this because transactionalLayer is stored in ThreadLocal and
+			// thus won't be accessed by multiple threads at once
+			txMemory.transactionalMemory.suppressTransactionalMemoryLayerFor(object, objectConsumer);
+		}
+	}
+
+	/**
+	 * Returns transactional layer for states, that is isolated for this thread.
+	 */
+	@Nonnull
+	public static Optional<Transaction> getTransaction() {
+		// we may safely do this because transactionalLayer is stored in ThreadLocal and
+		// thus won't be accessed by multiple threads at once
+		return ofNullable(CURRENT_TRANSACTION.get());
+	}
+
+	/**
+	 * Do not use this method outside the tests!
+	 */
+	@Nonnull
+	public static Transaction createMockTransactionForTests() {
+		return new Transaction();
+	}
+
+	/**
+	 * This constructor should be used only in tests.
+	 */
+	private Transaction() {
+		this.id = 0L;
+		this.originalCatalog = null;
+		this.transactionalMemory = new TransactionalMemory(this.id);
+		this.updatedCatalogCallback = updatedCatalog -> {};
+	}
+
+	/**
 	 * Creates new transaction with snapshot isolation.
 	 *
 	 * @param currentCatalog         reference to the current version of the catalog the transaction begins with
@@ -111,14 +300,16 @@ public final class Transaction implements TransactionContract {
 	 *                               reference is created. The callback obtains reference to the new immutable version
 	 *                               of the catalog.
 	 */
-	public Transaction(@Nonnull UUID sessionId, @Nonnull CatalogContract currentCatalog, @Nonnull BiConsumer<CatalogContract, CatalogContract> updatedCatalogCallback) {
+	public Transaction(
+		@Nonnull CatalogContract currentCatalog,
+		@Nonnull BiConsumer<CatalogContract, CatalogContract> updatedCatalogCallback
+	) {
 		if (currentCatalog instanceof Catalog theCatalog) {
 			this.id = theCatalog.getNextTransactionId();
-			this.sessionId = sessionId;
+			this.originalCatalog = currentCatalog;
+			this.transactionalMemory = new TransactionalMemory(this.id);
 			this.updatedCatalogCallback = updatedCatalog -> updatedCatalogCallback.accept(currentCatalog, updatedCatalog);
-			TransactionalMemory.open(sessionId);
-			TransactionalMemory.addTransactionCommitHandler(
-				sessionId,
+			transactionalMemory.addTransactionCommitHandler(
 				transactionalLayer -> {
 					final List<? extends TransactionalLayerConsumer> layerConsumers = transactionalLayer.getLayerConsumers();
 					if (!layerConsumers.isEmpty()) {
@@ -150,7 +341,10 @@ public final class Transaction implements TransactionContract {
 	public Catalog onCommit(@Nonnull Catalog currentCatalog, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		try {
 			// init new catalog with the same collections as previous one
-			final Catalog newCatalog = transactionalLayer.getStateCopyWithCommittedChanges(currentCatalog, this);
+			final Catalog newCatalog = executeInTransactionIfProvided(
+				this,
+				() -> transactionalLayer.getStateCopyWithCommittedChanges(currentCatalog, this)
+			);
 			// now let's flush the catalog on the disk
 			newCatalog.flushTransaction(id, updateInstructions);
 			// and return reference to a new catalog
@@ -173,19 +367,25 @@ public final class Transaction implements TransactionContract {
 			return;
 		}
 
-		closed = true;
-
-		if (isRollbackOnly()) {
-			TransactionalMemory.rollback(sessionId);
-		} else {
-			TransactionalMemory.commit(sessionId);
-			final CatalogContract newCatalog = updatedCatalog.get();
-			Assert.isPremiseValid(
-				newCatalog != null,
-				"New version of catalog was not created as expected!"
-			);
-			updatedCatalogCallback.accept(newCatalog);
+		final CatalogContract newCatalog;
+		try {
+			if (isRollbackOnly()) {
+				newCatalog = originalCatalog;
+			} else {
+				transactionalMemory.commit();
+				newCatalog = updatedCatalog.get();
+				Assert.isPremiseValid(
+					id == 0L || newCatalog != null,
+					"New version of catalog was not created as expected!"
+				);
+			}
+		} finally {
+			// now we remove the transactional memory - no object will see it transactional memory from now on
+			CURRENT_TRANSACTION.remove();
+			closed = true;
 		}
+
+		updatedCatalogCallback.accept(newCatalog);
 	}
 
 	/**
@@ -210,6 +410,40 @@ public final class Transaction implements TransactionContract {
 			() -> new EvitaInternalError("It's not allowed to register deferred operation for entity collection that targets catalog!")
 		);
 		this.updateInstructions.register(entityType, deferredStorageOperation);
+	}
+
+	/**
+	 * Registers transaction commit handler for current transaction. Implementation of {@link TransactionalLayerConsumer}
+	 * may withdraw multiple {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} 4
+	 * and use their results to swap certain internal state atomically.
+	 *
+	 * All withdrawn objects will be considered as committed.
+	 */
+	public void addTransactionCommitHandler(@Nonnull TransactionalLayerConsumer consumer) {
+		this.transactionalMemory.addTransactionCommitHandler(consumer);
+	}
+
+	/**
+	 * Binds this transaction to current thread.
+	 */
+	public boolean bindTransactionToThread() {
+		final Transaction currentValue = CURRENT_TRANSACTION.get();
+		Assert.isPremiseValid(
+			currentValue == null || currentValue == this,
+			() -> "You cannot mix calling different sessions within one thread (sessions `" + currentValue.id + "` and `" + this.id + "`)!");
+		if (currentValue == null) {
+			CURRENT_TRANSACTION.set(this);
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Unbinds transaction from current thread.
+	 */
+	public void unbindTransactionFromThread() {
+		CURRENT_TRANSACTION.remove();
 	}
 
 	/**

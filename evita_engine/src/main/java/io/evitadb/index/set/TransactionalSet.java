@@ -28,7 +28,6 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import lombok.Getter;
 
@@ -46,6 +45,9 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
  * This class envelopes simple set and makes it transactional. This means, that the map contents can be updated
@@ -131,7 +133,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public int size() {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.setDelegate.size();
 		} else {
@@ -141,7 +143,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean isEmpty() {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.setDelegate.isEmpty();
 		} else {
@@ -151,7 +153,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean contains(Object o) {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.setDelegate.contains(o);
 		} else {
@@ -161,7 +163,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public Iterator<K> iterator() {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return setDelegate.iterator();
 		} else {
@@ -171,7 +173,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public Object[] toArray() {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.setDelegate.toArray();
 		} else {
@@ -181,7 +183,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public <T> T[] toArray(@Nonnull T[] a) {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			//noinspection SuspiciousToArrayCall
 			return this.setDelegate.toArray(a);
@@ -192,7 +194,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean add(K key) {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.add(key);
 		} else {
@@ -202,7 +204,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean remove(Object key) {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.remove(key);
 		} else {
@@ -212,7 +214,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean containsAll(@Nonnull Collection<?> c) {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.setDelegate.containsAll(c);
 		} else {
@@ -222,7 +224,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean addAll(@Nonnull Collection<? extends K> c) {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.addAll(c);
 		} else {
@@ -236,7 +238,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean retainAll(@Nonnull Collection<?> c) {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.retainAll(c);
 		} else {
@@ -255,7 +257,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public boolean removeAll(@Nonnull Collection<?> c) {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.setDelegate.removeAll(c);
 		} else {
@@ -274,7 +276,7 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Override
 	public void clear() {
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.setDelegate.clear();
 		} else {
@@ -315,9 +317,9 @@ public class TransactionalSet<K> implements Set<K>,
 	@Override
 	public Object clone() throws CloneNotSupportedException {
 		@SuppressWarnings("unchecked") final TransactionalSet<K> clone = (TransactionalSet<K>) super.clone();
-		final SetChanges<K> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final SetChanges<K> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer != null) {
-			final SetChanges<K> clonedLayer = TransactionalMemory.getTransactionalMemoryLayer(clone);
+			final SetChanges<K> clonedLayer = getTransactionalMemoryLayer(clone);
 			if (clonedLayer != null) {
 				clonedLayer.copyState(layer);
 			}

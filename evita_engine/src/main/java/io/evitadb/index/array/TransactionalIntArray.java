@@ -40,9 +40,9 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
 
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayer;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayerIfExists;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.isTransactionalMemoryAvailable;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.Transaction.isTransactionAvailable;
 
 /**
  * This array keeps unique (distinct) integer values in strictly ordered fashion (naturally ordered - ascending).
@@ -239,7 +239,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 
 	@Override
 	public IntArrayChanges createLayer() {
-		return isTransactionalMemoryAvailable() ? new IntArrayChanges(this.delegate) : null;
+		return isTransactionAvailable() ? new IntArrayChanges(this.delegate) : null;
 	}
 
 	@Nonnull

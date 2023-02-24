@@ -46,7 +46,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
@@ -62,6 +61,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -234,7 +234,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	@Nonnull
 	public int[] getIndexedPriceIds() {
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (TransactionalMemory.isTransactionalMemoryAvailable()) {
+		if (isTransactionAvailable()) {
 			return this.indexedPriceIds.getArray();
 		} else {
 			if (memoizedIndexedPriceIds == null) {

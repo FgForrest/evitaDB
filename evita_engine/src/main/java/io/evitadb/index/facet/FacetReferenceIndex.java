@@ -37,7 +37,6 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -57,6 +56,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -160,7 +160,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * @return true if entity id was really added
 	 */
 	public boolean addFacet(int facetPrimaryKey, @Nullable Integer groupId, int entityPrimaryKey) {
-		final FacetEntityTypeIndexChanges txLayer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final FacetEntityTypeIndexChanges txLayer = getTransactionalMemoryLayer(this);
 		final FacetGroupIndex facetGroupIndex;
 		if (groupId == null) {
 			if (this.notGroupedFacets == null) {
@@ -223,7 +223,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 		// if facet was removed check whether there are any data left
 		if (removed && facetGroupIndex.isEmpty()) {
 			// we need to keep track of removed internal transactional memory related data structures
-			final FacetEntityTypeIndexChanges txLayer = TransactionalMemory.getTransactionalMemoryLayer(this);
+			final FacetEntityTypeIndexChanges txLayer = getTransactionalMemoryLayer(this);
 			// remove the index entirely
 			if (groupId == null) {
 				this.notGroupedFacets = null;

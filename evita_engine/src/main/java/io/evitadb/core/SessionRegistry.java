@@ -28,7 +28,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -142,6 +141,8 @@ final class SessionRegistry {
 		activeSessions.values()
 			.stream()
 			.map(EvitaSessionTuple::plainSession)
+			// except those with active transaction which are protected by SNAPSHOT isolation
+			.filter(it -> !it.isTransactionOpen())
 			.forEach(it -> it.updateCatalogReference(catalog));
 	}
 
@@ -160,8 +161,8 @@ final class SessionRegistry {
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) {
 			// invoke original method on delegate
-			return TransactionalMemory.bindSession(
-				evitaSession.getId(),
+			return Transaction.executeInTransactionIfProvided(
+				evitaSession.getOpenedTransaction().orElse(null),
 				() -> {
 					try {
 						return method.invoke(evitaSession, args);

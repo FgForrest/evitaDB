@@ -38,7 +38,6 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
@@ -56,6 +55,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.AttributeIndex.verifyLocalizedAttribute;
 import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.ofNullable;
@@ -144,7 +145,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
 				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(lookupKey, attributeSchema.getType(), catalog);
-				ofNullable(TransactionalMemory.getTransactionalMemoryLayer(this))
+				ofNullable(getTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				this.dirty.setToTrue();
 				return newUniqueIndex;
@@ -173,7 +174,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 
 		if (theUniqueIndex.isEmpty()) {
 			this.uniqueIndex.remove(lookupKey);
-			ofNullable(TransactionalMemory.getTransactionalMemoryLayer(this))
+			ofNullable(getTransactionalMemoryLayer(this))
 				.ifPresent(it -> it.addRemovedItem(theUniqueIndex));
 			this.dirty.setToTrue();
 		}
@@ -202,7 +203,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	@Nullable
 	@Override
 	public CatalogIndexChanges createLayer() {
-		return TransactionalMemory.isTransactionalMemoryAvailable() ? new CatalogIndexChanges() : null;
+		return isTransactionAvailable() ? new CatalogIndexChanges() : null;
 	}
 
 	@Nonnull
@@ -270,7 +271,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	}
 
 	/**
-	 * Method creates container that is possible to serialize with {@link com.esotericsoftware.kryo.Kryo} and store
+	 * Method creates container that is possible to serialize with Kryo and store
 	 * into persistent storage.
 	 */
 	private StoragePart createStoragePart() {

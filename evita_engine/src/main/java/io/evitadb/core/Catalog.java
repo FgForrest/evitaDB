@@ -87,6 +87,7 @@ import io.evitadb.store.spi.operation.RenameCollectionOperation;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -111,6 +112,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 @ThreadSafe
 public final class Catalog implements CatalogContract, TransactionalLayerProducer<DataSourceChanges<CatalogIndexKey, CatalogIndex>, Catalog> {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -745,7 +747,14 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * Returns next unique transaction id for the catalog.
 	 */
 	long getNextTransactionId() {
-		return txPkSequence.incrementAndGet();
+		return txPkSequence.updateAndGet(operand -> {
+			try {
+				return Math.addExact(operand, 1);
+			} catch (ArithmeticException ex) {
+				log.warn("Transactional id overflew! Starting from 1 again.");
+				return 1L;
+			}
+		});
 	}
 
 	/**
