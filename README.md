@@ -40,7 +40,7 @@ NoSQL database solutions on the same hardware specification. evitaDB should not 
 
 - evitaDB is a database specialized for e-commerce tasks and has everything you need to implement an e-commerce catalog
 - evitaDB is [more performant](docs/performance/performance_comparison.md) than Elasticsearch or PostgreSQL on the same
-  HW sizing
+  HW sizing in typical e-commerce scenarios
 - evitaDB has a ready to use API from the day one:
 
     - [GraphQL](docs/user/en/use/connectors/graphql.md) - targets rich JavaScript front-ends
