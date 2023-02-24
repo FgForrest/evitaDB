@@ -2,7 +2,7 @@
 
 
 <p align="center">
-![Evita logo](docs/assets/img/evita.png)
+  <img src="/FgForrest/evitaDB/raw/dev/docs/assets/img/evita.png">
 </p>
 
 <p align="center">
