@@ -2,7 +2,7 @@
 
 
 <p align="center">
-  <img src="/FgForrest/evitaDB/raw/dev/docs/assets/img/evita.png">
+  <img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png">
 </p>
 
 <p align="center">
