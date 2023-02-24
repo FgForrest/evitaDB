@@ -50,7 +50,7 @@ import java.lang.reflect.Array;
 import java.util.HashMap;
 import java.util.Map;
 
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 

@@ -1059,11 +1059,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Override
-	public void clearCache() {
-		assertActive();
-	}
-
-	@Override
 	public boolean isReadOnly() {
 		return !sessionTraits.isReadWrite();
 	}

@@ -40,8 +40,8 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayer;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
  * This class envelopes simple primitive int bitmap and makes it transactional. This means, that the bitmap can be updated

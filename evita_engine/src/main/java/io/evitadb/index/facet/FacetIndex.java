@@ -40,7 +40,6 @@ import io.evitadb.index.set.TransactionalSet;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.spi.model.storageParts.index.FacetIndexStoragePart;
 import io.evitadb.utils.Assert;
@@ -61,6 +60,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -154,7 +154,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	@Override
 	public void addFacet(@Nonnull ReferenceKey referenceKey, @Nullable Integer groupId, int entityPrimaryKey) {
 		// we need to keep track of created internal transactional memory related data structures
-		final FacetIndexChanges txLayer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final FacetIndexChanges txLayer = getTransactionalMemoryLayer(this);
 		// fetch or create index for referenced entity type
 		final FacetReferenceIndex facetEntityTypeIndex = this.facetingEntities.computeIfAbsent(
 			referenceKey.referenceName(),
@@ -180,7 +180,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		// if facet was removed check whether there are any data left
 		if (removed && facetEntityTypeIndex.isEmpty()) {
 			// we need to keep track of removed internal transactional memory related data structures
-			final FacetIndexChanges txLayer = TransactionalMemory.getTransactionalMemoryLayer(this);
+			final FacetIndexChanges txLayer = getTransactionalMemoryLayer(this);
 			// remove the index entirely
 			this.facetingEntities.remove(referenceKey.referenceName());
 			ofNullable(txLayer).ifPresent(it -> it.addRemovedItem(facetEntityTypeIndex));

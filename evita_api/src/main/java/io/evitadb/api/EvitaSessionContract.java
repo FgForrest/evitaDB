@@ -795,14 +795,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	void setRollbackOnly();
 
 	/**
-	 * Clears all {@link EvitaSessionContract} caches and forces loading all entities again even if they were already loaded
-	 * in this session.
-	 *
-	 * TOBEDONE JNO - clear entity cache here
-	 */
-	void clearCache();
-
-	/**
 	 * Method returns true if the session is in read-only mode. That means no transaction is opened and no data will
 	 * be modified within this session. Read-only sessions allow more aggressive optimizations, such as using cached
 	 * results.

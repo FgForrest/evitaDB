@@ -37,7 +37,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -50,7 +49,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 class TransactionalMemoryTest {
-	private static final UUID MOCK_SESSION_ID = UUID.randomUUID();
 	private HashMap<String, Integer> underlyingData1;
 	private HashMap<String, Integer> underlyingData2;
 	private HashMap<String, Map<String, Integer>> underlyingData3;
@@ -59,6 +57,7 @@ class TransactionalMemoryTest {
 	private TransactionalMap<String, Integer> tested1;
 	private TransactionalMap<String, Integer> tested2;
 	private TransactionalMap<String, Map<String, Integer>> tested3;
+	private Transaction transaction;
 
 	@BeforeEach
 	void setUp() {
@@ -85,104 +84,109 @@ class TransactionalMemoryTest {
 			tested3.put(entry.getKey(), new TransactionalMap<>(entry.getValue()));
 		}
 
-		TransactionalMemory.open(MOCK_SESSION_ID);
+		transaction = Transaction.createMockTransactionForTests();
 	}
 
 	@AfterEach
 	void tearDown() {
-		TransactionalMemory.rollback(MOCK_SESSION_ID);
+		transaction.setRollbackOnly();
+		transaction.close();
 	}
 
 	@Test
 	void shouldControlCommitAtomicity() {
-		TransactionalMemory.bindSession(
-			MOCK_SESSION_ID,
+		final TestTransactionalLayerConsumer consumer = new TestTransactionalLayerConsumer();
+		Transaction.executeInTransactionIfProvided(
+			transaction,
 			() -> {
 				tested1.put("c", 3);
 				tested2.put("c", 4);
 
-				final TestTransactionalLayerConsumer consumer = new TestTransactionalLayerConsumer();
-				TransactionalMemory.addTransactionCommitHandler(MOCK_SESSION_ID, consumer);
-				TransactionalMemory.commit(MOCK_SESSION_ID);
-
-				assertNull(tested1.get("c"));
-				assertNull(underlyingData1.get("c"));
-				assertEquals(Integer.valueOf(3), consumer.getCommited1().get("c"));
-
-				assertNull(tested2.get("c"));
-				assertNull(underlyingData2.get("c"));
-				assertEquals(Integer.valueOf(4), consumer.getCommited2().get("c"));
+				transaction.addTransactionCommitHandler(consumer);
 			}
 		);
+
+		transaction.close();
+
+		assertNull(tested1.get("c"));
+		assertNull(underlyingData1.get("c"));
+		assertEquals(Integer.valueOf(3), consumer.getCommited1().get("c"));
+
+		assertNull(tested2.get("c"));
+		assertNull(underlyingData2.get("c"));
+		assertEquals(Integer.valueOf(4), consumer.getCommited2().get("c"));
 	}
 
 	@Test
 	void shouldControlCommitAtomicityDeepWise() {
-		TransactionalMemory.bindSession(
-			MOCK_SESSION_ID,
+		final TestTransactionalLayerConsumer consumer = new TestTransactionalLayerConsumer();
+		Transaction.executeInTransactionIfProvided(
+			transaction,
 			() -> {
 				tested3.get("a").put("a", 1);
 				tested3.get("b").put("b", 2);
 
-				final TestTransactionalLayerConsumer consumer = new TestTransactionalLayerConsumer();
-				TransactionalMemory.addTransactionCommitHandler(MOCK_SESSION_ID, consumer);
-				TransactionalMemory.commit(MOCK_SESSION_ID);
-
-				assertNull(tested3.get("a").get("a"));
-				assertNull(underlyingData3A.get("a"));
-				final Map<String, Integer> committed3A = consumer.getCommited3().get("a");
-				assertFalse(committed3A instanceof TransactionalMap);
-				assertEquals(Integer.valueOf(1), committed3A.get("a"));
-				assertEquals(Integer.valueOf(3), committed3A.get("c"));
-
-				assertNull(tested3.get("b").get("b"));
-				assertNull(underlyingData3B.get("b"));
-				final Map<String, Integer> committed3B = consumer.getCommited3().get("b");
-				assertFalse(committed3B instanceof TransactionalMap);
-				assertEquals(Integer.valueOf(2), committed3B.get("b"));
-				assertEquals(Integer.valueOf(4), committed3B.get("d"));
+				transaction.addTransactionCommitHandler(consumer);
 			}
 		);
+
+		transaction.close();
+
+		assertNull(tested3.get("a").get("a"));
+		assertNull(underlyingData3A.get("a"));
+		final Map<String, Integer> committed3A = consumer.getCommited3().get("a");
+		assertFalse(committed3A instanceof TransactionalMap);
+		assertEquals(Integer.valueOf(1), committed3A.get("a"));
+		assertEquals(Integer.valueOf(3), committed3A.get("c"));
+
+		assertNull(tested3.get("b").get("b"));
+		assertNull(underlyingData3B.get("b"));
+		final Map<String, Integer> committed3B = consumer.getCommited3().get("b");
+		assertFalse(committed3B instanceof TransactionalMap);
+		assertEquals(Integer.valueOf(2), committed3B.get("b"));
+		assertEquals(Integer.valueOf(4), committed3B.get("d"));
 	}
 
 	@Test
 	void shouldControlCommitAtomicityDeepWiseWithChangesToPrimaryMap() {
-		TransactionalMemory.bindSession(
-			MOCK_SESSION_ID,
+		final TestTransactionalLayerConsumer consumer = new TestTransactionalLayerConsumer();
+		Transaction.executeInTransactionIfProvided(
+			transaction,
 			() -> {
 				final TransactionalMap<String, Integer> newMap = new TransactionalMap<>(new HashMap<>());
 				tested3.put("a", newMap);
 				newMap.put("a", 99);
 				tested3.remove("b");
 
-				final TestTransactionalLayerConsumer consumer = new TestTransactionalLayerConsumer();
-				TransactionalMemory.addTransactionCommitHandler(MOCK_SESSION_ID, consumer);
-				TransactionalMemory.commit(MOCK_SESSION_ID);
-
-				assertNull(tested3.get("a").get("a"));
-				assertNull(underlyingData3A.get("a"));
-				final Map<String, Integer> committed3A = consumer.getCommited3().get("a");
-				assertFalse(committed3A instanceof TransactionalMap);
-				assertEquals(Integer.valueOf(99), committed3A.get("a"));
-
-				assertNull(tested3.get("b").get("b"));
-				assertNull(underlyingData3B.get("b"));
-				final Map<String, Integer> committed3B = consumer.getCommited3().get("b");
-				assertNull(committed3B);
+				transaction.addTransactionCommitHandler(consumer);
 			}
 		);
+
+		transaction.close();
+
+		assertNull(tested3.get("a").get("a"));
+		assertNull(underlyingData3A.get("a"));
+		final Map<String, Integer> committed3A = consumer.getCommited3().get("a");
+		assertFalse(committed3A instanceof TransactionalMap);
+		assertEquals(Integer.valueOf(99), committed3A.get("a"));
+
+		assertNull(tested3.get("b").get("b"));
+		assertNull(underlyingData3B.get("b"));
+		final Map<String, Integer> committed3B = consumer.getCommited3().get("b");
+		assertNull(committed3B);
 	}
 
 	@Test
 	void shouldCheckStaleItems() {
-		TransactionalMemory.bindSession(
-			MOCK_SESSION_ID,
+		Transaction.executeInTransactionIfProvided(
+			transaction,
 			() -> {
 				final TestTransactionalMemoryProducer testProducer = new TestTransactionalMemoryProducer();
 				testProducer.changeState();
-				assertThrows(StaleTransactionMemoryException.class, () -> TransactionalMemory.commit(MOCK_SESSION_ID));
 			}
 		);
+
+		assertThrows(StaleTransactionMemoryException.class, () -> transaction.close());
 	}
 
 	private static class TestTransactionalMemoryProducer implements TransactionalLayerProducer<FakeLayer, TestTransactionalMemoryProducer> {
@@ -205,7 +209,7 @@ class TransactionalMemoryTest {
 		}
 
 		public void changeState() {
-			TransactionalMemory.getTransactionalMemoryLayer(this);
+			Transaction.getTransactionalMemoryLayer(this);
 		}
 	}
 

@@ -36,7 +36,6 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
@@ -55,6 +54,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.UniqueIndex.verifyValue;
 import static io.evitadb.index.attribute.UniqueIndex.verifyValueArray;
 import static io.evitadb.utils.Assert.isTrue;
@@ -231,7 +231,7 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 	@Nullable
 	@Override
 	public TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>> createLayer() {
-		return TransactionalMemory.isTransactionalMemoryAvailable() ? new TransactionalContainerChanges<>() : null;
+		return isTransactionAvailable() ? new TransactionalContainerChanges<>() : null;
 	}
 
 	@Nonnull

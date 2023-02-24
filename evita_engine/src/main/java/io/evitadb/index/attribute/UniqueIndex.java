@@ -37,7 +37,6 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.UniqueIndexStoragePart;
@@ -52,6 +51,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static io.evitadb.core.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.StringUtils.unknownToString;
 import static java.util.Optional.ofNullable;
@@ -168,7 +168,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	 */
 	public Formula getRecordIdsFormula() {
 		// if there is transaction open, there might be changes in the bitmap, and we can't easily use cache
-		if (TransactionalMemory.isTransactionalMemoryAvailable()) {
+		if (isTransactionAvailable()) {
 			return new ConstantFormula(recordIds);
 		} else {
 			if (this.memoizedAllRecordsFormula == null) {
@@ -224,7 +224,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	@Nullable
 	@Override
 	public TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>> createLayer() {
-		return TransactionalMemory.isTransactionalMemoryAvailable() ? new TransactionalContainerChanges<>() : null;
+		return isTransactionAvailable() ? new TransactionalContainerChanges<>() : null;
 	}
 
 	@Nonnull
@@ -282,7 +282,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 			registerUniqueKeyValue((T) key, recordId);
 		}
 
-		if (!TransactionalMemory.isTransactionalMemoryAvailable()) {
+		if (!isTransactionAvailable()) {
 			this.memoizedAllRecordsFormula = null;
 		}
 
@@ -318,7 +318,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 			returnValue = unregisterUniqueKeyValue((T) key, expectedRecordId);
 		}
 
-		if (!TransactionalMemory.isTransactionalMemoryAvailable()) {
+		if (!isTransactionAvailable()) {
 			this.memoizedAllRecordsFormula = null;
 		}
 

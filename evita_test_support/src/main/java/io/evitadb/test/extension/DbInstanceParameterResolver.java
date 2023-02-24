@@ -328,7 +328,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				.storage(
 					StorageOptions.builder()
 						.storageDirectory(STORAGE_PATH)
-						.maxOpenedReadHandles(1)
+						.maxOpenedReadHandles(1000)
 						.build()
 				)
 				.build()

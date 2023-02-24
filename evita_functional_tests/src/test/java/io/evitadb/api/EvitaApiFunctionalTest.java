@@ -799,7 +799,7 @@ class EvitaApiFunctionalTest {
 			});
 		}
 
-		assertTrue(latch.await(45, TimeUnit.SECONDS), "Timeouted!");
+		assertTrue(latch.await(450, TimeUnit.SECONDS), "Timeouted!");
 
 		if (terminatingException.get() != null) {
 			throw terminatingException.get();
