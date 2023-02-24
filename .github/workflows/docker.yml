@@ -13,18 +13,17 @@ jobs:
       - name: Download a single artifact
         uses: actions/download-artifact@v3
         with:
-          name: ${{vars.RELEASE_ARTIFACT}}
+          name: evita-server.jar
 
       - name: Build the Docker image
         env:
           BUILD_ROOT: docker
-          EVITA_JAR_NAME: evita-server.jar
           CI_REGISTRY: ${{vars.CI_REGISTRY}}
           RELEASE_IMAGE: ${{vars.RELEASE_IMAGE}}
           CI_REGISTRY_USER: ${{vars.CI_REGISTRY_USER}}
           CI_REGISTRY_PASSWORD: ${{secrets.CI_REGISTRY_PASSWORD}}
         run: |
-          mv -v "$RELEASE_ARTIFACT" "$BUILD_ROOT/$EVITA_JAR_NAME"    
+          mv -v "evita-server.jar" "$BUILD_ROOT/evita-server.jar"    
           ls -la $BUILD_ROOT
           $BUILD_ROOT/build.sh
           echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
