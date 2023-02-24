@@ -37,6 +37,20 @@ jobs:
       with:
          report_paths: 'evita*/**/target/surefire-reports/TEST-*.xml'
 
+    - name: Fetch action
+      id: pl
+      uses: Rishabh510/Path-lister-action@master
+      with:
+        path: "."
+        type: ".xml"
+
+    - name: Output results
+      run: |
+        echo "Found ${{ steps.pl.outputs.path_count }} file(s) with this extension:"
+        for i in ${{ steps.pl.outputs.paths }}; do
+        echo $i
+        done
+
     - name: Add coverage
       id: jacoco
       uses: madrapps/jacoco-report@v1.3
