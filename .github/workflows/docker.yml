@@ -23,18 +23,20 @@ jobs:
         env:
           BUILD_ROOT: docker
           CI_REGISTRY: ${{vars.CI_REGISTRY}}
-          RELEASE_IMAGE: ${{vars.CI_REGISTRY_IMAGE}}
+          CI_REGISTRY_IMAGE: ${{vars.CI_REGISTRY_IMAGE}}
+          RELEASE_IMAGE: "evitadb:latest"
           CI_REGISTRY_USER: ${{vars.CI_REGISTRY_USER}}
           CI_REGISTRY_PASSWORD: ${{secrets.CI_REGISTRY_PASSWORD}}
           EVITA_JAR_NAME: evita-server.jar
         run: |
-          echo "Release image: $RELEASE_IMAGE"
           echo "Evita JAR name: $EVITA_JAR_NAME"
           echo "Build root: $BUILD_ROOT"
           mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"    
           ls -la $BUILD_ROOT        
           $BUILD_ROOT/build.sh
           echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
-          docker push "$RELEASE_IMAGE"
+          echo "Release image: $CI_REGISTRY_IMAGE/$RELEASE_IMAGE"
+          docker push "$CI_REGISTRY_IMAGE/$RELEASE_IMAGE"
           docker logout "$CI_REGISTRY"
+          docker rm $(docker ps -a -q)
           docker rmi "$RELEASE_IMAGE"
