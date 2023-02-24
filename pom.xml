@@ -131,7 +131,6 @@
 		<module>evita_performance_tests</module>
 		<module>workaround/grpc</module>
 		<module>workaround/roaringBitmap</module>
-		<module>jacoco</module>
 	</modules>
 
 	<dependencyManagement>
