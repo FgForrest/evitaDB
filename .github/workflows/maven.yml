@@ -20,7 +20,7 @@ on:
     paths:
       - evita*/**/*.java
       - evita*/**/pom.xml
-      - /.gitlab-ci.yml
+      - .github/**
 
 jobs:
   build:
