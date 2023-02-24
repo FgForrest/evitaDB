@@ -43,7 +43,7 @@ jobs:
       uses: actions/upload-artifact@v2
       if: success()
       with:
-        name: ${{vars.RELEASE_ARTIFACT}}
+        name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload coverage to Codecov
