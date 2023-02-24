@@ -1,7 +1,8 @@
 # evitaDB
 
+
 <p align="center">
-  ![Evita Logo](/docs/assets/img/evita.png)
+  ![Evita logo](docs/assets/img/evita.png)
 </p>
 
 <p align="center">
