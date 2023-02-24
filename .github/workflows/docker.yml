@@ -30,13 +30,14 @@ jobs:
           EVITA_JAR_NAME: evita-server.jar
         run: |
           echo "Evita JAR name: $EVITA_JAR_NAME"
-          echo "Build root: $BUILD_ROOT"
+          echo "Build root: $BUILD_ROOT"        
           mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"    
           ls -la $BUILD_ROOT        
           $BUILD_ROOT/build.sh
           echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
-          echo "Release image: $CI_REGISTRY_IMAGE/$RELEASE_IMAGE"
-          docker push "$CI_REGISTRY_IMAGE/$RELEASE_IMAGE"
+          echo "Pushing image: $CI_REGISTRY_IMAGE/$RELEASE_IMAGE"
+          docker push "$CI_REGISTRY_IMAGE/$RELEASE_IMAGE"      
           docker logout "$CI_REGISTRY"
+          echo "Cleaning"
           docker rm $(docker ps -a -q)
           docker rmi "$RELEASE_IMAGE"
