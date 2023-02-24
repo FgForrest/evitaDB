@@ -8,6 +8,8 @@
 <p align="center">
   <a href="https://github.com/FgForrest/evitaDB" title="Build"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/></a>
   &nbsp;
+  <a href="https://codecov.io/gh/FgForrest/evitaDB"><img src="https://codecov.io/gh/FgForrest/evitaDB/branch/dev/graph/badge.svg?token=9VDOBPOBFL"/></a>
+  &nbsp;
   <a href="https://github.com/FgForrest/evitaDB" title="Platform"><img src="https://img.shields.io/badge/Built%20with-Java-red"/></a>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB" title="GitHub Workflow Status"><img src="https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/maven.yml?branch=dev"/></a>
