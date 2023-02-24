@@ -53,11 +53,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1815,7 +1814,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final OffsetDateTime theMoment = OffsetDateTime.of(2003, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+				final OffsetDateTime theMoment = OffsetDateTime.of(2003, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
@@ -2150,7 +2149,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final OffsetDateTime theMoment = OffsetDateTime.of(LocalDateTime.of(2015, 1, 1, 0, 0), ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+				final OffsetDateTime theMoment = OffsetDateTime.of(LocalDateTime.of(2015, 1, 1, 0, 0), ZoneOffset.UTC);
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
@@ -2904,7 +2903,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldSortEntitiesAccordingToOffsetDateTimeAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2003, 6, 10, 14, 24, 32, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2003, 6, 10, 14, 24, 32, 0, ZoneOffset.UTC);
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {

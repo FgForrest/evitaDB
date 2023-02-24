@@ -26,9 +26,8 @@ package io.evitadb.dataType;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -44,9 +43,9 @@ class MultipleTest {
 		final Multiple multiple = new Multiple(
 			1,
 			new BigDecimal("1.2"),
-			OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.of(2022, 12, 1, 0, 0)))
+			OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
 		);
-		assertEquals("{1,1.2,2020-01-01T00:00:00+01:00}", multiple.toString());
+		assertEquals("{1,1.2,2020-01-01T00:00:00Z}", multiple.toString());
 	}
 
 	@Test

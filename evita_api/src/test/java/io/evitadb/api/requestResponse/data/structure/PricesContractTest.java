@@ -34,10 +34,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Currency;
 
@@ -60,12 +59,12 @@ class PricesContractTest {
 	private static final String LOGGED_ONLY = "loggedOnly";
 	private static final String VIP = "vip";
 	private static final String REFERENCE = "reference";
-	private static final OffsetDateTime MOMENT_2020 = OffsetDateTime.of(2020, 12, 31, 23, 59, 59, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
-	private static final OffsetDateTime MOMENT_2011 = OffsetDateTime.of(2011, 12, 31, 23, 59, 59, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+	private static final OffsetDateTime MOMENT_2020 = OffsetDateTime.of(2020, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC);
+	private static final OffsetDateTime MOMENT_2011 = OffsetDateTime.of(2011, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC);
 	private static final DateTimeRange RANGE_2010_2012 = DateTimeRange.between(
 		LocalDateTime.of(2010, 1, 1, 0, 0, 0, 0),
 		LocalDateTime.of(2012, 12, 31, 23, 59, 59, 0),
-		ZoneId.systemDefault().getRules().getOffset(Instant.now())
+		ZoneOffset.UTC
 	);
 
 	@Test

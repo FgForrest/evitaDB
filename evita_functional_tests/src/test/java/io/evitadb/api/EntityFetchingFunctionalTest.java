@@ -51,9 +51,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -1098,7 +1097,7 @@ public class EntityFetchingFunctionalTest {
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
 	void shouldRetrieveMultipleEntitiesWithPricesValidInTimeByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProductEntities,
 			it -> it.getPrices().stream().filter(PriceContract::isSellable).map(PriceContract::getValidity).anyMatch(validity -> validity == null || validity.isValidFor(theMoment))
@@ -1553,7 +1552,7 @@ public class EntityFetchingFunctionalTest {
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
 	void shouldLazyLoadFilteredPrices(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2013, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2013, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
 			originalProductEntities,
 			it -> it.getPrices()

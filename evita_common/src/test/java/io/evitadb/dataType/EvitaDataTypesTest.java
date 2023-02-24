@@ -27,12 +27,12 @@ import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Currency;
 import java.util.Locale;
@@ -328,7 +328,7 @@ class EvitaDataTypesTest {
 
 	@Test
 	void shouldConvertToOffsetDateTime() {
-		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		assertEquals(theDate, EvitaDataTypes.toTargetType(theDate, OffsetDateTime.class));
 		assertEquals(theDate, EvitaDataTypes.toTargetType(theDate.toLocalDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), OffsetDateTime.class));
 		assertEquals(theDate, EvitaDataTypes.toTargetType(theDate.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE), OffsetDateTime.class));
@@ -344,7 +344,7 @@ class EvitaDataTypesTest {
 
 	@Test
 	void shouldConvertToLocalDateTime() {
-		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final LocalDateTime theLocalDate = LocalDateTime.of(2021, 1, 1, 0, 0, 0, 0);
 		assertEquals(theLocalDate, EvitaDataTypes.toTargetType(theDate, LocalDateTime.class));
 		assertEquals(theLocalDate, EvitaDataTypes.toTargetType(theDate.toLocalDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), LocalDateTime.class));
@@ -361,7 +361,7 @@ class EvitaDataTypesTest {
 
 	@Test
 	void shouldConvertToLocalDate() {
-		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final LocalDate theLocalDate = LocalDate.of(2021, 1, 1);
 		assertEquals(theLocalDate, EvitaDataTypes.toTargetType(theDate, LocalDate.class));
 		assertEquals(theLocalDate, EvitaDataTypes.toTargetType(theDate.toLocalDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), LocalDate.class));
@@ -378,7 +378,7 @@ class EvitaDataTypesTest {
 
 	@Test
 	void shouldConvertToLocalTime() {
-		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 11, 45, 51, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now()));
+		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 11, 45, 51, 0, ZoneOffset.UTC);
 		final LocalTime theLocalTime = LocalTime.of(11, 45, 51);
 		assertEquals(theLocalTime, EvitaDataTypes.toTargetType(theDate, LocalTime.class));
 		assertEquals(theLocalTime, EvitaDataTypes.toTargetType(theDate.toLocalTime().format(DateTimeFormatter.ISO_LOCAL_TIME), LocalTime.class));
@@ -394,7 +394,7 @@ class EvitaDataTypesTest {
 
 	@Test
 	void shouldConvertToDateTimeRange() {
-		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theDate = OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		assertEquals(DateTimeRange.since(theDate), EvitaDataTypes.toTargetType(DateTimeRange.since(theDate), DateTimeRange.class));
 		assertEquals(DateTimeRange.since(theDate), EvitaDataTypes.toTargetType("[" + theDate.toLocalDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + ",]", DateTimeRange.class));
 		assertEquals(DateTimeRange.since(theDate), EvitaDataTypes.toTargetType("[" + theDate.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE) + ",]", DateTimeRange.class));

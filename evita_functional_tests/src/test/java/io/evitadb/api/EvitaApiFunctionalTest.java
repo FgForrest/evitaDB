@@ -70,6 +70,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.HashMap;
@@ -1527,7 +1528,7 @@ class EvitaApiFunctionalTest {
 		return DateTimeRange.between(
 			LocalDateTime.of(yearFrom, 1, 1, 0, 0, 0),
 			LocalDateTime.of(yearTo, 1, 1, 0, 0, 0),
-			ZoneId.systemDefault().getRules().getOffset(Instant.now())
+			ZoneOffset.UTC
 		);
 	}
 

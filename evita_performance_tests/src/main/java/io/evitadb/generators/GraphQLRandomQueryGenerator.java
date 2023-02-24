@@ -67,7 +67,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
@@ -132,7 +132,7 @@ public interface GraphQLRandomQueryGenerator {
 		final long to = max.getPreciseTo() == null ? max.getFrom() : max.getTo();
 		final long inBetween = Math.round(from + random.nextDouble() * (to - from));
 		final Instant instant = Instant.ofEpochMilli(inBetween);
-		return OffsetDateTime.ofInstant(instant, ZoneId.systemDefault());
+		return OffsetDateTime.ofInstant(instant, ZoneOffset.UTC);
 	}
 
 	/**
