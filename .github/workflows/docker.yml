@@ -1,0 +1,31 @@
+name: DockerHub deploy
+
+on:
+  workflow_run:
+    workflows: ['CI']                     # runs after CI workflow
+    types:
+      - completed
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download a single artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{var.RELEASE_ARTIFACT}}
+
+      - name: Build the Docker image
+        env:
+          BUILD_ROOT: docker
+          EVITA_JAR_NAME: evita-server.jar
+          DOCKER_USER: ${{secrets.DOCKERHUB_USER}}
+          DOCKER_PASSWORD: ${{secrets.DOCKERHUB_TOKEN}}
+        run: |
+          mv -v "$RELEASE_ARTIFACT" "$BUILD_ROOT/$EVITA_JAR_NAME"    
+          ls -la $BUILD_ROOT
+          $BUILD_ROOT/build.sh
+          echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+          docker push "$RELEASE_IMAGE"
+          docker logout "$CI_REGISTRY"
+          docker rmi "$RELEASE_IMAGE"
