@@ -235,6 +235,37 @@
 		</dependency>
 	</dependencies>
 	<profiles>
+		<!-- using a toolchain when version doesn't match -->
+		<profile>
+			<id>toolchains</id>
+			<activation>
+				<jdk>[1.3,17)</jdk>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-toolchains-plugin</artifactId>
+						<version>${maven.toolchains.version}</version>
+						<executions>
+							<execution>
+								<goals>
+									<goal>toolchain</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<toolchains>
+								<jdk>
+									<version>${java.version}</version>
+									<vendor>openjdk</vendor>
+								</jdk>
+							</toolchains>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
 		<!-- GPG Signature on release -->
 		<profile>
 			<id>release-sign-artifacts</id>
@@ -336,26 +367,6 @@
 	</profiles>
 	<build>
 		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-toolchains-plugin</artifactId>
-				<version>${maven.toolchains.version}</version>
-				<executions>
-					<execution>
-						<goals>
-							<goal>toolchain</goal>
-						</goals>
-					</execution>
-				</executions>
-				<configuration>
-					<toolchains>
-						<jdk>
-							<version>${java.version}</version>
-							<vendor>openjdk</vendor>
-						</jdk>
-					</toolchains>
-				</configuration>
-			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
