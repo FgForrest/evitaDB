@@ -8,28 +8,27 @@ on:
 
 jobs:
   on-success:
-    build:
-      runs-on: ubuntu-latest
-      steps:
-        - name: Download a single artifact
-          uses: dawidd6/action-download-artifact@v2
-          with:
-            workflow: CI
-            workflow_conclusion: success
-            name: evita-server.jar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download a single artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: CI
+          workflow_conclusion: success
+          name: evita-server.jar
 
-        - name: Build the Docker image
-          env:
-            BUILD_ROOT: docker
-            CI_REGISTRY: ${{vars.CI_REGISTRY}}
-            RELEASE_IMAGE: ${{vars.RELEASE_IMAGE}}
-            CI_REGISTRY_USER: ${{vars.CI_REGISTRY_USER}}
-            CI_REGISTRY_PASSWORD: ${{secrets.CI_REGISTRY_PASSWORD}}
-          run: |
-            mv -v "evita-server.jar" "$BUILD_ROOT/evita-server.jar"    
-            ls -la $BUILD_ROOT
-            $BUILD_ROOT/build.sh
-            echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
-            docker push "$RELEASE_IMAGE"
-            docker logout "$CI_REGISTRY"
-            docker rmi "$RELEASE_IMAGE"
+      - name: Build the Docker image
+        env:
+          BUILD_ROOT: docker
+          CI_REGISTRY: ${{vars.CI_REGISTRY}}
+          RELEASE_IMAGE: ${{vars.RELEASE_IMAGE}}
+          CI_REGISTRY_USER: ${{vars.CI_REGISTRY_USER}}
+          CI_REGISTRY_PASSWORD: ${{secrets.CI_REGISTRY_PASSWORD}}
+        run: |
+          mv -v "evita-server.jar" "$BUILD_ROOT/evita-server.jar"    
+          ls -la $BUILD_ROOT
+          $BUILD_ROOT/build.sh
+          echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+          docker push "$RELEASE_IMAGE"
+          docker logout "$CI_REGISTRY"
+          docker rmi "$RELEASE_IMAGE"
