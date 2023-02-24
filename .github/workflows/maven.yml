@@ -48,10 +48,6 @@ jobs:
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
-      ignore:
-        - "evita_query/src/main/java/io/evitadb/api/query/parser/grammar/**"
-        - "evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/generated/**"
-        - "evita_test_support/src/main/java/io/evitadb/test/**"
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
