@@ -2,27 +2,28 @@
 
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png" style="max-width: 30%;">
+  <img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png"/>
 </p>
 
 <p align="center">
-  <a href="https://github.com/FgForrest/evitaDB"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/>>Build</a>
+  <a href="https://github.com/FgForrest/evitaDB" title="Build"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/>></a>
   &nbsp;
-  [![Platform][https://img.shields.io/badge/Built%20with-Java-red]][https://github.com/FgForrest/evitaDB]
+  <a href="https://github.com/FgForrest/evitaDB" title="Platform"><img src="https://img.shields.io/badge/Built%20with-Java-red"/></a>
+  [![][]][]
   &nbsp;
-  [![GitHub Workflow Status [with branch]][https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/maven.yml?branch=dev]][https://github.com/FgForrest/evitaDB] 
+  <a href="https://github.com/FgForrest/evitaDB" title="GitHub Workflow Status"><img src="https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/maven.yml?branch=dev"/></a>
   &nbsp;
-  [![License][https://img.shields.io/badge/license-BSL_1.1-blue.svg]][https://github.com/FgForrest/evitaDB/blob/master/LICENSE]
+  <a href="https://github.com/FgForrest/evitaDB/blob/master/LICENSE" title="License"><img src="https://img.shields.io/badge/license-BSL_1.1-blue.svg"/></a>
 </p>
 
 <p align="center">
-[![Blog][https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png"]][https://evitadb.io/en/blog]
-&nbsp;
-[![Research][https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png"]][https://evitadb.io/research/introduction]
-&nbsp;
-[![Twitter][https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png]][https://twitter.com/evitadb_io]
-&nbsp;
-[![GitHub][https://img.icons8.com/carbon-copy/100/FFFFFF/github.png]][https://github.com/FgForrest/evitaDB/]
+  <a href="https://evitadb.io/en/blog" title="Blog"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png"/></a>
+  &nbsp;
+  <a href="https://evitadb.io/research/introduction" title="Research"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png"/></a>
+  &nbsp;
+  <a href="https://twitter.com/evitadb_io" title="Twitter"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png"/></a>
+  &nbsp;
+  <a href="https://github.com/FgForrest/evitaDB/" title="GitHub"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png"/></a>
 </p>
 
 evitaDB is a specialized database with easy-to-use API for e-commerce systems. It is a low-latency NoSQL in-memory engine 
