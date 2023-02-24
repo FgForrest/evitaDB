@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/FgForrest/evitaDB" title="Build"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/>></a>
+  <a href="https://github.com/FgForrest/evitaDB" title="Build"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/></a>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB" title="Platform"><img src="https://img.shields.io/badge/Built%20with-Java-red"/></a>
   &nbsp;
@@ -16,15 +16,15 @@
 </p>
 
 <p align="center">
-  <a href="https://evitadb.io/en/blog" title="Blog"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50%"/></a>
+  <a href="https://evitadb.io/en/blog" title="Blog"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50px"/></a>
   &nbsp;
-  <a href="https://evitadb.io/documentation/index" title="Documentation"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/saving-book.png" width="50%"/></a>
+  <a href="https://evitadb.io/documentation/index" title="Documentation"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/saving-book.png" width="50px"/></a>
   &nbsp;
-  <a href="https://evitadb.io/research/introduction" title="Research"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/microscope.png" width="50%"/></a>
+  <a href="https://evitadb.io/research/introduction" title="Research"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/microscope.png" width="50px"/></a>
   &nbsp;
-  <a href="https://twitter.com/evitadb_io" title="Twitter"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png" width="50%"/></a>
+  <a href="https://twitter.com/evitadb_io" title="Twitter"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png" width="50px"/></a>
   &nbsp;
-  <a href="https://github.com/FgForrest/evitaDB/" title="GitHub"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png" width="50%"/></a>
+  <a href="https://github.com/FgForrest/evitaDB/" title="GitHub"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png" width="50px"/></a>
 </p>
 
 evitaDB is a specialized database with easy-to-use API for e-commerce systems. It is a low-latency NoSQL in-memory engine 
