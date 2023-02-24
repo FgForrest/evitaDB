@@ -1,4 +1,4 @@
-name: DockerHub deploy
+name: 'DockerHub deploy'
 
 on:
   workflow_run:
