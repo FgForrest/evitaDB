@@ -48,7 +48,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -328,11 +328,11 @@ class ComplexDataObjectConverterTest {
 			true, false,
 			'A', 'B',
 			new BigDecimal("123.12"),
-			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.of(2022, 12, 1, 0, 0))),
+			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
 			LocalDateTime.of(2021, 1, 1, 0, 0, 0, 0),
 			LocalDate.of(2021, 1, 1),
 			LocalTime.of(0, 0, 0, 0),
-			DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.of(2022, 12, 1, 0, 0)))),
+			DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)),
 			IntegerNumberRange.to(124),
 			Locale.CANADA,
 			innerContainer,
@@ -351,11 +351,11 @@ class ComplexDataObjectConverterTest {
 			true, false,
 			'A', 'B',
 			new BigDecimal("123.12"),
-			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.of(2022, 12, 1, 0, 0))),
+			OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC),
 			LocalDateTime.of(2021, 1, 1, 0, 0, 0, 0),
 			LocalDate.of(2021, 1, 1),
 			LocalTime.of(0, 0, 0, 0),
-			DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.of(2022, 12, 1, 0, 0)))),
+			DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)),
 			IntegerNumberRange.to(124),
 			Locale.CANADA,
 			innerContainer

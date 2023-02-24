@@ -25,9 +25,8 @@ package io.evitadb.api.query.filter;
 
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import static io.evitadb.api.query.QueryConstraints.priceValidIn;
 import static io.evitadb.api.query.QueryConstraints.priceValidNow;
@@ -42,7 +41,7 @@ class PriceValidInTest {
 
 	@Test
 	void shouldCreateMomentViaFactoryClassWorkAsExpected() {
-		final OffsetDateTime now = OffsetDateTime.now(ZoneId.systemDefault());
+		final OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		final PriceValidIn priceValidIn = priceValidIn(now);
 		assertEquals(now, priceValidIn.getTheMoment());
 
@@ -54,18 +53,18 @@ class PriceValidInTest {
 	void shouldRecognizeApplicability() {
 		assertTrue(new PriceValidIn(null).isApplicable());
 		assertTrue(new PriceValidIn().isApplicable());
-		assertTrue(priceValidIn(OffsetDateTime.now(ZoneId.systemDefault())).isApplicable());
+		assertTrue(priceValidIn(OffsetDateTime.now(ZoneOffset.UTC)).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		final PriceValidIn inDateRange = priceValidIn(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.of(2022, 12, 1, 0, 0))));
-		assertEquals("priceValidIn(2021-01-01T00:00:00+01:00)", inDateRange.toString());
+		final PriceValidIn inDateRange = priceValidIn(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC));
+		assertEquals("priceValidIn(2021-01-01T00:00:00Z)", inDateRange.toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
-		final OffsetDateTime now = OffsetDateTime.now(ZoneId.systemDefault());
+		final OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		assertNotSame(priceValidIn(now), priceValidIn(now));
 		assertEquals(priceValidIn(now), priceValidIn(now));
 		assertNotEquals(priceValidIn(now), priceValidIn(now.plusHours(1)));

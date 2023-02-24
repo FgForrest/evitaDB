@@ -31,9 +31,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Currency;
 
@@ -166,8 +165,8 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	void shouldRefuseAddingConflictingPriceWithUpsertedPrice() {
 		assertThrows(AmbiguousPriceException.class, () -> {
 			final Prices prices = builder
-				.setPrice(10, "vip", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()))), true)
-				.setPrice(11, "vip", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.until(OffsetDateTime.of(2022, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()))), true)
+				.setPrice(10, "vip", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)), true)
+				.setPrice(11, "vip", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.until(OffsetDateTime.of(2022, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)), true)
 				.build();
 		});
 	}
@@ -175,8 +174,8 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	@Test
 	void shouldAllowAddingConflictingPriceWithUpsertedPriceForDifferentInnerRecordId() {
 		final Prices prices = builder
-			.setPrice(10, "vip", CZK, 10, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()))), true)
-			.setPrice(11, "vip", CZK, 11, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.until(OffsetDateTime.of(2022, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()))), true)
+			.setPrice(10, "vip", CZK, 10, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.since(OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)), true)
+			.setPrice(11, "vip", CZK, 11, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, DateTimeRange.until(OffsetDateTime.of(2022, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)), true)
 			.build();
 
 		final Collection<PriceContract> basicPrices = prices.getPrices(CZK, "vip");

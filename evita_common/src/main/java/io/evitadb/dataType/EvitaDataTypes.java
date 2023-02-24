@@ -36,12 +36,11 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
@@ -159,9 +158,9 @@ public class EvitaDataTypes {
 			if (unknownObject instanceof OffsetDateTime) {
 				return (OffsetDateTime) unknownObject;
 			} else if (unknownObject instanceof LocalDateTime) {
-				return ((LocalDateTime) unknownObject).atOffset(ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+				return ((LocalDateTime) unknownObject).atOffset(ZoneOffset.UTC);
 			} else if (unknownObject instanceof LocalDate) {
-				return ((LocalDate) unknownObject).atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
+				return ((LocalDate) unknownObject).atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
 			} else {
 				final String value = unknownObject.toString();
 				final OffsetDateTime parsedZoneDateTime = PARSE_TO_OFFSET_DATE_TIME.apply(value);
@@ -170,11 +169,11 @@ public class EvitaDataTypes {
 				}
 				final LocalDateTime parsedLocalDateTime = PARSE_TO_LOCAL_DATE_TIME.apply(value);
 				if (parsedLocalDateTime != null) {
-					return parsedLocalDateTime.atOffset(ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+					return parsedLocalDateTime.atOffset(ZoneOffset.UTC);
 				}
 				final LocalDate parsedLocalDate = PARSE_TO_LOCAL_DATE.apply(value);
 				if (parsedLocalDate != null) {
-					return parsedLocalDate.atTime(LocalTime.MIDNIGHT).atOffset(ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+					return parsedLocalDate.atTime(LocalTime.MIDNIGHT).atOffset(ZoneOffset.UTC);
 				}
 				throw new InconvertibleDataTypeException(requestedType, unknownObject);
 			}
@@ -570,7 +569,7 @@ public class EvitaDataTypes {
 			return new BigDecimal(unknownObject.toString());
 		} else if (unknownObject instanceof LocalDateTime) {
 			// always convert local date time to zoned date time
-			return ((LocalDateTime) unknownObject).atZone(ZoneId.systemDefault());
+			return ((LocalDateTime) unknownObject).atOffset(ZoneOffset.UTC);
 		} else if (unknownObject.getClass().isEnum()) {
 			return unknownObject;
 		} else if (SUPPORTED_QUERY_DATA_TYPES.contains(unknownObject.getClass())) {

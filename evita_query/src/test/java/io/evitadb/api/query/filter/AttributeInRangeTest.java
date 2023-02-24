@@ -26,9 +26,8 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.QueryConstraints;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import static io.evitadb.api.query.QueryConstraints.attributeInRange;
 import static io.evitadb.api.query.QueryConstraints.attributeInRangeNow;
@@ -51,7 +50,7 @@ class AttributeInRangeTest {
 
 	@Test
 	void shouldCreateMomentViaFactoryClassWorkAsExpected() {
-		final OffsetDateTime now = OffsetDateTime.now(ZoneId.systemDefault());
+		final OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 		final AttributeInRange attributeInRange = attributeInRange("validity", now);
 		assertEquals("validity", attributeInRange.getAttributeName());
 		assertEquals(now, attributeInRange.getTheMoment());
@@ -70,14 +69,14 @@ class AttributeInRangeTest {
 	void shouldRecognizeApplicability() {
 		assertFalse(new AttributeInRange(null, (Number) null).isApplicable());
 		assertTrue(new AttributeInRange("validity").isApplicable());
-		assertTrue(QueryConstraints.attributeInRange("validity", OffsetDateTime.now(ZoneId.systemDefault())).isApplicable());
+		assertTrue(QueryConstraints.attributeInRange("validity", OffsetDateTime.now(ZoneOffset.UTC)).isApplicable());
 		assertTrue(attributeInRange("age", 19).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		final AttributeInRange inDateRange = QueryConstraints.attributeInRange("validity", OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.of(2022, 12, 1, 0, 0))));
-		assertEquals("attributeInRange('validity',2021-01-01T00:00:00+01:00)", inDateRange.toString());
+		final AttributeInRange inDateRange = QueryConstraints.attributeInRange("validity", OffsetDateTime.of(2021, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC));
+		assertEquals("attributeInRange('validity',2021-01-01T00:00:00Z)", inDateRange.toString());
 
 		final AttributeInRange inNumberRange = attributeInRange("age", 19);
 		assertEquals("attributeInRange('age',19)", inNumberRange.toString());
@@ -88,7 +87,7 @@ class AttributeInRangeTest {
 		assertNotSame(attributeInRange("age", 19), attributeInRange("age", 19));
 		assertEquals(attributeInRange("age", 19), attributeInRange("age", 19));
 		assertNotEquals(attributeInRange("age", 19), attributeInRange("age", 16));
-		assertNotEquals(attributeInRange("age", 19), QueryConstraints.attributeInRange("validity", OffsetDateTime.now(ZoneId.systemDefault())));
+		assertNotEquals(attributeInRange("age", 19), QueryConstraints.attributeInRange("validity", OffsetDateTime.now(ZoneOffset.UTC)));
 		assertEquals(attributeInRange("age", 19).hashCode(), attributeInRange("age", 19).hashCode());
 		assertNotEquals(attributeInRange("age", 19).hashCode(), attributeInRange("age", 6).hashCode());
 		assertNotEquals(attributeInRange("age", 19).hashCode(), attributeInRange("whatever", 19).hashCode());

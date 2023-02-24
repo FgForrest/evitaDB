@@ -25,10 +25,8 @@ package io.evitadb.api.query;
 
 import org.junit.jupiter.api.Test;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -50,7 +48,7 @@ class QueryTest {
 			filterBy(
 				and(
 					attributeEquals("code", "samsung"),
-					attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.of(2022, 12, 1, 0, 0))))
+					attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 				)
 			),
 			orderBy(
@@ -66,7 +64,7 @@ class QueryTest {
 				"\tfilterBy(\n" +
 				"\t\tand(\n" +
 				"\t\t\tattributeEquals('code', 'samsung'),\n" +
-				"\t\t\tattributeInRange('validity', 2020-01-01T00:00:00+01:00)\n" +
+				"\t\t\tattributeInRange('validity', 2020-01-01T00:00:00Z)\n" +
 				"\t\t)\n" +
 				"\t),\n" +
 				"\torderBy(\n" +
@@ -106,7 +104,7 @@ class QueryTest {
 			filterBy(
 				and(
 					attributeEquals("code", "samsung"),
-					attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.of(2022, 12, 1, 0, 0))))
+					attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 				)
 			),
 			orderBy(
@@ -117,7 +115,7 @@ class QueryTest {
 			)
 		);
 		assertEquals(
-			"query(collection('brand'),filterBy(and(attributeEquals('code', 'samsung'),attributeInRange('validity', 2020-01-01T00:00:00+01:00))),orderBy(attributeNatural('name', ASC)),require(page(1, 5)))",
+			"query(collection('brand'),filterBy(and(attributeEquals('code', 'samsung'),attributeInRange('validity', 2020-01-01T00:00:00Z))),orderBy(attributeNatural('name', ASC)),require(page(1, 5)))",
 			query.toString()
 		);
 	}
@@ -130,7 +128,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -145,7 +143,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -166,7 +164,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -181,7 +179,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "nokia"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -202,7 +200,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -217,7 +215,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -238,7 +236,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -253,7 +251,7 @@ class QueryTest {
 				filterBy(
 					or(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -274,7 +272,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -289,7 +287,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -310,7 +308,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -325,7 +323,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "nokia"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -346,7 +344,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -361,7 +359,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -382,7 +380,7 @@ class QueryTest {
 				filterBy(
 					and(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(
@@ -397,7 +395,7 @@ class QueryTest {
 				filterBy(
 					or(
 						attributeEquals("code", "samsung"),
-						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(LocalDateTime.now())))
+						attributeInRange("validity", OffsetDateTime.of(2020, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
 					)
 				),
 				orderBy(

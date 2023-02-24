@@ -55,9 +55,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -177,8 +176,8 @@ class AttributeBitmapFilterTest {
 
 	@Test
 	void shouldFilterByDateTimeRangeOverlap() {
-		final OffsetDateTime from = OffsetDateTime.of(2007, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
-		final OffsetDateTime to = OffsetDateTime.of(2008, 12, 31, 23, 59, 59, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime from = OffsetDateTime.of(2007, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+		final OffsetDateTime to = OffsetDateTime.of(2008, 12, 31, 23, 59, 59, 0, ZoneOffset.UTC);
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			AttributeContent.ALL_ATTRIBUTES,
@@ -246,7 +245,7 @@ class AttributeBitmapFilterTest {
 
 	@Test
 	void shouldFilterByDateTimeRangeWithin() {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2007, 6, 1, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2007, 6, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			AttributeContent.ALL_ATTRIBUTES,

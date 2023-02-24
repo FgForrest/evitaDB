@@ -69,12 +69,11 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -131,12 +130,12 @@ public class DataGenerator {
 	public static final Predicate<String> TRUE_PREDICATE = s -> true;
 	private static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
 	private static final DateTimeRange[] DATE_TIME_RANGES = new DateTimeRange[]{
-		DateTimeRange.between(LocalDateTime.MIN, LocalDateTime.MAX, ZoneId.systemDefault().getRules().getOffset(Instant.now())),
-		DateTimeRange.between(LocalDateTime.of(2010, 1, 1, 0, 0), LocalDateTime.of(2012, 12, 31, 0, 0), ZoneId.systemDefault().getRules().getOffset(Instant.now())),
-		DateTimeRange.between(LocalDateTime.of(2012, 1, 1, 0, 0), LocalDateTime.of(2014, 12, 31, 0, 0), ZoneId.systemDefault().getRules().getOffset(Instant.now())),
-		DateTimeRange.between(LocalDateTime.of(2014, 1, 1, 0, 0), LocalDateTime.of(2016, 12, 31, 0, 0), ZoneId.systemDefault().getRules().getOffset(Instant.now())),
-		DateTimeRange.between(LocalDateTime.of(2010, 1, 1, 0, 0), LocalDateTime.of(2014, 12, 31, 0, 0), ZoneId.systemDefault().getRules().getOffset(Instant.now())),
-		DateTimeRange.between(LocalDateTime.of(2010, 1, 1, 0, 0), LocalDateTime.of(2016, 12, 31, 0, 0), ZoneId.systemDefault().getRules().getOffset(Instant.now())),
+		DateTimeRange.between(LocalDateTime.MIN, LocalDateTime.MAX, ZoneOffset.UTC),
+		DateTimeRange.between(LocalDateTime.of(2010, 1, 1, 0, 0), LocalDateTime.of(2012, 12, 31, 0, 0), ZoneOffset.UTC),
+		DateTimeRange.between(LocalDateTime.of(2012, 1, 1, 0, 0), LocalDateTime.of(2014, 12, 31, 0, 0), ZoneOffset.UTC),
+		DateTimeRange.between(LocalDateTime.of(2014, 1, 1, 0, 0), LocalDateTime.of(2016, 12, 31, 0, 0), ZoneOffset.UTC),
+		DateTimeRange.between(LocalDateTime.of(2010, 1, 1, 0, 0), LocalDateTime.of(2014, 12, 31, 0, 0), ZoneOffset.UTC),
+		DateTimeRange.between(LocalDateTime.of(2010, 1, 1, 0, 0), LocalDateTime.of(2016, 12, 31, 0, 0), ZoneOffset.UTC),
 	};
 	private static final BigDecimal TAX_RATE = new BigDecimal("21");
 	private static final BigDecimal TAX_MULTIPLICATOR = TAX_RATE.setScale(2, RoundingMode.UNNECESSARY).divide(new BigDecimal("100.00"), RoundingMode.HALF_UP).add(BigDecimal.ONE);
@@ -706,7 +705,7 @@ public class DataGenerator {
 			fakerToUse.number().numberBetween(0, 59),
 			fakerToUse.number().numberBetween(0, 59),
 			0,
-			ZoneId.systemDefault().getRules().getOffset(Instant.now())
+			ZoneOffset.UTC
 		);
 	}
 

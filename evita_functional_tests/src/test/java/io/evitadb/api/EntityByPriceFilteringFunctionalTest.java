@@ -54,9 +54,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Currency;
@@ -311,7 +310,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnProductsHavingPriceInCurrencyAndPriceListAtCertainMoment(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneOffset.UTC);
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -356,7 +355,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnProductsHavingPriceInCurrencyAndPriceListAtCertainMomentInInterval(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneOffset.UTC);
 		final BigDecimal from = new BigDecimal("80");
 		final BigDecimal to = new BigDecimal("150");
 
@@ -404,7 +403,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnProductsHavingPriceInCurrencyAndPriceListAtCertainMomentInIntervalWithoutTax(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneOffset.UTC);
 		final BigDecimal from = new BigDecimal("80");
 		final BigDecimal to = new BigDecimal("150");
 
@@ -753,7 +752,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnProductsHavingPriceInCurrencyAndPriceListAtCertainMomentInIntervalWithTaxOrderByPriceAscending(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneOffset.UTC);
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -806,7 +805,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnProductsHavingPriceInCurrencyAndPriceListAtCertainMomentInIntervalWithoutTaxOrderByPriceAscending(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneOffset.UTC);
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -860,7 +859,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnProductsHavingPriceInCurrencyAndPriceListAtCertainMomentInIntervalWithTaxOrderByPriceDescending(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneOffset.UTC);
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -913,7 +912,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnProductsHavingPriceInCurrencyAndPriceListAtCertainMomentInIntervalWithoutTaxOrderByPriceDescending(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneOffset.UTC);
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -1043,7 +1042,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnProductsHavingPriceValidIn(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneOffset.UTC);
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1082,7 +1081,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
 	void shouldReturnProductsHavingPriceInCurrencyAndValidIn(Evita evita, List<SealedEntity> originalProductEntities) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneId.systemDefault().getRules().getOffset(Instant.now()));
+		final OffsetDateTime theMoment = OffsetDateTime.of(2010, 5, 5, 0, 0, 0, 0, ZoneOffset.UTC);
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
