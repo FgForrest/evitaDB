@@ -2,17 +2,17 @@
 
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png">
+  <img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png" style="max-width: 30%;">
 </p>
 
 <p align="center">
-[![Build][https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver]](https://github.com/FgForrest/evitaDB]
-&nbsp;
-[![Platform][https://img.shields.io/badge/Built%20with-Java-red]][https://github.com/FgForrest/evitaDB]
-&nbsp;
-[![GitHub Workflow Status [with branch]][https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/maven.yml?branch=dev]][https://github.com/FgForrest/evitaDB] 
-&nbsp;
-[![License][https://img.shields.io/badge/license-BSL_1.1-blue.svg]][https://github.com/FgForrest/evitaDB/blob/master/LICENSE]
+  <a href="https://github.com/FgForrest/evitaDB"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/>>Build</a>
+  &nbsp;
+  [![Platform][https://img.shields.io/badge/Built%20with-Java-red]][https://github.com/FgForrest/evitaDB]
+  &nbsp;
+  [![GitHub Workflow Status [with branch]][https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/maven.yml?branch=dev]][https://github.com/FgForrest/evitaDB] 
+  &nbsp;
+  [![License][https://img.shields.io/badge/license-BSL_1.1-blue.svg]][https://github.com/FgForrest/evitaDB/blob/master/LICENSE]
 </p>
 
 <p align="center">
