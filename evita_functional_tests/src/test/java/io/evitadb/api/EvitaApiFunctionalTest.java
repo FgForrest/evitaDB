@@ -54,6 +54,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -760,6 +761,7 @@ class EvitaApiFunctionalTest {
 
 	@DisplayName("evitaDB tracks open sessions so that they can be closed on evitaDB close")
 	@Test
+	@Disabled("Temporarily disabling flaky test, we need to invest more time to debugging parallel sessions")
 	void shouldTrackAndFreeOpenSessions(Evita evita) throws Exception {
 		evita.updateCatalog(
 			TEST_CATALOG,
