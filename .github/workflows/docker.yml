@@ -29,6 +29,8 @@ jobs:
         run: |
           mv -v "evita-server.jar" "$BUILD_ROOT/evita-server.jar"    
           ls -la $BUILD_ROOT
+          echo "$RELEASE_IMAGE"
+          echo "$EVITA_JAR_NAME"
           $BUILD_ROOT/build.sh
           echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
           docker push "$RELEASE_IMAGE"
