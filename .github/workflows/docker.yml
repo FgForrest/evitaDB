@@ -10,6 +10,8 @@ jobs:
   on-success:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
+
       - name: Download a single artifact
         uses: dawidd6/action-download-artifact@v2
         with:
