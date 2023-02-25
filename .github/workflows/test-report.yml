@@ -1,8 +1,10 @@
+# This workflow generates JUnit report in GitHub from the published test results artifact
+
 name: Test-Report
 
 on:
   workflow_run:
-    workflows: ['CI']                     # runs after CI workflow
+    workflows: ['CI', 'All tests including long-running'] # runs after CI of full test workflow
     types:
       - completed
 jobs:

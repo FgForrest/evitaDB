@@ -1,52 +1,53 @@
+# Main build pipeline, operates on `dev` branch which is our integration branch
+
 name: CI
 
 on:
   push:
-    branches: [ "dev" ]
-    paths:
+    branches: [ "dev" ]            # trap each push to dev branch
+    paths:                         # but react only to changes in code or pipeline definition
       - evita*/**/*.java
       - evita*/**/pom.xml
       - .github/**.*
   pull_request:
-    branches: [ "dev" ]
-    paths:
+    branches: [ "dev" ]            # also trap pull requests to dev branch
+    paths:                         # but react only to changes in code or pipeline definition
       - evita*/**/*.java
       - evita*/**/pom.xml
       - .github/**.*
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v3    # checkout sources
 
     - name: Setup Java JDK
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v3  # setup JDK 17 for building
       with:
          distribution: 'temurin'
          java-version: '17'
          cache: 'maven'
 
-    - name: Build with Maven
+    - name: Build with Maven       # run Maven with tests
       run: mvn -B package -P unitAndFunctional jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
-    - name: Upload test results
+    - name: Upload test results    # upload XML with unit test results to artifact `test-results` for `test-report.yml`
       uses: actions/upload-artifact@v2
       if: success() || failure()
       with:
         name: test-results
         path: 'evita*/**/target/surefire-reports/TEST-*.xml'
 
-    - name: Upload evitaDB server artifact
+    - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker.yml` to deploy to DockerHub
       uses: actions/upload-artifact@v2
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
-    - name: Upload coverage to Codecov
+    - name: Upload coverage to Codecov    # upload code coverage from Jacoco to codecov
       uses: codecov/codecov-action@v3
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
