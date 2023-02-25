@@ -42,10 +42,11 @@ else
       exit 1
     fi
 
-    IMAGE="$RELEASE_IMAGE"
+    IMAGE="$CI_REGISTRY_USER/$RELEASE_IMAGE"
     EVITA_JAR_NAME="$EVITA_JAR_NAME"
 fi
 
+echo "Tagging as: $IMAGE"
 docker build . \
     --pull \
     -t "$IMAGE" \

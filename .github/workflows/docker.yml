@@ -33,13 +33,11 @@ jobs:
           echo "Build root: $BUILD_ROOT"        
           mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"    
           ls -la $BUILD_ROOT        
-          $BUILD_ROOT/build.sh
-          docker images --all
-          docker images $RELEASE_IMAGE
+          $BUILD_ROOT/build.sh        
           echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
-          echo "Pushing image: $CI_REGISTRY_IMAGE/$RELEASE_IMAGE"        
-          docker push "$CI_REGISTRY_IMAGE/$RELEASE_IMAGE"      
+          echo "Pushing image: $CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"        
+          docker push "$CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"      
           docker logout "$CI_REGISTRY"
           echo "Cleaning"
           docker rm $(docker ps -a -q)
-          docker rmi "$RELEASE_IMAGE"
+          docker rmi "$CI_REGISTRY_USER/$RELEASE_IMAGE"
