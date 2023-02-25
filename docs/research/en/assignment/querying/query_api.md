@@ -3,47 +3,47 @@ title: Query API design
 perex:
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 The *evitaQL* (evitaDB Query Language) entry point is represented by
-<SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass>, and looks like
+<SourceClass branch="POC">evita_query/src/main/java/io/evit1adb/api/query/Query.java</SourceClass>, and it looks like
 a [Lisp flavoured language](https://en.wikipedia.org/wiki/Lisp_(programming_language)). It always starts with the name
-of the function followed by set of arguments in brackets. Arguments can be another functions as well.
+of the function, followed by a set of arguments in brackets. You can even call functions in these arguments.
 
-The evitaQL is represented by simple [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
-that is parsed to abstract syntax tree consisting of constraints
+evitaQL is represented by a simple [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+that is parsed to an abstract syntax tree, which consists of constraints
 (<SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Constraint.java</SourceClass>)
 encapsulated in <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass>.
-We design the *evitaQL* String representation to look similar to query defined in *Java* notation.
+We design the *evitaQL* String representation to look similar to a query defined in the *Java* notation.
 
-Developers should create their queries programmatically in their code by using static `query` methods in
+Developers should create their queries in their code by using the static `query` methods in
 <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass>
 and then composing internal constraints from the static methods in
 <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>. When this
 class is statically imported, the Java query definition looks like the string form of the query.
 
-## Conversion of the evitaQL from String to AST and back
+## Conversion of evitaQL from String to AST and back
 
-There is also <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/QueryParser.java</SourceClass>, that allows
-parsing query from the [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html).
-The string notation can be created anytime by calling method `toString()` on <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass>
+There is also <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/QueryParser.java</SourceClass> which allows
+for parsing the query from the [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html).
+The string notation can be created anytime by calling the `toString()` method on the <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass>
 object.
 
-Parser supports passing values by reference copying the proven approach from JDBC [prepared statement](https://docs.oracle.com/javase/tutorial/jdbc/basics/prepared.html)
-allowing to use character `?` in the query and providing array of correctly sorted input parameters. It also supports
+The parser supports passing values by reference copying the proven approach from a JDBC [prepared statement](https://docs.oracle.com/javase/tutorial/jdbc/basics/prepared.html)
+allowing the use of the character `?` in the query and providing an array of correctly sorted input parameters. It also supports the
 so-called [named queries](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/core/namedparam/NamedParameterJdbcTemplate.html),
-which are widely used in [Spring framework](https://spring.io/projects/spring-data-jdbc) using variables in the query
-in format `:name` and providing a [Map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with named
+which are widely used in the [Spring framework](https://spring.io/projects/spring-data-jdbc), using variables in the query
+with the `:name` format  and providing a [Map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with the named
 input parameters.
 
-In the opposite direction it offers method `toStringWithParameterExtraction` on the <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass>
-object which allows creating the string format of the *evitaQL* in the form of *prepared statement* and extracting all
+In the opposite direction, it offers the `toStringWithParameterExtraction` method  on the <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass>
+object which allows for the creating of the string format for *evitaQL* in the form of a *prepared statement* and extracting all
 parameters in separate array.
 
 ## Defining queries in Java code
 
-This is example how the query is composed and evitaDB requested. The example statically imports two classes:
+This is an example how the query is composed and evitaDB requested. The example statically imports two classes:
 <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> and
 <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>
 
@@ -73,7 +73,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 );
 ```
 
-Query can contain also "dirty" parts - i.e. null constraints and unnecessary parts:
+The query can also contain "dirty" parts - i.e. null constraints and unnecessary parts:
 
 ``` java
 final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
@@ -101,10 +101,10 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 );
 ```
 
-The query is automatically cleaned and unnecessary constraints are purged before processing by evitaDB engine.
+The query is automatically cleaned and unnecessary constraints are purged before being processed by the evitaDB engine.
 
-There are several handy visitors (and new will be added) that allows to work with the query. They are placed in the package
-<SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/visitor/</SourceClass>, and some have quick methods in
+There are several handy visitors (more will be added) that allow you to work with the query. They are placed in the package
+<SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/visitor/</SourceClass>, and some have quick methods in the
 <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/QueryUtils.java</SourceClass> class.
 
-Query can be "pretty-printed" by `prettyPrint` method on <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class.
+The query can be "pretty-printed" by using the `prettyPrint` method on the <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class.
