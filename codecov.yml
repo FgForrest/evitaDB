@@ -8,3 +8,4 @@ ignore:
   - "evita_query/src/main/java/io/evitadb/api/query/parser/grammar/**"
   - "evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/generated/**"
   - "evita_test_support/src/main/java/io/evitadb/test/**"
+  - "evita_performance_tests/src/main/java/io/evitadb/performance/**"

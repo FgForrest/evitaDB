@@ -1,3 +1,5 @@
+# This job builds and deploys Docker image to DockerHub
+
 name: DockerHub-deploy
 
 on:
@@ -10,16 +12,16 @@ jobs:
   on-success:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3        # checkout from Git
 
-      - name: Download a single artifact
+      - name: Download a single artifact # download `evita-server.jar` artifact if the workflow we react to was successful
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           workflow_conclusion: success
           name: evita-server.jar
 
-      - name: Build the Docker image
+      - name: Build the Docker image    # now build the Docker image, login to DockerHub and push it, then clean everything
         env:
           BUILD_ROOT: docker
           CI_REGISTRY: ${{vars.CI_REGISTRY}}
@@ -38,6 +40,5 @@ jobs:
           echo "Pushing image: $CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"        
           docker push "$CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"      
           docker logout "$CI_REGISTRY"
-          echo "Cleaning"
-          docker rm $(docker ps -a -q)
+          echo "Cleaning"      
           docker rmi "$CI_REGISTRY_USER/$RELEASE_IMAGE"
