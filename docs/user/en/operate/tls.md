@@ -14,7 +14,7 @@ the security uniform.
 The gRPC API, and thus EvitaClient, also offers the possibility of authentication via
 [mutual TLS](https://en.wikipedia.org/wiki/Mutual_authentication), in which client and
 server verify their identities with the help of a certificate exchange. The use of mTLS can be set in the configuration
-file <SourceClass>ci/evita_server/docker/evita-configuration.yaml</SourceClass> in the section `api.endpoints.gRPC.mTLS`, 
+file <SourceClass>docker/evita-configuration.yaml</SourceClass> in the section `api.endpoints.gRPC.mTLS`, 
 where it is possible to allow and set the path to the list of certificate authorities. This list will be allowed to 
 communicate with the gRPC API. If this setting is enabled, the client must provide its certificate when initiating 
 communication with the gRPC API, which is verified by the server. In the configuration class 
