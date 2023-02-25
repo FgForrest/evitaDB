@@ -36,7 +36,7 @@ jobs:
           $BUILD_ROOT/build.sh
           echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
           echo "Pushing image: $CI_REGISTRY_IMAGE"
-          docker push --all-tags $CI_REGISTRY_IMAGE
+          docker push --all-tags $CI_REGISTRY_IMAGE/evitadb
           docker logout "$CI_REGISTRY"
           echo "Cleaning"
           docker rm $(docker ps -a -q)
