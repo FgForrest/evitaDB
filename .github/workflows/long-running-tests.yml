@@ -17,7 +17,9 @@ jobs:
 
       # inspiration from https://github.com/nvim-neorocks/luarocks-tag-release#version-optional
       - name: Get new commits
-        run: echo "NEW_COMMIT_COUNT=$(git log --oneline --since '24 hours ago' | wc -l)" >> $GITHUB_ENV
+        run: |
+          echo "NEW_COMMIT_COUNT=$(git log --oneline --since '24 hours ago' | wc -l)" >> $GITHUB_ENV
+          echo "Commits found: $NEW_COMMIT_COUNT"
 
       - name: Setup Java JDK
         uses: actions/setup-java@v3
