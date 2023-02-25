@@ -1,0 +1,43 @@
+name: All tests including long-running
+
+on:
+  workflow_dispatch: # allows manual triggering
+  schedule:
+    - cron: '0 0 * * *' # runs daily at 00:00
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      # inspiration from https://github.com/nvim-neorocks/luarocks-tag-release#version-optional
+      - name: Get new commits
+        run: echo "NEW_COMMIT_COUNT=$(git log --oneline --since '24 hours ago' | wc -l)" >> $GITHUB_ENV
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v3
+        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
+        with:
+           distribution: 'temurin'
+           java-version: '17'
+           cache: 'maven'
+
+      - name: Build with Maven
+        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
+        run: mvn -B package jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        if: ${{ env.NEW_COMMIT_COUNT > 0 }} && (success() || failure())
+        with:
+          name: test-results
+          path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
