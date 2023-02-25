@@ -46,7 +46,7 @@ fast and easy setup / teardown of the test data.
 
 ## Run as service inside Docker
 
-The Docker image is based on RedHat JDK / Linux (see <SourceClass>ci/evita_server/docker/Dockerfile</SourceClass>) base
+The Docker image is based on RedHat JDK / Linux (see <SourceClass>docker/Dockerfile</SourceClass>) base
 image (Fedora family) and is published to [Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general).
 
 ### Install Docker
@@ -266,7 +266,7 @@ You can take advantage of all the following variables:
             evitaDB server command-line arguments, default: none (empty string)
 
             the list of all available arguments is given in the configuration file:
-            <SourceClass>ci/evita_server/docker/evita-configuration.yaml</SourceClass>
+            <SourceClass>docker/evita-configuration.yaml</SourceClass>
             the format of the argument is visible in the variables `${argument_name:default_value}`
 
             to pass an argument to a Java aplication, you need to prefix it with `-D`, the correct argument name for
@@ -298,7 +298,7 @@ You need to replace `__config_file__` with the path to the YAML file on the host
 
 <Note type="info">
 The contents should match the default configuration file 
-<SourceClass>ci/evita_server/docker/evita-configuration.yaml</SourceClass>, but you can specify constants instead 
+<SourceClass>docker/evita-configuration.yaml</SourceClass>, but you can specify constants instead 
 of variables in certain settings.
 </Note>
 
@@ -445,7 +445,8 @@ recent updates to the database.
 ### Enabling evitaDB web APIs
 
 If you want evitaDB to be able to open its web APIs (you still need to [configure this](../operate/configure.md)), you
-also need to add dependencies on these API variants. If you don't do this, you will get a <SourceClass></SourceClass>
+also need to add dependencies on these API variants. If you don't do this, you will get a 
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/exception/ExternalApiInternalError.java</SourceClass>
 exception when you enable the corresponding API in evitaDB's configuration.
 
 #### gRPC

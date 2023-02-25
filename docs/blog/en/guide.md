@@ -454,7 +454,7 @@ This will create link to class in source repository <SourceClass>evita_api/src/m
 
 It is also possible to link to folders as such <SourceClass>evita_query/src/main/java/io/evitadb/api/query/visitor/</SourceClass>.
 
-Links to Dockerfiles are also supported <SourceClass>ci/evita_server/docker/Dockerfile</SourceClass>.
+Links to Dockerfiles are also supported <SourceClass>docker/Dockerfile</SourceClass>.
 
 If you wish to link class/folder reference in different branch, you can do that with 'branch' as in the following markup
 example. <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/filter/PrimaryKey.java</SourceClass>
