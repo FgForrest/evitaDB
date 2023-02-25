@@ -1,9 +1,9 @@
-# evitaDB
+<h1 align="center" style="border-bottom: none">
+    <a href="https://evitadb.io" target="_blank"><img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png"/></a><br>evitaDB
+</h1>
 
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png"/>
-</p>
+<p align="center">Visit <a href="https://evitadb.io" target="_blank">evitadb.io</a> for the full documentation,
+examples and guides.</p>
 
 <p align="center">
   <a href="https://github.com/FgForrest/evitaDB" title="Build"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/></a>
