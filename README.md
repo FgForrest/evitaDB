@@ -12,7 +12,7 @@ examples and guides.</p>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB" title="Platform"><img src="https://img.shields.io/badge/Built%20with-Java-red"/></a>
   &nbsp;
-  <a href="https://github.com/FgForrest/evitaDB" title="GitHub Workflow Status"><img src="https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/ci.yml?branch=dev"/></a>
+  <a href="https://github.com/FgForrest/evitaDB" title="GitHub Workflow Status"><img src="https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/ci-dev.yml"/></a>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB/blob/master/LICENSE" title="License"><img src="https://img.shields.io/badge/license-BSL_1.1-blue.svg"/></a>
 </p>
