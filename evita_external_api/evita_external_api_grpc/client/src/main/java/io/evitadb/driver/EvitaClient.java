@@ -148,7 +148,7 @@ public class EvitaClient implements EvitaContract {
 	) {
 		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
 			.useGeneratedCertificate(configuration.useGeneratedCertificate())
-			.usingTrustedRootCaCertificate(configuration.trustFetchedCertificate())
+			.usingTrustedRootCaCertificate(configuration.trustCertificate())
 			.mtls(configuration.mtlsEnabled())
 			.clientCertificateFilePath(configuration.certificateFileName())
 			.clientPrivateKeyFilePath(configuration.certificateKeyFileName())

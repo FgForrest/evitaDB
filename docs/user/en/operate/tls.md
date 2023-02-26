@@ -130,10 +130,11 @@ configuration on the client side:
 
 - **`useGeneratedCertificate`**: (`true` by default) if set to `true`, the client downloads the root certificate of 
   the server Certificate Authority from the `system` endpoint automatically
-- **`trustFetchedCertificate`**: (`false` by default) when set to `true`, the certificate retrieved from the `system` 
-  endpoint is automatically added to the local trust store. If set to `false` and the server provides an untrusted 
-  (self-signed) certificate, it will not be trusted by the client and the connection to the server will fail. Using
-  `true` for this setting on production is generally not recommended.
+- **`trustCertificate`**: (`false` by default) when set to `true`, the certificate retrieved from the `system` 
+  endpoint or manually by `certificatePath` is automatically added to the local trust store.
+
+  If set to `false` and an untrusted (self-signed) certificate is provided, it will not be trusted by the client and 
+  the connection to the server will fail. Using `true` for this setting on production is generally not recommended.
 - **`certificateFolderPath`**: (the sub-folder `evita-client-certificates` in the working directory by default)
   it represents a path to a folder where the authority certificate is stored
 - **`rootCaCertificatePath`**: (`null` by default) it is a relative path from `certificateFolderPath` to the root 
@@ -144,7 +145,7 @@ configuration on the client side:
 - **`certificateKeyPath`**: (`null` by default) is a relative path from `certificateFolderPath` to the client private key
 - **`certificateKeyPassword`**: (`null` by default) is the password for the client's private key (if one is set)
 - **`trustStorePassword`**: (`null` by default). If not set, the default password `trustStorePassword` is used. 
-  This is a password for a trust store used to store trusted certificates. It is used when `trustFetchedCertificate` is 
+  This is a password for a trust store used to store trusted certificates. It is used when `trustCertificate` is 
   set to `true`.
 
 <Note type="warning">
