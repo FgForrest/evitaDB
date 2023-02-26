@@ -59,7 +59,7 @@ class TransactionalReferenceTest implements TimeBoundedTestSupport {
 				assertTrue(theBoolean.get());
 			},
 			(original, committed) -> {
-				assertNull(committed.orElse(null));
+				assertNull(committed);
 				assertFalse(original.get());
 			}
 		);
