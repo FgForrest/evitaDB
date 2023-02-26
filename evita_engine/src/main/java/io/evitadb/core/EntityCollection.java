@@ -922,7 +922,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			return new EntityCollection(
 				this.catalogAccessor.get(),
 				this.entityTypePrimaryKey,
-				transactionalLayer.getStateCopyWithCommittedChanges(this.schema, transaction).getDelegate(),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.schema, transaction)
+					.map(EntitySchemaDecorator::getDelegate)
+					.orElse(null),
 				this.pkSequence,
 				this.indexPkSequence,
 				this.catalogPersistenceService,
