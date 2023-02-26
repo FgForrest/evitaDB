@@ -253,7 +253,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * Returns true if there is no entity id linked to any facet of this `entityType` and the entire index is useless.
 	 */
 	public boolean isEmpty() {
-		if (!ofNullable(this.notGroupedFacets.get()).map(FacetGroupIndex::isEmpty).orElse(false)) {
+		if (!ofNullable(this.notGroupedFacets.get()).map(FacetGroupIndex::isEmpty).orElse(true)) {
 			return false;
 		}
 		return this.groupedFacets
