@@ -1,0 +1,35 @@
+# Main build pipeline, operates on `master` branch which is our integration branch
+
+name: CI Master branch
+
+on:
+  push:
+    branches: [ "dev" ]            # trap each push to dev branch
+    paths:                         # but react only to changes in code or pipeline definition
+      - evita*/**/*.java
+      - evita*/**/pom.xml
+      - .github/**.*
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3    # checkout sources
+
+    - name: Setup Java JDK
+      uses: actions/setup-java@v3  # setup JDK 17 for building
+      with:
+         distribution: 'temurin'
+         java-version: '17'
+         cache: 'maven'
+
+    - name: Build with Maven       # run Maven without tests (tests must pass in dev branch)
+      run: mvn -B package -Dmaven.test.skip=true --file pom.xml
+
+    - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker.yml` to deploy to DockerHub
+      uses: actions/upload-artifact@v2
+      if: success()
+      with:
+        name: evita-server.jar
+        path: 'evita_server/target/evita-server.jar'
