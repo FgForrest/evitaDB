@@ -4,7 +4,7 @@ name: All tests including long-running
 on:
   workflow_dispatch: # allows manual triggering
   schedule:
-    - cron: '0 0 * * *' # runs daily at 00:00
+    - cron: '0 0 * * 1' # runs on Monday morning
 
 jobs:
   build:
