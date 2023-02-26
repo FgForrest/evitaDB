@@ -4,14 +4,14 @@ name: CI Master branch
 
 on:
   push:
-    branches: [ "dev" ]            # trap each push to dev branch
+    branches: [ "master" ]         # trap each push to master branch
     paths:                         # but react only to changes in code or pipeline definition
       - evita*/**/*.java
       - evita*/**/pom.xml
       - .github/**.*
 
 concurrency:
-  group: ${{ github.head_ref }}   # for the same branch
+  group: ${{ github.ref_name }}   # for the same branch
   cancel-in-progress: true        # run only one workflow at a time (cancel the previous)
 
 jobs:

@@ -17,7 +17,7 @@ on:
       - .github/**.*
 
 concurrency:
-  group: ${{ github.head_ref }}   # for the same branch (dev or PR)
+  group: ${{ github.head_ref || github.ref_name }}  # for the same branch (dev or PR)
   cancel-in-progress: true        # run only one workflow at a time (cancel the previous)
 
 jobs:
