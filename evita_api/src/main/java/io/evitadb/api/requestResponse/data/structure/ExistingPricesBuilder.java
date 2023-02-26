@@ -274,6 +274,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	@Nonnull
 	@Override
 	public Stream<? extends LocalMutation<?, ?>> buildChangeSet() {
+		final Map<PriceKey, PriceContract> builtPrices = new HashMap<>(basePrices.priceIndex);
 		if (removeAllNonModifiedPrices) {
 			return Stream.concat(
 					Objects.equals(basePrices.getPriceInnerRecordHandling(), priceInnerRecordHandlingEntityMutation.getPriceInnerRecordHandling()) ?
@@ -282,9 +283,10 @@ public class ExistingPricesBuilder implements PricesBuilder {
 						priceMutations.values()
 							.stream()
 							.filter(it -> {
-								final PriceContract existingValue = basePrices.getPrice(it.getPriceKey());
-								return existingValue == null ||
-									it.mutateLocal(entitySchema, existingValue).getVersion() > existingValue.getVersion();
+								final PriceContract existingValue = builtPrices.get(it.getPriceKey());
+								final PriceContract newPrice = it.mutateLocal(entitySchema, existingValue);
+								builtPrices.put(it.getPriceKey(), newPrice);
+								return existingValue == null || newPrice.getVersion() > existingValue.getVersion();
 							}),
 						basePrices
 							.getPrices()
@@ -301,9 +303,10 @@ public class ExistingPricesBuilder implements PricesBuilder {
 					priceMutations.values()
 						.stream()
 						.filter(it -> {
-							final PriceContract existingValue = basePrices.getPrice(it.getPriceKey());
-							return existingValue == null ||
-								it.mutateLocal(entitySchema, existingValue).getVersion() > existingValue.getVersion();
+							final PriceContract existingValue = builtPrices.get(it.getPriceKey());
+							final PriceContract newPrice = it.mutateLocal(entitySchema, existingValue);
+							builtPrices.put(it.getPriceKey(), newPrice);
+							return existingValue == null || newPrice.getVersion() > existingValue.getVersion();
 						})
 				)
 				.filter(Objects::nonNull);
