@@ -236,7 +236,14 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		return this.facetingEntities.entrySet()
 			.stream()
 			.filter(it -> this.dirtyIndexes.contains(it.getKey()))
-			.map(it -> new FacetIndexStoragePart(entityIndexPK, it.getKey(), it.getValue().getNotGroupedFacetsAsMap(), it.getValue().getGroupsAsMap()))
+			.map(
+				it -> new FacetIndexStoragePart(
+					entityIndexPK,
+					it.getKey(),
+					it.getValue().getNotGroupedFacetsAsMap().orElse(null),
+					it.getValue().getGroupsAsMap()
+				)
+			)
 			.collect(Collectors.toList());
 	}
 

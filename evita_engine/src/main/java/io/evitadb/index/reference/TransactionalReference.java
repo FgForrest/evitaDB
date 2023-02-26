@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
@@ -51,7 +52,7 @@ import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public class TransactionalReference<T> implements TransactionalLayerProducer<ReferenceChanges<T>, T>, Serializable {
+public class TransactionalReference<T> implements TransactionalLayerProducer<ReferenceChanges<T>, Optional<T>>, Serializable {
 	@Serial private static final long serialVersionUID = 1524821425865368156L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final AtomicReference<T> value;
@@ -110,8 +111,8 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 
 	@Nonnull
 	@Override
-	public T createCopyWithMergedTransactionalMemory(@Nullable ReferenceChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		return layer == null ? value.get() : layer.get();
+	public Optional<T> createCopyWithMergedTransactionalMemory(@Nullable ReferenceChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		return layer == null ? Optional.ofNullable(value.get()) : Optional.ofNullable(layer.get());
 	}
 
 	@Override

@@ -59,7 +59,7 @@ class TransactionalReferenceTest implements TimeBoundedTestSupport {
 				assertTrue(theBoolean.get());
 			},
 			(original, committed) -> {
-				assertNull(committed);
+				assertNull(committed.orElse(null));
 				assertFalse(original.get());
 			}
 		);
@@ -76,7 +76,7 @@ class TransactionalReferenceTest implements TimeBoundedTestSupport {
 				assertTrue(theBoolean.get());
 			},
 			(original, committed) -> {
-				assertTrue(committed);
+				assertTrue(committed.orElse(false));
 				assertFalse(original.get());
 			}
 		);
@@ -112,8 +112,8 @@ class TransactionalReferenceTest implements TimeBoundedTestSupport {
 						assertEquals(nextBooleanToCompare.get(), transactionalBoolean.get());
 					},
 					(original, committed) -> {
-						assertEquals(nextBooleanToCompare.get(), committed);
-						committedResult.set(committed);
+						assertEquals(nextBooleanToCompare.get(), committed.orElse(null));
+						committedResult.set(committed.orElse(null));
 					}
 				);
 
