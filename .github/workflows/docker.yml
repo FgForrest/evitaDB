@@ -9,36 +9,37 @@ on:
       - completed
 
 jobs:
-  if: ${{ github.event.workflow_run.conclusion == 'success' }}
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v3        # checkout from Git
+  on-success:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v3        # checkout from Git
 
-    - name: Download a single artifact # download `evita-server.jar` artifact if the workflow we react to was successful
-      uses: dawidd6/action-download-artifact@v2
-      with:
-        workflow: ${{ github.event.workflow_run.workflow_id }}
-        workflow_conclusion: success
-        name: evita-server.jar
+      - name: Download a single artifact # download `evita-server.jar` artifact if the workflow we react to was successful
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: ${{ github.event.workflow_run.workflow_id }}
+          workflow_conclusion: success
+          name: evita-server.jar
 
-    - name: Build the Docker image    # now build the Docker image, login to DockerHub and push it, then clean everything
-      env:
-        BUILD_ROOT: docker
-        CI_REGISTRY: ${{vars.CI_REGISTRY}}
-        CI_REGISTRY_IMAGE: ${{vars.CI_REGISTRY_IMAGE}}
-        RELEASE_IMAGE: "evitadb:latest"
-        CI_REGISTRY_USER: ${{vars.CI_REGISTRY_USER}}
-        CI_REGISTRY_PASSWORD: ${{secrets.CI_REGISTRY_PASSWORD}}
-        EVITA_JAR_NAME: evita-server.jar
-      run: |
-        echo "Evita JAR name: $EVITA_JAR_NAME"
-        echo "Build root: $BUILD_ROOT"        
-        mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"    
-        ls -la $BUILD_ROOT        
-        $BUILD_ROOT/build.sh        
-        echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
-        echo "Pushing image: $CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"        
-        docker push "$CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"      
-        docker logout "$CI_REGISTRY"
-        echo "Cleaning"      
-        docker rmi "$CI_REGISTRY_USER/$RELEASE_IMAGE"
+      - name: Build the Docker image    # now build the Docker image, login to DockerHub and push it, then clean everything
+        env:
+          BUILD_ROOT: docker
+          CI_REGISTRY: ${{vars.CI_REGISTRY}}
+          CI_REGISTRY_IMAGE: ${{vars.CI_REGISTRY_IMAGE}}
+          RELEASE_IMAGE: "evitadb:latest"
+          CI_REGISTRY_USER: ${{vars.CI_REGISTRY_USER}}
+          CI_REGISTRY_PASSWORD: ${{secrets.CI_REGISTRY_PASSWORD}}
+          EVITA_JAR_NAME: evita-server.jar
+        run: |
+          echo "Evita JAR name: $EVITA_JAR_NAME"
+          echo "Build root: $BUILD_ROOT"        
+          mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"    
+          ls -la $BUILD_ROOT        
+          $BUILD_ROOT/build.sh        
+          echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+          echo "Pushing image: $CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"        
+          docker push "$CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"      
+          docker logout "$CI_REGISTRY"
+          echo "Cleaning"      
+          docker rmi "$CI_REGISTRY_USER/$RELEASE_IMAGE"
