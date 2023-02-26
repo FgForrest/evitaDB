@@ -672,6 +672,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 						.orElse(true)
 				);
 
+		final Map<ReferenceKey, ReferenceContract> builtReferences = new HashMap<>(baseEntity.references);
 		final List<? extends LocalMutation<?, ? extends Comparable<?>>> mutations = Stream.of(
 				mutation,
 				attributesBuilder.buildChangeSet(),
@@ -681,9 +682,10 @@ public class ExistingEntityBuilder implements EntityBuilder {
 					.stream()
 					.flatMap(Collection::stream)
 					.filter(it -> {
-						final ReferenceContract existingReference = baseEntity.getReference(it.getReferenceKey());
-						return existingReference == null ||
-							it.mutateLocal(getSchema(), existingReference).getVersion() > existingReference.getVersion();
+						final ReferenceContract existingReference = builtReferences.get(it.getReferenceKey());
+						final ReferenceContract newReference = it.mutateLocal(getSchema(), existingReference);
+						builtReferences.put(it.getReferenceKey(), newReference);
+						return existingReference == null || newReference.getVersion() > existingReference.getVersion();
 					})
 			)
 			.flatMap(it -> it)
