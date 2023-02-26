@@ -127,6 +127,7 @@
 		<module>evita_performance_tests</module>
 		<module>workaround/grpc</module>
 		<module>workaround/roaringBitmap</module>
+		<module>jacoco</module>
 	</modules>
 
 	<dependencyManagement>
@@ -495,6 +496,7 @@
 							<goal>prepare-agent</goal>
 						</goals>
 						<configuration>
+							<append>true</append>
 							<!-- Sets the VM argument line used when unit tests are run. -->
 							<propertyName>surefireArgLine</propertyName>
 						</configuration>
