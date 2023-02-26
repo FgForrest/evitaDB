@@ -16,6 +16,10 @@ on:
       - evita*/**/pom.xml
       - .github/**.*
 
+concurrency:
+  group: ${{ github.head_ref }}   # for the same branch (dev or PR)
+  cancel-in-progress: true        # run only one workflow at a time (cancel the previous)
+
 jobs:
   build:
     runs-on: ubuntu-latest
