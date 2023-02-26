@@ -31,7 +31,9 @@ jobs:
          cache: 'maven'
 
     - name: Build with Maven       # run Maven with tests
-      run: mvn -B package -P unitAndFunctional jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+      run: |
+        mvn -B package -P unitAndFunctional jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+        jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
     - name: Upload test results    # upload XML with unit test results to artifact `test-results` for `test-report.yml`
       uses: actions/upload-artifact@v2
