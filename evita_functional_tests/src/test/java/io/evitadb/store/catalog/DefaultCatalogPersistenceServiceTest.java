@@ -154,6 +154,8 @@ class DefaultCatalogPersistenceServiceTest implements TestFileSupport {
 		assertEntityCollectionsHasIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, brandCollection, entityTypesIndex.get(Entities.BRAND));
 		assertEntityCollectionsHasIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, storeCollection, entityTypesIndex.get(Entities.STORE));
 		assertEntityCollectionsHasIdenticalContent(ioService, SEALED_CATALOG_SCHEMA, productCollection, entityTypesIndex.get(Entities.PRODUCT));
+
+		ioService.close();
 	}
 
 	@Test

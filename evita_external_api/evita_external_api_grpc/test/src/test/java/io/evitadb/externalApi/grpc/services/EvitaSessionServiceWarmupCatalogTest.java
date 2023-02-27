@@ -31,6 +31,7 @@ import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -45,18 +46,21 @@ import io.evitadb.externalApi.grpc.testUtils.TestChannelCreator;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.grpc.utils.GrpcServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.TestFileSupport;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -70,7 +74,7 @@ import static org.wildfly.common.Assert.assertTrue;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
-class EvitaSessionServiceWarmupCatalogTest {
+class EvitaSessionServiceWarmupCatalogTest implements TestFileSupport {
 	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
 	private static Server server;
 	private static ManagedChannel channel;
@@ -94,6 +98,15 @@ class EvitaSessionServiceWarmupCatalogTest {
 		SessionIdHolder.reset();
 		if (!server.isTerminated()) {
 			server.shutdown();
+		}
+	}
+
+	@AfterAll
+	public void tearDown() {
+		try {
+			cleanCertificateDirectories();
+		} catch (IOException e) {
+			throw new EvitaInternalError("Failed to clean certificate directories", e);
 		}
 	}
 

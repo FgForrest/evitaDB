@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.Empty;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -41,6 +42,7 @@ import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionI
 import io.evitadb.externalApi.grpc.testUtils.TestChannelCreator;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.grpc.utils.GrpcServer;
+import io.evitadb.test.TestFileSupport;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
@@ -57,6 +59,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -74,7 +77,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
-class EvitaServiceFunctionalTest {
+class EvitaServiceFunctionalTest implements TestFileSupport {
 	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
 	private static Server server;
 	private static ManagedChannel channel;
@@ -94,9 +97,14 @@ class EvitaServiceFunctionalTest {
 	}
 
 	@AfterAll
-	static void tearDown() {
+	public void tearDown() {
 		if (!server.isTerminated()) {
 			server.shutdown();
+		}
+		try {
+			cleanCertificateDirectories();
+		} catch (IOException e) {
+			throw new EvitaInternalError("Failed to clean certificate directories", e);
 		}
 	}
 

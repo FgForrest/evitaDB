@@ -52,6 +52,7 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -69,6 +70,7 @@ import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.grpc.utils.GrpcServer;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.test.Entities;
+import io.evitadb.test.TestFileSupport;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
@@ -87,6 +89,7 @@ import org.junit.jupiter.api.function.Executable;
 import org.opentest4j.AssertionFailedError;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -116,15 +119,20 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
-class EvitaSessionServiceFunctionalTest {
+class EvitaSessionServiceFunctionalTest implements TestFileSupport {
 	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
 	private static Server server;
 	private static ManagedChannel channel;
 
 	@AfterAll
-	static void tearDown() {
+	void tearDown() {
 		if (!server.isTerminated()) {
 			server.shutdown();
+		}
+		try {
+			cleanCertificateDirectories();
+		} catch (IOException e) {
+			throw new EvitaInternalError("Failed to clean certificate directories", e);
 		}
 	}
 

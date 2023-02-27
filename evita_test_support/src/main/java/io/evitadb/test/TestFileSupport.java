@@ -50,6 +50,14 @@ public interface TestFileSupport {
 	 * Default data folder for evita data in tests.
 	 */
 	Path BASE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita" + File.separator);
+	/**
+	 * Default folder for evita gRPCs client certificates in tests.
+	 */
+	Path CLIENT_CERTIFICATES_FOLDER_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita-client-certificates" + File.separator);
+	/**
+	 * Default folder for evita external APIs server certificates in tests.
+	 */
+	Path SERVER_CERTIFICATES_FOLDER_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita-server-certificates" + File.separator);
 
 	/**
 	 * Removes test directory with its contents.
@@ -123,6 +131,15 @@ public interface TestFileSupport {
 		final File dirFile = BASE_PATH.toFile();
 		dirFile.mkdirs();
 		Assert.isTrue(dirFile.exists() && dirFile.isDirectory(), "Target directory cannot be created!");
+	}
+
+	/**
+	 * Removes both client and server certificate directories with their contents.
+	 */
+	default void cleanCertificateDirectories() throws IOException {
+		// clear certificate folders
+		FileUtils.deleteDirectory(CLIENT_CERTIFICATES_FOLDER_PATH.toFile());
+		FileUtils.deleteDirectory(SERVER_CERTIFICATES_FOLDER_PATH.toFile());
 	}
 
 	/**

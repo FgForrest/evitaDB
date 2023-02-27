@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.driver.config.EvitaClientConfiguration;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
@@ -55,6 +56,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -76,6 +78,7 @@ import java.util.function.BiFunction;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
@@ -89,6 +92,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(FUNCTIONAL_TEST)
 class EvitaClientTest implements TestConstants, TestFileSupport {
 	private final static int SEED = 42;
 	private static EvitaServer EVITA_SERVER;
@@ -221,10 +225,24 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 		}
 	}
 
+	@AfterEach
+	void afterEach() {
+		try {
+			cleanCertificateDirectories();
+		} catch (IOException e) {
+			throw new EvitaInternalError("Failed to clean certificate directories",e);
+		}
+	}
+
 	@AfterAll
-	static void afterAll() {
+	public void afterAll() {
 		EVITA_SERVER.stop();
 		EVITA_SERVER = null;
+		try {
+			cleanCertificateDirectories();
+		} catch (IOException e) {
+			throw new EvitaInternalError("Failed to clean certificate directories", e);
+		}
 	}
 
 	/**
