@@ -459,7 +459,7 @@ Links to Dockerfiles are also supported <SourceClass>docker/Dockerfile</SourceCl
 If you wish to link class/folder reference in different branch, you can do that with 'branch' as in the following markup
 example. <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/filter/PrimaryKey.java</SourceClass>
 
-Another way is to use MD link inside, where you can specify exact path. 
+Another way is to use MD link inside, where you can specify exact path to source. 
 <SourceClass>[Price between](https://github.com/FgForrest/evitaDB/blob/dev/evita_query/src/main/java/io/evitadb/api/query/filter/PriceBetween.java)</SourceClass>
 
 ##### Please use following markup:
@@ -468,6 +468,10 @@ Another way is to use MD link inside, where you can specify exact path.
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/HierarchicalPlacementContract.java</SourceClass>
 
 <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/filter/PrimaryKey.java</SourceClass>
+
+or
+
+<SourceClass>[Price between](https://github.com/FgForrest/evitaDB/blob/dev/evita_query/src/main/java/io/evitadb/api/query/filter/PriceBetween.java)</SourceClass>
 ```
 
 ### Note
