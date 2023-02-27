@@ -72,7 +72,7 @@ to download and install the tool.
     <Note type="warning">
     After running the commands in steps 1 and 2, you must enter a password - if you want an unencrypted certificate without 
     a password, specify the `-nodes' parameter in the command.
-    </Note>Note>
+    </Note>
 
 2. Now you need to create a text file called `domain.ext` with the following content (replace DNS with the name of your
    test domain):
