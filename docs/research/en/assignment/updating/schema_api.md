@@ -3,7 +3,7 @@ title: Schema API design
 perex:
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
-proofreading: 'underway'
+proofreading: 'done'
 ---
 
 All schema classes are designed as **immutable** and follow similar rules as [entities](entity_api) - including
