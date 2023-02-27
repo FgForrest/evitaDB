@@ -110,7 +110,11 @@ public class GrpcServer {
 			}
 			tlsServerCredentials = tlsServerCredentialsBuilder.build();
 		} catch (Exception e) {
-			throw new EvitaInternalError("Failed to create gRPC server credentials with provided certificate and private key.");
+			throw new EvitaInternalError(
+				"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
+				"Failed to create gRPC server credentials with provided certificate and private key.",
+				e
+			);
 		}
 		server = Grpc.newServerBuilderForPort(hosts[0].port(), tlsServerCredentials)
 			.intercept(new ServerSessionInterceptor(evitaSystemDataProvider.getEvita()))

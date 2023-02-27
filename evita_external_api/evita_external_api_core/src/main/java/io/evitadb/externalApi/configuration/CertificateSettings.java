@@ -36,14 +36,26 @@ import javax.annotation.Nullable;
  * @param custom                   DTO containing paths to the certificate and private keys used to secure the connection
  * @author Tomáš Pozler, 2023
  */
-public record CertificateSettings(boolean generateAndUseSelfSigned,
-                                  @Nonnull String folderPath,
+public record CertificateSettings(
+	boolean generateAndUseSelfSigned,
+	@Nullable String folderPath,
 
-                                  @Nullable CertificatePath custom) {
+	@Nullable CertificatePath custom
+) {
+
+	public CertificateSettings() {
+		this(true, null, null);
+	}
+
+	@Override
+	@Nullable
+	public String folderPath() {
+		return folderPath == null ? ServerCertificateManager.getDefaultServerCertificateFolderPath() : folderPath;
+	}
 
 	public static class Builder {
 		private boolean generateAndUseSelfSigned = true;
-		private String folderPath = ServerCertificateManager.getDefaultServerCertificateFolderPath();
+		private String folderPath = null;
 		private CertificatePath custom = null;
 
 		public Builder generateAndUseSelfSigned(boolean generateAndUseSelfSigned) {

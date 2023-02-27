@@ -80,75 +80,30 @@ public class ServerCertificateManager {
 	 * Variable that holds the path to the folder where the certificate related files will be stored.
 	 */
 	private final String certificateFolderPath;
-	/**
-	 * Get path to the server certificate with the given name and the default extension.
-	 */
-	public String getCertificatePath(String certName) {
-		return certificateFolderPath + certName + CertificateUtils.getCertificateExtension();
-	}
-	/**
-	 * Get path to the server certificate private key with the given name and the default extension.
-	 */
-	public String getCertificatePrivateKeyPath(String certName) {
-		return certificateFolderPath + certName + CertificateUtils.getCertificateKeyExtension();
-	}
-	/**
-	 * Get path to the server certificate private key with the default name and the default extension.
-	 */
-	public String getCertificatePrivateKeyPath() {
-		return certificateFolderPath + CertificateUtils.getServerCertName() + CertificateUtils.getCertificateKeyExtension();
-	}
-	/**
-	 * Get path to the root CA certificate with the default name and the default extension.
-	 */
-	public String getRootCaCertificatePath() {
-		return certificateFolderPath + CertificateUtils.getGeneratedRootCaCertificateFileName();
-	}
-	/**
-	 * Get path to the root CA certificate private key with the default name and the default extension.
-	 */
-	public String getRootCaCertificateKeyPath() {
-		return certificateFolderPath + CertificateUtils.getGeneratedRootCaCertificateKeyFileName();
-	}
+
 	/**
 	 * Get path to the default folder where server certificates will be stored.
 	 */
+	@Nonnull
 	public static String getDefaultServerCertificateFolderPath() {
 		return DEFAULT_SERVER_CERTIFICATE_FOLDER_PATH;
 	}
 
 	/**
-	 * Creates a new instance of {@link ServerCertificateManager} with the default path to the folder where the certificate
-	 * related files will be stored.
-	 */
-	public ServerCertificateManager(@Nullable String certificateFolderPath) {
-		if (certificateFolderPath == null) {
-			this.certificateFolderPath = DEFAULT_SERVER_CERTIFICATE_FOLDER_PATH;
-		} else {
-			this.certificateFolderPath = certificateFolderPath.endsWith(File.separator) ? certificateFolderPath : certificateFolderPath + File.separator;
-
-		}
-		Security.addProvider(BOUNCY_CASTLE_PROVIDER);
-		final File file = new File(this.certificateFolderPath);
-		if (!file.exists()) {
-			//noinspection ResultOfMethodCallIgnored
-			file.mkdir();
-		}
-	}
-
-	/**
 	 * Gets the path of the certificate and private key that should be used.
+	 *
 	 * @param certificateSettings part of {@link AbstractApiConfiguration} that contains information about certificates
 	 *                            settings.
 	 * @return {@link CertificatePath} object that contains paths to the certificate and private key.
 	 */
+	@Nonnull
 	public static CertificatePath getCertificatePath(@Nonnull CertificateSettings certificateSettings) {
 		final String certPath;
 		final String certPrivateKeyPath;
 		final String certPrivateKeyPassword;
 		if (certificateSettings.generateAndUseSelfSigned()) {
-			certPath = DEFAULT_SERVER_CERTIFICATE_FOLDER_PATH + CertificateUtils.getGeneratedServerCertificateFileName();
-			certPrivateKeyPath = DEFAULT_SERVER_CERTIFICATE_FOLDER_PATH + CertificateUtils.getGeneratedServerCertificatePrivateKeyFileName();
+			certPath = getCertificateFolderPath(certificateSettings) + CertificateUtils.getGeneratedServerCertificateFileName();
+			certPrivateKeyPath = getCertificateFolderPath(certificateSettings) + CertificateUtils.getGeneratedServerCertificatePrivateKeyFileName();
 			certPrivateKeyPassword = null;
 		} else {
 			final CertificatePath certificatePath = certificateSettings.custom();
@@ -163,6 +118,69 @@ public class ServerCertificateManager {
 	}
 
 	/**
+	 * Returns sanitized certificate folder path.
+	 */
+	@Nonnull
+	private static String getCertificateFolderPath(@Nullable CertificateSettings certificateSettings) {
+		final String folderPath = certificateSettings.folderPath();
+		return folderPath.endsWith(File.separator) ? folderPath : folderPath + File.separator;
+	}
+
+	/**
+	 * Creates a new instance of {@link ServerCertificateManager} with the default path to the folder where the certificate
+	 * related files will be stored.
+	 */
+	public ServerCertificateManager(@Nullable CertificateSettings certificateSettings) {
+		certificateFolderPath = getCertificateFolderPath(certificateSettings);
+		Security.addProvider(BOUNCY_CASTLE_PROVIDER);
+		final File file = new File(this.certificateFolderPath);
+		if (!file.exists()) {
+			//noinspection ResultOfMethodCallIgnored
+			file.mkdir();
+		}
+	}
+
+	/**
+	 * Get path to the server certificate with the given name and the default extension.
+	 */
+	@Nonnull
+	public String getCertificatePath(@Nonnull String certName) {
+		return certificateFolderPath + certName + CertificateUtils.getCertificateExtension();
+	}
+
+	/**
+	 * Get path to the server certificate private key with the given name and the default extension.
+	 */
+	@Nonnull
+	public String getCertificatePrivateKeyPath(@Nonnull String certName) {
+		return certificateFolderPath + certName + CertificateUtils.getCertificateKeyExtension();
+	}
+
+	/**
+	 * Get path to the server certificate private key with the default name and the default extension.
+	 */
+	@Nonnull
+	public String getCertificatePrivateKeyPath() {
+		return certificateFolderPath + CertificateUtils.getServerCertName() + CertificateUtils.getCertificateKeyExtension();
+	}
+
+	/**
+	 * Get path to the root CA certificate with the default name and the default extension.
+	 */
+	@Nonnull
+	public String getRootCaCertificatePath() {
+		return certificateFolderPath + CertificateUtils.getGeneratedRootCaCertificateFileName();
+	}
+
+	/**
+	 * Get path to the root CA certificate private key with the default name and the default extension.
+	 */
+	@Nonnull
+	public String getRootCaCertificateKeyPath() {
+		return certificateFolderPath + CertificateUtils.getGeneratedRootCaCertificateKeyFileName();
+	}
+
+	/**
 	 * Generates a self-signed certificate using the BouncyCastle library.
 	 */
 	public void generateSelfSignedCertificate() throws Exception {
@@ -174,7 +192,7 @@ public class ServerCertificateManager {
 		final Date notBefore = Date.from(now);
 		final Date notAfter = Date.from(now.plus(Duration.ofDays(365)));
 		final ContentSigner contentSigner = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM).build(keyPair.getPrivate());
-		final X500Name x500Name = new X500Name("CN="+CertificateUtils.getGeneratedRootCaCertificateName());
+		final X500Name x500Name = new X500Name("CN=" + CertificateUtils.getGeneratedRootCaCertificateName());
 		final JcaX509ExtensionUtils rootCertExtUtils = new JcaX509ExtensionUtils();
 		final X509v3CertificateBuilder certificateBuilder =
 			new JcaX509v3CertificateBuilder(x500Name,
@@ -207,16 +225,25 @@ public class ServerCertificateManager {
 
 	/**
 	 * Method that is used to issue a certificate by newly generated certificate authority.
-	 * @param certificateName name of the certificate to be issued
+	 *
+	 * @param certificateName  name of the certificate to be issued
 	 * @param keyPairGenerator key pair generator for getting public and private keys
-	 * @param keyPair key pair of the certificate authority
-	 * @param x500Name x500 name of the certificate authority
-	 * @param notBefore date from which the certificate is valid
-	 * @param notAfter date until which the certificate is valid
-	 * @param rootCert certificate authority certificate
+	 * @param keyPair          key pair of the certificate authority
+	 * @param x500Name         x500 name of the certificate authority
+	 * @param notBefore        date from which the certificate is valid
+	 * @param notAfter         date until which the certificate is valid
+	 * @param rootCert         certificate authority certificate
 	 */
-	private void issueCertificate(@Nonnull String certificateName, @Nonnull KeyPairGenerator keyPairGenerator, @Nonnull KeyPair keyPair, @Nonnull X500Name x500Name, @Nonnull Date notBefore, @Nonnull Date notAfter, @Nonnull X509Certificate rootCert) throws Exception {
-		final X500Name issuedCertSubject = new X500Name("CN="+certificateName);
+	private void issueCertificate(
+		@Nonnull String certificateName,
+		@Nonnull KeyPairGenerator keyPairGenerator,
+		@Nonnull KeyPair keyPair,
+		@Nonnull X500Name x500Name,
+		@Nonnull Date notBefore,
+		@Nonnull Date notAfter,
+		@Nonnull X509Certificate rootCert
+	) throws Exception {
+		final X500Name issuedCertSubject = new X500Name("CN=" + certificateName);
 		final BigInteger issuedCertSerialNum = new BigInteger(Long.toString(new SecureRandom().nextLong()));
 		final KeyPair issuedCertKeyPair = keyPairGenerator.generateKeyPair();
 

@@ -125,7 +125,7 @@ public class ExternalApiServer implements AutoCloseable {
 
 		final Undertow.Builder rootServerBuilder = Undertow.builder();
 
-		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(apiOptions.certificate().folderPath());
+		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(apiOptions.certificate());
 		final CertificatePath certificatePath = initCertificate(apiOptions, serverCertificateManager);
 
 		this.registeredApiProviders = registerApiProviders(evitaSystemDataProvider, apiOptions, externalApiProviders);
