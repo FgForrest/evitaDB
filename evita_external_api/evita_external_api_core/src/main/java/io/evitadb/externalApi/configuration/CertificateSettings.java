@@ -27,6 +27,8 @@ import io.evitadb.externalApi.certificate.ServerCertificateManager;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
+import java.nio.file.Path;
 
 /**
  * This DTO record encapsulates certificate settings that will be used to secure connections to the web servers providing APIs.
@@ -47,10 +49,10 @@ public record CertificateSettings(
 		this(true, null, null);
 	}
 
-	@Override
-	@Nullable
-	public String folderPath() {
-		return folderPath == null ? ServerCertificateManager.getDefaultServerCertificateFolderPath() : folderPath;
+	@Nonnull
+	public Path getFolderPath() {
+		final String fp = folderPath == null ? ServerCertificateManager.getDefaultServerCertificateFolderPath() : folderPath;
+		return fp.endsWith(File.separator) ? Path.of(fp) : Path.of(fp + File.separator);
 	}
 
 	public static class Builder {

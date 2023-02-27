@@ -22,7 +22,7 @@
 #
 
 java \
-        -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:8000 \
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000 \
         -jar "target/evita-server.jar" \
         "-DconfigFile=../docker/evita-configuration.yaml" \
         "-Dstorage.storageDirectory=../data"

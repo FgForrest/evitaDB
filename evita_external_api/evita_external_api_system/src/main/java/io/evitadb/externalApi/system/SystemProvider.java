@@ -24,6 +24,11 @@
 package io.evitadb.externalApi.system;
 
 import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.utils.ConsoleWriter;
+import io.evitadb.utils.ConsoleWriter.ConsoleColor;
+import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.StringUtils;
 import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -45,8 +50,20 @@ public class SystemProvider implements ExternalApiProvider {
 	private final HttpHandler apiHandler;
 
 	@Nonnull
+	@Getter
+	private final String[] certificateUrls;
+
+	@Nonnull
 	@Override
 	public String getCode() {
 		return CODE;
+	}
+
+	@Override
+	public void afterStart() {
+		for (String certificateUrl : certificateUrls) {
+			ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			ConsoleWriter.write(certificateUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		}
 	}
 }

@@ -94,7 +94,9 @@ public class GrpcServer {
 			if (mtlsConfiguration != null && Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
 				if (apiOptions.certificate().generateAndUseSelfSigned()) {
 					tlsServerCredentialsBuilder.trustManager(
-						new File(apiOptions.certificate().folderPath() + File.separator + CertificateUtils.getGeneratedRootCaCertificateFileName())
+						apiOptions.certificate().getFolderPath()
+							.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
+							.toFile()
 					);
 				}
 				tlsServerCredentialsBuilder.clientAuth(TlsServerCredentials.ClientAuth.REQUIRE);
