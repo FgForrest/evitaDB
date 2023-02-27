@@ -30,13 +30,13 @@ proofreading: 'needed'
 			product in e-commerce listing and variant selection is performed at the moment of the purchase. Different variants of
 			this shirt may have different prices so when filtering or sorting we need to select single price that will be used for
 			`parametrized product`. For such case FIRST_OCCURRENCE inner entity reference handling strategy is the best fit
-			(see [PriceInnerEntityReferenceHandling](classes/price_inner_entity_reference_handling)).			
+			(see <SourceClass>[PriceInnerRecordHandling](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceInnerRecordHandling.java)</SourceClass>).			
 			Other example of complex entity is `product set`. Product set is a product that consists of several sub products, but
 			is purchased as a whole. Real life example of such product set is a drawer - it consists of the body, the door and handles.
 			Customer may even choose which type of doors or handles they want in the set - but there always be some defaults. Again
 			we need some price assigned for product set for the sake of listing (i.e. filtering and sorting) but there may be none
 			when price is computed as an aggregation of the prices of sub-products. For such case SUM inner entity
-			reference handling strategy is the best fit (see [PriceInnerEntityReferenceHandling](classes/price_inner_entity_reference_handling)).</dd>
+			reference handling strategy is the best fit (see <SourceClass>[PriceInnerRecordHandling](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceInnerRecordHandling.java)</SourceClass>).</dd>
 		<dt>facet</dt>
 		<dd>Facet is a property of the entity that is used for quick filtering entities by the customer. It is represented as a
 			checkbox in filtering bar or as a slider in case of large number of distinct numeric values. Facets help customer to
@@ -48,7 +48,7 @@ proofreading: 'needed'
 			returned or even inform user that selecting particular facet would narrow the results to very few records and that his/her
 			freedom of choice will be severely affected.</dd>
 		<dt>facet group</dt>
-		<dd>Facet group is used to group [facets](terms_explanation#facet) of the same type. Facet group controls mechanism of facet
+		<dd>Facet group is used to group facets of the same type. Facet group controls mechanism of facet
 			filtering. It means that facet groups allow defining, whether facets in the group are combined with boolean OR, AND
 			relations when used in filtering. It also allows defining how this facet group will be combined with other facet groups
 			in the same query (i.e. AND, OR, NOT). This type of boolean logic affects the statistics computation of the facets and is
@@ -61,7 +61,7 @@ proofreading: 'needed'
 		<dt>group</dt>
 		<dd>Group is entity that references set of products by some cross-cutting concert. As an example of groups you can imagine:
 			top products (displayed on homepage), new products (last X products added to an inventory), gifts and so on. Groups are
-			versatile units to display bunch of products on different places of the web application.</dd>
+			versatile units to display a bunch of products on different places of the web application.</dd>
 		<dt>product</dt>
 		<dd>Product is entity that represents the item sold at e-commerce store. Products represent the very core of each e-commerce
 			application.</dd>	
@@ -69,9 +69,9 @@ proofreading: 'needed'
 		<dd>Product with variant is a "virtual product" that cannot be bought directly. Customer must choose one of its variants
 			instead. Products with variants are very often seen in e-commerce fashion stores where clothes come in various sizes
 			and colors. Single product can have dozens combinations of size and color. If each combination represented standard
-			[product](#product), product listing in [a category](#category) and other places would become unusable.
+			product, product listing in a category and other places would become unusable.<br/><br/>
 			In this situation product with variants become very handy. This &quot;virtual product&quot; can be listed instead of variants
-			and variant selection is performed at the time of placing the goods into the [cart](#cart). Let's have an example:			
+			and variant selection is performed at the time of placing the goods into the cart. Let's have an example:			
 			We have a T-Shirt with unicorn picture on it. The T-Shirt is produced in different sizes and colors - namely:<br/><br/>
 			&ndash; size: S, M, L, XL, XXL<br/>
 			&ndash; color: blue, pink, violet<br/><br/>			
@@ -84,13 +84,13 @@ proofreading: 'needed'
 			When displaying and filtering product set in listings on the e-commerce site, we need some price assigned for it
 			but there may be none exact price assigned to the set and e-commerce owner expects that price would be computed
 			as an aggregation of the prices of sub-products. This behaviour is supported by setting proper
-			[PriceInnerEntityReferenceHandling](classes/price_inner_entity_reference_handling).</dd>
+			<SourceClass>[PriceInnerRecordHandling](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceInnerRecordHandling.java)</SourceClass>.</dd>
 		<dt>property</dt>
 		<dd>Entity that represents item property. Properties are handled as top entities because we expect that properties may have
 			additional attributes and localizations to different languages. Properties are usually referenced in other items'
-			[facets](#facet). Property are usually composed of two parts:<br/><br/>			
-			&ndash; property group, referenced in [facet group](#facet-group), fe. color, size, sex<br/>
-			&ndash; property value, referenced in [facet](#facet), fe. blue, XXL, women<br/><br/></dd>
+			facets. Property are usually composed of two parts:<br/><br/>			
+			&ndash; property group, referenced in facet group, fe. color, size, sex<br/>
+			&ndash; property value, referenced in facet, fe. blue, XXL, women<br/><br/></dd>
 		<dt>variant product</dt>
 		<dd>A variant product is a product that is enclosed within product with variants and represents
 			single combination of particular product. In case of example used in referenced chapter it would be for example
