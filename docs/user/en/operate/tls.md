@@ -6,8 +6,6 @@ author: 'Bc. Tomáš Pozler'
 published: false
 ---
 
-# Setting up TLS certificates
-
 gRPC is based on the HTTP/2 protocol, which requires TLS. Because of this, all evitaDB external APIs require it to keep 
 the security uniform.
 
