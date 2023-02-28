@@ -323,16 +323,20 @@ evitaDB uses the [Slf4j](https://www.slf4j.org/) logging facade with [Logback](h
 you're free to change this. When you start the evitaDB server you should see the following information in the console output:
 
 ```
-             _ _        ____  ____  
-   _____   _(_) |_ __ _|  _ \| __ ) 
-  / _ \ \ / / | __/ _` | | | |  _ \ 
- |  __/\ V /| | || (_| | |_| | |_) |
-  \___| \_/ |_|\__\__,_|____/|____/ 
-                                    
-alpha build 0.5-SNAPSHOT
-https://evitadb.io
+            _ _        ____  ____  
+  _____   _(_) |_ __ _|  _ \| __ ) 
+ / _ \ \ / / | __/ _` | | | |  _ \ 
+|  __/\ V /| | || (_| | |_| | |_) |
+ \___| \_/ |_|\__\__,_|____/|____/ 
 
-14:33:02.742 INFO  o.j.threads - JBoss Threads version 3.5.0.Final
+You'll see some version here
+Visit us at: https://evitadb.io
+
+Root CA Certificate fingerprint:        You'll see some fingerprint here
+API `graphQL` listening on              https://your-server:5555/gql/
+API `rest` listening on                 https://your-server:5555/rest/
+API `gRPC` listening on                 https://your-server:5556/
+API `system` listening on               http://your-server:5557/system/
 ```
 
 The default logback configuration is defined in a file <SourceClass>evita_server/src/main/resources/logback.xml</SourceClass>.

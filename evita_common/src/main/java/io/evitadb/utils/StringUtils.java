@@ -357,6 +357,18 @@ public class StringUtils {
 		}
 	}
 
+	/**
+	 * Returns `theText` padded with `padCharacter` to the requested size.
+	 * @param theText
+	 * @param padCharacter
+	 * @param requestedSize
+	 * @return
+	 */
+	@Nonnull
+	public static String rightPad(@Nonnull String theText, @Nonnull String padCharacter, int requestedSize) {
+		return theText + padCharacter.repeat(Math.max(0, requestedSize - theText.length()));
+	}
+
 	/*
 		PRIVATE METHODS
 	 */

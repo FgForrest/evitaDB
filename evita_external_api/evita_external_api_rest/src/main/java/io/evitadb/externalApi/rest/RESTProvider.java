@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest;
 
 import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.rest.configuration.RESTConfig;
 import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -36,9 +37,13 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class RESTProvider implements ExternalApiProvider {
+public class RESTProvider implements ExternalApiProvider<RESTConfig> {
 
 	public static final String CODE = "rest";
+
+	@Nonnull
+	@Getter
+	private final RESTConfig configuration;
 
 	@Nonnull
 	@Getter

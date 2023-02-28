@@ -98,9 +98,9 @@ public abstract class AbstractApiConfiguration {
 	}
 
 	/**
-	 * @param enabled enables the particular API
-	 * @param host    defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
-	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
+	 * @param enabled          enables the particular API
+	 * @param host             defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
+	 *                         (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
 	 * @param forceUnencrypted forces the API to run without TLS encryption
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, boolean forceUnencrypted) {
@@ -121,4 +121,15 @@ public abstract class AbstractApiConfiguration {
 			.toArray(HostDefinition[]::new);
 	}
 
+	/**
+	 * Returns base url for the API.
+	 */
+	@Nonnull
+	public String[] getBaseUrls() {
+		return Arrays.stream(getHost())
+			.map(it -> (isForceUnencrypted() ? "http://" : "https://")
+				+ it.hostName() + ":" + it.port() +
+				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
+			.toArray(String[]::new);
+	}
 }

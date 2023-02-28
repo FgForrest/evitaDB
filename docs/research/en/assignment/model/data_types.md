@@ -42,8 +42,7 @@ class.
 
 ## DateTimeRange
 
-represents a specific implementation of the <SourceClass>[Range.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/Range.java)</SourceClass
-defining from and to boundaries
+represents a specific implementation of the <SourceClass>[Range.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/Range.java)</SourceClass> defining from and to boundaries
 by the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) data
 types. The offset date times are written in the ISO format.
 
@@ -69,7 +68,7 @@ types. The offset date times are written in the ISO format.
 
 ## NumberRange
 
-Represents a specific implementation of the <SourceClass>[Range.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/Range.java)</SourceClass,
+Represents a specific implementation of the <SourceClass>[Range.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/Range.java)</SourceClass>
 defining from and to boundaries by the [Number](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Number.html)
 data types. The supported number types are: Byte, Short, Integer, Long and BigDecimal.
 

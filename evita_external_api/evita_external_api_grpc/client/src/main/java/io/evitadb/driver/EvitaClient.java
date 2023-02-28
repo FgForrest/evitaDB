@@ -55,7 +55,6 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTop
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
@@ -69,17 +68,10 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -147,39 +139,18 @@ public class EvitaClient implements EvitaContract {
 		@Nullable Consumer<NettyChannelBuilder> grpcConfigurator
 	) {
 		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
-			.useGeneratedCertificate(configuration.useGeneratedCertificate())
+			.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
 			.usingTrustedRootCaCertificate(configuration.trustCertificate())
 			.mtls(configuration.mtlsEnabled())
 			.clientCertificateFilePath(configuration.certificateFileName())
 			.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
 			.build();
-		if (configuration.useGeneratedCertificate()) {
-			clientCertificateManager.getCertificatesFromServer(configuration.host(), configuration.systemApiPort());
-		}
 
 		final NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(configuration.host(), configuration.port())
 			.sslContext(clientCertificateManager.buildClientSslContext())
 			.executor(Executors.newCachedThreadPool())
 			.defaultLoadBalancingPolicy("round_robin")
 			.intercept(new ClientSessionInterceptor());
-
-		try {
-			final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-			final Certificate serverCert;
-			try (InputStream in = new FileInputStream(clientCertificateManager.getUsedRootCaCertificatePath().toString())) {
-				serverCert = cf.generateCertificate(in);
-			}
-			log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(serverCert));
-			if (configuration.mtlsEnabled()) {
-				final Certificate clientCert;
-				try (InputStream in = new FileInputStream(configuration.certificateFolderPath() + "/" + configuration.certificateFileName())) {
-					clientCert = cf.generateCertificate(in);
-				}
-				log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(clientCert));
-			}
-		} catch (CertificateException | IOException | NoSuchAlgorithmException e) {
-			throw new EvitaInternalError(e.getMessage(), e);
-		}
 
 		ofNullable(grpcConfigurator)
 			.ifPresent(it -> it.accept(nettyChannelBuilder));
