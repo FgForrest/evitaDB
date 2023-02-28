@@ -26,7 +26,7 @@ api:
   ioThreads: ${api.ioThreads:4}
   certificate:
     generateAndUseSelfSigned: ${api.certificate.generateAndUseSelfSigned:true}
-    folderPath: ${api.certificate.folderPath:null}
+    folderPath: ${api.certificate.folderPath:'./evita-server-certificates/'}
     custom:
       certificate: ${api.certificate.custom.certificate:null}
       privateKey: ${api.certificate.custom.privateKey:null}

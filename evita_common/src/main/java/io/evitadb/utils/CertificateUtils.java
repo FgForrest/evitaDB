@@ -28,7 +28,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
-import java.util.Base64;
+import java.util.Locale;
 
 /**
  * This class contains utility constants and methods used by both the client and the server.
@@ -127,8 +127,13 @@ public class CertificateUtils {
 	 * @return a fingerprint of the provided certificate
 	 */
 	public static String getCertificateFingerprint(@Nonnull Certificate certificate) throws NoSuchAlgorithmException, CertificateEncodingException {
+		final StringBuilder sb = new StringBuilder(128);
 		final MessageDigest md = MessageDigest.getInstance("SHA-256");
-		final byte[] digest = md.digest(certificate.getEncoded());
-		return Base64.getEncoder().encodeToString(digest);
+		final byte[] messageDigest = md.digest(certificate.getEncoded());
+		for (byte b : messageDigest) {
+			sb.append(String.format("%02x", b & 0xff)).append(':');
+		}
+		return sb.toString().toUpperCase(Locale.getDefault()).substring(0, sb.length() - 1);
 	}
+
 }

@@ -33,6 +33,7 @@ import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -51,6 +52,10 @@ public record ApiOptions(
 	@Nonnull CertificateSettings certificate,
 	@Nonnull Map<String, AbstractApiConfiguration> endpoints
 ) {
+
+	public ApiOptions() {
+		this(null, new CertificateSettings(), new HashMap<>(8));
+	}
 
 	/**
 	 * Returns set {@link #ioThreads} or returns a default value.

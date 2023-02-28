@@ -21,20 +21,20 @@ instantiating them directly. Interfaces follow this structure:
 
 All model classes are versioned - in other words, when any change in the model instance occurs, a new instance created from
 this altered state will have version number incremented. Version information is not only on
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/EntityContract.java</SourceClass> level, but
+<SourceClass>[EntityContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/EntityContract.java)</SourceClass level, but
 also on more granular levels (such as
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/AttributesContract.java</SourceClass>,
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/ReferenceContract.java</SourceClass>,
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/AssociatedDataContract.java</SourceClass>).
+<SourceClass>[AttributesContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/AttributesContract.java)</SourceClass,
+<SourceClass>[ReferenceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/ReferenceContract.java)</SourceClass,
+<SourceClass>[AssociatedDataContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/AssociatedDataContract.java)</SourceClass).
 All model classes that support versioning implement the
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/Versioned.java</SourceClass> interface.
+<SourceClass>[Versioned.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/Versioned.java)</SourceClass interface.
 
 This version information is used for two purposes:
 
 1. **fast hashing + equality check:** only the primaryKey + version information suffices to tell whether two instances are equal,
   and we can tell that with enough confidence even if only part of the entity was really loaded from the persistent
   storage (if you need thorough comparison that compares all model data, you need to take advantage of the method
-  `differsFrom` in the <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/ContentComparator.java</SourceClass> interface)
+  `differsFrom` in the <SourceClass>[ContentComparator.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/ContentComparator.java)</SourceClass interface)
 2. **optimistic locking:** when there is a concurrent update of the same entity, we could automatically resolve the conflict,
   providing that the changes themselves do not overlap
 
@@ -44,7 +44,7 @@ This information may prove useful when this database goes into to distributed mo
 
 No data is really removed once it is created and stored. When you remove the reference / attribute / whatever, it stays
 in the entity and is just marked as `dropped`. See implementations of interface
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/Droppable.java</SourceClass>.
+<SourceClass>[Droppable.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/Droppable.java)</SourceClass.
 
 This decision has two roots:
 
@@ -70,7 +70,7 @@ once a while.
 ## Working with entities from code
 
 It's expected that most of the entity instances will be created by the evitaDB service classes - such as
-<SourceClass branch="POC">evita_db/src/main/java/io/evitadb/api/EvitaSession.java</SourceClass>. Anyway, there is always the
+<SourceClass>[EvitaSession.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/EvitaSession.java)</SourceClass. Anyway, there is always the
 [possibility of creating them directly](#creating-entities-in-detached-mode).
 
 Usually the entity creation will look like this:
@@ -121,19 +121,19 @@ final SealedEntity brand = new InitialEntityBuilder("brand", 1)
 	.toInstance();
 ```
 
-The <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/SealedEntity.java</SourceClass> form is not
-possible to directly upsert to evitaDB. The API only accepts the <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/mutation/EntityMutation.java</SourceClass>,
+The <SourceClass>[SealedEntity.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/SealedEntity.java)</SourceClass form is not
+possible to directly upsert to evitaDB. The API only accepts the <SourceClass>[EntityMutation.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/mutation/EntityMutation.java)</SourceClass,
 but that is easily available by calling `toMutation()` instead of `toInstance()` (alternatively, the `EntityBuilder` itself,
 and the `toMutation()` is executed internally).
 
 ## Session
 
 Communication with Evita instance goes always through the
-<SourceClass branch="POC">evita_db/src/main/java/io/evitadb/api/EvitaSession.java</SourceClass> interface. Session are
+<SourceClass>[EvitaSession.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/EvitaSession.java)</SourceClass interface. Session are
 created by the clients to envelope a "piece of work" with evitaDB. In the web environment, it's a good idea to have
 a session per request, in batch processing it's recommended to keep a single session for an entire batch.
 
-There may be multiple transactions (<SourceClass branch="POC">evita_db/src/main/java/io/evitadb/api/Transaction.java</SourceClass>)
+There may be multiple transactions (<SourceClass>[Transaction.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/Transaction.java)</SourceClass)
 during a single session instance's life, but transaction overlap is not supported - there can be, at most, a single
 transaction open in a single session simultaneously.
 
@@ -145,7 +145,7 @@ research stage.
 ## Read only vs. Read-Write sessions
 
 We distinguish between sessions by checking, if they allow writes ahead of session creation, or not. Read only sessions are opened by calling the
-<SourceClass branch="POC">evita_db/src/main/java/io/evitadb/api/Evita.java</SourceClass> `queryCatalog`, and read-write
+<SourceClass>[Evita.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/Evita.java)</SourceClass `queryCatalog`, and read-write
 sessions by calling the `updateCatalog` method. No writes will be allowed in a read-only session. This also allows evitaDB to optimize
 its behaviour when working with the database.
 

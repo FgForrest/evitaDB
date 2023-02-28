@@ -32,7 +32,7 @@ Price computation logic in evitaDB is designed in a very simplistic way that sup
 allows adaptation, even to uncommon ones.
 
 The structure of the individual price is visible from the
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/PriceContract.java</SourceClass> interface.
+<SourceClass>[PriceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceContract.java)</SourceClass interface.
 
 [Search query](query_language) allows looking up for prices:
 
@@ -178,9 +178,9 @@ price range predicate.
 
 <Term document="docs/research/en/assignment/index.md" name="product-with-variants">Product with variants</Term> must contain prices of all of its
 variants. Variant prices needs to be differentiated by the inner entity id property (see interface
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/PriceContract.java</SourceClass>).
+<SourceClass>[PriceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceContract.java)</SourceClass).
 The product with variants must have a price inner entity reference handling mode
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/mutation/price/PriceInnerRecordHandlingMutation.java</SourceClass>
+<SourceClass>[PriceInnerRecordHandlingMutation.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/mutation/price/PriceInnerRecordHandlingMutation.java)</SourceClass
 set to `FIRST_OCCURRENCE`.
 
 In this setup product, the price for sale will be selected as the smallest price for sale of all variants. This price will
@@ -273,9 +273,9 @@ not selected as the selling price, and thus cannot be considered in the price ra
 
 <Term document="docs/research/en/assignment/index.md" name="product set">Product set</Term> must contain prices of all its components. Component
 prices needs to be differentiated by the inner entity id property (see interface
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/PriceContract.java</SourceClass>). The product set
+<SourceClass>[PriceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceContract.java)</SourceClass). The product set
 must have the price inner entity reference handling mode
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/mutation/price/PriceInnerRecordHandlingMutation.java</SourceClass> set
+<SourceClass>[PriceInnerRecordHandlingMutation.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/mutation/price/PriceInnerRecordHandlingMutation.java)</SourceClass set
 to `SUM`.
 
 In this setup, the product price for sale will be computed on the fly as a sum of the prices for sale of all its components.

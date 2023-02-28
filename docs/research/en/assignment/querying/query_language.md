@@ -26,10 +26,10 @@ Query has these four parts:
 - **[require](#require):** contains additional information for the query engine, may hold pagination settings, richness
   of the entities and so on (optional, if missing only primary keys of the entities are returned)
 
-Query always returns result in the form of <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/io/EvitaResponseBase.java</SourceClass>
+Query always returns result in the form of <SourceClass>[EvitaResponseBase.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/EvitaResponseBase.java)</SourceClass
 containing:
 
-- **<SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/dataType/PaginatedList.java</SourceClass>** of result data
+- **<SourceClass>[PaginatedList.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/PaginatedList.java)</SourceClass** of result data
 - [Map](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) of extra results indexed by their
   class (`<T extends EvitaResponseExtraResult> Map<Class<T>, T>`), see detailed documentation for the individual
   [require](#require) constraints producing extra results
@@ -385,7 +385,7 @@ between('amount', 8, 10)
 ```
 </Note>
 
-If attribute is of <SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/dataType/Range.java</SourceClass> type,
+If attribute is of <SourceClass>[Range.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/Range.java)</SourceClass type,
 the `between` constraint behaves like overlap - it returns true, if examined range and any of the attribute ranges
 (see previous paragraph about array type behaviour) share anything in common.
 
@@ -397,7 +397,7 @@ the `between` constraint behaves like overlap - it returns true, if examined ran
 </NoteTitle>
 
 All the following constraints return true, when we have the attribute `validity` with following
-<SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/dataType/NumberRange.java</SourceClass>
+<SourceClass>[NumberRange.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/NumberRange.java)</SourceClass
 values: `[[2,5],[8,10]]`:
 
 ``` evitaql
@@ -694,7 +694,7 @@ Function supports attribute arrays in the same way as plain values.
 The `inRange` constraint compares value of the attribute with name passed in first argument with the date and time
 value passed in the second argument. First argument must be
 [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html), second argument must
-be a <SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/dataType/Range.java</SourceClass> type.
+be a <SourceClass>[Range.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/Range.java)</SourceClass type.
 
 Function returns true, if second argument is greater than or equal to range start (from), and is lesser than or equal to
 range end (to).
@@ -1845,7 +1845,7 @@ This require constraint implicitly triggers [entity](#entity) require, because p
 its entity container. By default, the fetched prices are filtered according to price filtering constraints, should
 they are used in the query. This behaviour might be changed, by single optional argument of this requirement constraint.
 
-The constraint accepts single optional argument <SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/require/PriceFetchMode.java</SourceClass>
+The constraint accepts single optional argument <SourceClass>[PriceFetchMode.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/require/PriceFetchMode.java)</SourceClass
 with following options:
 
 - **ALL**: all prices of the entity are returned regardless of the input query constraints otherwise prices are filtered
@@ -2007,7 +2007,7 @@ that define how rich returned information should be (by default only primary key
 be returned as well).
 
 When this require constraint is used, an additional object of
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/io/extraResult/Parents.java</SourceClass> type is
+<SourceClass>[Parents.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/Parents.java)</SourceClass type is
 stored to result index. This data structure contains information about referenced entity paths for each entity in
 the response.
 
@@ -2056,7 +2056,7 @@ The constraint may have also inner require constraints that define how rich retu
 only primary keys are returned, but full entities might be returned as well).
 
 When this require constraint is used, an additional object of
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/io/extraResult/Parents.java</SourceClass> type is
+<SourceClass>[Parents.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/Parents.java)</SourceClass type is
 stored to result index. This data structure contains information about referenced entity paths for each entity in
 the response.
 
@@ -2111,7 +2111,7 @@ query(
 ### Facet summary
 
 The `facetSummary` requirement constraint triggers computing and adding an object of
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/io/extraResult/FacetSummary.java</SourceClass>
+<SourceClass>[FacetSummary.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/FacetSummary.java)</SourceClass
 type to the result index. The data structure is quite complex, but allows rendering entire facet listing to end users.
 It contains information about all facets present in current hierarchy view along with count of requested entities,
 that have those facets assigned.
@@ -2301,7 +2301,7 @@ with boolean AND NOT relation when selected.
 ### Attribute histogram
 
 The `attributeHistogram` requirement constraint usage triggers computation and adding an object of
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/io/extraResult/Histogram.java</SourceClass> type
+<SourceClass>[Histogram.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/Histogram.java)</SourceClass type
 allowing to render [histograms](https://en.wikipedia.org/wiki/Histogram) to the query response.
 
 In the first [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) argument it expects
@@ -2339,7 +2339,7 @@ The query results in a response with two histogram data structures computed for 
 ### Price histogram
 
 The `priceHistogram` requirement constraint usage triggers computation and adding an object of
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/io/extraResult/PriceHistogram.java</SourceClass> type
+<SourceClass>[PriceHistogram.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/PriceHistogram.java)</SourceClass type
 allowing to render [histograms](https://en.wikipedia.org/wiki/Histogram) to the query response.
 
 In the first [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) argument it expects
@@ -2371,7 +2371,7 @@ query(
 ### Hierarchy statistics
 
 The `hierarchyStatistics` require constraint triggers computation of the statistics for referenced hierarchical entities,
-and adds an object of <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java</SourceClass>
+and adds an object of <SourceClass>[HierarchyStatistics.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java)</SourceClass
 to the query response. The hierarchy statistics requirement helps to render the sensible category menus along with
 the insight about number of the entities within them.
 
@@ -2380,7 +2380,7 @@ argument that specifies reference name targeting a hierarchical entity. Addition
 requirements for fetching the referenced entity contents, so that the number of queries to the evitaDB is minimized,
 and all data is fetched in single query.
 
-The <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java</SourceClass>
+The <SourceClass>[HierarchyStatistics.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java)</SourceClass
 data structure is organized in the tree structure reflecting the hierarchy of the entities of specified reference name,
 that are referenced by entities returned by primary query. For each node in the tree (one hierarchical entity) there is
 a number that represents the count of currently queried entities relating to that referenced hierarchical entity node
@@ -2435,7 +2435,7 @@ query(
 ```
 
 This query would return first page with 20 products (omitting hundreds of others on additional pages), but also returns
-a <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java</SourceClass>
+a <SourceClass>[HierarchyStatistics.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java)</SourceClass
 data structure in additional data of the response. This object may contain following structure:
 
 ```

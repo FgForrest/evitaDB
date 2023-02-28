@@ -27,6 +27,8 @@ import io.evitadb.externalApi.certificate.ServerCertificateManager;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
+import java.nio.file.Path;
 
 /**
  * This DTO record encapsulates certificate settings that will be used to secure connections to the web servers providing APIs.
@@ -36,14 +38,26 @@ import javax.annotation.Nullable;
  * @param custom                   DTO containing paths to the certificate and private keys used to secure the connection
  * @author Tomáš Pozler, 2023
  */
-public record CertificateSettings(boolean generateAndUseSelfSigned,
-                                  @Nonnull String folderPath,
+public record CertificateSettings(
+	boolean generateAndUseSelfSigned,
+	@Nullable String folderPath,
 
-                                  @Nullable CertificatePath custom) {
+	@Nullable CertificatePath custom
+) {
+
+	public CertificateSettings() {
+		this(true, null, null);
+	}
+
+	@Nonnull
+	public Path getFolderPath() {
+		final String fp = folderPath == null ? ServerCertificateManager.getDefaultServerCertificateFolderPath() : folderPath;
+		return fp.endsWith(File.separator) ? Path.of(fp) : Path.of(fp + File.separator);
+	}
 
 	public static class Builder {
 		private boolean generateAndUseSelfSigned = true;
-		private String folderPath = ServerCertificateManager.getDefaultServerCertificateFolderPath();
+		private String folderPath = null;
 		private CertificatePath custom = null;
 
 		public Builder generateAndUseSelfSigned(boolean generateAndUseSelfSigned) {

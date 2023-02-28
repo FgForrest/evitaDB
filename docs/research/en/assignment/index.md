@@ -30,13 +30,13 @@ proofreading: 'needed'
 			product in e-commerce listing and variant selection is performed at the moment of the purchase. Different variants of
 			this shirt may have different prices so when filtering or sorting we need to select single price that will be used for
 			`parametrized product`. For such case FIRST_OCCURRENCE inner entity reference handling strategy is the best fit
-			(see [PriceInnerEntityReferenceHandling](classes/price_inner_entity_reference_handling)).			
+			(see <SourceClass>[PriceInnerRecordHandling](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceInnerRecordHandling.java)</SourceClass>).			
 			Other example of complex entity is `product set`. Product set is a product that consists of several sub products, but
 			is purchased as a whole. Real life example of such product set is a drawer - it consists of the body, the door and handles.
 			Customer may even choose which type of doors or handles they want in the set - but there always be some defaults. Again
 			we need some price assigned for product set for the sake of listing (i.e. filtering and sorting) but there may be none
 			when price is computed as an aggregation of the prices of sub-products. For such case SUM inner entity
-			reference handling strategy is the best fit (see [PriceInnerEntityReferenceHandling](classes/price_inner_entity_reference_handling)).</dd>
+			reference handling strategy is the best fit (see <SourceClass>[PriceInnerRecordHandling](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceInnerRecordHandling.java)</SourceClass>).</dd>
 		<dt>facet</dt>
 		<dd>Facet is a property of the entity that is used for quick filtering entities by the customer. It is represented as a
 			checkbox in filtering bar or as a slider in case of large number of distinct numeric values. Facets help customer to
@@ -48,7 +48,7 @@ proofreading: 'needed'
 			returned or even inform user that selecting particular facet would narrow the results to very few records and that his/her
 			freedom of choice will be severely affected.</dd>
 		<dt>facet group</dt>
-		<dd>Facet group is used to group [facets](terms_explanation#facet) of the same type. Facet group controls mechanism of facet
+		<dd>Facet group is used to group facets of the same type. Facet group controls mechanism of facet
 			filtering. It means that facet groups allow defining, whether facets in the group are combined with boolean OR, AND
 			relations when used in filtering. It also allows defining how this facet group will be combined with other facet groups
 			in the same query (i.e. AND, OR, NOT). This type of boolean logic affects the statistics computation of the facets and is
@@ -61,7 +61,7 @@ proofreading: 'needed'
 		<dt>group</dt>
 		<dd>Group is entity that references set of products by some cross-cutting concert. As an example of groups you can imagine:
 			top products (displayed on homepage), new products (last X products added to an inventory), gifts and so on. Groups are
-			versatile units to display bunch of products on different places of the web application.</dd>
+			versatile units to display a bunch of products on different places of the web application.</dd>
 		<dt>product</dt>
 		<dd>Product is entity that represents the item sold at e-commerce store. Products represent the very core of each e-commerce
 			application.</dd>	
@@ -69,9 +69,9 @@ proofreading: 'needed'
 		<dd>Product with variant is a "virtual product" that cannot be bought directly. Customer must choose one of its variants
 			instead. Products with variants are very often seen in e-commerce fashion stores where clothes come in various sizes
 			and colors. Single product can have dozens combinations of size and color. If each combination represented standard
-			[product](#product), product listing in [a category](#category) and other places would become unusable.
+			product, product listing in a category and other places would become unusable.<br/><br/>
 			In this situation product with variants become very handy. This &quot;virtual product&quot; can be listed instead of variants
-			and variant selection is performed at the time of placing the goods into the [cart](#cart). Let's have an example:			
+			and variant selection is performed at the time of placing the goods into the cart. Let's have an example:			
 			We have a T-Shirt with unicorn picture on it. The T-Shirt is produced in different sizes and colors - namely:<br/><br/>
 			&ndash; size: S, M, L, XL, XXL<br/>
 			&ndash; color: blue, pink, violet<br/><br/>			
@@ -84,13 +84,13 @@ proofreading: 'needed'
 			When displaying and filtering product set in listings on the e-commerce site, we need some price assigned for it
 			but there may be none exact price assigned to the set and e-commerce owner expects that price would be computed
 			as an aggregation of the prices of sub-products. This behaviour is supported by setting proper
-			[PriceInnerEntityReferenceHandling](classes/price_inner_entity_reference_handling).</dd>
+			<SourceClass>[PriceInnerRecordHandling](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceInnerRecordHandling.java)</SourceClass>.</dd>
 		<dt>property</dt>
 		<dd>Entity that represents item property. Properties are handled as top entities because we expect that properties may have
 			additional attributes and localizations to different languages. Properties are usually referenced in other items'
-			[facets](#facet). Property are usually composed of two parts:<br/><br/>			
-			&ndash; property group, referenced in [facet group](#facet-group), fe. color, size, sex<br/>
-			&ndash; property value, referenced in [facet](#facet), fe. blue, XXL, women<br/><br/></dd>
+			facets. Property are usually composed of two parts:<br/><br/>			
+			&ndash; property group, referenced in facet group, fe. color, size, sex<br/>
+			&ndash; property value, referenced in facet, fe. blue, XXL, women<br/><br/></dd>
 		<dt>variant product</dt>
 		<dd>A variant product is a product that is enclosed within product with variants and represents
 			single combination of particular product. In case of example used in referenced chapter it would be for example
@@ -299,12 +299,12 @@ See more detailed [schema API](/updating/schema_api) describing data model manip
 Minimal entity definition consists of: [Entity type](#entity-type) and [Primary key](#primary-key) (even this is optional
 and may be automatically generated by the database). Other entity data is purely optional and may not be used at all.
 
-This combination is covered by interface <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/EntityReferenceContract.java</SourceClass>.
+This combination is covered by interface <SourceClass>[EntityReferenceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/EntityReferenceContract.java)</SourceClass>.
 Full entity with data, references, attributes and associated data is represented by interface
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/EntityContract.java</SourceClass>.
+<SourceClass>[EntityContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/EntityContract.java)</SourceClass>.
 
 Schema for entity is described by:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/schema/EntitySchema.java</SourceClass>
+<SourceClass>[EntitySchema.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/EntitySchema.java)</SourceClass>
 
 ### Entity type
 
@@ -314,7 +314,7 @@ type are stored in separated index. Within the entity type the entity is uniquel
 [primary key](#primary-key).
 
 Entity is described by its schema:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/schema/EntitySchema.java</SourceClass>
+<SourceClass>[EntitySchema.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/EntitySchema.java)</SourceClass>
 
 Although evitaDB requires schema for each entity type, it supports automatic evolution when you allow it. If you don't
 specify otherwise, evitaDB learns about entity attributes, their data types and all necessary relations along the way
@@ -344,7 +344,7 @@ referred by multiple child entities. Hierarchy is always composed of entities of
 Each entity must be part of at most single hierarchy (tree).
 
 Hierarchy placement is represented by the interface:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/HierarchicalPlacementContract.java</SourceClass>.
+<SourceClass>[HierarchicalPlacementContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/HierarchicalPlacementContract.java)</SourceClass>.
 
 <Note type="info">
 Most of the e-commerce system organize their products in hierarchical category system. The categories are
@@ -364,10 +364,10 @@ frequently used data that are associated with the entity (for example "name". "p
 necessarily need it for querying purposes.
 
 The attribute provider ([entity](#entity-type) or [reference](#references)) is represented by the interface:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/AttributesContract.java</SourceClass>
+<SourceClass>[AttributesContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/AttributesContract.java)</SourceClass>
 
 The attribute schema is described by:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/schema/AttributeSchema.java</SourceClass>
+<SourceClass>[AttributeSchema.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/AttributeSchema.java)</SourceClass>
 
 #### Allowed decimal places
 
@@ -420,10 +420,10 @@ to an internal representation that is composed solely of supported data types (o
 deserialized back to the client custom POJO on demand providing the POJO structure matches the original document format.
 
 AssociatedData provider ([entity](#entity-type)) is represented by the interface:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/AssociatedDataContract.java</SourceClass>
+<SourceClass>[AssociatedDataContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/AssociatedDataContract.java)</SourceClass>
 
 Associated data schema is described by:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/schema/AssociatedDataSchema.java</SourceClass>
+<SourceClass>[AssociatedDataSchema.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/AssociatedDataSchema.java)</SourceClass>
 
 The [search query](querying/query_language) must contain specific [requirement](querying/query_language#require)
 to fetch the associated data along with the entity. Associated data are stored and fetched separately by their name.
@@ -455,8 +455,8 @@ such as content management systems, warehouse systems, ERPs and so on.
 The references may carry additional key-value data linked to this entity relation (fe. item count present on the
 relation to a stock). The data on references is subject to the same rules as [entity attributes](#attributes-unique-filterable-sortable-localized).
 
-Reference is represented by the interface: <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/ReferenceContract.java</SourceClass>.
-Reference schema is described by: <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/schema/ReferenceSchema.java</SourceClass>
+Reference is represented by the interface: <SourceClass>[ReferenceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/ReferenceContract.java)</SourceClass>.
+Reference schema is described by: <SourceClass>[ReferenceSchema.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/ReferenceSchema.java)</SourceClass>
 
 ### Prices
 
@@ -466,12 +466,12 @@ filtering and sorting, they deserve first class support in entity model. It is p
 product has assigned dozens of prices for the different customers.
 
 Price provider is represented by the interface:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/PricesContract.java</SourceClass>
+<SourceClass>[PricesContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PricesContract.java)</SourceClass>
 Single price is represented by the interface:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/PriceContract.java</SourceClass>
+<SourceClass>[PriceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceContract.java)</SourceClass>
 
 Price schema is part of main entity schema:
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/schema/EntitySchema.java</SourceClass>
+<SourceClass>[EntitySchema.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/EntitySchema.java)</SourceClass>
 
 <Note type="info">
 For detail information about price for sale computation [see this article](../querying/price_computation).
@@ -517,7 +517,7 @@ considerably slower than [bulk indexation](#bulk-indexing).
 ## Data fetching
 
 Only primary keys of the entities are returned to the query result by default. Each entity in this simplest case is
-represented by <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/EntityReferenceContract.java</SourceClass>
+represented by <SourceClass>[EntityReferenceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/EntityReferenceContract.java)</SourceClass>
 interface.
 
 Client application can request returning entity bodies instead, but this must be explicitly requested by using specific
@@ -529,7 +529,7 @@ require constraint:
 - [price fetch](querying/query_language#prices)
 
 When such a require constraint is used, data are fetched *greedily* during initial query. Response object will then
-contain entities in the form of <SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/data/EntityContract.java</SourceClass>.
+contain entities in the form of <SourceClass>[EntityContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/EntityContract.java)</SourceClass>.
 
 ### Lazy fetching (enrichment)
 

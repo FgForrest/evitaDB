@@ -28,12 +28,13 @@ import javax.annotation.Nullable;
 /**
  * This DTO record encapsulates path to the certificate and private keys used to .
  *
- * @param certificate defines the path to the certificate which will be used to secure the connection
- * @param privateKey defines the path to the private key of the certificate
+ * @param certificate        defines the path to the certificate which will be used to secure the connection
+ * @param privateKey         defines the path to the private key of the certificate
  * @param privateKeyPassword defines the password of the private key
  * @author Tomáš Pozler, 2023
  */
-public record CertificatePath(@Nullable String certificate,
-							  @Nullable String privateKey,
-                              @Nullable String privateKeyPassword) {
-}
+public record CertificatePath(
+	@Nullable String certificate,
+	@Nullable String privateKey,
+	@Nullable String privateKeyPassword
+) {}

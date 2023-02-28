@@ -201,4 +201,11 @@ class StringUtilsTest {
 		assertEquals("foo-bar09", toKebabCase("FOO_BAR09"));
 		assertEquals("foo-bar-09", toKebabCase("FOO_BAR_09"));
 	}
+
+	@Test
+	void shouldAddRightPadding() {
+		assertEquals("          ", StringUtils.rightPad("", " ", 10));
+		assertEquals("a         ", StringUtils.rightPad("a", " ", 10));
+		assertEquals("dsfadfsadfsadfd", StringUtils.rightPad("dsfadfsadfsadfd", " ", 10));
+	}
 }
