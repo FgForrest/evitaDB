@@ -19,15 +19,24 @@ It allows configuring these settings:
   <Thead>
     <Tr>
       <Th>Setting</Th>
-      <Th>Default</Th>
       <Th>Meaning</Th>
     </Tr>
   </Thead>
   <Tbody>
     <Tr>
       <Td>generateAndUseSelfSigned</Td>
-      <Td>TRUE</Td>
       <Td>
+        <Note type="info">
+
+        <NoteTitle toggles="false">
+        
+        ##### Default
+        </NoteTitle>
+
+        is set to `true`
+
+        </Note>
+
         When set to `true`, a self-signed <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
         <Term document="docs/user/en/operate/tls.md">certificate</Term> and its 
         <Term document="docs/user/en/operate/tls.md">private key</Term> are automatically generated on server startup 
@@ -36,15 +45,24 @@ It allows configuring these settings:
     </Tr>
     <Tr>
       <Td>folderPath</Td>
-      <Td>the sub-folder `evita-server-certificates` in the working directory by default</Td>
       <Td>
+        <Note type="info">
+
+        <NoteTitle toggles="false">
+        
+        ##### Default
+        </NoteTitle>
+
+        is the sub-folder `evita-server-certificates` in the working directory
+
+        </Note>
+
         It represents a path to a folder where the generated authority certificate and its private key are stored.
         This setting is used only when `generateAndUseSelfSigned` is set to `true`.
       </Td>
     </Tr>
     <Tr>
       <Td>custom</Td>
-      <Td>(no value)</Td>
       <Td>
         This section allows you to configure an externally supplied <Term document="docs/user/en/operate/tls.md">certificate</Term>. 
         It is only used if the `generateAndUseSelfSigned` is set to `false`.
@@ -56,6 +74,12 @@ It allows configuring these settings:
           - **`privateKeyPassword`**: password for the private key
 
         <Note type="info">
+
+        <NoteTitle toggles="false">
+            
+        ##### Tip
+        </NoteTitle>
+
           It is recommended to provide the private key password using command line argument (environment variable) 
           `api.certificate.custom.privateKeyPasssword` and store id in a CI server secrets vault.
         </Note>
