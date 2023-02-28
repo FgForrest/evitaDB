@@ -10,6 +10,58 @@ published: false
 
 This article will contain description of evitaDB server configuration options.
 
+```yaml
+server:
+  coreThreadCount: 4
+  maxThreadCount: 16
+  threadPriority: 5
+  queueSize: 100
+  closeSessionsAfterSecondsOfInactivity: 60
+
+storage:
+  storageDirectory: null
+  lockTimeoutSeconds: 50
+  waitOnCloseSeconds: 50
+  outputBufferSize: 4MB
+  maxOpenedReadHandles: 12
+  computeCRC32C: true
+
+cache:
+  enabled: true
+  reflection: CACHE
+  reevaluateEachSeconds: 60
+  anteroomRecordCount: 100k
+  minimalComplexityThreshold: 10k
+  minimalUsageThreshold: 2
+  cacheSizeInBytes: null
+
+api:
+  ioThreads: 4
+  certificate:
+    generateAndUseSelfSigned: true
+    folderPath: './evita-server-certificates/'
+    custom:
+      certificate: null
+      privateKey: null
+      privateKeyPassword: null
+  endpoints:
+    graphQL:
+      enabled: true
+      host: localhost:5555
+    rest:
+      enabled: true
+      host: localhost:5555
+    gRPC:
+      enabled: true
+      host: localhost:5556
+      mTLS:
+        enabled: false
+        allowedClientCertificatePaths: []
+    system:
+      enabled: true
+      host: localhost:5557
+```
+
 ## TLS Configuration
 
 TLS support is enabled by default and cannot be disabled. It's configured in the `certificate` subsection of the `api`.
