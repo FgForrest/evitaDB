@@ -46,7 +46,7 @@ security uniform.
 
 <NoteTitle toggles="true">
 
-##### How is it possible that I didn't have to configure a certificate and everything "just" works out of the box?
+##### How is it possible that I didn't have to configure a single certificate and everything "just" works out of the box?
 </NoteTitle>
 
 We don't want to make things complicated for developers and newcomers, but that doesn't mean that the default behavior
@@ -58,7 +58,7 @@ authority, which can be automated and is part of all certificate trust chains th
 
 </Note>
 
-## Creating a server certificate
+## Creating a certificate
 
 You need a <Term>certificate</Term> to prove your identity, whether you are a server or a client.
 
@@ -67,26 +67,40 @@ It is possible to divide certificates into two groups according to the certifica
 - Certificates signed by a publicly trusted root certificate authority
 - Certificates signed by a private certification authority
 
-### Publicly trusted server certificate
+### Publicly trusted certificate authority
 
 You can buy a <Term>certificate</Term> from commercial <Term name="certificate authority">certificate authorities</Term>,
 or you can generate one for free using [Let's Encrypt](https://letsencrypt.org). You can find lots of information about
 this process on the web, so we won't duplicate it here. To generate a free server certificate, follow the instructions 
 on the [Certbot site](https://certbot.eff.org/).
 
-### Creating internal certificate authority and server certificate
+### Self-signed certificate authority
 
 In this guide, we will focus on the second group: self-signed certificates. When using [mTLS](#mutual-tls), it is 
 necessary for the server to have access to a <Term>certificate authority</Term> that trusts it, and for clients that 
 prove their identity with a <Term>certificate</Term> issued by that authority to allow communication.
 
-#### Creating a certificate authority and issue signed certificates
-
 To generate a certificate, we will use the [OpenSSL](https://www.openssl.org/) tool. It is pre-installed on many
 Linux distributions, as well as on newer versions of the MacOS system. On Windows operating systems, you will need
 to download and install the tool.
 
-##### Certificate authority
+<LanguageSpecific to="javascript">
+
+<Note type="info">
+If you need to connect to a server that provides a self-signed certificate from the Node.js application, you need to set 
+the variable `NODE_TLS_REJECT_UNAUTHORIZED` to the value `0`. However, this setting will cause Node.JS to log a warning 
+message:
+
+```
+Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure 
+by disabling certificate verification.
+```
+
+</Note>
+
+</LanguageSpecific>
+
+#### Creating certificate authority
 
 To create <Term>certificate authority</Term> execute following command:
 
@@ -158,7 +172,7 @@ a password, specify the `-nodes' parameter in the command.
 </Table>
 </Note>
 
-##### Preparing certificate signing request
+#### Certificate signing request
 
 Now you need to create a text file called `domain.ext` with the following content. You need to replace `[domain]` in DNS 
 section with the name of the domain (or [multiple domains](https://easyengine.io/wordpress-nginx/tutorials/ssl/multidomain-ssl-subject-alternative-names/)) 
@@ -182,7 +196,7 @@ openssl req -newkey rsa:2048 \
 
 Now you are ready for the final step.
 
-##### Issuing signed certificate
+#### Issue signed certificate
 
 Finally, you're ready to generate signed certificate which you can use for evitaDB server or any of the clients in case
 the [mTLS](#mutual-tls-for-grpc) is enabled.
@@ -289,7 +303,7 @@ are allowed to communicate with the gRPC server. The client that doesn't present
 will be rejected by the server.
 
 The client needs to configure path to its <Term>certificate</Term>, <Term>private key</Term> and optionally password to 
-a private key in <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/EvitaClientConfiguration.java</SourceClass>.
+a private key in [configuration](../use/connectors/java.md).
 
 We recommend the use of `mTLS` because it prevents a large number of attacks and thus emphasizes the security of
 the communication.
@@ -303,7 +317,7 @@ Examples of attacks prevented:
 - [brute force attack](https://en.wikipedia.org/wiki/Brute-force_attack)
 - [phishing](https://www.cloudflare.com/learning/access-management/phishing-attack/)
 
-#### Default mTLS behaviour (not-secure)
+### Default mTLS behaviour (not-secure)
 
 The `mTLS` is enabled by default but in a way that is not secure and should be used only in development. When the evitaDB
 starts and `generateAndUseSelfSigned` is set to `true` (default), it generates three public/private key pairs:
@@ -360,81 +374,9 @@ Client logs the fingerprint using [configured logging library](run.md#control-lo
 ```
 </Note>
 
-#### Recommended mTLS usage (secure)
+### Recommended mTLS usage (secure)
 
 For each of the gRPC client generate their own <Term>certificate</Term> using trusted <Term>certificate authority</Term>
 (such as [Let's Encrypt](https://letsencrypt.org)), or your own [self-signed authority](#creating-a-certificate-authority).
 Disable `generateAndUseSelfSigned` and configure server certificate and each of client certificates in 
 [configuration](#server).
-
-## Configuration
-
-### Server
-
-The way the server will approach the certificate can be set in a section `certificate` in `evita-configuration.yml`. It
-is possible to set these important things:
-
-- **`api.certificate.generateAndUseSelfSigned`**: (`true` by default) when set to `true`, a self-signed Certificate
-  Authority certificate and its private key are automatically generated on server startup and used to communicate with
-  clients.
-- **`api.certificate.folderPath`**: (the sub-folder `evita-server-certificates` in the working directory by default)
-  it represents a path to a folder where the authority certificate and its private key are stored
-- **`api.certificate`**: (optional) This section allows you to configure an externally supplied certificate. This section
-  is only used if the `generateAndUseSelfSigned` is set to `false`. If `generateAndUseSelfSigned` is set to `false` and
-  no custom certificate is configured, the server will not start and an exception will be thrown. The server doesn't
-  provide an unsecured connection for security reasons.
-    - **`api.certificate.custom.certificate`**: path to the public part of the certificate file
-    - **`api.certificate.custom.privateKey`**: path to the private key of the certificate
-    - **`api.certificate.custom.privateKeyPassword`**: password for the private key
-
-There is a special `api.endpoints.system` endpoint that allows access over the unsecured HTTP protocol. Since it's the
-only exposed endpoint on the unsecured http protocol, it must run on a separate port. The endpoint allows clients to
-download the public part of the server certificate. See [default mTLS behaviour](#default-mtls-behaviour--not-secure-).
-
-### Client
-
-The following settings must be configured in the
-<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/EvitaClientConfiguration.java</SourceClass>
-configuration on the client side:
-
-- **`useGeneratedCertificate`**: (`true` by default) if set to `true`, the client downloads the root certificate of
-  the server Certificate Authority from the `system` endpoint automatically
-- **`trustCertificate`**: (`false` by default) when set to `true`, the certificate retrieved from the `system`
-  endpoint or manually by `certificatePath` is automatically added to the local trust store.
-
-  If set to `false` and an untrusted (self-signed) certificate is provided, it will not be trusted by the client and
-  the connection to the server will fail. Using `true` for this setting on production is generally not recommended.
-- **`certificateFolderPath`**: (the sub-folder `evita-client-certificates` in the working directory by default)
-  it represents a path to a folder where the authority certificate is stored
-- **`rootCaCertificatePath`**: (`null` by default) it is a relative path from `certificateFolderPath` to the root
-  certificate of the server. If the `useGeneratedCertificate` flag is off, it is necessary to set a path to
-  the manually provided certificate, otherwise the verification process will fail and the connection will not be
-  established.
-- **`certificatePath`**: (`null` by default) is a relative path from `certificateFolderPath` to the client certificate.
-- **`certificateKeyPath`**: (`null` by default) is a relative path from `certificateFolderPath` to the client private key
-- **`certificateKeyPassword`**: (`null` by default) is the password for the client's private key (if one is set)
-- **`trustStorePassword`**: (`null` by default). If not set, the default password `trustStorePassword` is used.
-  This is a password for a trust store used to store trusted certificates. It is used when `trustCertificate` is
-  set to `true`.
-
-<Note type="warning">
-If `mTLS` is enabled on the server side and `useGeneratedCertificate` is set to `false`, you must provide your
-manually generated certificate in settings `certificatePath` and `certificateKeyPath`, otherwise the verification 
-process will fail and the connection will not be established.
-</Note>
-
-<LanguageSpecific to="javascript">
-
-<Note type="info">
-If you need to connect to a server that provides a self-signed certificate from the Node.js application, you need to set 
-the variable `NODE_TLS_REJECT_UNAUTHORIZED` to the value `0`. However, this setting will cause Node.JS to log a warning 
-message:
-
-```
-Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure 
-by disabling certificate verification.
-```
-
-</Note>
-
-</LanguageSpecific>
