@@ -23,7 +23,7 @@ It allows configuring these settings:
       <Th>Meaning</Th>
     </Tr>
   </Thead>
-  <TBody>
+  <Tbody>
     <Tr>
       <Td>generateAndUseSelfSigned</Td>
       <Td>TRUE</Td>
@@ -59,9 +59,23 @@ It allows configuring these settings:
           It is recommended to provide the private key password using command line argument (environment variable) 
           `api.certificate.custom.privateKeyPasssword` and store id in a CI server secrets vault.
         </Note>
+
+        <Note type="question">
+
+        <NoteTitle toggles="true">
+        
+        ##### Is there an alternative to this manual configuration?
+        </NoteTitle>
+
+        Yes there is. You can use standardized way importing the 
+        <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
+        <Term document="docs/user/en/operate/tls.md">certificate</Term> to the Java trust store. This procedure is
+        described in great detail in [this article](https://medium.com/expedia-group-tech/how-to-import-public-certificates-into-javas-truststore-from-a-browser-a35e49a806dc).
+
+        </Note>
       </Td>
     </Tr>
-  </TBody>
+  </Tbody>
 </Table>
 
 If no custom certificate is configured, the server will not start and an exception will be thrown. The server doesn't

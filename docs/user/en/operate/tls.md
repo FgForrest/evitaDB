@@ -384,4 +384,4 @@ Client logs the fingerprint using [configured logging library](run.md#control-lo
 For each of the gRPC client generate their own <Term>certificate</Term> using trusted <Term>certificate authority</Term>
 (such as [Let's Encrypt](https://letsencrypt.org)), or your own [self-signed authority](#creating-a-certificate-authority).
 Disable `generateAndUseSelfSigned` and configure server certificate and each of client certificates in 
-[configuration](#server).
+[configuration](configure.md#tls-configuration).
