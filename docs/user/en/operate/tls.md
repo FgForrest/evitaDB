@@ -58,6 +58,10 @@ authority, which can be automated and is part of all certificate trust chains th
 
 </Note>
 
+If you are familiar with certificate handling, you can skip the entire [create a certificate](#creating-a-certificate)
+chapter and go to [configuration](configure.md#tls-configuration) or read about [mTLS](#mutual-tls-for-grpc) support for 
+the gRPC protocol.
+
 ## Creating a certificate
 
 You need a <Term>certificate</Term> to prove your identity, whether you are a server or a client.
@@ -112,10 +116,8 @@ openssl req -x509 \
         -days 365
 ```
 
-- it generates a <Term>private key</Term> `domain.key` for the client and a request `domain.csr` to be signed by a 
-  <Term>certificate authority</Term> (after confirmation you have to enter a password)
-- it generates a <Term>certificate</Term> `rootCA.crt` and a <Term>private key</Term> `rootCA.key` for 
-  the <Term>certification authority</Term> (after confirmation you have to enter a password).
+It generates a <Term>certificate</Term> `rootCA.crt` and a <Term>private key</Term> `rootCA.key` for 
+the <Term>certification authority</Term> (after confirmation you have to enter a password).
 
 <Note type="warning">
 After running the commands in steps 1 and 2, you must enter a password - if you want an unencrypted certificate without 
@@ -193,6 +195,9 @@ openssl req -newkey rsa:2048 \
         -keyout domain.key \
         -out domain.csr
 ```
+
+It generates a <Term>private key</Term> `domain.key` for the client and a request `domain.csr` to be signed by a
+<Term>certificate authority</Term> (after confirmation you have to enter a password)
 
 Now you are ready for the final step.
 
