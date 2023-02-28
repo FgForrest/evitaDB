@@ -80,19 +80,6 @@ public abstract class AbstractApiConfiguration {
 		}
 	}
 
-	/**
-	 * Returns human comprehensible host name of the configured host.
-	 */
-	@Nonnull
-	private static String getHostName(@Nonnull HostDefinition hostDefinition) {
-		final InetAddress host = hostDefinition.host();
-		try {
-			return host.isAnyLocalAddress() ? InetAddress.getLocalHost().getHostName() : host.getCanonicalHostName();
-		} catch (UnknownHostException ignored) {
-			return host.getCanonicalHostName();
-		}
-	}
-
 	protected AbstractApiConfiguration() {
 		this.enabled = true;
 		this.forceUnencrypted = false;
@@ -141,7 +128,7 @@ public abstract class AbstractApiConfiguration {
 	public String[] getBaseUrls() {
 		return Arrays.stream(getHost())
 			.map(it -> (isForceUnencrypted() ? "http://" : "https://")
-				+ getHostName(it) + ":" + it.port() +
+				+ it.hostName() + ":" + it.port() +
 				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
 			.toArray(String[]::new);
 	}

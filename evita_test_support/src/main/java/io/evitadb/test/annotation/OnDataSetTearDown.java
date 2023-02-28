@@ -21,24 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.configuration;
+package io.evitadb.test.annotation;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.List;
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * This DTO record encapsulates mTLS configuration that will be used to hold information about gRPC hosts.
+ * This annotation marks a method, that should be called wne specific shared dataset is destroyed.
  *
- * @param enabled defines whether mTLS will be used to secure the server connection
- * @param allowedClientCertificatePaths defines a list of paths to the certificates of root certificate authorities that
- *                                      are not trusted publicly, but should be trusted by evitaDB's gRPC API server.
- *                                      Only clients who present themselves with a trusted certificate will be allowed
- *                                      to connect to the server.
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public record MtlsConfiguration(
-	@Nullable Boolean enabled,
-	@Nonnull List<String> allowedClientCertificatePaths
-) {
+@Target({ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+@Documented
+public @interface OnDataSetTearDown {
+
+	/**
+	 * Defines name of the dataset.
+	 */
+	String value();
 
 }

@@ -37,7 +37,7 @@ public class CertificateUtils {
 	/**
 	 * Default name of the root certificate authority's certificate file.
 	 */
-	private static final String CA_CERT_NAME = "evitaDB-selfhosted";
+	private static final String CA_CERT_NAME = "evitaDB-CA-selfSigned";
 	/**
 	 * Default name of the server certificate file.
 	 */

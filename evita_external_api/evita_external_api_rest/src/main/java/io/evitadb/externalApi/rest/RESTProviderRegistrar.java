@@ -63,6 +63,6 @@ public class RESTProviderRegistrar implements ExternalApiProviderRegistrar<RESTC
 
 		evitaSystemDataProvider.getEvita().registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restApiManager));
 
-		return new RESTProvider(restApiManager.getRestRouter());
+		return new RESTProvider(restConfiguration, restApiManager.getRestRouter());
 	}
 }

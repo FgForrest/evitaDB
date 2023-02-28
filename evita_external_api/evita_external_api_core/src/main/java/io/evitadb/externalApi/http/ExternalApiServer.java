@@ -49,6 +49,7 @@ import io.undertow.server.handlers.encoding.ContentEncodingRepository;
 import io.undertow.server.handlers.encoding.DeflateEncodingProvider;
 import io.undertow.server.handlers.encoding.EncodingHandler;
 import io.undertow.server.handlers.encoding.GzipEncodingProvider;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.jboss.threads.EnhancedQueueExecutor;
@@ -99,7 +100,8 @@ public class ExternalApiServer implements AutoCloseable {
 
 	public static final int PADDING_START_UP = 40;
 	private final Undertow rootServer;
-	private final Map<String, ExternalApiProvider> registeredApiProviders;
+	@Getter private final ApiOptions apiOptions;
+	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
 
 	/**
 	 * Finds all implementations of {@link ExternalApiProviderRegistrar} using {@link ServiceLoader} from the classpath.
@@ -114,7 +116,7 @@ public class ExternalApiServer implements AutoCloseable {
 	}
 
 	@Nonnull
-	private static CertificatePath initCertificate(final @Nonnull ApiOptions apiOptions, final @Nonnull ServerCertificateManager serverCertificateManager) {
+	public static CertificatePath initCertificate(final @Nonnull ApiOptions apiOptions, final @Nonnull ServerCertificateManager serverCertificateManager) {
 		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
 		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
 			throw new EvitaInternalError("Either certificate path or its private key path is not set");
@@ -195,8 +197,6 @@ public class ExternalApiServer implements AutoCloseable {
 
 			ConsoleWriter.write(StringUtils.rightPad("Root CA Certificate fingerprint: ", " ", PADDING_START_UP));
 			ConsoleWriter.write(CertificateUtils.getCertificateFingerprint(rootCa) + "\n", ConsoleColor.BRIGHT_YELLOW);
-			ConsoleWriter.write(StringUtils.rightPad("Certificate fingerprint: ", " ", PADDING_START_UP));
-			ConsoleWriter.write(CertificateUtils.getCertificateFingerprint(cert) + "\n", ConsoleColor.BRIGHT_YELLOW);
 
 		} catch (NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException | KeyStoreException |
 		         IOException | KeyManagementException e) {
@@ -221,6 +221,7 @@ public class ExternalApiServer implements AutoCloseable {
 		@Nonnull ApiOptions apiOptions,
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
 	) {
+		this.apiOptions = apiOptions;
 		final EvitaSystemDataProvider evitaSystemDataProvider = new EvitaSystemDataProvider(evita);
 
 		final Undertow.Builder rootServerBuilder = Undertow.builder();
@@ -244,7 +245,7 @@ public class ExternalApiServer implements AutoCloseable {
 	 * Returns {@link ExternalApiProvider} by its {@link ExternalApiProvider#getCode()}.
 	 */
 	@Nullable
-	public <T extends ExternalApiProvider> T getExternalApiProviderByCode(@Nonnull String code) {
+	public <T extends ExternalApiProvider<?>> T getExternalApiProviderByCode(@Nonnull String code) {
 		//noinspection unchecked
 		return (T) this.registeredApiProviders.get(code.toLowerCase());
 	}
@@ -337,7 +338,7 @@ public class ExternalApiServer implements AutoCloseable {
 
 		final SSLContext sslContext = configureSSLContext(certificatePath, serverCertificateManager);
 		final Map<HostKey, PathHandler> undertowSetupHosts = createHashMap(10);
-		for (ExternalApiProvider registeredApiProvider : registeredApiProviders.values()) {
+		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
 			for (HostDefinition host : configuration.getHost()) {
 				final HostKey hostKey = new HostKey(host, !configuration.isForceUnencrypted());
@@ -401,12 +402,13 @@ public class ExternalApiServer implements AutoCloseable {
 	/**
 	 * Registers API providers based on configuration and returns its references.
 	 */
-	private Map<String, ExternalApiProvider> registerApiProviders(
+	@SuppressWarnings("unchecked")
+	private static Map<String, ExternalApiProvider<?>> registerApiProviders(
 		@Nonnull EvitaSystemDataProvider evitaSystemDataProvider,
 		@Nonnull ApiOptions apiOptions,
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
 	) {
-		return externalApiProviders
+		return (Map)externalApiProviders
 			.stream()
 			.map(registrar -> {
 				final AbstractApiConfiguration apiProviderConfiguration = apiOptions.endpoints().get(registrar.getExternalApiCode());

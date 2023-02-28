@@ -31,6 +31,7 @@ import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.annotation.CatalogName;
 import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.utils.Assert;
 import org.apache.commons.io.FileUtils;
@@ -54,6 +55,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -89,11 +92,11 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		// when test is marked with functional test or integration test tag
 		if (context.getTags().contains(TestConstants.FUNCTIONAL_TEST) || context.getTags().contains(TestConstants.INTEGRATION_TEST)) {
 			// index data set bootstrap methods
-			final Map<String, CatalogInitMethod> dataSet = new HashMap<>();
+			final Map<String, DataSetInfo> dataSets = new HashMap<>();
 			final Class<?> testClass = context.getRequiredTestClass();
-			indexTestClass(dataSet, testClass);
+			indexTestClass(dataSets, testClass);
 			final Store store = getStore(context);
-			store.put(EVITA_DATA_SET_INDEX, dataSet);
+			store.put(EVITA_DATA_SET_INDEX, dataSets);
 		}
 	}
 
@@ -152,17 +155,19 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 						destroyEvitaInstanceIfPresent(extensionContext);
 						evita = createNewEvitaInstance(store, catalogName);
 						// call method that initializes the dataset
-						final CatalogInitMethod dataSetInitMethod = getDataSetIndex(store).get(dataSetToUse);
-						if (dataSetInitMethod == null) {
+						final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(store);
+						final DataSetInfo dataSetInfo = dataSetIndex.get(dataSetToUse);
+						final Object testClassInstance = extensionContext.getRequiredTestInstance();
+						if (dataSetInfo == null) {
 							throw new ParameterResolutionException("Requested data set " + dataSetToUse + " has no initialization method within the class (Method with @DataSet annotation)!");
 						} else {
 							final Object methodResult;
 							try {
-								final Method initMethod = dataSetInitMethod.initMethod();
+								final Method initMethod = dataSetInfo.initMethod().method();
 								if (initMethod.getParameterCount() == 1) {
-									methodResult = initMethod.invoke(extensionContext.getRequiredTestInstance(), evita);
+									methodResult = initMethod.invoke(testClassInstance, evita);
 								} else if (initMethod.getParameterCount() == 2) {
-									methodResult = initMethod.invoke(extensionContext.getRequiredTestInstance(), evita, catalogName);
+									methodResult = initMethod.invoke(testClassInstance, evita, catalogName);
 								} else {
 									throw new ParameterResolutionException("Data set init method may have one or two arguments (evita instance / catalog name). Failed to init " + dataSetToUse + ".");
 								}
@@ -175,8 +180,20 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 						}
 						// set current dataset to context
 						store.put(EVITA_CURRENT_DATA_SET, dataSetToUse);
+						// fill in the reference to the test instance, that is known only now
+						dataSetIndex.put(
+							dataSetToUse,
+							new DataSetInfo(
+								dataSetToUse,
+								dataSetInfo.initMethod(),
+								dataSetInfo.destroyMethods()
+									.stream()
+									.map(it -> new CatalogDestroyMethod(it.method(), testClassInstance))
+									.toList()
+							)
+						);
 						// switch to alive state if required
-						if (dataSetInitMethod.expectedState == CatalogState.ALIVE) {
+						if (dataSetInfo.initMethod().expectedState() == CatalogState.ALIVE) {
 							evita.updateCatalog(catalogName, evitaSessionBase -> {
 								evitaSessionBase.goLiveAndClose();
 							});
@@ -308,9 +325,9 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		return (DataCarrier) store.get(EVITA_CURRENT_SET_RETURN_OBJECT);
 	}
 
-	protected Map<String, CatalogInitMethod> getDataSetIndex(Store store) {
+	protected Map<String, DataSetInfo> getDataSetIndex(Store store) {
 		//noinspection unchecked
-		return (Map<String, CatalogInitMethod>) store.get(EVITA_DATA_SET_INDEX);
+		return (Map<String, DataSetInfo>) store.get(EVITA_DATA_SET_INDEX);
 	}
 
 	protected Evita createEvita(@Nonnull String catalogName) {
@@ -341,16 +358,30 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		FileUtils.deleteDirectory(STORAGE_PATH.toFile());
 	}
 
-	private void indexTestClass(Map<String, CatalogInitMethod> dataSet, Class<?> testClass) {
+	private void indexTestClass(Map<String, DataSetInfo> dataSets, Class<?> testClass) {
 		for (Method declaredMethod : testClass.getDeclaredMethods()) {
 			ofNullable(declaredMethod.getAnnotation(DataSet.class))
 				.ifPresent(it -> {
 					declaredMethod.setAccessible(true);
-					dataSet.put(it.value(), new CatalogInitMethod(declaredMethod, it.expectedCatalogState()));
+					dataSets.computeIfAbsent(
+						it.value(),
+						dsName -> new DataSetInfo(
+							dsName,
+							new CatalogInitMethod(declaredMethod, it.expectedCatalogState()),
+							new LinkedList<>()
+						)
+					);
+				});
+			ofNullable(declaredMethod.getAnnotation(OnDataSetTearDown.class))
+				.ifPresent(it -> {
+					declaredMethod.setAccessible(true);
+					final DataSetInfo dataSetInfo = dataSets.get(it.value());
+					Assert.notNull(dataSetInfo, "There is no set up method for datast `" + it.value() + "` in this class!");
+					dataSetInfo.destroyMethods().add(new CatalogDestroyMethod(declaredMethod, null));
 				});
 		}
 		if (!Object.class.equals(testClass.getSuperclass())) {
-			indexTestClass(dataSet, testClass.getSuperclass());
+			indexTestClass(dataSets, testClass.getSuperclass());
 		}
 	}
 
@@ -366,18 +397,41 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 
 	private void destroyEvitaInstanceIfPresent(ExtensionContext context) throws IOException {
 		final Store store = getStore(context);
-		// close evita and clear data
-		ofNullable(getEvitaInstance(store)).ifPresent(Evita::close);
-		destroyEvitaData();
+
 		// clear references in thread locals
-		store.remove(EVITA_INSTANCE);
-		store.remove(EVITA_CURRENT_DATA_SET);
+		final String dataSetName = (String) store.remove(EVITA_CURRENT_DATA_SET);
+		final Evita evitaInstance = (Evita) store.remove(EVITA_INSTANCE);
+
+		if (dataSetName != null) {
+			// call destroy methods
+			final Map<String, DataSetInfo> dataSets = (Map<String, DataSetInfo>) store.get(EVITA_DATA_SET_INDEX);
+			final DataSetInfo dataSetInfo = dataSets.get(dataSetName);
+			for (CatalogDestroyMethod destroyMethod : dataSetInfo.destroyMethods()) {
+				try {
+					Assert.notNull(destroyMethod.testInstance(), "Test instance was not initialized!");
+					destroyMethod.method().invoke(destroyMethod.testInstance());
+				} catch (InvocationTargetException | IllegalAccessException e) {
+					throw new ParameterResolutionException("Failed to tear down data set " + dataSetName, e);
+				}
+			}
+
+			// close evita and clear data
+			evitaInstance.close();
+			destroyEvitaData();
+		}
 	}
 
 	private Store getStore(ExtensionContext context) {
 		return context.getRoot().getStore(Namespace.GLOBAL);
 	}
 
-	private record CatalogInitMethod(@Nonnull Method initMethod, @Nonnull CatalogState expectedState) {}
+	private record DataSetInfo(
+		@Nonnull String catalogName,
+		@Nonnull CatalogInitMethod initMethod,
+		@Nonnull List<CatalogDestroyMethod> destroyMethods
+	) {}
+
+	private record CatalogInitMethod(@Nonnull Method method, @Nonnull CatalogState expectedState) {}
+	private record CatalogDestroyMethod(@Nonnull Method method, @Nullable Object testInstance) {}
 
 }

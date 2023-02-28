@@ -62,7 +62,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig externalApiConfiguration) {
+	public ExternalApiProvider<SystemConfig> register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig externalApiConfiguration) {
 		final File file;
 		final String fileName;
 		final CertificateSettings certificateSettings = apiOptions.certificate();
@@ -70,7 +70,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			file = apiOptions.certificate()
 				.getFolderPath()
 				.toFile();
-			fileName = CertificateUtils.getGeneratedServerCertificateFileName();
+			fileName = CertificateUtils.getGeneratedRootCaCertificateFileName();
 		} else {
 			final CertificatePath certificatePath = certificateSettings.custom();
 			if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
@@ -87,6 +87,10 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				(exchange, path) -> {
 					if (("/" + fileName).equals(path)) {
 						return resourceManager.getResource(fileName);
+					} else if (("/" + CertificateUtils.getGeneratedClientCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
+						return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificateFileName());
+					} else if (("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
+						return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
 					} else {
 						return null;
 					}
@@ -97,9 +101,16 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				})
 			);
 			return new SystemProvider(
+				externalApiConfiguration,
 				fileSystemHandler,
 				Arrays.stream(externalApiConfiguration.getBaseUrls())
 					.map(it -> it + fileName)
+					.toArray(String[]::new),
+				Arrays.stream(externalApiConfiguration.getBaseUrls())
+					.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
+					.toArray(String[]::new),
+				Arrays.stream(externalApiConfiguration.getBaseUrls())
+					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
 					.toArray(String[]::new)
 			);
 		} catch (IOException e) {

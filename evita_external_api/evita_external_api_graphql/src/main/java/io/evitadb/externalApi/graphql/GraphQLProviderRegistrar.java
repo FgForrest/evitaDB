@@ -55,10 +55,10 @@ public class GraphQLProviderRegistrar implements ExternalApiProviderRegistrar<Gr
 
     @Nonnull
     @Override
-    public ExternalApiProvider register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull GraphQLConfig graphQLConfig) {
+    public ExternalApiProvider<GraphQLConfig> register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull GraphQLConfig graphQLConfig) {
         final GraphQLManager graphQLManager = new GraphQLManager(evitaSystemDataProvider);
         evitaSystemDataProvider.getEvita().registerStructuralChangeObserver(new CatalogGraphQLRefreshingObserver(graphQLManager));
         final HttpHandler apiHandler = graphQLManager.getGraphQLRouter();
-        return new GraphQLProvider(apiHandler);
+        return new GraphQLProvider(graphQLConfig, apiHandler);
     }
 }

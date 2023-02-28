@@ -42,8 +42,8 @@ import static java.util.Optional.ofNullable;
 /**
  * This DTO record encapsulates common settings shared among all the API endpoints.
  *
- * @param ioThreads defines the number of IO thread will be used by Undertow for accept and send HTTP payload
- * @param endpoints contains specific configuration for all the API endpoints
+ * @param ioThreads   defines the number of IO thread will be used by Undertow for accept and send HTTP payload
+ * @param endpoints   contains specific configuration for all the API endpoints
  * @param certificate defines the certificate settings that will be used to secure connections to the web servers providing APIs
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -53,8 +53,24 @@ public record ApiOptions(
 	@Nonnull Map<String, AbstractApiConfiguration> endpoints
 ) {
 
+	/**
+	 * Builder for the api options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	public static ApiOptions.Builder builder() {
+		return new ApiOptions.Builder();
+	}
+
 	public ApiOptions() {
 		this(null, new CertificateSettings(), new HashMap<>(8));
+	}
+
+	/**
+	 * Returns endpoint configuration if present.
+	 */
+	@SuppressWarnings("unchecked")
+	@Nullable
+	public <T extends AbstractApiConfiguration> T getEndpointConfiguration(@Nonnull String endpointCode) {
+		return (T) endpoints.get(endpointCode);
 	}
 
 	/**
@@ -64,13 +80,6 @@ public record ApiOptions(
 		return ofNullable(ioThreads)
 			// double the value of available processors (recommended by Undertow configuration)
 			.orElseGet(() -> Runtime.getRuntime().availableProcessors() << 1);
-	}
-
-	/**
-	 * Builder for the api options. Recommended to use to avoid binary compatibility problems in the future.
-	 */
-	public static ApiOptions.Builder builder() {
-		return new ApiOptions.Builder();
 	}
 
 	/**
@@ -120,8 +129,8 @@ public record ApiOptions(
 				cfg = (AbstractApiConfiguration) configurationClass.getDeclaredConstructor().newInstance();
 			} catch (Exception ex) {
 				throw new EvitaInternalError(
-					"Failed to instantiate default configuration of `" +  apiCode + "` API: " + ex.getMessage(),
-					"Failed to instantiate default configuration of `" +  apiCode + "` API!",
+					"Failed to instantiate default configuration of `" + apiCode + "` API: " + ex.getMessage(),
+					"Failed to instantiate default configuration of `" + apiCode + "` API!",
 					ex
 				);
 			}

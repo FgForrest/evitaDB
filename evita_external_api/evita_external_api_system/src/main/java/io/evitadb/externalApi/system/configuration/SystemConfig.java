@@ -51,7 +51,7 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 	@Getter private final String prefix;
 
 	public SystemConfig() {
-		super();
+		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, true);
 		this.prefix = BASE_SYSTEM_PATH;
 	}
 
