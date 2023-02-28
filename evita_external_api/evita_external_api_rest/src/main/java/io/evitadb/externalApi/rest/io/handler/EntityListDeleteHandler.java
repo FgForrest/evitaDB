@@ -63,7 +63,6 @@ public class EntityListDeleteHandler extends EntityListHandler {
 		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
 		Assert.isPremiseValid(restApiContext.getEntityType() != null, "Entity type must be set in context.");
 		Assert.isPremiseValid(restApiContext.getPathItem() != null, "PathItem must be set in context.");
-		Assert.isPremiseValid(restApiContext.getOpenApi() != null, "OpenApi must be set in context.");
 	}
 
 	@Override

@@ -21,21 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.catalog.model;
 
-import io.swagger.v3.oas.models.media.Schema;
-
-import javax.annotation.Nonnull;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * TODO lho docs
+ * The global part of {@link SectionedAssociatedDataDescriptor} for global associated data of an entity.
  *
- * @author Lukáš Hornych, 2023
+ * Note: this descriptor is supposed to be only template.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class OpenApiPrimitive implements OpenApiType {
-	@Nonnull
-	@Override
-	public Schema<Object> toSchema() {
-		return null;
-	}
+public interface GlobalAssociatedDataDescriptor {
+
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("*GlobalAssociatedData")
+		.description("""
+			Set of global associated data which don't have specified locale.
+			""")
+		.build();
 }

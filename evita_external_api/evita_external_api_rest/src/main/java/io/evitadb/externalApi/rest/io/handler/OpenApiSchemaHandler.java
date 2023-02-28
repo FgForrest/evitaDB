@@ -26,9 +26,11 @@ package io.evitadb.externalApi.rest.io.handler;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.OpenApiWriter;
 import io.evitadb.utils.Assert;
+import io.swagger.v3.oas.models.OpenAPI;
 import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
+import java.util.function.Supplier;
 
 /**
  * Returns OpenAPI schema for whole collection.
@@ -36,18 +38,17 @@ import javax.annotation.Nonnull;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class OpenApiSchemaHandler extends RESTApiHandler {
+
 	public OpenApiSchemaHandler(@Nonnull RESTApiContext restApiContext) {
 		super(restApiContext);
 	}
 
 	@Override
-	protected void validateContext() {
-		Assert.isPremiseValid(restApiContext.getOpenApi() != null, "OpenAPI schema must be set in context.");
-	}
+	protected void validateContext() {}
 
 	@Override
 	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		setSuccessResponse(exchange, OpenApiWriter.toYaml(restApiContext.getOpenApi()));
+		setSuccessResponse(exchange, OpenApiWriter.toYaml(restApiContext.getOpenApi().get()));
 	}
 
 	@Nonnull

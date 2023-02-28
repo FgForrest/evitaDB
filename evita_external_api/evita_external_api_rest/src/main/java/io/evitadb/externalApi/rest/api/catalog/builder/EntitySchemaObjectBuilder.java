@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -34,27 +36,32 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemasDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiSchemaTransformer.Property;
-import io.swagger.v3.oas.models.media.Schema;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.ObjectDescriptorToOpenApiObjectTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
+import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
+import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
+import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createReferenceSchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaPropertyUtils.addProperty;
-import static io.evitadb.externalApi.rest.api.catalog.builder.transformer.Transformers.OBJECT_TRANSFORMER;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiProperty.newProperty;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
 
 /**
  * Builds OpenAPI entity schema object (schema) based on information provided in building context
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@RequiredArgsConstructor
 public class EntitySchemaObjectBuilder {
-	private final OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx;
 
-	public EntitySchemaObjectBuilder(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx) {
-		this.entitySchemaBuildingCtx = entitySchemaBuildingCtx;
-	}
+	@Nonnull private final OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx;
+	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 
 	/**
 	 * Builds entity schema object.
@@ -62,132 +69,147 @@ public class EntitySchemaObjectBuilder {
 	 * @return schema for entity schema object
 	 */
 	@Nonnull
-	public Schema<Object> buildEntitySchemaObject() {
+	public OpenApiTypeReference buildEntitySchemaObject() {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		// build specific entity schema object
-		final var objectSchema = EntitySchemaDescriptor.THIS_SPECIFIC
-			.to(OBJECT_TRANSFORMER);
-		objectSchema.name(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema));
+		final OpenApiObject.Builder entitySchemaObjectBuilder = EntitySchemaDescriptor.THIS_SPECIFIC
+			.to(objectBuilderTransformer)
+			.name(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema));
 
-		addProperty(objectSchema, buildAttributeSchemasProperty());
-		addProperty(objectSchema, buildAssociatedDataSchemasProperty());
-		addProperty(objectSchema, buildReferenceSchemasProperty());
+		entitySchemaObjectBuilder.property(buildAttributeSchemasProperty());
+		entitySchemaObjectBuilder.property(buildAssociatedDataSchemasProperty());
+		entitySchemaObjectBuilder.property(buildReferenceSchemasProperty());
 
-		return entitySchemaBuildingCtx.getCatalogCtx().registerType(objectSchema);
+		return entitySchemaBuildingCtx.getCatalogCtx().registerType(entitySchemaObjectBuilder.build());
 	}
 
 	@Nonnull
-	private Property buildAttributeSchemasProperty() {
-		final Schema<Object> attributesSchemasObject = buildAttributeSchemasObject();
-		attributesSchemasObject.name(EntitySchemaDescriptor.ATTRIBUTES.name());
-		return new Property(
-			attributesSchemasObject,
-			true
-		);
+	private OpenApiProperty buildAttributeSchemasProperty() {
+		return EntitySchemaDescriptor.ATTRIBUTES
+			.to(propertyBuilderTransformer)
+			.type(nonNull(buildAttributeSchemasObject()))
+			.build();
 	}
 
 	@Nonnull
-	private Schema<Object> buildAttributeSchemasObject() {
-		final Schema<Object> attributeSchemasObject = AttributeSchemasDescriptor.THIS
-			.to(OBJECT_TRANSFORMER);
-		attributeSchemasObject.name(AttributeSchemasDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema()));
+	private OpenApiTypeReference buildAttributeSchemasObject() {
+		final OpenApiObject.Builder attributeSchemasObjectBuilder = AttributeSchemasDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(AttributeSchemasDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema()));
 
-		entitySchemaBuildingCtx.getSchema().getAttributes().values().forEach(attributeSchema -> {
-			final Schema<Object> attributeProperty;
-			if (attributeSchema instanceof GlobalAttributeSchemaContract) {
-				attributeProperty = createReferenceSchema(GlobalAttributeSchemaDescriptor.THIS);
-			} else {
-				attributeProperty = createReferenceSchema(AttributeSchemaDescriptor.THIS);
-			}
-			attributeProperty.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION));
-			addProperty(attributeSchemasObject, new Property(attributeProperty, true));
-		});
+		entitySchemaBuildingCtx.getSchema().getAttributes().values().forEach(attributeSchema ->
+			attributeSchemasObjectBuilder.property(buildAttributeSchemaProperty(attributeSchema)));
 
-		return entitySchemaBuildingCtx.getCatalogCtx().registerType(attributeSchemasObject);
+		return entitySchemaBuildingCtx.getCatalogCtx().registerType(attributeSchemasObjectBuilder.build());
 	}
 
 	@Nonnull
-	private Property buildAssociatedDataSchemasProperty() {
-		final Schema<Object> associatedDataSchemasObject = buildAssociatedDataSchemasObject();
-		associatedDataSchemasObject.name(EntitySchemaDescriptor.ASSOCIATED_DATA.name());
-		return new Property(
-			associatedDataSchemasObject,
-			true
-		);
+	private static OpenApiProperty buildAttributeSchemaProperty(@Nonnull AttributeSchemaContract attributeSchema) {
+		final OpenApiSimpleType attributeSchemaType;
+		if (attributeSchema instanceof GlobalAttributeSchemaContract) {
+			attributeSchemaType = nonNull(typeRefTo(GlobalAttributeSchemaDescriptor.THIS.name()));
+		} else {
+			attributeSchemaType = nonNull(typeRefTo(AttributeSchemaDescriptor.THIS.name()));
+		}
+
+		return newProperty()
+			.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.description(attributeSchema.getDescription())
+			.deprecationNotice(attributeSchema.getDeprecationNotice())
+			.type(attributeSchemaType)
+			.build();
 	}
 
 	@Nonnull
-	private Schema<Object> buildAssociatedDataSchemasObject() {
-		final Schema<Object> associatedDataSchemasSchema = AssociatedDataSchemasDescriptor.THIS
-			.to(OBJECT_TRANSFORMER);
-		associatedDataSchemasSchema.name(AssociatedDataSchemasDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema()));
-
-		entitySchemaBuildingCtx.getSchema().getAssociatedData().values().forEach(associatedDataSchema -> {
-			final Schema<Object> associatedDataProperty = createReferenceSchema(AssociatedDataSchemaDescriptor.THIS);
-			associatedDataProperty.name(associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION));
-			addProperty(associatedDataSchemasSchema, new Property(associatedDataProperty, true));
-		});
-
-		return entitySchemaBuildingCtx.getCatalogCtx().registerType(associatedDataSchemasSchema);
+	private OpenApiProperty buildAssociatedDataSchemasProperty() {
+		return EntitySchemaDescriptor.ASSOCIATED_DATA
+			.to(propertyBuilderTransformer)
+			.type(nonNull(buildAssociatedDataSchemasObject()))
+			.build();
 	}
 
 	@Nonnull
-	private Property buildReferenceSchemasProperty() {
-		final Schema<Object> referenceSchemasObject = buildReferenceSchemasObject();
-		referenceSchemasObject.name(EntitySchemaDescriptor.REFERENCES.name());
-		return new Property(
-			referenceSchemasObject,
-			true
-		);
+	private OpenApiTypeReference buildAssociatedDataSchemasObject() {
+		final OpenApiObject.Builder associatedDataSchemasObjectBuilder = AssociatedDataSchemasDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(AssociatedDataSchemasDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema()));
+
+		entitySchemaBuildingCtx.getSchema().getAssociatedData().values().forEach(associatedDataSchema ->
+			associatedDataSchemasObjectBuilder.property(buildAssociatedDataSchemaProperty(associatedDataSchema)));
+
+		return entitySchemaBuildingCtx.getCatalogCtx().registerType(associatedDataSchemasObjectBuilder.build());
 	}
 
 	@Nonnull
-	private Schema<Object> buildReferenceSchemasObject() {
-		final Schema<Object> referenceSchemasSchema = ReferenceSchemasDescriptor.THIS
-			.to(OBJECT_TRANSFORMER);
-		referenceSchemasSchema.name(ReferenceSchemasDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema()));
+	private static OpenApiProperty buildAssociatedDataSchemaProperty(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
+		return newProperty()
+			.name(associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.description(associatedDataSchema.getDescription())
+			.deprecationNotice(associatedDataSchema.getDeprecationNotice())
+			.type(nonNull(typeRefTo(AssociatedDataSchemaDescriptor.THIS.name())))
+			.build();
 
-		entitySchemaBuildingCtx.getSchema().getReferences().values().forEach(referenceSchema -> {
-			final Schema<Object> property = buildReferenceSchemaObject(referenceSchema);
-			property.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION));
-			addProperty(referenceSchemasSchema, new Property(property, true));
-		});
-
-		return referenceSchemasSchema;
 	}
 
 	@Nonnull
-	private Schema<Object> buildReferenceSchemaObject(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final Schema<Object> objectSchema = ReferenceSchemaDescriptor.THIS_SPECIFIC.to(OBJECT_TRANSFORMER);
-		objectSchema.name(ReferenceSchemaDescriptor.THIS_SPECIFIC.name(referenceSchema));
-		addProperty(objectSchema, buildReferencedAttributeSchemasProperty(referenceSchema));
-
-		return entitySchemaBuildingCtx.getCatalogCtx().registerType(objectSchema);
+	private OpenApiProperty buildReferenceSchemasProperty() {
+		return EntitySchemaDescriptor.REFERENCES
+			.to(propertyBuilderTransformer)
+			.type(nonNull(buildReferenceSchemasObject()))
+			.build();
 	}
 
 	@Nonnull
-	private Property buildReferencedAttributeSchemasProperty(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final Schema<Object> associatedDataSchemasObject = buildReferencedAttributeSchemasObject(referenceSchema);
-		associatedDataSchemasObject.name(ReferenceSchemaDescriptor.ATTRIBUTES.name());
-		return new Property(
-			associatedDataSchemasObject,
-			true
-		);
+	private OpenApiTypeReference buildReferenceSchemasObject() {
+		final OpenApiObject.Builder referenceSchemasObjectBuilder = ReferenceSchemasDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(ReferenceSchemasDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema()));
+
+		entitySchemaBuildingCtx.getSchema().getReferences().values().forEach(referenceSchema ->
+			referenceSchemasObjectBuilder.property(buildReferenceSchemaProperty(referenceSchema)));
+
+		return entitySchemaBuildingCtx.getCatalogCtx().registerType(referenceSchemasObjectBuilder.build());
 	}
 
 	@Nonnull
-	private Schema<Object> buildReferencedAttributeSchemasObject(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final Schema<Object> attributeSchemasSchema = AttributeSchemasDescriptor.THIS
-			.to(OBJECT_TRANSFORMER);
-		attributeSchemasSchema.name(AttributeSchemasDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema(), referenceSchema));
+	private OpenApiProperty buildReferenceSchemaProperty(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return newProperty()
+			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.description(referenceSchema.getDescription())
+			.deprecationNotice(referenceSchema.getDeprecationNotice())
+			.type(nonNull(buildReferenceSchemaObject(referenceSchema)))
+			.build();
+	}
 
-		entitySchemaBuildingCtx.getSchema().getAttributes().values().forEach(attributeSchema -> {
-			final Schema<Object> attributeSchemaProperty = createReferenceSchema(AttributeSchemaDescriptor.THIS);
-			attributeSchemaProperty.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION));
-			addProperty(attributeSchemasSchema, new Property(attributeSchemaProperty, true));
-		});
+	@Nonnull
+	private OpenApiTypeReference buildReferenceSchemaObject(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final OpenApiObject referenceSchemaObject = ReferenceSchemaDescriptor.THIS_SPECIFIC
+			.to(objectBuilderTransformer)
+			.name(ReferenceSchemaDescriptor.THIS_SPECIFIC.name(referenceSchema))
+			.property(buildReferencedAttributeSchemasProperty(referenceSchema))
+			.build();
 
-		return entitySchemaBuildingCtx.getCatalogCtx().registerType(attributeSchemasSchema);
+		return entitySchemaBuildingCtx.getCatalogCtx().registerType(referenceSchemaObject);
+	}
+
+	@Nonnull
+	private OpenApiProperty buildReferencedAttributeSchemasProperty(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return ReferenceSchemaDescriptor.ATTRIBUTES
+			.to(propertyBuilderTransformer)
+			.type(nonNull(buildReferencedAttributeSchemasObject(referenceSchema)))
+			.build();
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildReferencedAttributeSchemasObject(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final OpenApiObject.Builder attributeSchemasObjectBuilder = AttributeSchemasDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(AttributeSchemasDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema(), referenceSchema));
+
+		entitySchemaBuildingCtx.getSchema().getAttributes().values().forEach(attributeSchema ->
+			attributeSchemasObjectBuilder.property(buildAttributeSchemaProperty(attributeSchema)));
+
+		return entitySchemaBuildingCtx.getCatalogCtx().registerType(attributeSchemasObjectBuilder.build());
 	}
 }

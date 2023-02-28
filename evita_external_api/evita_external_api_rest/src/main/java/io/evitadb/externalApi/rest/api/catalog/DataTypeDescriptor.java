@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog;
 
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.DataTypeDescriptorTransformer;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Builder;
@@ -58,9 +57,5 @@ public record DataTypeDescriptor(@Nonnull String name,
 			type != null,
 			() -> new OpenApiInternalError("type of data type cannot be empty.")
 		);
-	}
-
-	public <T> T to(@Nonnull DataTypeDescriptorTransformer<T> transformer) {
-		return transformer.apply(this);
 	}
 }

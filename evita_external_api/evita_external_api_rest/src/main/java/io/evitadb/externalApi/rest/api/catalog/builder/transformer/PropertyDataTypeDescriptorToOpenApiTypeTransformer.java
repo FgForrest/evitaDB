@@ -27,44 +27,59 @@ import io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptorTransformer;
-import io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDataTypeDescriptorToOpenApiSchemaTransformer.PropertyDataType;
+import io.evitadb.externalApi.rest.api.catalog.builder.CatalogSchemaBuildingContext;
+import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.dataType.DataTypesConverter.ConvertedEnum;
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.swagger.v3.oas.models.media.Schema;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createArraySchemaOf;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createReferenceSchema;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
 
 /**
  * Transforms {@link PropertyDataTypeDescriptor} to concrete {@link Schema<Object>}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class PropertyDataTypeDescriptorToOpenApiSchemaTransformer implements PropertyDataTypeDescriptorTransformer<PropertyDataType> {
+@RequiredArgsConstructor
+public class PropertyDataTypeDescriptorToOpenApiTypeTransformer implements PropertyDataTypeDescriptorTransformer<OpenApiSimpleType> {
+
+	@Nonnull
+	private final CatalogSchemaBuildingContext catalogSchemaBuildingContext;
 
 	@Override
-	public PropertyDataType apply(@Nonnull PropertyDataTypeDescriptor typeDescriptor) {
+	public OpenApiSimpleType apply(@Nonnull PropertyDataTypeDescriptor typeDescriptor) {
 		if (typeDescriptor instanceof PrimitivePropertyDataTypeDescriptor primitiveType) {
-			return new PropertyDataType(
-				SchemaCreator.createSchemaByJavaType(primitiveType.javaType()),
-				primitiveType.nonNull()
-			);
-		} else if (typeDescriptor instanceof ObjectPropertyDataTypeDescriptor objectType) {
-			Schema<Object> dataType = createReferenceSchema(objectType.objectReference().name());
-			if (objectType.list()) {
-				dataType = createArraySchemaOf(dataType);
+			if (primitiveType.javaType().isEnum() ||
+				(primitiveType.javaType().isArray() && primitiveType.javaType().componentType().isEnum())) {
+				final ConvertedEnum enumType = DataTypesConverter.getOpenApiEnum(
+					primitiveType.javaType(),
+					primitiveType.nonNull()
+				);
+				catalogSchemaBuildingContext.registerCustomEnumIfAbsent(enumType.enumType());
+				return enumType.resultType();
+			} else {
+				return DataTypesConverter.getOpenApiScalar(
+					primitiveType.javaType(),
+					primitiveType.nonNull()
+				);
 			}
-
-			return new PropertyDataType(
-				dataType,
-				objectType.nonNull()
-			);
+		} else if (typeDescriptor instanceof ObjectPropertyDataTypeDescriptor objectType) {
+			OpenApiSimpleType openApiType = typeRefTo(objectType.objectReference().name());
+			if (objectType.list()) {
+				openApiType = arrayOf(openApiType);
+			}
+			if (objectType.nonNull()) {
+				openApiType = nonNull(openApiType);
+			}
+			return openApiType;
 		} else {
 			throw new OpenApiSchemaBuildingError("Unsupported property data type `" + typeDescriptor.getClass().getName() + "`.");
 		}
 	}
-
-	public record PropertyDataType(@Nonnull Schema<Object> schema, boolean required) {}
 }

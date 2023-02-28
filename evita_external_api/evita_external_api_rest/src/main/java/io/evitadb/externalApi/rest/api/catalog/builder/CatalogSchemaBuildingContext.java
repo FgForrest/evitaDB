@@ -28,6 +28,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.rest.api.dto.OpenApiComplexType;
+import io.evitadb.externalApi.rest.api.dto.OpenApiEnum;
+import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.evitadb.externalApi.rest.io.handler.RESTApiHandlerRegistrar;
 import io.evitadb.utils.Assert;
@@ -36,14 +39,16 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.SpecVersion;
-import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.info.Contact;
+import io.swagger.v3.oas.models.info.Info;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createReferenceSchema;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -62,9 +67,14 @@ public class CatalogSchemaBuildingContext {
 	@Getter
 	@Nonnull
 	private final Set<EntitySchemaContract> entitySchemas;
-	@Getter
 	@Nonnull
-	private final OpenAPI openAPI;
+	private final Map<String, OpenApiComplexType> registeredTypes = createHashMap(100);
+	private final Map<String, PathItem> registeredPaths = createHashMap(100);
+	/**
+	 * Holds all globally registered custom enums that will be inserted into GraphQL schema.
+	 */
+	@Nonnull
+	private final Set<String> registeredCustomEnums = createHashSet(32);
 
 	/**
 	 * Routing handler is used to register REST handlers for each mapping created in OpenAPI schema.
@@ -88,7 +98,6 @@ public class CatalogSchemaBuildingContext {
 			return schemas;
 		});
 
-		openAPI = prepareOpenApi();
 		restApiHandlerRegistrar = new RESTApiHandlerRegistrar(this);
 	}
 
@@ -97,40 +106,72 @@ public class CatalogSchemaBuildingContext {
 		return catalog.getSchema();
 	}
 
-	@Nonnull
-	public Schema<Object> registerType(@Nonnull Schema<Object> type) {
-		Assert.isPremiseValid(
-			type.getName() != null,
-			() -> {
-				return new OpenApiSchemaBuildingError("Can't add schema without name into Components.");
-			}
-		);
-		Assert.isPremiseValid(
-			openAPI.getComponents().getSchemas() == null ||
-				openAPI.getComponents().getSchemas().get(type.getName()) == null,
-			() -> {
-				return new OpenApiSchemaBuildingError("Schema already exists in Components list. Name: " + type.getName());
-			}
-		);
-		openAPI.getComponents().addSchemas(type.getName(), type);
-
-		return createReferenceSchema(type);
+	/**
+	 * Registers new custom enum if there is not enum with same name.
+	 */
+	public void registerCustomEnumIfAbsent(@Nonnull OpenApiEnum customEnum) {
+		if (registeredCustomEnums.contains(customEnum.getName())) {
+			return;
+		}
+		registeredCustomEnums.add(customEnum.getName());
+		registerType(customEnum);
 	}
 
-	@SuppressWarnings("unchecked")
 	@Nonnull
-	public Optional<Schema<Object>> getRegisteredType(@Nonnull String name) {
-		return Optional.ofNullable((Schema<Object>) openAPI.getComponents().getSchemas().get(name));
+	public OpenApiTypeReference registerType(@Nonnull OpenApiComplexType type) {
+		Assert.isPremiseValid(
+			!registeredTypes.containsKey(type.getName()),
+			() -> new OpenApiSchemaBuildingError("Object with name `" + type.getName() + "` is already registered.")
+		);
+		registeredTypes.put(type.getName(), type);
+
+		return OpenApiTypeReference.typeRefTo(type);
+	}
+
+	@Nonnull
+	public Optional<OpenApiTypeReference> getRegisteredType(@Nonnull String name) {
+		return Optional.ofNullable(registeredTypes.get(name))
+			.map(OpenApiTypeReference::typeRefTo);
 	}
 
 	public void registerPath(@Nonnull String urlPath, @Nonnull PathItem pathItem) {
-		openAPI.getPaths().addPathItem(urlPath, pathItem);
+		Assert.isPremiseValid(
+			!registeredPaths.containsKey(urlPath),
+			() -> new OpenApiSchemaBuildingError("There is already registered path `" + urlPath + "`.")
+		);
+		registeredPaths.put(urlPath, pathItem);
 	}
 
-	private static OpenAPI prepareOpenApi() {
-		final OpenAPI newOpenApi = new OpenAPI(SpecVersion.V31);
-		newOpenApi.setComponents(new Components());
-		newOpenApi.setPaths(new Paths());
-		return newOpenApi;
+	@Nonnull
+	public OpenAPI buildOpenApi() {
+		final OpenAPI openApi = new OpenAPI(SpecVersion.V31);
+
+		final Info info = new Info();
+		info.setTitle("Web services for catalog `" + getCatalog().getName() + "`.");
+		info.setContact(new Contact().email("novotny@fg.cz").url("https://www.fg.cz"));
+		info.setVersion("1.0.0-oas3"); // todo lho take version of evita?
+		openApi.info(info);
+
+		final Components components = new Components();
+		registeredTypes.forEach((name, object) -> components.addSchemas(name, object.toSchema()));
+		openApi.setComponents(components);
+
+		final Paths paths = new Paths();
+		registeredPaths.forEach(paths::addPathItem);
+		openApi.setPaths(paths);
+
+		validateReferences(openApi);
+		return openApi;
+	}
+
+	private void validateReferences(OpenAPI openApi) {
+		final OpenApiSchemaReferenceValidator referenceValidator = new OpenApiSchemaReferenceValidator(openApi);
+		final Set<String> missingSchemas = referenceValidator.validateSchemaReferences();
+
+		if (!missingSchemas.isEmpty()) {
+			final StringBuilder errorMessageBuilder = new StringBuilder("Found missing schema in OpenAPI for catalog `" + getCatalog().getName() + "`:\n");
+			missingSchemas.forEach(it -> errorMessageBuilder.append("- `").append(it).append("`\n"));
+			throw new OpenApiSchemaBuildingError(errorMessageBuilder.toString());
+		}
 	}
 }

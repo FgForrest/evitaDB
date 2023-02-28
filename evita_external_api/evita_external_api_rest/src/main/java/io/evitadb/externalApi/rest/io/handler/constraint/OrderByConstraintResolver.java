@@ -106,6 +106,6 @@ public class OrderByConstraintResolver extends RestConstraintResolver<OrderConst
 
 	@Override
 	protected Schema getSchemaFromOperationProperty(@Nonnull String propertyName) {
-		return SchemaUtils.getSchemaFromOrderBy(restApiContext.getOpenApi(), operation, propertyName);
+		return SchemaUtils.getSchemaFromOrderBy(restApiContext.getOpenApi().get(), operation, propertyName);
 	}
 }

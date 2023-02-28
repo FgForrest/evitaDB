@@ -66,7 +66,7 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLType, GraphQLInputObjectField> {
+public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLType, GraphQLType, GraphQLInputObjectField> {
 
 	@Nonnull
 	protected final String rootEntityType;

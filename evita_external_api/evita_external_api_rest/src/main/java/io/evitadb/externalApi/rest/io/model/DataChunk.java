@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.io.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.evitadb.externalApi.rest.api.dto.DataChunkType;
 import lombok.Getter;
 
 /**
@@ -33,11 +34,9 @@ import lombok.Getter;
  */
 @Getter
 public abstract class DataChunk {
-	public static final String RECORD_PAGE = "page";
-	public static final String RECORD_STRIP = "strip";
 
 	private final JsonNode data;
-	private final String type;
+	private final DataChunkType type;
 	private final int totalRecordCount;
 	private final boolean first;
 	private final boolean last;
@@ -46,7 +45,7 @@ public abstract class DataChunk {
 	private final boolean singlePage;
 	private final boolean empty;
 
-	protected DataChunk(io.evitadb.dataType.DataChunk<?> paginatedList, JsonNode data, String type) {
+	protected DataChunk(io.evitadb.dataType.DataChunk<?> paginatedList, JsonNode data, DataChunkType type) {
 		this.data = data;
 		this.type = type;
 		totalRecordCount = paginatedList.getTotalRecordCount();

@@ -34,6 +34,7 @@ import javax.annotation.Nonnull;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
+// todo lho probably delete
 public class EndpointDescriptorToOpenApiSchemaTransformer implements EndpointDescriptorTransformer<Schema<Object>> {
 
 	@Override

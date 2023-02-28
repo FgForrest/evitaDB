@@ -26,10 +26,8 @@ package io.evitadb.externalApi.rest.api.catalog.builder.transformer;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptorTransformer;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDataTypeDescriptorToOpenApiSchemaTransformer.PropertyDataType;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiSchemaTransformer.Property;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
-import io.swagger.v3.oas.models.media.Schema;
+import io.evitadb.externalApi.rest.api.dto.OpenApiOperationParameter;
+import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -40,34 +38,22 @@ import javax.annotation.Nonnull;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class PropertyDescriptorToOpenApiSchemaTransformer implements PropertyDescriptorTransformer<Property> {
+public class PropertyDescriptorToOpenApiOperationQueryParameterTransformer implements PropertyDescriptorTransformer<OpenApiOperationParameter.Builder> {
 
 	@Nonnull
-	private final PropertyDataTypeDescriptorTransformer<PropertyDataType> propertyDataTypeDescriptorTransformer;
+	private final PropertyDataTypeDescriptorTransformer<OpenApiSimpleType> propertyDataTypeDescriptorTransformer;
 
 	@Override
-	public Property apply(@Nonnull PropertyDescriptor propertyDescriptor) {
-		final Schema<Object> propertySchema;
-		final boolean required;
+	public OpenApiOperationParameter.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
+		final OpenApiOperationParameter.Builder parameterBuilder = OpenApiOperationParameter.newQueryParameter()
+			.name(propertyDescriptor.name())
+			.description(propertyDescriptor.description());
 
 		if (propertyDescriptor.type() != null) {
-			final PropertyDataType propertyDataType = propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
-			propertySchema = propertyDataType.schema();
-			required = propertyDataType.required();
-		} else {
-			// todo lho is this correct? if there is no type we should let the programmer handle it manually in case of OpenAPI, right?
-			throw new OpenApiSchemaBuildingError("");
-//			propertySchema = new Schema<>();
-//			required = false;
+			final OpenApiSimpleType openApiType = propertyDataTypeDescriptorTransformer.apply(propertyDescriptor.type());
+			parameterBuilder.type(openApiType);
 		}
 
-		propertySchema.name(propertyDescriptor.name());
-		if (propertySchema.get$ref() == null) {
-			propertySchema.description(propertyDescriptor.description());
-		}
-
-		return new Property(propertySchema, required);
+		return parameterBuilder;
 	}
-
-	public record Property(@Nonnull Schema<Object> schema, boolean required) {}
 }

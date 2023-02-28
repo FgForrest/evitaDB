@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.io.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.evitadb.externalApi.rest.api.dto.DataChunkType;
 import lombok.Getter;
 
 /**
@@ -36,7 +37,7 @@ public class StripList extends DataChunk {
 	private final int offset;
 	private final int limit;
 	public StripList(io.evitadb.dataType.StripList<?> stripList, JsonNode data) {
-		super(stripList, data, RECORD_STRIP);
+		super(stripList, data, DataChunkType.STRIP);
 		offset = stripList.getOffset();
 		limit = stripList.getLimit();
 	}

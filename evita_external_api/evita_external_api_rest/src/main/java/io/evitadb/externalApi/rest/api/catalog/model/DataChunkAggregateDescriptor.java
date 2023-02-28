@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.model;
 
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -40,5 +41,13 @@ public interface DataChunkAggregateDescriptor {
 			Contains information about type of returned page object
 			""")
 		.type(nonNull(String.class))
+		.build();
+
+
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("*DataChunk")
+		.description("""
+			Returns either `page` or `strip` of records according to pagination rules in input query.
+			""")
 		.build();
 }

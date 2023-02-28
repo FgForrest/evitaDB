@@ -37,8 +37,8 @@ import io.evitadb.dataType.Range;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.io.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.testSuite.RESTEndpointFunctionalTest;
 import io.evitadb.test.Entities;
@@ -285,7 +285,7 @@ abstract class CatalogRESTEndpointFunctionalTest extends RESTEndpointFunctionalT
 		final Map<String, Object> associatedData;
 		if (distinguishLocalizedData) {
 			associatedData = map()
-				.e(LocalizedAssociatedDataDescriptor.LOCALIZED.name(), map()
+				.e(SectionedAssociatedDataDescriptor.LOCALIZED.name(), map()
 					.e(Locale.ENGLISH.toLanguageTag(), map()
 						.e(ASSOCIATED_DATA_LABELS, map()
 							.e("root", map().build())
@@ -348,9 +348,9 @@ abstract class CatalogRESTEndpointFunctionalTest extends RESTEndpointFunctionalT
 
 				final Map<String, List<AttributeKey>> localeSeparatedKeys = separateAttributeKeysByLocale(entity, entity.getAttributeKeys());
 
-				final List<AttributesContract.AttributeKey> globalAttributes = localeSeparatedKeys.remove(LocalizedAttributesDescriptor.GLOBAL.name());
+				final List<AttributesContract.AttributeKey> globalAttributes = localeSeparatedKeys.remove(SectionedAttributesDescriptor.GLOBAL.name());
 				if (!globalAttributes.isEmpty()) {
-					attributesMap.e(LocalizedAttributesDescriptor.GLOBAL.name(), createAttributesMap(entity, globalAttributes, locale));
+					attributesMap.e(SectionedAttributesDescriptor.GLOBAL.name(), createAttributesMap(entity, globalAttributes, locale));
 				}
 
 				final MapBuilder localizedAttributesBuilder = map();
@@ -362,7 +362,7 @@ abstract class CatalogRESTEndpointFunctionalTest extends RESTEndpointFunctionalT
 				}
 				final Map<String, Object> localizedAttributesMap = localizedAttributesBuilder.build();
 				if (!localizedAttributesMap.isEmpty()) {
-					attributesMap.e(LocalizedAttributesDescriptor.LOCALIZED.name(), localizedAttributesMap);
+					attributesMap.e(SectionedAttributesDescriptor.LOCALIZED.name(), localizedAttributesMap);
 				}
 				return attributesMap.build();
 			} else {

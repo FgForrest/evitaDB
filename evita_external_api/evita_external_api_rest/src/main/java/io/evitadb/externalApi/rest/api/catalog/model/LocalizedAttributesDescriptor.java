@@ -23,30 +23,22 @@
 
 package io.evitadb.externalApi.rest.api.catalog.model;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Extension of {@link AttributesDescriptor} for OpenAPI for entities without implicit locale.
+ * The localized part of {@link SectionedAttributesDescriptor} for localized attributes of an entity.
+ * This object is used as container for all locales.
  *
  * Note: this descriptor is supposed to be only template.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface LocalizedAttributesDescriptor extends AttributesDescriptor {
+public interface LocalizedAttributesDescriptor {
 
-	PropertyDescriptor GLOBAL = PropertyDescriptor.builder()
-		.name("global")
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("*LocalizedAttributes")
 		.description("""
-			Contains global attributes.
+			Set of localized attributes categorized by their locales.
 			""")
-		// type is expected to be a map with individual attributes
-		.build();
-	PropertyDescriptor LOCALIZED = PropertyDescriptor.builder()
-		.name("localized")
-		.description("""
-			Contains localized attributes.
-			""")
-		// type is expected to be a map with individual attributes
 		.build();
 }

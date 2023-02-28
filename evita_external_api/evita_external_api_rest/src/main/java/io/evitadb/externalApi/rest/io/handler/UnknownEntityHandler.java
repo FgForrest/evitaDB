@@ -56,7 +56,6 @@ public class UnknownEntityHandler extends RESTApiHandler {
 		Assert.isPremiseValid(restApiContext.getEvita() != null, "Instance of Evita must be set in context.");
 		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
 		Assert.isPremiseValid(restApiContext.getPathItem() != null, "PathItem must be set in context.");
-		Assert.isPremiseValid(restApiContext.getOpenApi() != null, "OpenApi must be set in context.");
 	}
 
 	@Override

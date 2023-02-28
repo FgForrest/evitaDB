@@ -23,9 +23,11 @@
 
 package io.evitadb.externalApi.rest.api.catalog.builder.constraint;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuildingContext;
-import io.swagger.v3.oas.models.media.Schema;
+import io.evitadb.externalApi.rest.api.catalog.builder.CatalogSchemaBuildingContext;
+import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
+import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 
@@ -34,9 +36,14 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class OpenApiConstraintSchemaBuildingContext extends ConstraintSchemaBuildingContext<Schema<Object>> {
+public class OpenApiConstraintSchemaBuildingContext extends ConstraintSchemaBuildingContext<OpenApiSimpleType, OpenApiObject> {
 
-	public OpenApiConstraintSchemaBuildingContext(@Nonnull CatalogContract catalog) {
-		super(catalog);
+	@Nonnull
+	@Getter
+	private final CatalogSchemaBuildingContext catalogCtx;
+
+	public OpenApiConstraintSchemaBuildingContext(@Nonnull CatalogSchemaBuildingContext catalogCtx) {
+		super(catalogCtx.getCatalog());
+		this.catalogCtx = catalogCtx;
 	}
 }

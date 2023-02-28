@@ -29,7 +29,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -93,7 +93,7 @@ class CatalogRESTGetEntityQueryFunctionalTest extends CatalogRESTEndpointFunctio
 						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.e(EntityDescriptor.ATTRIBUTES.name(), map()
-							.e(LocalizedAttributesDescriptor.GLOBAL.name(), map()
+							.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 								.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 								.build())
 							.build())
@@ -138,10 +138,10 @@ class CatalogRESTGetEntityQueryFunctionalTest extends CatalogRESTEndpointFunctio
 						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.e(EntityDescriptor.ATTRIBUTES.name(),
 							map()
-								.e(LocalizedAttributesDescriptor.GLOBAL.name(), map()
+								.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 									.e(ATTRIBUTE_CODE, codeAttribute)
 									.build())
-								.e(LocalizedAttributesDescriptor.LOCALIZED.name(), map()
+								.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
 									.e(CZECH_LOCALE.toLanguageTag(), map()
 										.e(ATTRIBUTE_NAME, entityWithCode.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
 										.build())
@@ -222,7 +222,7 @@ class CatalogRESTGetEntityQueryFunctionalTest extends CatalogRESTEndpointFunctio
 				"attributes",
 				equalTo(
 					map()
-						.e(LocalizedAttributesDescriptor.GLOBAL.name(), map()
+						.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 							.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 							.e(ATTRIBUTE_ALIAS, entity.getAttribute(ATTRIBUTE_ALIAS))
 							.e(ATTRIBUTE_QUANTITY, serializeToJsonValue(entity.getAttribute(ATTRIBUTE_QUANTITY)))
@@ -231,7 +231,7 @@ class CatalogRESTGetEntityQueryFunctionalTest extends CatalogRESTEndpointFunctio
 							.e(ATTRIBUTE_VISIBLE, entity.getAttribute(ATTRIBUTE_VISIBLE))
 							.e(ATTRIBUTE_CREATED, serializeToJsonValue(entity.getAttribute(ATTRIBUTE_CREATED)))
 							.build())
-						.e(LocalizedAttributesDescriptor.LOCALIZED.name(), map()
+						.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
 							.e(CZECH_LOCALE.toLanguageTag(), map()
 								.e(ATTRIBUTE_URL, entity.getAttribute(ATTRIBUTE_URL, CZECH_LOCALE))
 								.e(ATTRIBUTE_NAME, entity.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
@@ -273,7 +273,7 @@ class CatalogRESTGetEntityQueryFunctionalTest extends CatalogRESTEndpointFunctio
 						.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 						.e(EntityDescriptor.ATTRIBUTES.name(),
 							map()
-								.e(LocalizedAttributesDescriptor.LOCALIZED.name(), map()
+								.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
 									.e(Locale.ENGLISH.toLanguageTag(), map()
 										.e(ATTRIBUTE_URL, urlAttribute)
 										.build())

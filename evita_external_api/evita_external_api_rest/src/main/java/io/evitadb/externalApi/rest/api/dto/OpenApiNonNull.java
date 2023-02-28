@@ -21,30 +21,34 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.builder.transformer;
+package io.evitadb.externalApi.rest.api.dto;
 
-import io.evitadb.externalApi.rest.api.catalog.DataTypeDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator;
 import io.swagger.v3.oas.models.media.Schema;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * Transforms API-independent {@link io.evitadb.externalApi.rest.api.catalog.DataTypeDescriptor} to OpenAPI schema.
+ * TODO lho docs
  *
- * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, 2023
  */
-// todo lho replace with PropertyDataTypeDescriptorToOpenApiSchemaTransformer.java?
-public class DataTypeDescriptorToOpenApiSchemaTransformer implements DataTypeDescriptorTransformer<Schema<Object>> {
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+public class OpenApiNonNull implements OpenApiWrappingType {
 
+	@Nonnull
+	@Getter
+	private final OpenApiSimpleType wrappedType;
+
+	public static OpenApiNonNull nonNull(@Nonnull OpenApiSimpleType wrappedType) {
+		return new OpenApiNonNull(wrappedType);
+	}
+
+	@Nonnull
 	@Override
-	public Schema<Object> apply(@Nonnull DataTypeDescriptor dataTypeDescriptor) {
-		final Schema<Object> schema = SchemaCreator.createSchemaByJavaType(dataTypeDescriptor.type());
-
-		schema
-			.name(dataTypeDescriptor.name())
-			.description(dataTypeDescriptor.description());
-
-		return schema;
+	public Schema<?> toSchema() {
+		return wrappedType.toSchema();
 	}
 }

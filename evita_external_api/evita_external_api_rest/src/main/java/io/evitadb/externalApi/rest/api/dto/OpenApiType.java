@@ -34,6 +34,10 @@ import javax.annotation.Nonnull;
  */
 public interface OpenApiType {
 
+	/**
+	 * Returns OpenAPI equivalent of this type. Should be used only when constructing final OpenAPI schema, not as
+	 * intermediate DTO.
+	 */
 	@Nonnull
-	Schema<Object> toSchema();
+	Schema<?> toSchema();
 }

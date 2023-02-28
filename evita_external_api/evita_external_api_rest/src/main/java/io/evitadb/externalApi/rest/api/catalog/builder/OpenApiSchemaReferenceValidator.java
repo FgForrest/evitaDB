@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
@@ -60,10 +61,9 @@ public class OpenApiSchemaReferenceValidator {
 	 *
 	 * @return <code>true</code> when schema is valid.
 	 */
-	public boolean validateSchemaReferences() {
+	public Set<String> validateSchemaReferences() {
 		schemas.values().forEach(this::validateSchemaReferences);
-
-		return missingSchemas.isEmpty();
+		return missingSchemas;
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})

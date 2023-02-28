@@ -29,7 +29,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -337,7 +337,7 @@ class CatalogRESTListUnknownEntitiesQueryFunctionalTest extends CatalogRESTEndpo
 		final Map<String, Object> associatedData;
 		if (distinguishLocalizedData) {
 			associatedData = map()
-				.e(LocalizedAssociatedDataDescriptor.GLOBAL.name(), map()
+				.e(SectionedAssociatedDataDescriptor.GLOBAL.name(), map()
 					.e("referencedFiles", map()
 						.e("root", map().build())
 						.build()
@@ -347,7 +347,7 @@ class CatalogRESTListUnknownEntitiesQueryFunctionalTest extends CatalogRESTEndpo
 						.build()
 					)
 					.build())
-				.e(LocalizedAssociatedDataDescriptor.LOCALIZED.name(), map()
+				.e(SectionedAssociatedDataDescriptor.LOCALIZED.name(), map()
 					.e(Locale.ENGLISH.toLanguageTag(), map()
 						.e(ASSOCIATED_DATA_LABELS, map()
 							.e("root", map().build())

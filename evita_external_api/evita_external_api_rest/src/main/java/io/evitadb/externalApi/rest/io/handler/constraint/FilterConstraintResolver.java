@@ -108,6 +108,6 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 
 	@Override
 	protected Schema getSchemaFromOperationProperty(@Nonnull String propertyName) {
-		return SchemaUtils.getSchemaFromFilterBy(restApiContext.getOpenApi(), operation, propertyName);
+		return SchemaUtils.getSchemaFromFilterBy(restApiContext.getOpenApi().get(), operation, propertyName);
 	}
 }

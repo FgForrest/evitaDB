@@ -25,24 +25,24 @@ package io.evitadb.externalApi.rest.api.catalog.builder;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationAggregateDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.RequireSchemaBuilder;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiSchemaTransformer.Property;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.ObjectDescriptorToOpenApiObjectTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
+import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
+import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
 import io.swagger.v3.oas.models.PathItem;
-import io.swagger.v3.oas.models.media.ArraySchema;
-import io.swagger.v3.oas.models.media.Schema;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
 
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createArraySchemaOf;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createBooleanSchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createIntegerSchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createObjectSchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaPropertyUtils.addProperty;
-import static io.evitadb.externalApi.rest.api.catalog.builder.transformer.Transformers.OBJECT_TRANSFORMER;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
 
 /**
  * Build OpenAPI schemas for entity mutations - upsert and delete. It also registers appropriate handlers for processing
@@ -53,9 +53,10 @@ import static io.evitadb.externalApi.rest.api.catalog.builder.transformer.Transf
 @RequiredArgsConstructor
 public class DataMutationSchemaBuilder {
 
-	private final OpenApiEntitySchemaBuildingContext entitySchemaBuildingContext;
-
-	private final PathItemBuilder pathItemBuilder = new PathItemBuilder();
+	@Nonnull private final OpenApiEntitySchemaBuildingContext entitySchemaBuildingContext;
+	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
+	@Nonnull private final PathItemBuilder pathItemBuilder;
 
 	public void buildAndAddEntitiesAndPathItems() {
 		// Delete and upsert mutations use same URL but different HTTP method. In this case one PathItem must be used.
@@ -75,47 +76,49 @@ public class DataMutationSchemaBuilder {
 	}
 
 	@Nonnull
-	private Schema<Object> buildUpsertEntitySchema(boolean withPrimaryKey) {
-		final Schema<Object> upsertEntitySchema = createObjectSchema();
+	private OpenApiTypeReference buildUpsertEntitySchema(boolean withPrimaryKey) {
+		final OpenApiObject.Builder upsertEntityObjectBuilder = newObject()
+			.name(entitySchemaBuildingContext.getSchema().getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION) + "_UpsertEntity");//todo lho descriptor
 
 		if (withPrimaryKey) {
-			addProperty(upsertEntitySchema, UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY, createIntegerSchema(), withPrimaryKey);
+			upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY
+				.to(propertyBuilderTransformer)
+				.type(DataTypesConverter.getOpenApiScalar(Integer.class, true)));
 		}
 
-		addProperty(upsertEntitySchema, UpsertEntityMutationHeaderDescriptor.ENTITY_EXISTENCE);
+		upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.ENTITY_EXISTENCE.to(propertyBuilderTransformer));
 
-		final Optional<Schema<Object>> localMutationSchema = buildLocalMutationSchema();
+		final Optional<OpenApiTypeReference> localMutationSchema = buildLocalMutationSchema();
 
-		localMutationSchema.ifPresent(objectSchema -> {
-			final ArraySchema mutations = createArraySchemaOf(localMutationSchema.get());
-			mutations
-				.name(UpsertEntityMutationHeaderDescriptor.MUTATIONS.name())
-				.description(UpsertEntityMutationHeaderDescriptor.MUTATIONS.description());
-			addProperty(upsertEntitySchema, new Property(mutations, true));
-		});
+		localMutationSchema.ifPresent(objectSchema ->
+			upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.MUTATIONS
+				.to(propertyBuilderTransformer)
+				.type(nonNull(arrayOf(localMutationSchema.get())))));
 
 		final RequireSchemaBuilder requireSchemaBuilder = new RequireSchemaBuilder(
 			entitySchemaBuildingContext.getConstraintSchemaBuildingCtx(),
 			entitySchemaBuildingContext.getSchema().getName(),
 			RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_UPSERT
 		);
-		addProperty(upsertEntitySchema, UpsertEntityMutationHeaderDescriptor.REQUIRE, requireSchemaBuilder.build(), true);
+		upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.REQUIRE
+			.to(propertyBuilderTransformer)
+			.type(nonNull(requireSchemaBuilder.build())));
 
-		return upsertEntitySchema;
+		return entitySchemaBuildingContext.getCatalogCtx().registerType(upsertEntityObjectBuilder.build());
 	}
 
 	@Nonnull
-	private Optional<Schema<Object>> buildLocalMutationSchema() {
+	private Optional<OpenApiTypeReference> buildLocalMutationSchema() {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingContext.getSchema();
+
 		final String schemaName = LocalMutationAggregateDescriptor.THIS.name(entitySchema);
-		final Optional<Schema<Object>> existingSchema = entitySchemaBuildingContext.getCatalogCtx().getRegisteredType(schemaName);
+		final Optional<OpenApiTypeReference> existingSchema = entitySchemaBuildingContext.getCatalogCtx().getRegisteredType(schemaName);
 		if (existingSchema.isPresent()) {
 			return existingSchema;
 		}
 
-		final Schema<Object> localMutationSchema = LocalMutationAggregateDescriptor.THIS
-			.to(OBJECT_TRANSFORMER);
-		localMutationSchema
+		final OpenApiObject.Builder localMutationObjectBuilder = LocalMutationAggregateDescriptor.THIS
+			.to(objectBuilderTransformer)
 			.name(schemaName)
 			.description(LocalMutationAggregateDescriptor.THIS.description(entitySchema.getName()));
 
@@ -123,42 +126,43 @@ public class DataMutationSchemaBuilder {
 
 		if (!entitySchema.getAssociatedData().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_ASSOCIATED_DATA)) {
 			hasAnyMutations = true;
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION);
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION.to(propertyBuilderTransformer));
 		}
 
 		if (!entitySchema.getAttributes().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_ATTRIBUTES)) {
 			hasAnyMutations = true;
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION);
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.to(propertyBuilderTransformer));
 		}
 
 		if (entitySchema.isWithHierarchy() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_HIERARCHY)) {
 			hasAnyMutations = true;
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.REMOVE_HIERARCHICAL_PLACEMENT_MUTATION, createBooleanSchema(), false);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.SET_HIERARCHICAL_PLACEMENT_MUTATION);
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_HIERARCHICAL_PLACEMENT_MUTATION.to(propertyBuilderTransformer)
+				.type(DataTypesConverter.getOpenApiScalar(Boolean.class)));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.SET_HIERARCHICAL_PLACEMENT_MUTATION.to(propertyBuilderTransformer));
 		}
 
 		if (entitySchema.isWithPrice() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_PRICES)) {
 			hasAnyMutations = true;
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION);
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION.to(propertyBuilderTransformer));
 		}
 
 		if (!entitySchema.getReferences().isEmpty() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_REFERENCES)) {
 			hasAnyMutations = true;
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION);
-			addProperty(localMutationSchema, LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION);
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION.to(propertyBuilderTransformer));
+			localMutationObjectBuilder.property(LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION.to(propertyBuilderTransformer));
 		}
 
 		if (!hasAnyMutations) {
 			return Optional.empty();
 		}
-		return Optional.of(entitySchemaBuildingContext.getCatalogCtx().registerType(localMutationSchema));
+		return Optional.of(entitySchemaBuildingContext.getCatalogCtx().registerType(localMutationObjectBuilder.build()));
 	}
 }

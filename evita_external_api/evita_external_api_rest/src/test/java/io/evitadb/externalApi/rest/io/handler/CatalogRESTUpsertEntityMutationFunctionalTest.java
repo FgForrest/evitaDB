@@ -33,8 +33,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -219,10 +219,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.e(EntityDescriptor.ATTRIBUTES.name(), map()
-				.e(LocalizedAttributesDescriptor.GLOBAL.name(), map()
+				.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 					.e(ATTRIBUTE_QUANTITY, ((BigDecimal) entity.getAttribute(ATTRIBUTE_QUANTITY)).add(BigDecimal.TEN).toString())
 					.build())
-				.e(LocalizedAttributesDescriptor.LOCALIZED.name(), map()
+				.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
 					.e(CZECH_LOCALE.toLanguageTag(), map()
 						.e(ATTRIBUTE_NAME, "nový produkt")
 						.build())
@@ -313,7 +313,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), map()
-				.e(LocalizedAssociatedDataDescriptor.LOCALIZED.name(), map()
+				.e(SectionedAssociatedDataDescriptor.LOCALIZED.name(), map()
 					.e(CZECH_LOCALE.toLanguageTag(), map()
 						.e(ASSOCIATED_DATA_LABELS, map()
 							.e("someField", "differentValue")

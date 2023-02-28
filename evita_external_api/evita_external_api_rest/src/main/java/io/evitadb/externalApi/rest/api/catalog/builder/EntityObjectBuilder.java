@@ -28,41 +28,54 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiSchemaTransformer.Property;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.ObjectDescriptorToOpenApiObjectTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
+import io.evitadb.externalApi.rest.api.catalog.model.GlobalAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.GlobalAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAssociatedDataForLocaleDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAttributesForLocaleDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
+import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
+import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
-import io.swagger.v3.oas.models.media.ArraySchema;
-import io.swagger.v3.oas.models.media.Schema;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.Optional;
+import java.util.List;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.*;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createArraySchemaOf;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createObjectSchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createReferenceSchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createSchemaByJavaType;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaPropertyUtils.addProperty;
-import static io.evitadb.externalApi.rest.api.catalog.builder.transformer.Transformers.OBJECT_TRANSFORMER;
+import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructReferenceAttributesObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructReferenceObjectName;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiProperty.newProperty;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
 
 /**
  * Builds OpenAPI entity object (schema) based on information provided in building context
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
+@RequiredArgsConstructor
 public class EntityObjectBuilder {
-	private final OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx;
 
-	public EntityObjectBuilder(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx) {
-		this.entitySchemaBuildingCtx = entitySchemaBuildingCtx;
-	}
+	@Nonnull private final OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx;
+	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 
 	/**
 	 * Builds entity object.<br/>
@@ -80,79 +93,67 @@ public class EntityObjectBuilder {
 	 * @return schema for entity object
 	 */
 	@Nonnull
-	public Schema<Object> buildEntityObject(boolean distinguishLocalizedData) {
+	public OpenApiObject buildEntityObject(boolean distinguishLocalizedData) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		// build specific entity object
-		final Schema<Object> objectSchema = EntityDescriptor.THIS
-			.to(OBJECT_TRANSFORMER);
-		objectSchema.name(constructEntityName(entitySchema, distinguishLocalizedData));
+		final OpenApiObject.Builder entityObject = EntityDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(constructEntityObjectName(entitySchema, distinguishLocalizedData));
 
 		// build locale fields
 		if (!entitySchema.getLocales().isEmpty()) {
-			addProperty(objectSchema, buildEntityLocalesProperty(EntityDescriptor.LOCALES));
-			addProperty(objectSchema, buildEntityLocalesProperty(EntityDescriptor.ALL_LOCALES));
+			entityObject.property(EntityDescriptor.LOCALES.to(propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.ALL_LOCALES.to(propertyBuilderTransformer));
 		}
 
 		// build hierarchy placement field
 		if (entitySchema.isWithHierarchy()) {
-			addProperty(objectSchema, EntityDescriptor.HIERARCHICAL_PLACEMENT);
+			entityObject.property(EntityDescriptor.HIERARCHICAL_PLACEMENT.to(propertyBuilderTransformer));
 		}
 
 		// build price fields
 		if (!entitySchema.getCurrencies().isEmpty()) {
-			addProperty(objectSchema, EntityDescriptor.PRICE_INNER_RECORD_HANDLING);
-			addProperty(objectSchema, EntityDescriptor.PRICE_FOR_SALE);
-			addProperty(objectSchema, EntityDescriptor.PRICES);
+			entityObject.property(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.PRICE_FOR_SALE.to(propertyBuilderTransformer));
+			entityObject.property(EntityDescriptor.PRICES.to(propertyBuilderTransformer));
 		}
 
 		// build attributes
 		if (!entitySchema.getAttributes().isEmpty()) {
-			addProperty(objectSchema, buildEntityAttributesProperty(distinguishLocalizedData));
+			entityObject.property(buildEntityAttributesProperty(distinguishLocalizedData));
 		}
 
 		// build associated data fields
 		if (!entitySchema.getAssociatedData().isEmpty()) {
-			addProperty(objectSchema, buildEntityAssociatedDataProperty(distinguishLocalizedData));
+			entityObject.property(buildEntityAssociatedDataProperty(distinguishLocalizedData));
 		}
 
 		// build reference fields
 		if (!entitySchema.getReferences().isEmpty()) {
-			buildEntityReferenceProperties(objectSchema, distinguishLocalizedData);
+			buildEntityReferenceProperties(distinguishLocalizedData).forEach(entityObject::property);
 		}
 
-		return objectSchema;
+		return entityObject.build();
 	}
 
 	@Nonnull
-	private Property buildEntityLocalesProperty(@Nonnull PropertyDescriptor propertyDescriptor) {
-		final ArraySchema schema = buildEntityLocalesSchema();
-		schema.setName(propertyDescriptor.name());
-		schema.setDescription(propertyDescriptor.description());
-		return new Property(schema, true);
+	private OpenApiProperty buildEntityAttributesProperty(boolean distinguishLocalizedData) {
+		final OpenApiTypeReference attributesObject = buildEntityAttributesObject(distinguishLocalizedData);
+		return EntityDescriptor.ATTRIBUTES
+			.to(propertyBuilderTransformer)
+			.type(nonNull(attributesObject))
+			.build();
 	}
 
 	@Nonnull
-	private ArraySchema buildEntityLocalesSchema() {
-		final var refSchema = createReferenceSchema(entitySchemaBuildingCtx.getLocaleEnum().getName());
-		return createArraySchemaOf(refSchema);
-	}
-
-	@Nonnull
-	private Property buildEntityAttributesProperty(boolean distinguishLocalizedData) {
-		final Schema<Object> attributesObject = buildEntityAttributesObject(distinguishLocalizedData);
-		attributesObject.name(EntityDescriptor.ATTRIBUTES.name());
-		return new Property(attributesObject, true);
-	}
-
-	@Nonnull
-	private Schema<Object> buildEntityAttributesObject(boolean distinguishLocalizedData) {
-		final Schema<Object> attributesObject;
+	private OpenApiTypeReference buildEntityAttributesObject(boolean distinguishLocalizedData) {
+		final OpenApiObject attributesObject;
 		if (distinguishLocalizedData) {
 			attributesObject = buildAttributesObjectWithLocalizationResolution();
 		} else {
 			final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
-			attributesObject = buildAttributesObject(entitySchema.getAttributes().values(), constructAttributesObjectName(entitySchema, false));
+			attributesObject = buildAttributesObject(entitySchema.getAttributes().values(), AttributesDescriptor.THIS.name(entitySchema));
 		}
 
 		return entitySchemaBuildingCtx.getCatalogCtx().registerType(attributesObject);
@@ -163,77 +164,94 @@ public class EntityObjectBuilder {
 	 * requested. Localized attributes are not distinguished from non-localized ones.
 	 */
 	@Nonnull
-	private static Schema<Object> buildAttributesObject(@Nonnull Collection<AttributeSchemaContract> attributeSchemas,
-	                                                    @Nonnull String objectName) {
-		final var attributesSchema = createObjectSchema();
-		attributesSchema.name(objectName);
-
-		attributeSchemas.forEach(attributeSchema -> {
-			final var attributeFieldDescriptor = buildAttributeProperty(attributeSchema);
-			addProperty(attributesSchema, new Property(attributeFieldDescriptor, !attributeSchema.isNullable()));
-		});
-
-		return attributesSchema;
+	private static OpenApiObject buildAttributesObject(@Nonnull Collection<AttributeSchemaContract> attributeSchemas,
+	                                                   @Nonnull String objectName) {
+		final OpenApiObject.Builder attributesObject = newObject()
+			.name(objectName);
+		attributeSchemas.forEach(attributeSchema -> attributesObject.property(buildAttributeProperty(attributeSchema)));
+		return attributesObject.build();
 	}
 
 	/**
 	 * Builds object for attributes. In this case non-localized attributes are nested under the
-	 * {@link LocalizedAttributesDescriptor#GLOBAL} name, while localized attributes
-	 * are nested under the {@link LocalizedAttributesDescriptor#LOCALIZED}. Moreover,
+	 * {@link SectionedAttributesDescriptor#GLOBAL} name, while localized attributes
+	 * are nested under the {@link SectionedAttributesDescriptor#LOCALIZED}. Moreover,
 	 * separate object is created for each locale and locale tag is used as attribute name of this object.
 	 */
 	@Nonnull
-	private Schema<Object> buildAttributesObjectWithLocalizationResolution() {
+	private OpenApiObject buildAttributesObjectWithLocalizationResolution() {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
-		final var attributesSchema = createObjectSchema();
-		attributesSchema.name(constructAttributesObjectName(entitySchema, true));
 
-		final Schema<Object> globalAttributesSchema = createObjectSchema();
-		final Schema<Object> localizedAttributesSchema = createObjectSchema();
+		final OpenApiObject.Builder attributesObject = SectionedAttributesDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(SectionedAttributesDescriptor.THIS.name(entitySchema));
+
+		final OpenApiObject.Builder globalAttributesObjectBuilder = GlobalAttributesDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(GlobalAttributesDescriptor.THIS.name(entitySchema));
+		final OpenApiObject.Builder localizedAttributesForLocaleObjectBuilder = LocalizedAttributesForLocaleDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(LocalizedAttributesForLocaleDescriptor.THIS.name(entitySchema));
 
 		entitySchema.getAttributes().values().forEach(attributeSchema -> {
-			final var attributeFieldDescriptor = buildAttributeProperty(attributeSchema);
+			final OpenApiProperty attributeProperty = buildAttributeProperty(attributeSchema);
 			if (attributeSchema.isLocalized()) {
-				addProperty(localizedAttributesSchema, new Property(attributeFieldDescriptor, !attributeSchema.isNullable()));
+				localizedAttributesForLocaleObjectBuilder.property(attributeProperty);
 			} else {
-				addProperty(globalAttributesSchema, new Property(attributeFieldDescriptor, !attributeSchema.isNullable()));
+				globalAttributesObjectBuilder.property(attributeProperty);
 			}
 		});
 
-		addProperty(attributesSchema, LocalizedAttributesDescriptor.GLOBAL, globalAttributesSchema, true);
+		final OpenApiTypeReference globalAttributesObject = entitySchemaBuildingCtx.getCatalogCtx().registerType(globalAttributesObjectBuilder.build());
+		final OpenApiTypeReference localizedAttributesForLocaleObject = entitySchemaBuildingCtx.getCatalogCtx().registerType(localizedAttributesForLocaleObjectBuilder.build());
 
-		final Schema<Object> localizationContainer = createObjectSchema();
-		entitySchema.getLocales().forEach(locale -> localizationContainer.addProperty(locale.toLanguageTag(), localizedAttributesSchema));
-		if(!localizationContainer.getProperties().isEmpty()) {
-			addProperty(attributesSchema, LocalizedAttributesDescriptor.LOCALIZED, localizationContainer, true);
+		final OpenApiProperty globalAttributesProperty = SectionedAttributesDescriptor.GLOBAL
+			.to(propertyBuilderTransformer)
+			.type(nonNull(globalAttributesObject))
+			.build();
+		attributesObject.property(globalAttributesProperty);
+
+		if (!entitySchema.getLocales().isEmpty()) {
+			final OpenApiObject.Builder localizedAttributesObjectBuilder = LocalizedAttributesDescriptor.THIS
+				.to(objectBuilderTransformer);
+			entitySchema.getLocales().forEach(locale ->
+				localizedAttributesObjectBuilder.property(p -> p
+					.name(locale.toLanguageTag())
+					.type(nonNull(localizedAttributesForLocaleObject)))
+			);
+			final OpenApiTypeReference localizedAttributesObject = entitySchemaBuildingCtx.getCatalogCtx().registerType(localizedAttributesObjectBuilder.build());
+
+			attributesObject.property(SectionedAttributesDescriptor.LOCALIZED
+				.to(propertyBuilderTransformer)
+				.type(nonNull(localizedAttributesObject)));
 		}
 
-		return attributesSchema;
+		return attributesObject.build();
 	}
 
 	@Nonnull
-	private static Schema<Object> buildAttributeProperty(@Nonnull AttributeSchemaContract attributeSchema) {
-		final var attributeProperty = createSchemaByJavaType(attributeSchema.getType());
-		attributeProperty
+	private static OpenApiProperty buildAttributeProperty(@Nonnull AttributeSchemaContract attributeSchema) {
+		final OpenApiSimpleType attributeType = DataTypesConverter.getOpenApiScalar(attributeSchema.getType(), !attributeSchema.isNullable());
+		return newProperty()
 			.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
-			.description(attributeSchema.getDescription());
-		if (attributeSchema.getDeprecationNotice() != null) {
-			attributeProperty.deprecated(true);
-		}
-
-		return attributeProperty;
+			.description(attributeSchema.getDescription())
+			.deprecationNotice(attributeSchema.getDeprecationNotice())
+			.type(attributeType)
+			.build();
 	}
 
 	@Nonnull
-	private Property buildEntityAssociatedDataProperty(boolean distinguishLocalizedData) {
-		final Schema<Object> associatedDataObject = buildEntityAssociatedDataObject(distinguishLocalizedData);
-		associatedDataObject.name(EntityDescriptor.ASSOCIATED_DATA.name());
-		return new Property(associatedDataObject, true);
+	private OpenApiProperty buildEntityAssociatedDataProperty(boolean distinguishLocalizedData) {
+		final OpenApiTypeReference associatedDataObject = buildEntityAssociatedDataObject(distinguishLocalizedData);
+		return EntityDescriptor.ASSOCIATED_DATA
+			.to(propertyBuilderTransformer)
+			.type(nonNull(associatedDataObject))
+			.build();
 	}
 
 	@Nonnull
-	private Schema<Object> buildEntityAssociatedDataObject(boolean distinguishLocalizedData) {
-		final Schema<Object> associatedDataObject;
+	private OpenApiTypeReference buildEntityAssociatedDataObject(boolean distinguishLocalizedData) {
+		final OpenApiObject associatedDataObject;
 
 		if (distinguishLocalizedData) {
 			associatedDataObject = buildAssociatedDataObjectWithLocalizationResolution();
@@ -249,189 +267,221 @@ public class EntityObjectBuilder {
 	 * requested. Localized attributes are not distinguished from non-localized ones.
 	 */
 	@Nonnull
-	private Schema<Object> buildAssociatedDataObject() {
-		final String objectName = constructAssociatedDataObjectName(entitySchemaBuildingCtx.getSchema(), false);
-		final var associatedDataSchema = createObjectSchema();
-		associatedDataSchema.name(objectName);
+	private OpenApiObject buildAssociatedDataObject() {
+		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
-		entitySchemaBuildingCtx.getSchema().getAssociatedData().values().forEach(associatedSchema -> {
-			final Schema<Object> associatedDataProperty = buildSingleAssociatedDataProperty(associatedSchema);
-			addProperty(associatedDataSchema, new Property(associatedDataProperty, !associatedSchema.isNullable()));
-		});
+		final String objectName = AssociatedDataDescriptor.THIS.name(entitySchema);
+		final var associatedDataSchema = AssociatedDataDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(objectName);
 
-		return associatedDataSchema;
+		entitySchema.getAssociatedData().values().forEach(associatedSchema ->
+			associatedDataSchema.property(buildSingleAssociatedDataProperty(associatedSchema)));
+
+		return associatedDataSchema.build();
 	}
 
 	/**
 	 * Builds object for associated data. In this case non-localized associated data are nested under the
-	 * {@link LocalizedAssociatedDataDescriptor#GLOBAL} name, while localized associated data
-	 * are nested under the {@link LocalizedAssociatedDataDescriptor#LOCALIZED}. Moreover,
+	 * {@link SectionedAssociatedDataDescriptor#GLOBAL} name, while localized associated data
+	 * are nested under the {@link SectionedAssociatedDataDescriptor#LOCALIZED}. Moreover,
 	 * separate object is created for each locale and locale tag is used as attribute name of this object.
 	 */
 	@Nonnull
-	private Schema<Object> buildAssociatedDataObjectWithLocalizationResolution() {
-		final var associatedDataObject = createObjectSchema();
-		associatedDataObject.name(constructAssociatedDataObjectName(entitySchemaBuildingCtx.getSchema(), true));
+	private OpenApiObject buildAssociatedDataObjectWithLocalizationResolution() {
+		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
-		final Schema<Object> globalDataObject = createObjectSchema();
-		final Schema<Object> localizedDataObject = createObjectSchema();
+		final var associatedDataObject = SectionedAssociatedDataDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(SectionedAssociatedDataDescriptor.THIS.name(entitySchema));
 
-		entitySchemaBuildingCtx.getSchema().getAssociatedData().values().forEach(associatedSchema -> {
-			final Schema<Object> associatedDataProperty = buildSingleAssociatedDataProperty(associatedSchema);
+		final OpenApiObject.Builder globalDataObjectBuilder = GlobalAssociatedDataDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(GlobalAssociatedDataDescriptor.THIS.name(entitySchema));
+		final OpenApiObject.Builder localizedDataForLocaleObjectBuilder = LocalizedAssociatedDataForLocaleDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(LocalizedAssociatedDataForLocaleDescriptor.THIS.name(entitySchema));
+
+		entitySchema.getAssociatedData().values().forEach(associatedSchema -> {
+			final OpenApiProperty associatedDataProperty = buildSingleAssociatedDataProperty(associatedSchema);
 			if (associatedSchema.isLocalized()) {
-				addProperty(localizedDataObject, new Property(associatedDataProperty, !associatedSchema.isNullable()));
+				localizedDataForLocaleObjectBuilder.property(associatedDataProperty);
 			} else {
-				addProperty(globalDataObject, new Property(associatedDataProperty, !associatedSchema.isNullable()));
+				globalDataObjectBuilder.property(associatedDataProperty);
 			}
 		});
 
-		addProperty(associatedDataObject, LocalizedAssociatedDataDescriptor.GLOBAL, globalDataObject, true);
+		final OpenApiTypeReference globalDataObject = entitySchemaBuildingCtx.getCatalogCtx().registerType(globalDataObjectBuilder.build());
+		final OpenApiTypeReference localizedDataForLocaleObject = entitySchemaBuildingCtx.getCatalogCtx().registerType(localizedDataForLocaleObjectBuilder.build());
 
-		final Schema<Object> localizationContainer = createObjectSchema();
-		entitySchemaBuildingCtx.getSchema().getLocales().forEach(locale -> localizationContainer.addProperty(locale.toLanguageTag(), localizedDataObject));
-		addProperty(associatedDataObject, LocalizedAssociatedDataDescriptor.LOCALIZED, localizationContainer, true);
+		final OpenApiProperty globalDataProperty = SectionedAssociatedDataDescriptor.GLOBAL
+			.to(propertyBuilderTransformer)
+			.type(nonNull(globalDataObject))
+			.build();
+		associatedDataObject.property(globalDataProperty);
 
-		return associatedDataObject;
-	}
+		if (!entitySchema.getLocales().isEmpty()) {
+			final OpenApiObject.Builder localizedDataObjectBuilder = LocalizedAssociatedDataDescriptor.THIS
+				.to(objectBuilderTransformer);
+			entitySchema.getLocales().forEach(locale ->
+				localizedDataObjectBuilder.property(p -> p
+					.name(locale.toLanguageTag())
+					.type(nonNull(localizedDataForLocaleObject)))
+			);
+			final OpenApiTypeReference localizedDataObject = entitySchemaBuildingCtx.getCatalogCtx().registerType(localizedDataObjectBuilder.build());
 
-	@Nonnull
-	private static Schema<Object> buildSingleAssociatedDataProperty(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
-		final var associatedDataProperty = createSchemaByJavaType(associatedDataSchema.getType());
-		associatedDataProperty
-			.name(associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
-			.description(associatedDataSchema.getDescription());
-		if (associatedDataSchema.getDeprecationNotice() != null) {
-			associatedDataProperty.deprecated(true);
+			associatedDataObject.property(SectionedAssociatedDataDescriptor.LOCALIZED
+				.to(propertyBuilderTransformer)
+				.type(nonNull(localizedDataObject)));
 		}
 
-		return associatedDataProperty;
-	}
-
-	private void buildEntityReferenceProperties(@Nonnull Schema<Object> parentSchema, boolean distinguishLocalizedData) {
-		final Collection<ReferenceSchemaContract> referenceSchemas = entitySchemaBuildingCtx.getSchema().getReferences().values();
-
-		referenceSchemas.forEach(referenceSchema -> {
-			final Schema<Object> referenceObject = buildReferenceObject(referenceSchema, distinguishLocalizedData);
-
-			if (referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE || referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE) {
-				final Schema<Object> referenceProperty = createArraySchemaOf(referenceObject);
-				referenceProperty
-					.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
-					.description(referenceSchema.getDescription());
-
-				addProperty(parentSchema, new Property(referenceProperty, referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE));
-			} else {
-				referenceObject.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION));
-				addProperty(parentSchema, new Property(referenceObject, referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE));
-			}
-		});
+		return associatedDataObject.build();
 	}
 
 	@Nonnull
-	private Schema<Object> buildReferenceObject(@Nonnull ReferenceSchemaContract referenceSchema, boolean distinguishLocalizedData) {
-		final Schema<Object> referenceObject = ReferenceDescriptor.THIS
-			.to(OBJECT_TRANSFORMER);
-		referenceObject
+	private static OpenApiProperty buildSingleAssociatedDataProperty(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
+		final OpenApiSimpleType associatedDataType = DataTypesConverter.getOpenApiScalar(
+			associatedDataSchema.getType(),
+			!associatedDataSchema.isNullable()
+		);
+		return newProperty()
+			.name(associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.description(associatedDataSchema.getDescription())
+			.deprecationNotice(associatedDataSchema.getDeprecationNotice())
+			.type(associatedDataType)
+			.build();
+	}
+
+	@Nonnull
+	private List<OpenApiProperty> buildEntityReferenceProperties(boolean distinguishLocalizedData) {
+		return entitySchemaBuildingCtx.getSchema()
+			.getReferences()
+			.values()
+			.stream()
+			.map(referenceSchema -> {
+				final OpenApiTypeReference referenceObject = buildReferenceObject(referenceSchema, distinguishLocalizedData);
+
+				final OpenApiProperty.Builder referencePropertyBuilder = newProperty()
+					.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+					.description(referenceSchema.getDescription())
+					.deprecationNotice(referenceSchema.getDeprecationNotice());
+
+				if (referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE || referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE) {
+					referencePropertyBuilder.type(referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE ? nonNull(arrayOf(referenceObject)) : arrayOf(referenceObject));
+				} else {
+					referencePropertyBuilder.type(referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE ? nonNull(referenceObject) : referenceObject);
+				}
+
+				return referencePropertyBuilder.build();
+			})
+			.toList();
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildReferenceObject(@Nonnull ReferenceSchemaContract referenceSchema, boolean distinguishLocalizedData) {
+		final OpenApiObject.Builder referenceObject = ReferenceDescriptor.THIS
+			.to(objectBuilderTransformer)
 			.name(constructReferenceObjectName(entitySchemaBuildingCtx.getSchema(), referenceSchema, distinguishLocalizedData))
 			.description(referenceSchema.getDescription());
 
-		addProperty(referenceObject, buildReferenceReferencedEntityObjectProperty(referenceSchema, distinguishLocalizedData));
+		referenceObject.property(buildReferenceReferencedEntityObjectProperty(referenceSchema, distinguishLocalizedData));
 		if (referenceSchema.getReferencedGroupType() != null) {
-			addProperty(referenceObject, buildReferenceGroupEntityProperty(referenceSchema, distinguishLocalizedData));
+			referenceObject.property(buildReferenceGroupEntityProperty(referenceSchema, distinguishLocalizedData));
 		}
 		if (!referenceSchema.getAttributes().isEmpty()) {
-			addProperty(referenceObject, buildReferenceAttributesProperty(referenceSchema));
+			referenceObject.property(buildReferenceAttributesProperty(referenceSchema));
 		}
 
-		return entitySchemaBuildingCtx.getCatalogCtx().registerType(referenceObject);
+		return entitySchemaBuildingCtx.getCatalogCtx().registerType(referenceObject.build());
 	}
 
 	@Nonnull
-	private Property buildReferenceReferencedEntityObjectProperty(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                                              boolean distinguishLocalizedData) {
-		final Schema<Object> referencedEntityObject = buildReferenceReferencedEntityObject(referenceSchema, distinguishLocalizedData);
-		referencedEntityObject.name(ReferenceDescriptor.REFERENCED_ENTITY.name());
-		return new Property(referencedEntityObject, true);
+	private OpenApiProperty buildReferenceReferencedEntityObjectProperty(@Nonnull ReferenceSchemaContract referenceSchema,
+	                                                                     boolean distinguishLocalizedData) {
+		final OpenApiTypeReference referencedEntityObject = buildReferenceReferencedEntityObject(referenceSchema, distinguishLocalizedData);
+		return ReferenceDescriptor.REFERENCED_ENTITY
+			.to(propertyBuilderTransformer)
+			.type(nonNull(referencedEntityObject))
+			.build();
 	}
 
 	@Nonnull
-	private Schema<Object> buildReferenceReferencedEntityObject(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                                            boolean distinguishLocalizedData) {
-		final Schema<Object> referencedEntityObject;
+	private OpenApiTypeReference buildReferenceReferencedEntityObject(@Nonnull ReferenceSchemaContract referenceSchema,
+	                                                                  boolean distinguishLocalizedData) {
+		final OpenApiTypeReference referencedEntityObject;
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
 			final EntitySchemaContract referencedEntitySchema = entitySchemaBuildingCtx.getCatalogCtx()
 				.getSchema()
 				.getEntitySchema(referenceSchema.getReferencedEntityType())
 				.orElseThrow(() -> new OpenApiSchemaBuildingError("Could not find entity schema for referenced schema `" + referenceSchema.getReferencedEntityType() + "`."));
 
-			final var entityName = constructEntityName(referencedEntitySchema, distinguishLocalizedData);
-			referencedEntityObject = createReferenceSchema(entityName);
+			final var entityName = constructEntityObjectName(referencedEntitySchema, distinguishLocalizedData);
+			referencedEntityObject = typeRefTo(entityName);
 		} else {
-			referencedEntityObject = createReferenceSchema(EntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			referencedEntityObject = typeRefTo(EntityDescriptor.THIS_ENTITY_REFERENCE.name());
 		}
 
 		return referencedEntityObject;
 	}
 
 	@Nullable
-	private Property buildReferenceGroupEntityProperty(@Nonnull ReferenceSchemaContract referenceSchema,
+	private OpenApiProperty buildReferenceGroupEntityProperty(@Nonnull ReferenceSchemaContract referenceSchema,
 	                                                   boolean distinguishLocalizedData) {
-		final Schema<Object> groupEntityObject = buildReferenceGroupEntityObject(referenceSchema, distinguishLocalizedData);
+		final OpenApiTypeReference groupEntityObject = buildReferenceGroupEntityObject(referenceSchema, distinguishLocalizedData);
 		if (groupEntityObject == null) {
 			return null;
 		}
-		groupEntityObject.name(ReferenceDescriptor.GROUP_ENTITY.name());
-		return new Property(groupEntityObject, true);
+		return ReferenceDescriptor.GROUP_ENTITY
+			.to(propertyBuilderTransformer)
+			.type(nonNull(groupEntityObject))
+			.build();
 	}
 
 	@Nullable
-	private Schema<Object> buildReferenceGroupEntityObject(@Nonnull ReferenceSchemaContract referenceSchema,
-	                                                       boolean distinguishLocalizedData) {
+	private OpenApiTypeReference buildReferenceGroupEntityObject(@Nonnull ReferenceSchemaContract referenceSchema,
+	                                                             boolean distinguishLocalizedData) {
 		if(referenceSchema.getReferencedGroupType() == null) {
 			return null;
 		}
 
-		final Schema<Object> groupEntityObject;
+		final OpenApiTypeReference groupEntityObject;
 		if (referenceSchema.isReferencedGroupTypeManaged()) {
 			final EntitySchemaContract referencedGroupSchema = entitySchemaBuildingCtx.getCatalogCtx()
 				.getSchema()
 				.getEntitySchema(referenceSchema.getReferencedGroupType())
 				.orElseThrow(() -> new OpenApiSchemaBuildingError("Could not find entity schema for referenced schema `" + referenceSchema.getReferencedGroupType() + "`."));
 
-			final var groupType = constructEntityName(referencedGroupSchema, distinguishLocalizedData);
-			groupEntityObject = createReferenceSchema(groupType);
+			final var groupType = constructEntityObjectName(referencedGroupSchema, distinguishLocalizedData);
+			groupEntityObject = typeRefTo(groupType);
 		} else {
-			groupEntityObject = createReferenceSchema(EntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			groupEntityObject = typeRefTo(EntityDescriptor.THIS_ENTITY_REFERENCE.name());
 		}
 
 		return groupEntityObject;
 	}
 
 	@Nonnull
-	private Property buildReferenceAttributesProperty(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final Schema<Object> referenceAttributesObject = buildReferenceAttributesObject(referenceSchema);
-		referenceAttributesObject.name(ReferenceDescriptor.ATTRIBUTES.name());
-		return new Property(referenceAttributesObject, true);
+	private OpenApiProperty buildReferenceAttributesProperty(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final OpenApiTypeReference referenceAttributesObject = buildReferenceAttributesObject(referenceSchema);
+		return ReferenceDescriptor.ATTRIBUTES
+			.to(propertyBuilderTransformer)
+			.type(nonNull(referenceAttributesObject))
+			.build();
 	}
 
 	@Nonnull
-	private Schema<Object> buildReferenceAttributesObject(@Nonnull ReferenceSchemaContract referenceSchema) {
+	private OpenApiTypeReference buildReferenceAttributesObject(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final String referenceAttributesObjectName = constructReferenceAttributesObjectName(
 			entitySchemaBuildingCtx.getSchema(),
 			referenceSchema
 		);
 
-		final Schema<Object> attributesObject;
-		final Optional<Schema<Object>> existingAttributesObject = entitySchemaBuildingCtx.getCatalogCtx().getRegisteredType(referenceAttributesObjectName);
-		attributesObject = existingAttributesObject.orElseGet(() ->
-			entitySchemaBuildingCtx.getCatalogCtx().registerType(
+		return entitySchemaBuildingCtx.getCatalogCtx().getRegisteredType(referenceAttributesObjectName)
+			.orElseGet(() -> entitySchemaBuildingCtx.getCatalogCtx().registerType(
 				buildAttributesObject(
 					referenceSchema.getAttributes().values(),
 					referenceAttributesObjectName
 				)
-			)
-		);
-
-		return attributesObject;
+			));
 	}
 }

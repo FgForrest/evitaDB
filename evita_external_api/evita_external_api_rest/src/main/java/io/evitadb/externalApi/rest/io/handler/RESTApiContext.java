@@ -36,6 +36,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import javax.annotation.Nonnull;
+import java.util.function.Supplier;
 
 /**
  * This class contains information required to process REST API requests. Not all attributes has to be set
@@ -46,12 +47,13 @@ import javax.annotation.Nonnull;
 @Data
 @Builder
 public class RESTApiContext {
-	private final Evita evita;
-	private final ObjectMapper objectMapper;
-	private final OpenAPI openApi;
-	private final PathItem pathItem;
-	private final CatalogContract catalog;
-	private final String entityType;
+
+	@Nonnull private final Evita evita;
+	@Nonnull private final ObjectMapper objectMapper;
+	@Nonnull private final Supplier<OpenAPI> openApi;
+	@Nonnull private final PathItem pathItem;
+	@Nonnull private final CatalogContract catalog;
+	@Nonnull private final String entityType;
 	private final boolean localized;
 
 	/**

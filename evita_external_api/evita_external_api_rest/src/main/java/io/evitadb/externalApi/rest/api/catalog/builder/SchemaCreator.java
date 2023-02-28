@@ -77,34 +77,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SchemaCreator {
 
-	@Nonnull
-	private static final Map<Class<?>, Supplier<Schema<Object>>> PRIMITIVE_SCHEMA_MAPPINGS;
-	static {
-		PRIMITIVE_SCHEMA_MAPPINGS = createHashMap(32);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(String.class, SchemaCreator::createStringSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(Byte.class, SchemaCreator::createByteSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(Short.class, SchemaCreator::createShortSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(Integer.class, SchemaCreator::createIntegerSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(Long.class, SchemaCreator::createLongSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(Boolean.class, SchemaCreator::createBooleanSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(Character.class, SchemaCreator::createCharacterSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(BigDecimal.class, SchemaCreator::createBigDecimalSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(OffsetDateTime.class, SchemaCreator::createOffsetDateTimeSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(LocalDateTime.class, SchemaCreator::createLocalDateTimeSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(LocalDate.class, SchemaCreator::createLocalDateSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(LocalTime.class, SchemaCreator::createLocalTimeSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(DateTimeRange.class, () -> createRangeSchemaOf(OffsetDateTime.class));
-		PRIMITIVE_SCHEMA_MAPPINGS.put(BigDecimalNumberRange.class, () -> createRangeSchemaOf(BigDecimal.class));
-		PRIMITIVE_SCHEMA_MAPPINGS.put(ByteNumberRange.class, () -> createRangeSchemaOf(Byte.class));
-		PRIMITIVE_SCHEMA_MAPPINGS.put(ShortNumberRange.class, () -> createRangeSchemaOf(Short.class));
-		PRIMITIVE_SCHEMA_MAPPINGS.put(IntegerNumberRange.class, () -> createRangeSchemaOf(Integer.class));
-		PRIMITIVE_SCHEMA_MAPPINGS.put(LongNumberRange.class, () -> createRangeSchemaOf(Long.class));
-		PRIMITIVE_SCHEMA_MAPPINGS.put(ComplexDataObject.class, SchemaCreator::createComplexDataObjectSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(Locale.class, SchemaCreator::createLocaleSchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(Currency.class, SchemaCreator::createCurrencySchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(Any.class, SchemaCreator::createAnySchema);
-		PRIMITIVE_SCHEMA_MAPPINGS.put(GenericObject.class, SchemaCreator::createGenericObjectSchema);
-	}
 
 	// todo lho private?
 	public static final String TYPE_ARRAY = "array";
@@ -126,161 +98,7 @@ public class SchemaCreator {
 	public static final String FORMAT_LOCALE = "locale";
 	public static final String FORMAT_RANGE = "range";
 
-	/**
-	 * Creates OpenAPI schema object by Java type. If class is an {@link java.lang.reflect.Array} then schema corresponding
-	 * to that array is returned.
-	 */
-	@Nonnull
-	public static Schema<Object> createSchemaByJavaType(@Nonnull Class<?> javaDataType) {
-		final Class<?> componentType = javaDataType.isArray() ? javaDataType.getComponentType() : javaDataType;
 
-		Schema<Object> componentTypeSchema;
-		if (componentType.isEnum()) {
-			componentTypeSchema = createEnumSchema(componentType);
-		} else {
-			final Class<?> searchableComponentType = componentType.isPrimitive() ?
-				EvitaDataTypes.getWrappingPrimitiveClass(componentType) :
-				componentType;
-
-			final Supplier<Schema<Object>> schemaFactory = PRIMITIVE_SCHEMA_MAPPINGS.get(searchableComponentType);
-			Assert.isPremiseValid(
-				schemaFactory != null,
-				() -> new OpenApiInternalError("Unsupported Evita data type in REST API `" + javaDataType.getName() + "`.")
-			);
-			componentTypeSchema = schemaFactory.get();
-		}
-
-		if(javaDataType.isArray()) {
-			return createArraySchemaOf(componentTypeSchema);
-		}
-		return componentTypeSchema;
-	}
-
-	@Nonnull
-	public static List<Schema<Object>> createAllDataTypes() {
-		final List<Schema<Object>> types = new ArrayList<>(45);
-		types.add(createSchema(STRING));
-		types.add(createSchema(BYTE));
-		types.add(createSchema(SHORT));
-		types.add(createSchema(INT));
-		types.add(createSchema(LONG));
-		types.add(createSchema(BOOLEAN));
-		types.add(createSchema(CHAR));
-		types.add(createSchema(BIG_DECIMAL));
-		types.add(createSchema(OFFSET_DATE_TIME));
-		types.add(createSchema(LOCAL_DATE_TIME));
-		types.add(createSchema(LOCAL_DATE));
-		types.add(createSchema(LOCAL_TIME));
-		types.add(createSchema(DATE_TIME_RANGE));
-		types.add(createSchema(BIG_DECIMAL_NUMBER_RANGE));
-		types.add(createSchema(BYTE_NUMBER_RANGE));
-		types.add(createSchema(SHORT_NUMBER_RANGE));
-		types.add(createSchema(INTEGER_NUMBER_RANGE));
-		types.add(createSchema(LONG_NUMBER_RANGE));
-		types.add(createSchema(LOCALE));
-		types.add(createSchema(CURRENCY));
-		types.add(createSchema(COMPLEX_DATA_OBJECT));
-		types.add(createSchema(STRING_ARRAY));
-		types.add(createSchema(BYTE_ARRAY));
-		types.add(createSchema(SHORT_ARRAY));
-		types.add(createSchema(INT_ARRAY));
-		types.add(createSchema(LONG_ARRAY));
-		types.add(createSchema(BOOLEAN_ARRAY));
-		types.add(createSchema(CHAR_ARRAY));
-		types.add(createSchema(BIG_DECIMAL_ARRAY));
-		types.add(createSchema(OFFSET_DATE_TIME_ARRAY));
-		types.add(createSchema(LOCAL_DATE_TIME_ARRAY));
-		types.add(createSchema(LOCAL_DATE_ARRAY));
-		types.add(createSchema(LOCAL_TIME_ARRAY));
-		types.add(createSchema(DATE_TIME_RANGE_ARRAY));
-		types.add(createSchema(BIG_DECIMAL_NUMBER_RANGE_ARRAY));
-		types.add(createSchema(BYTE_NUMBER_RANGE_ARRAY));
-		types.add(createSchema(SHORT_NUMBER_RANGE_ARRAY));
-		types.add(createSchema(INTEGER_NUMBER_RANGE_ARRAY));
-		types.add(createSchema(LONG_NUMBER_RANGE_ARRAY));
-		types.add(createSchema(LOCALE_ARRAY));
-		types.add(createSchema(CURRENCY_ARRAY));
-
-		return types;
-	}
-
-	@Nonnull
-	private static Schema<Object> createSchema(@Nonnull DataTypeDescriptor dataTypeDescriptor) {
-		final Schema<Object> schema = createSchemaByJavaType(dataTypeDescriptor.type());
-
-		schema
-			.name(dataTypeDescriptor.name())
-			.description(dataTypeDescriptor.description());
-
-		return schema;
-	}
-
-	@Nonnull
-	private static Schema<Object> createAnySchema() {
-		// todo lho cache
-		final List<DataTypeDescriptor> types = new ArrayList<>(45);
-		types.add(STRING);
-		types.add(BYTE);
-		types.add(SHORT);
-		types.add(INT);
-		types.add(LONG);
-		types.add(BOOLEAN);
-		types.add(CHAR);
-		types.add(BIG_DECIMAL);
-		types.add(OFFSET_DATE_TIME);
-		types.add(LOCAL_DATE_TIME);
-		types.add(LOCAL_DATE);
-		types.add(LOCAL_TIME);
-		types.add(DATE_TIME_RANGE);
-		types.add(BIG_DECIMAL_NUMBER_RANGE);
-		types.add(BYTE_NUMBER_RANGE);
-		types.add(SHORT_NUMBER_RANGE);
-		types.add(INTEGER_NUMBER_RANGE);
-		types.add(LONG_NUMBER_RANGE);
-		types.add(LOCALE);
-		types.add(CURRENCY);
-		types.add(COMPLEX_DATA_OBJECT);
-		types.add(STRING_ARRAY);
-		types.add(BYTE_ARRAY);
-		types.add(SHORT_ARRAY);
-		types.add(INT_ARRAY);
-		types.add(LONG_ARRAY);
-		types.add(BOOLEAN_ARRAY);
-		types.add(CHAR_ARRAY);
-		types.add(BIG_DECIMAL_ARRAY);
-		types.add(OFFSET_DATE_TIME_ARRAY);
-		types.add(LOCAL_DATE_TIME_ARRAY);
-		types.add(LOCAL_DATE_ARRAY);
-		types.add(LOCAL_TIME_ARRAY);
-		types.add(DATE_TIME_RANGE_ARRAY);
-		types.add(BIG_DECIMAL_NUMBER_RANGE_ARRAY);
-		types.add(BYTE_NUMBER_RANGE_ARRAY);
-		types.add(SHORT_NUMBER_RANGE_ARRAY);
-		types.add(INTEGER_NUMBER_RANGE_ARRAY);
-		types.add(LONG_NUMBER_RANGE_ARRAY);
-		types.add(LOCALE_ARRAY);
-		types.add(CURRENCY_ARRAY);
-
-		final Schema<Object> anySchema = createSchemaWithoutType();
-		//noinspection rawtypes
-		final List<Schema> schemas = types.stream()
-			.map(it -> (Schema) createReferenceSchema(it.name()))
-			.toList();
-		anySchema.oneOf(schemas);
-
-		return anySchema;
-	}
-
-	@Nonnull
-	public static Schema<Object> createGenericObjectSchema() {
-		final Schema<Object> objectSchema = createObjectSchema();
-		objectSchema.setAdditionalProperties(true);
-		return objectSchema;
-	}
-
-	public static Schema<Object> createComplexDataObjectSchema() {
-		return createObjectSchema();
-	}
 
 	/**
 	 * Creates schema for {@link String}.
@@ -455,116 +273,6 @@ public class SchemaCreator {
 	}
 
 	/**
-	 * Creates schema for {@link OrderDirection}
-	 */
-//	@Nonnull
-//	public static Schema<Object> createOrderDirectionSchema() {
-////		final var orderDirectionSchema = createSchema(TYPE_STRING);
-////		orderDirectionSchema.addEnumItemObject(OrderDirection.ASC);
-////		orderDirectionSchema.addEnumItemObject(OrderDirection.DESC);
-////		orderDirectionSchema.example(OrderDirection.ASC);
-////		return orderDirectionSchema;
-//		return createEnumSchema(OrderDirection.class);
-//	}
-
-	/**
-	 * Creates schema for {@link QueryPriceMode}
-	 */
-//	@Nonnull
-//	public static Schema<Object> createQueryPriceModeSchema() {
-////		final var queryPriceModeSchema = createSchema(TYPE_STRING);
-////		queryPriceModeSchema.addEnumItemObject(QueryPriceMode.WITH_TAX);
-////		queryPriceModeSchema.addEnumItemObject(QueryPriceMode.WITHOUT_TAX);
-////		queryPriceModeSchema.example(QueryPriceMode.WITH_TAX);
-////		return queryPriceModeSchema;
-//		return createEnumSchema(QueryPriceMode.class);
-//	}
-
-	/**
-	 * Creates schema for {@link PriceContentMode}
-	 * @return
-	 */
-//	@Nonnull
-//	public static Schema<Object> createPriceContentModeSchema() {
-//		final var priceContentModeSchema = createSchema(TYPE_STRING);
-//		priceContentModeSchema.addEnumItemObject(PriceContentMode.NONE);
-//		priceContentModeSchema.addEnumItemObject(PriceContentMode.RESPECTING_FILTER);
-//		priceContentModeSchema.addEnumItemObject(PriceContentMode.ALL);
-//		priceContentModeSchema.example(PriceContentMode.NONE);
-//		return priceContentModeSchema;
-//	}
-
-	/**
-	 * Creates schema for {@link FacetStatisticsDepth}
-	 * @return
-	 */
-//	@Nonnull
-//	public static Schema<Object> createFacetStatisticsDepthSchema() {
-//		final var facetStatisticsDepthSchema = createSchema(TYPE_STRING);
-//		facetStatisticsDepthSchema.addEnumItemObject(FacetStatisticsDepth.COUNTS);
-//		facetStatisticsDepthSchema.addEnumItemObject(FacetStatisticsDepth.IMPACT);
-//		facetStatisticsDepthSchema.example(FacetStatisticsDepth.COUNTS);
-//		return facetStatisticsDepthSchema;
-//	}
-
-	/**
-	 * Creates schema for {@link PriceInnerRecordHandling}
-	 * @return
-	 */
-//	@Nonnull
-//	public static Schema<Object> createPriceInnerRecordHandlingSchema() {
-//		final var priceInnerRecordHandlingSchema = createSchema(TYPE_STRING);
-//		priceInnerRecordHandlingSchema.addEnumItemObject(PriceInnerRecordHandling.SUM);
-//		priceInnerRecordHandlingSchema.addEnumItemObject(PriceInnerRecordHandling.FIRST_OCCURRENCE);
-//		priceInnerRecordHandlingSchema.addEnumItemObject(PriceInnerRecordHandling.NONE);
-//		priceInnerRecordHandlingSchema.addEnumItemObject(PriceInnerRecordHandling.UNKNOWN);
-//		priceInnerRecordHandlingSchema.example(PriceInnerRecordHandling.SUM);
-//		return priceInnerRecordHandlingSchema;
-//	}
-
-	/**
-	 * Creates schema for {@link io.evitadb.api.requestResponse.schema.Cardinality}
-	 * @return
-	 */
-//	@Nonnull
-//	public static Schema<Object> createCardinalitySchema() {
-//		final var cardinalitySchema = createSchema(TYPE_STRING);
-//		cardinalitySchema.addEnumItemObject(Cardinality.ZERO_OR_ONE);
-//		cardinalitySchema.addEnumItemObject(Cardinality.ZERO_OR_MORE);
-//		cardinalitySchema.addEnumItemObject(Cardinality.EXACTLY_ONE);
-//		cardinalitySchema.addEnumItemObject(Cardinality.ONE_OR_MORE);
-//		cardinalitySchema.example(Cardinality.ZERO_OR_ONE);
-//		return cardinalitySchema;
-//	}
-
-	/**
-	 * Creates schema for {@link EntityExistence}
-	 * @return
-	 */
-//	@Nonnull
-//	public static Schema<Object> createEntityExistence() {
-//		final var enitityExistenceSchema = createSchema(TYPE_STRING);
-//		enitityExistenceSchema.addEnumItemObject(EntityExistence.MAY_EXIST);
-//		enitityExistenceSchema.addEnumItemObject(EntityExistence.MUST_EXIST);
-//		enitityExistenceSchema.addEnumItemObject(EntityExistence.MUST_NOT_EXIST);
-//		enitityExistenceSchema.example(EntityExistence.MAY_EXIST);
-//		return enitityExistenceSchema;
-//	}
-
-	/**
-	 * Creates schema for {@link AttributeSpecialValue}
-	 * @return
-	 */
-//	@Nonnull
-//	public static Schema<Object> createAttributeSpecialValueSchema() {
-//		final var attributeSpecialValueSchema = createSchema(TYPE_STRING);
-//		attributeSpecialValueSchema.addEnumItemObject(AttributeSpecialValue.NULL);
-//		attributeSpecialValueSchema.addEnumItemObject(AttributeSpecialValue.NOT_NULL);
-//		attributeSpecialValueSchema.example(AttributeSpecialValue.NULL);
-//		return attributeSpecialValueSchema;
-//	}
-
-	/**
 	 * Creates schema for {@link java.util.Currency}
 	 */
 	@Nonnull
@@ -585,16 +293,6 @@ public class SchemaCreator {
 		byteSchema.example(6);
 		return byteSchema;
 	}
-
-	/**
-	 * Creates schema for {@link io.evitadb.dataType.Range} and its descendants.<br/>
-	 * Any range is represented by array of two items.
-	 */
-	@Nonnull
-	public static Schema<Object> createRangeSchemaOf(@Nonnull Class<?> javaType) {
-		return createRangeSchemaOf(SchemaCreator.createSchemaByJavaType(javaType));
-	}
-
 	/**
 	 * Creates schema for {@link io.evitadb.dataType.Range} and its descendants.<br/>
 	 * Any range is represented by array of two items.
@@ -656,14 +354,6 @@ public class SchemaCreator {
 		localeSchema.type(schemaType);
 		localeSchema.addType(schemaType);
 		return localeSchema;
-	}
-
-	/**
-	 * Creates new schema object without any specified type.
-	 */
-	@Nonnull
-	public static Schema<Object> createSchemaWithoutType() {
-		return new Schema<>();
 	}
 
 	/**

@@ -24,8 +24,8 @@
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDataTypeDescriptorToOpenApiSchemaTransformer;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiSchemaTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,9 +36,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-class PropertyDescriptorToOpenApiSchemaTransformerTest {
+class PropertyDescriptorToOpenApiPropertyTransformerTest {
 
-	private final PropertyDescriptorToOpenApiSchemaTransformer tested = new PropertyDescriptorToOpenApiSchemaTransformer(new PropertyDataTypeDescriptorToOpenApiSchemaTransformer());
+	private final PropertyDescriptorToOpenApiPropertyTransformer tested = new PropertyDescriptorToOpenApiPropertyTransformer(new PropertyDataTypeDescriptorToOpenApiTypeTransformer());
 
 	@Test
 	void shouldTransformSomeEntity() {

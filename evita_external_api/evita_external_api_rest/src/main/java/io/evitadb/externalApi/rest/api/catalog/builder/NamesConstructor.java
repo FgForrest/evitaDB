@@ -23,18 +23,14 @@
 
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordStripDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
@@ -44,14 +40,12 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyPar
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.DataChunkAggregateDescriptor;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER;
 
 /**
  * Used to construct names of entities and attributes and other objects. These names will be used as schema objects
@@ -70,32 +64,8 @@ public class NamesConstructor {
 	public static final String LOCALIZED_ENTITY_NAME_SUFFIX = "_Localized";
 
 	@Nonnull
-	public static String constructObjectName(@Nonnull String... part) {
-		return String.join(OBJECT_TYPE_NAME_PART_DELIMITER, part);
-	}
-
-	// todo lho remove
-//	@Nonnull
-//	public static String constructEnumObjectName(@Nonnull EntitySchemaContract entitySchema, @Nonnull String enumName) {
-//		return constructObjectName(
-//			entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION),
-//			enumName
-//		);
-//	}
-
-	@Nonnull
-	public static String constructEntityName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
+	public static String constructEntityObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
 		return EntityDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
-	}
-
-	@Nonnull
-	public static String constructAttributesObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return AttributesDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
-	}
-
-	@Nonnull
-	public static String constructAssociatedDataObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return AssociatedDataDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
 	}
 
 	@Nonnull
@@ -106,20 +76,6 @@ public class NamesConstructor {
 			getLocalizedSuffix(distinguishLocalizedData),
 			entitySchema,
 			referenceSchema
-		);
-	}
-
-	@Nonnull
-	public static String constructReferencedEntityReferenceObjectName(@Nonnull EntitySchemaContract entitySchema,
-	                                                                  @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                                  @Nonnull CatalogSchemaContract catalogSchema) {
-		return constructObjectName(
-			entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION),
-			referenceSchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION),
-			referenceSchema.getReferencedEntityTypeNameVariant(
-				TYPE_NAME_NAMING_CONVENTION,
-				catalogSchema::getEntitySchemaOrThrowException
-			)
 		);
 	}
 
@@ -135,8 +91,8 @@ public class NamesConstructor {
 	}
 
 	@Nonnull
-	public static String constructEntityDataChunkObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return DataChunkDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructEntityDataChunkAggregateObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
+		return DataChunkAggregateDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
 	}
 
 	@Nonnull
@@ -152,11 +108,6 @@ public class NamesConstructor {
 	@Nonnull
 	public static String constructExtraResultsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
 		return ExtraResultsDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
-	}
-
-	@Nonnull
-	public static String constructAttributeHistogramObjectName(@Nonnull EntitySchemaContract entitySchema) {
-		return AttributeHistogramDescriptor.THIS.name(entitySchema);
 	}
 
 	@Nonnull

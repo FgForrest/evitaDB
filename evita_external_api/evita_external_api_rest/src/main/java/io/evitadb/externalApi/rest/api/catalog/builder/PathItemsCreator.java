@@ -24,13 +24,11 @@
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
 import io.evitadb.externalApi.http.MimeTypes;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiSchemaTransformer.Property;
+import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
+import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.dto.OpenApiType;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
-import io.swagger.v3.oas.models.media.Schema;
-import io.swagger.v3.oas.models.parameters.Parameter;
-import io.swagger.v3.oas.models.parameters.PathParameter;
-import io.swagger.v3.oas.models.parameters.QueryParameter;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.undertow.util.StatusCodes;
@@ -40,8 +38,8 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createArraySchemaOf;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createObjectSchema;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
 
 /**
  * Contains utility methods to created particular objects required when composing {@link io.swagger.v3.oas.models.PathItem}
@@ -62,8 +60,8 @@ public class PathItemsCreator {
 	public static final String STATUS_CODE_UNSUPPORTED_MEDIA_TYPE = String.valueOf(StatusCodes.UNSUPPORTED_MEDIA_TYPE);
 	public static final String STATUS_CODE_BAD_REQUEST = String.valueOf(StatusCodes.BAD_REQUEST);
 
-	public static MediaType createMediaType(@Nonnull Schema<Object> schema) {
-		return new MediaType().schema(schema);
+	public static MediaType createMediaType(@Nonnull OpenApiType type) {
+		return new MediaType().schema(type.toSchema());
 	}
 
 	public static Content createApplicationJsonContent(@Nonnull MediaType mediaType) {
@@ -74,113 +72,69 @@ public class PathItemsCreator {
 	/**
 	 * Creates OK response for provided schema and adds it into {@link ApiResponses}
 	 * @param apiResponses
-	 * @param dataSchema this schema will be used as response body
+	 * @param type this schema will be used as response body
 	 */
-	public static void createAndAddOkResponse(@Nonnull ApiResponses apiResponses, @Nonnull Schema<Object> dataSchema) {
-		apiResponses.addApiResponse(STATUS_CODE_OK, createSchemaResponse(dataSchema));
+	public static void createAndAddOkResponse(@Nonnull ApiResponses apiResponses, @Nonnull OpenApiType type) {
+		apiResponses.addApiResponse(STATUS_CODE_OK, createSchemaResponse(type));
 	}
 
 	/**
 	 * Creates OK response for provided schema and adds it into {@link ApiResponses}. Response will contain array of schema.
 	 *
-	 * @param apiResponses
-	 * @param dataSchema this schema will be used as array in response body
+	 * @param dataType this type will be used as array in response body
 	 */
-	public static void createSchemaArrayAndAddOkResponse(@Nonnull ApiResponses apiResponses, @Nonnull Schema<Object> dataSchema) {
-		apiResponses.addApiResponse(STATUS_CODE_OK, createSchemaArrayResponse(dataSchema));
+	public static void createSchemaArrayAndAddOkResponse(@Nonnull ApiResponses apiResponses, @Nonnull OpenApiSimpleType dataType) {
+		apiResponses.addApiResponse(STATUS_CODE_OK, createSchemaArrayResponse(dataType));
 	}
 
 	/**
 	 * Creates all possible error responses and adds them into {@link ApiResponses}.
-	 * @param apiResponses
-	 * @param errorSchema this schema will be used as response body
+	 * @param errorType this type will be used as response body
 	 */
-	public static void createAndAddAllErrorResponses(@Nonnull ApiResponses apiResponses, @Nonnull Schema<Object> errorSchema) {
-		final var internalErrorResponse = createSchemaResponse(errorSchema);
+	public static void createAndAddAllErrorResponses(@Nonnull ApiResponses apiResponses, @Nonnull OpenApiSimpleType errorType) {
+		final var internalErrorResponse = createSchemaResponse(errorType);
 		internalErrorResponse.setDescription("Unexpected internal error.");
 		apiResponses.addApiResponse(STATUS_CODE_INTERNAL_SERVER_ERROR, internalErrorResponse);
 
-		final var methodNotAllowedResponse = createSchemaResponse(errorSchema);
+		final var methodNotAllowedResponse = createSchemaResponse(errorType);
 		methodNotAllowedResponse.setDescription("Used method is not allowed at this endpoint.");
 		apiResponses.addApiResponse(STATUS_CODE_METHOD_NOT_ALLOWED, methodNotAllowedResponse);
 
-		final var notAcceptableResponse = createSchemaResponse(errorSchema);
+		final var notAcceptableResponse = createSchemaResponse(errorType);
 		notAcceptableResponse.setDescription("Cannot produce a response matching the list of acceptable values.");
 		apiResponses.addApiResponse(STATUS_CODE_NOT_ACCEPTABLE, notAcceptableResponse);
 
-		final var unsupportedMediaTypeResponse = createSchemaResponse(errorSchema);
+		final var unsupportedMediaTypeResponse = createSchemaResponse(errorType);
 		unsupportedMediaTypeResponse.setDescription("The media format of the requested data is not supported by the server.");
 		apiResponses.addApiResponse(STATUS_CODE_UNSUPPORTED_MEDIA_TYPE, unsupportedMediaTypeResponse);
 
-		final var badRequestResponse = createSchemaResponse(errorSchema);
+		final var badRequestResponse = createSchemaResponse(errorType);
 		badRequestResponse.setDescription("The server cannot or will not process the request due to malformed request syntax.");
 		apiResponses.addApiResponse(STATUS_CODE_BAD_REQUEST, badRequestResponse);
 	}
 
-	public static ApiResponse createSchemaResponse(@Nonnull Schema<Object> schema) {
+	public static ApiResponse createSchemaResponse(@Nonnull OpenApiType type) {
 		return new ApiResponse()
-			.description(schema.getDescription())
-			.content(createApplicationJsonContent(createMediaType(schema)));
+			.content(createApplicationJsonContent(createMediaType(type)));
 	}
 
-	public static ApiResponse createSchemaArrayResponse(@Nonnull Schema<Object> schema) {
+	public static ApiResponse createSchemaArrayResponse(@Nonnull OpenApiSimpleType type) {
 		return new ApiResponse()
-			.description(schema.getDescription())
-			.content(createApplicationJsonContent(createMediaType(createArraySchemaOf(schema))));
+			.content(createApplicationJsonContent(createMediaType(arrayOf(type))));
 	}
 
-	public static Parameter createPathParameter(@Nonnull Schema<Object> schema, boolean required) {
-		return new PathParameter()
-			.name(schema.getName())
-			.required(required)
-			.description(schema.getDescription())
-			.schema(schema);
-	}
 
-	public static Parameter createPathParameter(@Nonnull Property property) {
-		return createPathParameter(property.schema(), property.required());
-	}
-
-	public static Parameter createQueryParameter(@Nonnull Schema<Object> schema, boolean required) {
-		return new QueryParameter()
-			.name(schema.getName())
-			.required(required)
-			.description(schema.getDescription())
-			.schema(schema);
-	}
-
-	public static Parameter createQueryParameter(@Nonnull Schema<Object> schema) {
-		return createQueryParameter(schema, false);
-	}
-
-	public static Parameter createQueryParameter(@Nonnull Property property) {
-		return createQueryParameter(property.schema(), property.required());
-	}
-
-	@SuppressWarnings({"unchecked","rawtypes"})
 	@Nonnull
-	public static Schema<Object> createRequestListSchema(@Nonnull Schema<Object> filterContainer, @Nonnull Schema<Object> orderContainer, @Nullable Schema<Object> requireContainer) {
-		final Schema schema = createObjectSchema()
-			.addProperty(FILTER_BY, filterContainer)
-			.addProperty(ORDER_BY, orderContainer);
+	public static OpenApiObject createRequestBodyObject(@Nonnull OpenApiSimpleType filterContainer,
+	                                                    @Nonnull OpenApiSimpleType orderContainer,
+	                                                    @Nullable OpenApiSimpleType requireContainer) {
+		final OpenApiObject.Builder objectBuilder = newObject()
+			.property(p -> p.name(FILTER_BY).type(filterContainer))
+			.property(p -> p.name(ORDER_BY).type(orderContainer));
 
 		if(requireContainer != null) {
-			schema.addProperty(REQUIRE, requireContainer);
+			objectBuilder.property(p -> p.name(REQUIRE).type(requireContainer));
 		}
-		return schema;
-	}
-
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	@Nonnull
-	public static Schema<Object> createRequestQuerySchema(@Nonnull Schema<Object> filterContainer, @Nonnull Schema<Object> orderContainer, @Nullable Schema<Object> requireContainer) {
-		final Schema schema = createObjectSchema()
-			.addProperty(FILTER_BY, filterContainer)
-			.addProperty(ORDER_BY, orderContainer);
-
-		if(requireContainer != null) {
-			schema.addProperty(REQUIRE, requireContainer);
-		}
-
-		return schema;
+		return objectBuilder.build();
 	}
 }

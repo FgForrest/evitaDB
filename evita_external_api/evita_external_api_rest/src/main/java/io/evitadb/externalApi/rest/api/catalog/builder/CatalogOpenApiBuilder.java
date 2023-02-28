@@ -64,11 +64,17 @@ import io.evitadb.externalApi.rest.api.catalog.builder.constraint.FilterBySchema
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.OpenApiConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.OrderBySchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.RequireSchemaBuilder;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.ObjectDescriptorToOpenApiObjectTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiOperationQueryParameterTransformer;
+import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.catalog.model.ErrorDescriptor;
+import io.evitadb.externalApi.rest.api.dto.DataChunkType;
+import io.evitadb.externalApi.rest.api.dto.OpenApiEnum;
+import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.info.Contact;
-import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.media.Schema;
 import io.undertow.server.RoutingHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -84,17 +90,17 @@ import java.util.Currency;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.TYPE_STRING;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createCurrencySchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createLocaleSchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createSchema;
+import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.FORMAT_CURRENCY;
+import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.FORMAT_LOCALE;
 import static io.evitadb.externalApi.rest.api.catalog.builder.constraint.RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_LIST;
-import static io.evitadb.externalApi.rest.api.catalog.builder.transformer.Transformers.OBJECT_TRANSFORMER;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.enumFrom;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.newEnum;
 
 /**
  * Creates OpenAPI specification for Evita's catalog.
@@ -104,15 +110,37 @@ import static io.evitadb.externalApi.rest.api.catalog.builder.transformer.Transf
 @Slf4j
 @RequiredArgsConstructor
 public class CatalogOpenApiBuilder {
-	private final CatalogSchemaBuildingContext context;
-	private final OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx;
+
+	@Nonnull private final CatalogSchemaBuildingContext context;
+	@Nonnull private final OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx;
+
+	@Nonnull private final PropertyDataTypeDescriptorToOpenApiTypeTransformer propertyDataTypeBuilderTransformer;
+	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
+	@Nonnull private final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
+	@Nonnull private final PropertyDescriptorToOpenApiOperationQueryParameterTransformer operationQueryParameterBuilderTransformer;
+
+	@Nonnull private final PathItemBuilder pathItemBuilder;
 
 	/**
 	 * Creates new builder.
 	 */
 	public CatalogOpenApiBuilder(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
 		this.context = new CatalogSchemaBuildingContext(evita, catalog);
-		this.constraintSchemaBuildingCtx = new OpenApiConstraintSchemaBuildingContext(context.getCatalog());
+		this.constraintSchemaBuildingCtx = new OpenApiConstraintSchemaBuildingContext(context);
+
+		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToOpenApiTypeTransformer(this.context);
+		this.propertyBuilderTransformer = new PropertyDescriptorToOpenApiPropertyTransformer(propertyDataTypeBuilderTransformer);
+		this.objectBuilderTransformer = new ObjectDescriptorToOpenApiObjectTransformer(propertyBuilderTransformer);
+		this.operationPathParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationPathParameterTransformer(propertyDataTypeBuilderTransformer);
+		this.operationQueryParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationQueryParameterTransformer(propertyDataTypeBuilderTransformer);
+
+		this.pathItemBuilder = new PathItemBuilder(
+			propertyBuilderTransformer,
+			objectBuilderTransformer,
+			operationPathParameterBuilderTransformer,
+			operationQueryParameterBuilderTransformer
+		);
 	}
 
 	/**
@@ -121,12 +149,13 @@ public class CatalogOpenApiBuilder {
 	 * @return OpenAPI specification
 	 */
 	public OpenAPI build() {
+		final AtomicReference<OpenAPI> openApi = new AtomicReference<>();
+
 		setupForCatalog();
 
-		final List<Schema<Object>> entityObjects = new LinkedList<>();
-		final List<Schema<Object>> localizedEntityObjects = new LinkedList<>();
+		final List<OpenApiTypeReference> entityObjects = new LinkedList<>();
+		final List<OpenApiTypeReference> localizedEntityObjects = new LinkedList<>();
 
-		final PathItemBuilder pathItemBuilder = new PathItemBuilder();
 		context.getEntitySchemas().forEach(entitySchema -> {
 			final var entitySchemaBuildingContext = setupForCollection(entitySchema);
 			pathItemBuilder.buildAndAddSingleEntityPathItem(entitySchemaBuildingContext, false);
@@ -145,7 +174,7 @@ public class CatalogOpenApiBuilder {
 			// todo lho split apis to data and schema first
 //			pathItemBuilder.buildAndAddGetEntitySchemaPathItem(entitySchemaBuildingContext);
 		});
-		pathItemBuilder.buildAndAddOpenApiSpecificationPathItem(context);
+		pathItemBuilder.buildAndAddOpenApiSpecificationPathItem(context, openApi::get);
 		pathItemBuilder.buildAndAddCollectionsPathItem(context);
 
 		final List<GlobalAttributeSchemaContract> globallyUniqueAttributes = getGloballyUniqueAttributes(context.getCatalog());
@@ -159,15 +188,8 @@ public class CatalogOpenApiBuilder {
 		// register gathered custom constraint schema types
 		constraintSchemaBuildingCtx.getBuiltTypes().forEach(context::registerType);
 
-		final OpenApiSchemaReferenceValidator referenceValidator = new OpenApiSchemaReferenceValidator(context.getOpenAPI());
-		if(!referenceValidator.validateSchemaReferences()) {
-			log.error("Found missing schema in OpenAPI for catalog: " + context.getCatalog().getName());
-			for (String missingSchema : referenceValidator.getMissingSchemas()) {
-				log.error("Missing schema name: " + missingSchema);
-			}
-		}
-
-		return context.getOpenAPI();
+		openApi.set(context.buildOpenApi());
+		return openApi.get();
 	}
 
 	/**
@@ -179,41 +201,40 @@ public class CatalogOpenApiBuilder {
 	}
 
 	private void setupForCatalog() {
-		createInfo();
+		final OpenApiEnum scalarEnum = buildScalarEnum();
+		context.registerType(scalarEnum);
+		context.registerType(buildAssociatedDataScalarEnum(scalarEnum));
+		context.registerType(ErrorDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(enumFrom(DataChunkType.class));
 
-		context.registerType(ErrorDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		SchemaCreator.createAllDataTypes().forEach(context::registerType);
-		context.registerType(buildScalarEnum());
-		context.registerType(buildAssociatedDataScalarEnum());
-
-		context.registerType(HierarchicalPlacementDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(PriceDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(BucketDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(HistogramDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(QueryTelemetryDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(FacetRequestImpactDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(SchemaNameVariantsDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(AttributeSchemaDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(GlobalAttributeSchemaDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(AssociatedDataSchemaDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(OBJECT_TRANSFORMER));
+		context.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(PriceDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(HistogramDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(QueryTelemetryDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(FacetRequestImpactDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(SchemaNameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(AssociatedDataSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
 
 		// upsert mutations
-		context.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(RemoveAttributeMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(UpsertAttributeMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(SetHierarchicalPlacementMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(RemovePriceMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(UpsertPriceMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(InsertReferenceMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(RemoveReferenceMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(SetReferenceGroupMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(ReferenceAttributeMutationDescriptor.THIS.to(OBJECT_TRANSFORMER));
-		context.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(OBJECT_TRANSFORMER));
+		context.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(RemoveAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(UpsertAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(SetHierarchicalPlacementMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(RemovePriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(UpsertPriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(InsertReferenceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(RemoveReferenceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(SetReferenceGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(ReferenceAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
 	}
 
 	/**
@@ -221,61 +242,63 @@ public class CatalogOpenApiBuilder {
 	 */
 	@Nonnull
 	protected OpenApiEntitySchemaBuildingContext setupForCollection(@Nonnull EntitySchemaContract entitySchema) {
-		final Schema<Object> localeSchema;
 		if (!entitySchema.getLocales().isEmpty()) {
-			localeSchema = createLocaleSchema();
-			localeSchema.setName(ENTITY_LOCALE_ENUM.name(entitySchema));
-			entitySchema.getLocales().forEach(l -> localeSchema.addEnumItemObject(l.toLanguageTag()));
-			context.registerType(localeSchema);
-		} else {
-			localeSchema = null;
+			final OpenApiEnum.Builder localeEnumBuilder = newEnum()
+				.name(ENTITY_LOCALE_ENUM.name(entitySchema))
+				.description(ENTITY_LOCALE_ENUM.description())
+				.format(FORMAT_LOCALE);
+			entitySchema.getLocales().forEach(l -> localeEnumBuilder.item(l.toLanguageTag()));
+
+			context.registerType(localeEnumBuilder.build());
 		}
 
-		final Schema<Object> currencySchema;
 		if (!entitySchema.getCurrencies().isEmpty()) {
-			currencySchema = createCurrencySchema();
-			currencySchema.setName(ENTITY_CURRENCY_ENUM.name(entitySchema));
-			entitySchema.getCurrencies().forEach(c -> currencySchema.addEnumItemObject(c.toString()));
-			context.registerType(currencySchema);
-		} else {
-			currencySchema = null;
+			final OpenApiEnum.Builder currencyEnumBuilder = newEnum()
+				.name(ENTITY_CURRENCY_ENUM.name(entitySchema))
+				.description(ENTITY_CURRENCY_ENUM.description())
+				.format(FORMAT_CURRENCY);
+			entitySchema.getCurrencies().forEach(c -> currencyEnumBuilder.item(c.toString()));
+
+			context.registerType(currencyEnumBuilder.build());
 		}
 
 		final OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx = new OpenApiEntitySchemaBuildingContext(
 			context,
 			constraintSchemaBuildingCtx,
-			entitySchema,
-			localeSchema,
-			currencySchema
+			entitySchema
 		);
 
 		// build filter schema
-		final Schema<Object> filterBySchemaDescriptor = new FilterBySchemaBuilder(
+		final OpenApiSimpleType filterBySchema = new FilterBySchemaBuilder(
 			constraintSchemaBuildingCtx,
 			entitySchemaBuildingCtx.getSchema().getName(),
 			false
 		).build();
-		entitySchemaBuildingCtx.setFilterByInputObject(filterBySchemaDescriptor);
+		entitySchemaBuildingCtx.setFilterByInputObject(filterBySchema);
 
-		final Schema<Object> filterByLocalizedSchemaDescriptor = new FilterBySchemaBuilder(
+		final OpenApiSimpleType filterByLocalizedSchema = new FilterBySchemaBuilder(
 			constraintSchemaBuildingCtx,
 			entitySchemaBuildingCtx.getSchema().getName(),
 			true
 		).build();
-		entitySchemaBuildingCtx.setFilterByLocalizedInputObject(filterByLocalizedSchemaDescriptor);
+		entitySchemaBuildingCtx.setFilterByLocalizedInputObject(filterByLocalizedSchema);
 
 		// build order schema
-		final Schema<Object> orderBySchemaDescriptor = new OrderBySchemaBuilder(
+		final OpenApiSimpleType orderBySchema = new OrderBySchemaBuilder(
 			constraintSchemaBuildingCtx,
 			entitySchemaBuildingCtx.getSchema().getName()
 		).build();
-		entitySchemaBuildingCtx.setOrderByInputObject(orderBySchemaDescriptor);
+		entitySchemaBuildingCtx.setOrderByInputObject(orderBySchema);
 
 		// build require schema
 		entitySchemaBuildingCtx.setRequiredForListInputObject(buildRequireSchemaForList(entitySchemaBuildingCtx));
 		entitySchemaBuildingCtx.setRequiredForQueryInputObject(buildRequireSchemaForQuery(entitySchemaBuildingCtx));
 
-		final EntityObjectBuilder entityObjectBuilder = new EntityObjectBuilder(entitySchemaBuildingCtx);
+		final EntityObjectBuilder entityObjectBuilder = new EntityObjectBuilder(
+			entitySchemaBuildingCtx,
+			propertyBuilderTransformer,
+			objectBuilderTransformer
+		);
 		entitySchemaBuildingCtx.setLocalizedEntityObject(entityObjectBuilder.buildEntityObject(true));
 		if(entitySchemaBuildingCtx.isLocalizedEntity()) {
 			entitySchemaBuildingCtx.setEntityObject(entityObjectBuilder.buildEntityObject(false));
@@ -286,16 +309,25 @@ public class CatalogOpenApiBuilder {
 			entitySchemaBuildingCtx.getCatalogCtx().registerType(entityObjectBuilder.buildEntityObject(false));
 		}
 
-		final EntitySchemaObjectBuilder entitySchemaObjectBuilder = new EntitySchemaObjectBuilder(entitySchemaBuildingCtx);
+		final EntitySchemaObjectBuilder entitySchemaObjectBuilder = new EntitySchemaObjectBuilder(
+			entitySchemaBuildingCtx,
+			propertyBuilderTransformer,
+			objectBuilderTransformer
+		);
 		entitySchemaObjectBuilder.buildEntitySchemaObject();
 
-		new DataMutationSchemaBuilder(entitySchemaBuildingCtx).buildAndAddEntitiesAndPathItems();
+		new DataMutationSchemaBuilder(
+			entitySchemaBuildingCtx,
+			propertyBuilderTransformer,
+			objectBuilderTransformer,
+			pathItemBuilder
+		).buildAndAddEntitiesAndPathItems();
 
 		return entitySchemaBuildingCtx;
 	}
 
 	@Nonnull
-	private Schema<Object> buildRequireSchemaForList(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx) {
+	private OpenApiSimpleType buildRequireSchemaForList(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx) {
 		return new RequireSchemaBuilder(
 			constraintSchemaBuildingCtx,
 			entitySchemaBuildingCtx.getSchema().getName(),
@@ -304,7 +336,7 @@ public class CatalogOpenApiBuilder {
 	}
 
 	@Nonnull
-	private Schema<Object> buildRequireSchemaForQuery(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx) {
+	private OpenApiSimpleType buildRequireSchemaForQuery(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx) {
 		return new RequireSchemaBuilder(
 			constraintSchemaBuildingCtx,
 			entitySchemaBuildingCtx.getSchema().getName()
@@ -323,86 +355,72 @@ public class CatalogOpenApiBuilder {
 	}
 
 	@Nonnull
-	protected static Schema<Object> buildScalarEnum() {
-		final Schema<Object> scalarEnum = createSchema(TYPE_STRING);
-		scalarEnum
+	protected static OpenApiEnum buildScalarEnum() {
+		final OpenApiEnum.Builder scalarEnumBuilder = newEnum()
 			.name(SCALAR_ENUM.name())
 			.description(SCALAR_ENUM.description());
 
-		registerScalarValue(scalarEnum, String.class);
-		registerScalarValue(scalarEnum, String[].class);
-		registerScalarValue(scalarEnum, Byte.class);
-		registerScalarValue(scalarEnum, Byte[].class);
-		registerScalarValue(scalarEnum, Short.class);
-		registerScalarValue(scalarEnum, Short[].class);
-		registerScalarValue(scalarEnum, Integer.class);
-		registerScalarValue(scalarEnum, Integer[].class);
-		registerScalarValue(scalarEnum, Long.class);
-		registerScalarValue(scalarEnum, Long[].class);
-		registerScalarValue(scalarEnum, Boolean.class);
-		registerScalarValue(scalarEnum, Boolean[].class);
-		registerScalarValue(scalarEnum, Character.class);
-		registerScalarValue(scalarEnum, Character[].class);
-		registerScalarValue(scalarEnum, BigDecimal.class);
-		registerScalarValue(scalarEnum, BigDecimal[].class);
-		registerScalarValue(scalarEnum, OffsetDateTime.class);
-		registerScalarValue(scalarEnum, OffsetDateTime[].class);
-		registerScalarValue(scalarEnum, LocalDateTime.class);
-		registerScalarValue(scalarEnum, LocalDateTime[].class);
-		registerScalarValue(scalarEnum, LocalDate.class);
-		registerScalarValue(scalarEnum, LocalDate[].class);
-		registerScalarValue(scalarEnum, LocalTime.class);
-		registerScalarValue(scalarEnum, LocalTime[].class);
-		registerScalarValue(scalarEnum, DateTimeRange.class);
-		registerScalarValue(scalarEnum, DateTimeRange[].class);
-		registerScalarValue(scalarEnum, BigDecimalNumberRange.class);
-		registerScalarValue(scalarEnum, BigDecimalNumberRange[].class);
-		registerScalarValue(scalarEnum, ByteNumberRange.class);
-		registerScalarValue(scalarEnum, ByteNumberRange[].class);
-		registerScalarValue(scalarEnum, ShortNumberRange.class);
-		registerScalarValue(scalarEnum, ShortNumberRange[].class);
-		registerScalarValue(scalarEnum, IntegerNumberRange.class);
-		registerScalarValue(scalarEnum, IntegerNumberRange[].class);
-		registerScalarValue(scalarEnum, LongNumberRange.class);
-		registerScalarValue(scalarEnum, LongNumberRange[].class);
-		registerScalarValue(scalarEnum, Locale.class);
-		registerScalarValue(scalarEnum, Locale[].class);
-		registerScalarValue(scalarEnum, Currency.class);
-		registerScalarValue(scalarEnum, Currency[].class);
-		registerScalarValue(scalarEnum, ComplexDataObject.class);
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(String.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(String[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Byte.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Byte[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Short.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Short[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Integer.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Integer[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Long.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Long[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Boolean.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Boolean[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Character.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Character[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(BigDecimal.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(BigDecimal[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(OffsetDateTime.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(OffsetDateTime[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(LocalDateTime.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(LocalDateTime[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(LocalDate.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(LocalDate[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(LocalTime.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(LocalTime[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(DateTimeRange.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(DateTimeRange[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(BigDecimalNumberRange.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(BigDecimalNumberRange[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(ByteNumberRange.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(ByteNumberRange[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(ShortNumberRange.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(ShortNumberRange[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(IntegerNumberRange.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(IntegerNumberRange[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(LongNumberRange.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(LongNumberRange[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Locale.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Locale[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Currency.class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(Currency[].class));
+		scalarEnumBuilder.item(convertJavaTypeNameToScalarName(ComplexDataObject.class));
 
-		return scalarEnum;
+		return scalarEnumBuilder.build();
 	}
 
 	@Nonnull
-	protected static Schema<Object> buildAssociatedDataScalarEnum() {
-		final Schema<Object> scalarEnum = buildScalarEnum();
-		scalarEnum
+	protected static OpenApiEnum buildAssociatedDataScalarEnum(@Nonnull OpenApiEnum scalarEnum) {
+		return newEnum(scalarEnum)
 			.name(ASSOCIATED_DATA_SCALAR_ENUM.name())
-			.description(ASSOCIATED_DATA_SCALAR_ENUM.description());
-
-		registerScalarValue(scalarEnum, ComplexDataObject.class);
-
-		return scalarEnum;
+			.description(ASSOCIATED_DATA_SCALAR_ENUM.description())
+			.item(convertJavaTypeNameToScalarName(ComplexDataObject.class))
+			.build();
 	}
 
-	private static void registerScalarValue(@Nonnull Schema<Object> scalarEnum,
-	                                        @Nonnull Class<? extends Serializable> javaType) {
-		final String apiName;
+	// todo lho move somewhere, i think it is used somewhere
+	@Nonnull
+	private static String convertJavaTypeNameToScalarName(@Nonnull Class<? extends Serializable> javaType) {
 		if (javaType.isArray()) {
-			apiName = javaType.componentType().getSimpleName() + "Array";
+			return javaType.componentType().getSimpleName() + "Array";
 		} else {
-			apiName = javaType.getSimpleName();
+			return javaType.getSimpleName();
 		}
-
-		scalarEnum.addEnumItemObject(apiName);
-	}
-
-	private void createInfo() {
-		final var info = new Info();
-		info.setTitle("Web services for catalog \"" + context.getCatalog().getName() + "\"");
-		info.setContact(new Contact().email("novotny@fg.cz").url("https://www.fg.cz"));
-		info.setVersion("1.0.0-oas3");
-		context.getOpenAPI().info(info);
 	}
 }

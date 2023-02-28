@@ -259,5 +259,5 @@ public class DataTypesConverter {
      * @param resultType result GraphQL enum type, may be wrapped inside nonNull or list wrappers
      * @param enumType original non-wrapped GraphQL enum type used as origin in resulted {@link #resultType()}
      */
-    public record ConvertedEnum<T extends GraphQLInputType & GraphQLOutputType>(T resultType, GraphQLEnumType enumType) {}
+    public record ConvertedEnum<T extends GraphQLInputType & GraphQLOutputType>(@Nonnull T resultType, @Nonnull GraphQLEnumType enumType) {}
 }

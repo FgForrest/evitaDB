@@ -23,30 +23,22 @@
 
 package io.evitadb.externalApi.rest.api.catalog.model;
 
-import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Extension of {@link AssociatedDataDescriptor} for OpenAPI for entities without implicit locale.
+ * The localized part of {@link SectionedAssociatedDataDescriptor} for localized associated data of an entity.
+ * This object is used as container for all locales.
  *
  * Note: this descriptor is supposed to be only template.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface LocalizedAssociatedDataDescriptor extends AssociatedDataDescriptor {
+public interface LocalizedAssociatedDataDescriptor {
 
-	PropertyDescriptor GLOBAL = PropertyDescriptor.builder()
-		.name("global")
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("*LocalizedAssociatedData")
 		.description("""
-			Contains global associated data.
+			Set of localized associated data categorized by their locales.
 			""")
-		// type is expected to be a map with individual associated data
-		.build();
-	PropertyDescriptor LOCALIZED = PropertyDescriptor.builder()
-		.name("localized")
-		.description("""
-			Contains localized associated data.
-			""")
-		// type is expected to be a map with individual associated data
 		.build();
 }

@@ -39,8 +39,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
 import io.evitadb.externalApi.rest.io.handler.RESTApiContext;
 import io.evitadb.utils.Assert;
@@ -142,10 +142,10 @@ public class EntityJsonSerializer {
 			} else {
 				final Map<String, List<AttributeKey>> localeSeparatedKeys = separateAttributeKeysByLocale(entity, attributeKeys);
 
-				final List<AttributeKey> globalAttributes = localeSeparatedKeys.remove(LocalizedAttributesDescriptor.GLOBAL.name());
+				final List<AttributeKey> globalAttributes = localeSeparatedKeys.remove(SectionedAttributesDescriptor.GLOBAL.name());
 				if(!globalAttributes.isEmpty()) {
 					final ObjectNode globalNode = objectJsonSerializer.objectNode();
-					attributesNode.putIfAbsent(LocalizedAttributesDescriptor.GLOBAL.name(), globalNode);
+					attributesNode.putIfAbsent(SectionedAttributesDescriptor.GLOBAL.name(), globalNode);
 					writeAttributesIntoNode(globalNode, globalAttributes, entity);
 				}
 
@@ -158,7 +158,7 @@ public class EntityJsonSerializer {
 					}
 				}
 				if(!localizedNode.isEmpty()) {
-					attributesNode.putIfAbsent(LocalizedAttributesDescriptor.LOCALIZED.name(), localizedNode);
+					attributesNode.putIfAbsent(SectionedAttributesDescriptor.LOCALIZED.name(), localizedNode);
 				}
 			}
 		}
@@ -176,10 +176,10 @@ public class EntityJsonSerializer {
 			} else {
 				final Map<String, List<AssociatedDataKey>> localeSeparatedKeys = separateAssociatedDataKeysByLocale(entity, associatedDataKeys);
 
-				final List<AssociatedDataKey> globalAssociatedData = localeSeparatedKeys.remove(LocalizedAssociatedDataDescriptor.GLOBAL.name());
+				final List<AssociatedDataKey> globalAssociatedData = localeSeparatedKeys.remove(SectionedAssociatedDataDescriptor.GLOBAL.name());
 				if(!globalAssociatedData.isEmpty()) {
 					final ObjectNode globalNode = objectJsonSerializer.objectNode();
-					associatedDataNode.putIfAbsent(LocalizedAssociatedDataDescriptor.GLOBAL.name(), globalNode);
+					associatedDataNode.putIfAbsent(SectionedAssociatedDataDescriptor.GLOBAL.name(), globalNode);
 					writeAssociatedDataIntoNode(globalNode, globalAssociatedData, entity);
 				}
 
@@ -192,7 +192,7 @@ public class EntityJsonSerializer {
 					}
 				}
 				if(!localizedNode.isEmpty()) {
-					associatedDataNode.putIfAbsent(LocalizedAssociatedDataDescriptor.LOCALIZED.name(), localizedNode);
+					associatedDataNode.putIfAbsent(SectionedAssociatedDataDescriptor.LOCALIZED.name(), localizedNode);
 				}
 			}
 			if(!associatedDataNode.isEmpty()) {
@@ -349,7 +349,7 @@ public class EntityJsonSerializer {
 	@Nonnull
 	public static Map<String, List<AttributeKey>> separateAttributeKeysByLocale(@Nonnull EntityContract entity, @Nonnull Set<AttributeKey> attributeKeys) {
 		final Map<String, List<AttributeKey>> localeSeparatedKeys = new HashMap<>(entity.getLocales().size() + 1);
-		localeSeparatedKeys.put(LocalizedAttributesDescriptor.GLOBAL.name(), new LinkedList<>());
+		localeSeparatedKeys.put(SectionedAttributesDescriptor.GLOBAL.name(), new LinkedList<>());
 		for (Locale locale : entity.getLocales()) {
 			localeSeparatedKeys.put(locale.toLanguageTag(), new LinkedList<>());
 		}
@@ -358,7 +358,7 @@ public class EntityJsonSerializer {
 				final List<AttributeKey> localizedKeys = localeSeparatedKeys.get(attributeKey.getLocale().toLanguageTag());
 				localizedKeys.add(attributeKey);
 			} else {
-				final List<AttributeKey> globalKeys = localeSeparatedKeys.get(LocalizedAttributesDescriptor.GLOBAL.name());
+				final List<AttributeKey> globalKeys = localeSeparatedKeys.get(SectionedAttributesDescriptor.GLOBAL.name());
 				globalKeys.add(attributeKey);
 			}
 		}
@@ -368,7 +368,7 @@ public class EntityJsonSerializer {
 	@Nonnull
 	public static Map<String, List<AssociatedDataKey>> separateAssociatedDataKeysByLocale(@Nonnull EntityContract entity, @Nonnull Set<AssociatedDataKey> associatedDataKeys) {
 		final Map<String, List<AssociatedDataKey>> localeSeparatedKeys = new HashMap<>(entity.getLocales().size() + 1);
-		localeSeparatedKeys.put(LocalizedAssociatedDataDescriptor.GLOBAL.name(), new LinkedList<>());
+		localeSeparatedKeys.put(SectionedAssociatedDataDescriptor.GLOBAL.name(), new LinkedList<>());
 		for (Locale locale : entity.getLocales()) {
 			localeSeparatedKeys.put(locale.toLanguageTag(), new LinkedList<>());
 		}
@@ -377,7 +377,7 @@ public class EntityJsonSerializer {
 				final List<AssociatedDataKey> localizedKeys = localeSeparatedKeys.get(associatedDataKey.getLocale().toLanguageTag());
 				localizedKeys.add(associatedDataKey);
 			} else {
-				final List<AssociatedDataKey> globalKeys = localeSeparatedKeys.get(LocalizedAssociatedDataDescriptor.GLOBAL.name());
+				final List<AssociatedDataKey> globalKeys = localeSeparatedKeys.get(SectionedAssociatedDataDescriptor.GLOBAL.name());
 				globalKeys.add(associatedDataKey);
 			}
 		}

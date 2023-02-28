@@ -26,13 +26,11 @@ package io.evitadb.externalApi.rest.api.catalog.builder.transformer;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiSchemaTransformer.Property;
-import io.swagger.v3.oas.models.media.Schema;
+import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
+import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createObjectSchema;
 
 /**
  * Transforms API-independent {@link ObjectDescriptor} to OpenAPI schema.
@@ -40,33 +38,28 @@ import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.crea
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ObjectDescriptorToOpenApiSchemaTransformer implements ObjectDescriptorTransformer<Schema<Object>> {
+public class ObjectDescriptorToOpenApiObjectTransformer implements ObjectDescriptorTransformer<OpenApiObject.Builder> {
 
 	@Nonnull
-	private final PropertyDescriptorTransformer<Property> propertyDescriptorTransformer;
+	private final PropertyDescriptorTransformer<OpenApiProperty.Builder> propertyDescriptorTransformer;
 
 	@Override
-	public Schema<Object> apply(@Nonnull ObjectDescriptor objectDescriptor) {
-		final Schema<Object> schema = createObjectSchema();
+	public OpenApiObject.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
+		final OpenApiObject.Builder objectBuilder = OpenApiObject.newObject();
 
 		if (objectDescriptor.isNameStatic()) {
-			schema.name(objectDescriptor.name());
+			objectBuilder.name(objectDescriptor.name());
 		}
-		schema.description(objectDescriptor.description());
+		objectBuilder.description(objectDescriptor.description());
 
 		// static properties of object
 		if (objectDescriptor.staticFields() != null) {
 			objectDescriptor.staticFields()
 				.stream()
 				.map(propertyDescriptorTransformer)
-				.forEach(it -> {
-					schema.addProperty(it.schema().getName(), it.schema());
-					if (it.required()) {
-						schema.addRequiredItem(it.schema().getName());
-					}
-				});
+				.forEach(objectBuilder::property);
 		}
 
-		return schema;
+		return objectBuilder;
 	}
 }

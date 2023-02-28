@@ -43,6 +43,7 @@ import java.util.Set;
 import static graphql.schema.FieldCoordinates.coordinates;
 import static graphql.schema.GraphQLObjectType.newObject;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Generic context object for building GraphQL schemas.
@@ -71,7 +72,7 @@ public class GraphQLSchemaBuildingContext {
      * Holds all globally registered custom enums that will be inserted into GraphQL schema.
      */
     @Nonnull
-    private final Map<String, GraphQLEnumType> customEnums = createHashMap(32);
+    private final Set<String> registeredCustomEnums = createHashSet(32);
 
 
     public void registerEntityObject(@Nonnull String entityType, @Nonnull GraphQLObjectType entityObject) {
@@ -83,15 +84,11 @@ public class GraphQLSchemaBuildingContext {
      * Registers new custom enum if there is not enum with same name.
      */
     public void registerCustomEnumIfAbsent(@Nonnull GraphQLEnumType customEnum) {
-        customEnums.computeIfAbsent(
-            customEnum.getName(),
-            name -> {
-                schemaBuilder.additionalType(customEnum);
-                return customEnum;
-            }
-        );
-
-
+        if (registeredCustomEnums.contains(customEnum.getName())) {
+            return;
+        }
+        registeredCustomEnums.add(customEnum.getName());
+        registerType(customEnum);
     }
 
     /**

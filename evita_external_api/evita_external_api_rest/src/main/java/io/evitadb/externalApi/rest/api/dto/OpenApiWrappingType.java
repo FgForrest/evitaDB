@@ -23,45 +23,18 @@
 
 package io.evitadb.externalApi.rest.api.dto;
 
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
-import io.evitadb.utils.Assert;
-import io.swagger.v3.oas.models.media.Schema;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-
 import javax.annotation.Nonnull;
-
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createReferenceSchema;
 
 /**
  * TODO lho docs
  *
  * @author Lukáš Hornych, 2023
  */
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class OpenApiReference implements OpenApiType {
+public interface OpenApiWrappingType extends OpenApiSimpleType {
 
+	/**
+	 * Returns inner wrapped actual type by this wrapping type.
+	 */
 	@Nonnull
-	private final String objectName;
-
-	@Nonnull
-	public static OpenApiReference from(@Nonnull String objectName) {
-		return new OpenApiReference(objectName);
-	}
-
-	@Nonnull
-	public static OpenApiReference from(@Nonnull OpenApiType type) {
-		Assert.isPremiseValid(
-			type instanceof OpenApiObject,
-			() -> new OpenApiSchemaBuildingError("Cannot create reference to non-object OpenApi type.")
-		);
-//		return new OpenApiReference(((OpenApiObject) type).getName());
-		return null;
-	}
-
-	@Nonnull
-	@Override
-	public Schema<Object> toSchema() {
-		return createReferenceSchema(objectName);
-	}
+	OpenApiSimpleType getWrappedType();
 }

@@ -33,9 +33,15 @@ import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintS
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKey;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
+import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
+import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
+import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.dataType.DataTypesConverter.ConvertedEnum;
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.evitadb.utils.Assert;
-import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.Schema;
 
 import javax.annotation.Nonnull;
@@ -51,13 +57,19 @@ import java.util.Set;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
 import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.*;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiProperty.newProperty;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
 
 /**
  * Implementation of {@link ConstraintSchemaBuilder} for REST API.
  *
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-public abstract class OpenApiConstraintSchemaBuilder extends ConstraintSchemaBuilder<OpenApiConstraintSchemaBuildingContext, Schema<Object>, Schema<Object>> {
+public abstract class OpenApiConstraintSchemaBuilder
+	extends ConstraintSchemaBuilder<OpenApiConstraintSchemaBuildingContext, OpenApiSimpleType, OpenApiObject, OpenApiProperty> {
 
 	@Nonnull
 	protected final String rootEntityType;
@@ -77,16 +89,16 @@ public abstract class OpenApiConstraintSchemaBuilder extends ConstraintSchemaBui
 
 	@Nonnull
 	@Override
-	protected Schema<Object> buildContainer(@Nonnull BuildContext buildContext,
-	                                        @Nonnull ContainerKey containerKey,
-	                                        @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+	protected OpenApiSimpleType buildContainer(@Nonnull BuildContext buildContext,
+	                                           @Nonnull ContainerKey containerKey,
+	                                           @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		final String containerName = constructContainerName(containerKey);
-		final Schema<Object> containerBuilder = createObjectSchema();
-		containerBuilder.setName(containerName);
-		// cache container for reuse
-		sharedContext.cacheContainer(containerKey, containerBuilder);
+		final OpenApiObject.Builder containerBuilder = newObject().name(containerName);
+		final OpenApiTypeReference containerPointer = typeRefTo(containerName);
+		// cache new container for reuse
+		sharedContext.cacheContainer(containerKey, containerPointer);
 
-		final List<Schema<Object>> children = new LinkedList<>();
+		final List<OpenApiProperty> children = new LinkedList<>();
 		children.addAll(buildGenericChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildEntityChildren(buildContext, allowedChildrenPredicate));
 		children.addAll(buildAttributeChildren(buildContext, allowedChildrenPredicate));
@@ -103,45 +115,44 @@ public abstract class OpenApiConstraintSchemaBuilder extends ConstraintSchemaBui
 			return buildNoneConstraintValue();
 		}
 
-		children.forEach(field -> {
+		children.forEach(property -> {
 			Assert.isPremiseValid(
-				containerBuilder.getProperties() == null || containerBuilder.getProperties() != null && !containerBuilder.getProperties().containsKey(field.getName()),
+				containerBuilder.hasProperty(property.getName()),
 				() -> createSchemaBuildingError(
-					"There is already defined field `" + field.getName() + "` with container name `" + containerName + "`."
+					"There is already defined property `" + property.getName() + "` with container name `" + containerName + "`."
 				)
 			);
-			containerBuilder.addProperty(field.getName(), field);
+			containerBuilder.property(property);
 		});
 
-		sharedContext.addNewType(containerBuilder);
-		return containerBuilder;
+		sharedContext.addNewType(containerBuilder.build());
+		return containerPointer;
 	}
 
 	@Nullable
 	@Override
-	protected Schema<Object> buildFieldFromConstraintDescriptor(@Nonnull ConstraintDescriptor constraintDescriptor,
-	                                                            @Nonnull String constraintKey,
-	                                                            @Nonnull Schema<Object> constraintValue) {
-		constraintValue.name(constraintKey);
-		if(constraintValue.get$ref() == null) {
-			constraintValue.setDescription(constructConstraintDescription(constraintDescriptor));
-		}
-
-		return constraintValue;
+	protected OpenApiProperty buildFieldFromConstraintDescriptor(@Nonnull ConstraintDescriptor constraintDescriptor,
+	                                                             @Nonnull String constraintKey,
+	                                                             @Nonnull OpenApiSimpleType constraintValue) {
+		return newProperty()
+			.name(constraintKey)
+			.description(constructConstraintDescription(constraintDescriptor))
+			.type(constraintValue)
+			.build();
 	}
 
 	@Nonnull
 	@Override
-	protected Schema<Object> buildNoneConstraintValue() {
-		return createBooleanSchema();
+	protected OpenApiSimpleType buildNoneConstraintValue() {
+		return DataTypesConverter.getOpenApiScalar(Boolean.class);
 	}
 
 	@Nonnull
 	@Override
-	protected Schema<Object> buildPrimitiveConstraintValue(@Nonnull BuildContext buildContext,
-	                                                       @Nonnull ValueParameterDescriptor valueParameter,
-	                                                       boolean canBeRequired,
-	                                                       @Nullable ValueTypeSupplier valueTypeSupplier) {
+	protected OpenApiSimpleType buildPrimitiveConstraintValue(@Nonnull BuildContext buildContext,
+	                                                          @Nonnull ValueParameterDescriptor valueParameter,
+	                                                          boolean canBeRequired,
+	                                                          @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final Class<? extends Serializable> valueParameterType = valueParameter.type();
 		if (isGeneric(valueParameterType)) {
 			// value has generic type, we need to supply value type
@@ -158,125 +169,141 @@ public abstract class OpenApiConstraintSchemaBuilder extends ConstraintSchemaBui
 				() -> createSchemaBuildingError("Expected value type supplier to supply type not null.")
 			);
 
-			final Schema<Object> schema;
-			if (valueParameterType.isArray()) {
-				if(suppliedValueType.isArray()) {
-					schema = createSchemaByJavaType(suppliedValueType);
-				} else {
-					schema = createArraySchemaOf(createSchemaByJavaType(suppliedValueType));
-				}
-			} else {
-				schema = createSchemaByJavaType(suppliedValueType);
-			}
-
-			if (valueParameter.required() && schema instanceof ArraySchema arraySchema) {
-				arraySchema.setMinItems(1);
-			}
-			return schema;
-
+			return resolveOpenApiType(valueParameterType, suppliedValueType, canBeRequired && valueParameter.required());
 		} else {
 			if (Locale.class.equals(valueParameterType) || Locale.class.equals(valueParameterType.getComponentType())) {
 				// if locale data type is explicitly defined, we expect that such locale is schema-defined locale
-				final String localeEnumSchema = ENTITY_LOCALE_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()));
-
-				if(valueParameterType.isArray()) {
-					return createArraySchemaOf(createReferenceSchema(localeEnumSchema));
-				}
-				return createReferenceSchema(localeEnumSchema);
+				return DataTypesConverter.wrapOpenApiComponentType(
+					typeRefTo(ENTITY_LOCALE_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()))),
+					valueParameterType,
+					canBeRequired && valueParameter.required()
+				);
 			} else if (Currency.class.equals(valueParameterType) || Currency.class.equals(valueParameterType.getComponentType())) {
 				// if currency data type is explicitly defined, we expect that such currency is schema-defined currency
-				final String currencyEnumSchema =  ENTITY_CURRENCY_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()));
-				if(valueParameterType.isArray()) {
-					return createArraySchemaOf(createReferenceSchema(currencyEnumSchema));
-				}
-				return createReferenceSchema(currencyEnumSchema);
+				return DataTypesConverter.wrapOpenApiComponentType(
+					typeRefTo(ENTITY_CURRENCY_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()))),
+					valueParameterType,
+					canBeRequired && valueParameter.required()
+				);
 			} else {
-				final var schema = createSchemaByJavaType(valueParameterType);
-				if (valueParameter.required() && schema instanceof ArraySchema arraySchema) {
-					arraySchema.setMinItems(1);
-				}
-				return schema;
+				return resolveOpenApiType(valueParameterType, canBeRequired && valueParameter.required());
 			}
 		}
 	}
 
 	@Nonnull
 	@Override
-	protected Schema<Object> buildWrapperRangeConstraintValue(@Nonnull BuildContext buildContext,
-	                                                          @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                          @Nullable ValueTypeSupplier valueTypeSupplier) {
-		final Schema<Object> itemType = buildPrimitiveConstraintValue(
+	protected OpenApiSimpleType buildWrapperRangeConstraintValue(@Nonnull BuildContext buildContext,
+	                                                             @Nonnull List<ValueParameterDescriptor> valueParameters,
+	                                                             @Nullable ValueTypeSupplier valueTypeSupplier) {
+		final OpenApiSimpleType itemType = buildPrimitiveConstraintValue(
 			buildContext,
 			valueParameters.get(0),
 			false,
 			valueTypeSupplier
 		);
-		return createRangeSchemaOf(itemType);
+		return arrayOf(itemType, 2, 2);
 	}
 
 	@Nonnull
 	@Override
-	protected Schema<Object> buildChildConstraintValue(@Nonnull BuildContext buildContext,
-	                                                   @Nonnull ChildParameterDescriptor childParameter) {
-		final Schema<Object> childContainer = obtainContainer(buildContext, childParameter);
+	protected OpenApiSimpleType buildChildConstraintValue(@Nonnull BuildContext buildContext,
+	                                                      @Nonnull ChildParameterDescriptor childParameter) {
+		final OpenApiSimpleType childContainer = obtainContainer(buildContext, childParameter);
 
-		if (childContainer.getType().equals(TYPE_BOOLEAN)) {
+		if (childContainer instanceof OpenApiScalar) {
 			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
 			return childContainer;
 		} else {
 			if (childParameter.type().isArray() && !isChildrenUnique(childParameter)) {
-				final var arraySchema = createArraySchemaOf(createReferenceSchema(childContainer.getName()));
-				arraySchema.minItems(1);
-				return arraySchema;
+				return arrayOf(childContainer);
 			} else {
-				return createReferenceSchema(childContainer.getName());
+				return childContainer;
 			}
 		}
 	}
 
 	@Nonnull
 	@Override
-	protected Schema<Object> buildWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
-	                                                           @Nonnull WrapperObjectKey wrapperObjectKey,
-	                                                           @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                           @Nullable ChildParameterDescriptor childParameter,
-	                                                           @Nullable ValueTypeSupplier valueTypeSupplier) {
+	protected OpenApiSimpleType buildWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
+	                                                              @Nonnull WrapperObjectKey wrapperObjectKey,
+	                                                              @Nonnull List<ValueParameterDescriptor> valueParameters,
+	                                                              @Nullable ChildParameterDescriptor childParameter,
+	                                                              @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
-		final Schema<Object> wrapperObjectSchema = createObjectSchema();
-		wrapperObjectSchema.name(wrapperObjectName);
-		final Schema<Object> wrapperObjectPointer = createReferenceSchema(wrapperObjectName);
-
+		final OpenApiObject.Builder wrapperObjectBuilder = newObject().name(wrapperObjectName);
+		final OpenApiTypeReference wrapperObjectPointer = typeRefTo(wrapperObjectName);
 		// cache wrapper object for reuse
 		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
 
 		// build primitive values
 		for (ValueParameterDescriptor valueParameter : valueParameters) {
-			final Schema<Object> nestedPrimitiveConstraintValue = buildPrimitiveConstraintValue(
+			final OpenApiSimpleType nestedPrimitiveConstraintValue = buildPrimitiveConstraintValue(
 				buildContext,
 				valueParameter,
-				false,
+				!valueParameter.type().isArray(),
 				valueTypeSupplier
 			);
-			wrapperObjectSchema.addProperty(valueParameter.name(), nestedPrimitiveConstraintValue);
-			if(!valueParameter.type().isArray()) { // we want treat missing arrays as empty arrays for more client convenience
-				wrapperObjectSchema.addRequiredItem(valueParameter.name());
-			}
+			wrapperObjectBuilder.property(p -> p
+				.name(valueParameter.name())
+				.type(nestedPrimitiveConstraintValue));
 		}
 
 		// build child value
 		if (childParameter != null) {
-			Schema<Object> nestedChildConstraintValue = buildChildConstraintValue(buildContext, childParameter);
-
-			wrapperObjectSchema.addProperty(childParameter.name(), nestedChildConstraintValue);
+			OpenApiSimpleType nestedChildConstraintValue = buildChildConstraintValue(buildContext, childParameter);
 			if (childParameter.required() &&
 				!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
 			) {
-				wrapperObjectSchema.addRequiredItem(childParameter.name());
+				nestedChildConstraintValue = nonNull(nestedChildConstraintValue);
 			}
+
+			wrapperObjectBuilder.property(newProperty()
+				.name(childParameter.name())
+				.type(nestedChildConstraintValue));
 		}
 
-		sharedContext.addNewType(wrapperObjectSchema);
+		sharedContext.addNewType(wrapperObjectBuilder.build());
 		return wrapperObjectPointer;
+	}
+
+	/**
+	 * Converts Java data type to GraphQL equivalent. If enum creates and registers new enum globally.
+	 */
+	@Nonnull
+	private OpenApiSimpleType resolveOpenApiType(@Nonnull Class<?> valueType, boolean nonNull) {
+		if (isJavaTypeEnum(valueType)) {
+			final ConvertedEnum convertedEnum = DataTypesConverter.getOpenApiEnum(
+				valueType,
+				nonNull
+			);
+			sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
+			return convertedEnum.resultType();
+		} else {
+			return DataTypesConverter.getOpenApiScalar(valueType, nonNull);
+		}
+	}
+
+	/**
+	 * Converts Java data type to OpenAPI equivalent. If enum creates and registers new enum globally.
+	 * Item type will be replaced with {@code replacementComponentType}, the {@code valueType} is used for array
+	 * recognition and so on.
+	 */
+	@Nonnull
+	private OpenApiSimpleType resolveOpenApiType(@Nonnull Class<?> valueType,
+	                                             @Nonnull Class<?> replacementComponentType,
+	                                             boolean nonNull) {
+		if (isJavaTypeEnum(replacementComponentType)) {
+			final ConvertedEnum convertedEnum = DataTypesConverter.getOpenApiEnum(
+				valueType,
+				replacementComponentType,
+				nonNull
+			);
+			sharedContext.getCatalogCtx().registerCustomEnumIfAbsent(convertedEnum.enumType());
+			return convertedEnum.resultType();
+		} else {
+			return DataTypesConverter.getOpenApiScalar(valueType, replacementComponentType, nonNull);
+		}
 	}
 
 	@Override

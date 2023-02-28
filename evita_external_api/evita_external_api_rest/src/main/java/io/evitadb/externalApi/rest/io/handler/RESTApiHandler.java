@@ -216,7 +216,7 @@ public abstract class RESTApiHandler implements HttpHandler {
     protected @Nonnull Optional<Object> getParameterFromRequest(final Map<String, Deque<String>> queryParameters, @Nonnull Parameter parameter) {
         final Deque<String> queryParam = queryParameters.get(parameter.getName());
         if(queryParam != null) {
-            return Optional.ofNullable(DataDeserializer.deserialize(restApiContext.getOpenApi(), getParameterSchema(parameter), queryParam.toArray(new String[]{})));
+            return Optional.ofNullable(DataDeserializer.deserialize(restApiContext.getOpenApi().get(), getParameterSchema(parameter), queryParam.toArray(new String[]{})));
         } else if(Boolean.TRUE.equals(parameter.getRequired())) {
             throw new RESTApiRequiredParameterMissingException("Required parameter " + parameter.getName() +
                 " is missing in query data (" + parameter.getIn() + ")");
@@ -226,6 +226,6 @@ public abstract class RESTApiHandler implements HttpHandler {
 
     @SuppressWarnings("rawtypes")
     protected Schema getParameterSchema(@Nonnull Parameter parameter) {
-        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), restApiContext.getOpenApi());
+        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), restApiContext.getOpenApi().get());
     }
 }

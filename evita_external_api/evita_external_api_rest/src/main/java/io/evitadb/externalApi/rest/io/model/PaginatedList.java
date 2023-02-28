@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.io.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.evitadb.externalApi.rest.api.dto.DataChunkType;
 import lombok.Getter;
 
 /**
@@ -40,7 +41,7 @@ public class PaginatedList extends DataChunk {
 	private final int lastPageItemNumber;
 
 	public PaginatedList(io.evitadb.dataType.PaginatedList<?> paginatedList, JsonNode data) {
-		super(paginatedList, data, RECORD_PAGE);
+		super(paginatedList, data, DataChunkType.PAGE);
 		pageSize = paginatedList.getPageSize();
 		pageNumber = paginatedList.getPageNumber();
 		lastPageNumber = paginatedList.getLastPageNumber();

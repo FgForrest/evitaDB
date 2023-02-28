@@ -69,7 +69,7 @@ class PathItemsCreatorTest {
 	@Test
 	void shouldCreateRequestListSchema() {
 		final var expectedSchema = "type: object properties: filterBy: $ref: '#/components/schemas/Filter' orderBy: $ref: '#/components/schemas/Order'";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createRequestListSchema(SchemaCreator.createStringSchema().name("Filter"), SchemaCreator.createStringSchema().name("Order"), null)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(createRequestBodyObject(SchemaCreator.createStringSchema().name("Filter"), SchemaCreator.createStringSchema().name("Order"), null)));
 	}
 
 	@SuppressWarnings("unchecked")

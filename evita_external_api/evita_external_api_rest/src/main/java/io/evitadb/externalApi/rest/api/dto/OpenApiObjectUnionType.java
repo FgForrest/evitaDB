@@ -21,17 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.builder.transformer;
-
-import io.evitadb.externalApi.rest.api.catalog.DataTypeDescriptor;
-
-import java.util.function.Function;
+package io.evitadb.externalApi.rest.api.dto;
 
 /**
- * Transforms API-independent {@link io.evitadb.externalApi.rest.api.catalog.DataTypeDescriptor} to API-specific definition.
+ * TODO lho docs
  *
- * @see DataTypeDescriptor#to(DataTypeDescriptorTransformer)
- * @author Martin Veska, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, 2023
  */
-public interface DataTypeDescriptorTransformer<T> extends Function<DataTypeDescriptor, T> {
+public enum OpenApiObjectUnionType {
+
+	ONE_OF, ANY_OF, ALL_OF
 }

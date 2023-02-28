@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -99,7 +99,7 @@ class CatalogRESTDeleteEntityMutationsFunctionalTest extends CatalogRESTEndpoint
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 					.e(EntityDescriptor.ATTRIBUTES.name(), map()
-						.e(LocalizedAttributesDescriptor.GLOBAL.name(), map()
+						.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
 							.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 							.build())
 						.build())

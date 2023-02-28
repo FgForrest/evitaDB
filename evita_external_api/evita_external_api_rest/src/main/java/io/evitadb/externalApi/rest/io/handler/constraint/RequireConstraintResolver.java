@@ -104,6 +104,6 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 	}
 
 	protected Schema getSchemaFromOperationProperty(@Nonnull String propertyName) {
-		return SchemaUtils.getSchemaFromRequire(restApiContext.getOpenApi(), operation, propertyName);
+		return SchemaUtils.getSchemaFromRequire(restApiContext.getOpenApi().get(), operation, propertyName);
 	}
 }
