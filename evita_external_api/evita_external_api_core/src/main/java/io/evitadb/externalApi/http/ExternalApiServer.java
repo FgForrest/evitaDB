@@ -64,6 +64,7 @@ import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.security.KeyFactory;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -124,6 +125,13 @@ public class ExternalApiServer implements AutoCloseable {
 		final File certificateFile = new File(certificatePath.certificate());
 		final File certificateKeyFile = new File(certificatePath.privateKey());
 		if (apiOptions.certificate().generateAndUseSelfSigned()) {
+			final Path certificateFolderPath = serverCertificateManager.getCertificateFolderPath();
+			if (!certificateFolderPath.toFile().exists()) {
+				Assert.isTrue(
+					certificateFolderPath.toFile().mkdirs(),
+					() -> "Cannot create certificate folder path: `" + certificateFolderPath + "`"
+				);
+			}
 			final File rootCaFile = serverCertificateManager.getRootCaCertificatePath().toFile();
 			if (!certificateFile.exists() && !certificateKeyFile.exists() && !rootCaFile.exists()) {
 				try {

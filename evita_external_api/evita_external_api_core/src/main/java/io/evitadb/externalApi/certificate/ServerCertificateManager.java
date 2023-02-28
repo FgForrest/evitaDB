@@ -28,6 +28,7 @@ import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.utils.CertificateUtils;
+import lombok.Getter;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -82,7 +83,7 @@ public class ServerCertificateManager {
 	/**
 	 * Variable that holds the path to the folder where the certificate related files will be stored.
 	 */
-	private final Path certificateFolderPath;
+	@Getter private final Path certificateFolderPath;
 
 	/**
 	 * Get path to the default folder where server certificates will be stored.
