@@ -32,7 +32,7 @@ Price computation logic in evitaDB is designed in a very simplistic way that sup
 allows adaptation, even to uncommon ones.
 
 The structure of the individual price is visible from the
-<SourceClass>[PriceContract java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceContract.java)</SourceClass> interface.
+<SourceClass>[PriceContract.java](https://github com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceContract.java)</SourceClass> interface.
 
 [Search query](query_language) allows looking up for prices:
 
