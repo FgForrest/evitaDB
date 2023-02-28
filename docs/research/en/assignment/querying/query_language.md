@@ -1843,7 +1843,8 @@ This require constraint implicitly triggers [entity](#entity) require, because p
 its entity container. By default, the fetched prices are filtered according to price filtering constraints, should
 they are used in the query. This behaviour might be changed, by single optional argument of this requirement constraint.
 
-The constraint accepts single optional argument <SourceClass>[PriceFetchMode.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/require/PriceFetchMode.java)</SourceClass> with following options:
+The constraint accepts single optional argument <SourceClass>[PriceFetchMode.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/require/PriceFetchMode.java)</SourceClass>
+with following options:
 
 - **ALL**: all prices of the entity are returned regardless of the input query constraints otherwise prices are filtered
   by those constraints
@@ -2108,7 +2109,8 @@ query(
 ### Facet summary
 
 The `facetSummary` requirement constraint triggers computing and adding an object of
-<SourceClass>[FacetSummary.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/FacetSummary.java)</SourceClass> type to the result index. The data structure is quite complex, but allows rendering entire facet listing to end users.
+<SourceClass>[FacetSummary.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/FacetSummary.java)</SourceClass>
+type to the result index. The data structure is quite complex, but allows rendering entire facet listing to end users.
 It contains information about all facets present in current hierarchy view along with count of requested entities,
 that have those facets assigned.
 
@@ -2367,7 +2369,8 @@ query(
 ### Hierarchy statistics
 
 The `hierarchyStatistics` require constraint triggers computation of the statistics for referenced hierarchical entities,
-and adds an object of <SourceClass>[HierarchyStatistics.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java)</SourceClass> to the query response. The hierarchy statistics requirement helps to render the sensible category menus along with
+and adds an object of <SourceClass>[HierarchyStatistics.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java)</SourceClass> 
+to the query response. The hierarchy statistics requirement helps to render the sensible category menus along with
 the insight about number of the entities within them.
 
 It has at least one [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
@@ -2375,7 +2378,8 @@ argument that specifies reference name targeting a hierarchical entity. Addition
 requirements for fetching the referenced entity contents, so that the number of queries to the evitaDB is minimized,
 and all data is fetched in single query.
 
-The <SourceClass>[HierarchyStatistics.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java)</SourceClass> data structure is organized in the tree structure reflecting the hierarchy of the entities of specified reference name,
+The <SourceClass>[HierarchyStatistics.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java)</SourceClass>
+data structure is organized in the tree structure reflecting the hierarchy of the entities of specified reference name,
 that are referenced by entities returned by primary query. For each node in the tree (one hierarchical entity) there is
 a number that represents the count of currently queried entities relating to that referenced hierarchical entity node
 (either directly or to some subordinate entity of this hierarchical entity) and matching the query filter.
@@ -2429,7 +2433,8 @@ query(
 ```
 
 This query would return first page with 20 products (omitting hundreds of others on additional pages), but also returns
-a <SourceClass>[HierarchyStatistics.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java)</SourceClass> data structure in additional data of the response. This object may contain following structure:
+a <SourceClass>[HierarchyStatistics.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/io/extraResult/HierarchyStatistics.java)</SourceClass> 
+data structure in additional data of the response. This object may contain following structure:
 
 ```
 `Electronics` -> `1789`

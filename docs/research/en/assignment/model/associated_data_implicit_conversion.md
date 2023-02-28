@@ -141,18 +141,21 @@ final ProductStockAvailabilityDTO stockAvailability = entity.getAssociatedData(
 );
 ```
 
-Complex types are internally converted to a <SourceClass>[ComplexDataObject.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/ComplexDataObject.java)</SourceClass> type, that can be safely stored in evitaDB storage. The (de)serialization process is also designed to prevent data
-loss, and allow model evolution.
+Complex types are internally converted to a <SourceClass>[ComplexDataObject.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/ComplexDataObject.java)</SourceClass> type, 
+that can be safely stored in evitaDB storage. The (de)serialization process is also designed to prevent data loss, and allow model evolution.
 
 The deserialization process may fail with two exceptions:
 
-- <SourceClass>[UnsupportedDataTypeException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/UnsupportedDataTypeException.java)</SourceClass>  is raised when certain property cannot be deserialized due to an incompatibility
+- <SourceClass>[UnsupportedDataTypeException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/UnsupportedDataTypeException.java)</SourceClass>
+  is raised when certain property cannot be deserialized due to an incompatibility
   with the specified [contract](#complex-type-can-contain-properties-of)
-- <SourceClass>[IncompleteDeserializationException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java)</SourceClass>  is raised when any of the serialized data was not deserialized due to a lack of a mutator method on the class it's being converted to
+- <SourceClass>[IncompleteDeserializationException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java)</SourceClass>
+  is raised when any of the serialized data was not deserialized due to a lack of a mutator method on the class it's being converted to
   
 ### Field removal
 
-The <SourceClass>[IncompleteDeserializationException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java)</SourceClass> exception protects developers from unintentional data loss by making a mistake in the Java model and then executing:
+The <SourceClass>[IncompleteDeserializationException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java)</SourceClass> 
+exception protects developers from unintentional data loss by making a mistake in the Java model and then executing:
 
 - a fetch of existing complex type
 - altering a few properties

@@ -180,7 +180,8 @@ price range predicate.
 variants. Variant prices needs to be differentiated by the inner entity id property (see interface
 <SourceClass>[PriceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceContract.java)</SourceClass>.
 The product with variants must have a price inner entity reference handling mode
-<SourceClass>[PriceInnerRecordHandlingMutation.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/mutation/price/PriceInnerRecordHandlingMutation.java)</SourceClass> set to `FIRST_OCCURRENCE`.
+<SourceClass>[PriceInnerRecordHandlingMutation.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/mutation/price/PriceInnerRecordHandlingMutation.java)</SourceClass>
+set to `FIRST_OCCURRENCE`.
 
 In this setup product, the price for sale will be selected as the smallest price for sale of all variants. This price will
 be used for filtering products by price.

@@ -35,7 +35,8 @@ which are widely used in [Spring framework](https://spring.io/projects/spring-da
 in format `:name` and providing a [Map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with named
 input parameters.
 
-In the opposite direction it offers method `toStringWithParameterExtraction` on the <SourceClass>[Query.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/Query.java)</SourceClass> object which allows creating the string format of the *evitaQL* in the form of *prepared statement* and extracting all
+In the opposite direction it offers method `toStringWithParameterExtraction` on the <SourceClass>[Query.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/Query.java)</SourceClass>
+object which allows creating the string format of the *evitaQL* in the form of *prepared statement* and extracting all
 parameters in separate array.
 
 ## Defining queries in Java code
@@ -43,6 +44,8 @@ parameters in separate array.
 This is example how the query is composed and evitaDB requested. The example statically imports two classes:
 <SourceClass>[Query.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/Query.java)</SourceClass> and
 <SourceClass>[QueryConstraints.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java)</SourceClass>
+
+
 ``` java
 final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 	"testCatalog",

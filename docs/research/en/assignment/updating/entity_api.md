@@ -70,8 +70,8 @@ once a while.
 ## Working with entities from code
 
 It's expected that most of the entity instances will be created by the evitaDB service classes - such as
-<SourceClass>[EvitaSession.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/EvitaSession.java)</SourceClass> Anyway, there is always the
-[possibility of creating them directly](#creating-entities-in-detached-mode).
+<SourceClass>[EvitaSession.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/EvitaSession.java)</SourceClass> 
+Anyway, there is always the [possibility of creating them directly](#creating-entities-in-detached-mode).
 
 Usually the entity creation will look like this:
 
