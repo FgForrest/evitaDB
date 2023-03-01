@@ -80,6 +80,48 @@ ${argument_name:defaultValue}
 
 ## Server configuration
 
+This section contains general settings for the evitaDB server. It allows configuring thread pools, queues, timeouts:
+
+<dl>
+    <dt>coreThreadCount</dt>
+    <dd>
+        **Default:** `4`
+
+        It defines the minimum number of threads in the evitaDB main thread pool, threads are used for query processing, 
+        transactional updates and service tasks (vacuuming, cache revalidation). The value should be at least equal to 
+        the number of machine cores.
+    </dd>
+    <dt>maxThreadCount</dt>
+    <dd>
+        **Default:** `16`
+
+        It defines the maximum number of threads in the evitaDB main thread pool. The value should be a multiple of the 
+        `coreThreadCount` value.
+    </dd>
+    <dt>threadPriority</dt>
+    <dd>
+        **Default:** `5`
+
+        It defines the priority of the threads created in the pool (for future use). 
+    </dd>
+    <dt>queueSize</dt>
+    <dd>
+        **Default:** `100`
+
+        It defines the maximum number of tasks that can accumulate in the queue waiting for the free thread from 
+        the thread pool to process them. Tasks that exceed this limit will be discarded (new requests/other tasks will 
+        fail with an exception).
+    </dd>
+    <dt>closeSessionsAfterSecondsOfInactivity</dt>
+    <dd>
+        **Default: `60`**
+
+        It specifies the maximum acceptable period of 
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> inactivity before 
+        it is forcibly closed by the server side.
+    </dd>
+</dl>
+
 ## Storage configuration
 
 ## Cache configuration
@@ -94,16 +136,7 @@ It allows configuring these settings:
 <dl>
   <dt>generateAndUseSelfSigned</dt>
   <dd>
-    <Note type="info">
-
-    <NoteTitle toggles="false">
-    
-    ##### Default
-    </NoteTitle>
-
-    is set to `true`
-
-    </Note>
+    **Default:** `true`
 
     When set to `true`, a self-signed <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
     <Term document="docs/user/en/operate/tls.md">certificate</Term> and its 
@@ -112,16 +145,7 @@ It allows configuring these settings:
   </dd>
   <dt>folderPath</dt>
   <dd>
-    <Note type="info">
-
-    <NoteTitle toggles="false">
-    
-    ##### Default
-    </NoteTitle>
-
-    is the sub-folder `evita-server-certificates` in the working directory
-
-    </Note>
+    **Default:** the sub-folder `evita-server-certificates` in the working directory
 
     It represents a path to a folder where the generated authority certificate and its private key are stored.
     This setting is used only when `generateAndUseSelfSigned` is set to `true`.
