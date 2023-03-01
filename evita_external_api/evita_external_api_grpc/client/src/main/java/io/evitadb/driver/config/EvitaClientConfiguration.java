@@ -42,7 +42,7 @@ import java.util.concurrent.TimeUnit;
  * @param port                      The port the gRPC server listens on.
  * @param systemApiPort             The port the system API server listens on.
  * @param useGeneratedCertificate   Whether to use generated certificate by the server for the connection or not.
- * @param trustCertificate   Whether to trust the server CA certificate or not when it's not trusted CA.
+ * @param trustCertificate          Whether to trust the server CA certificate or not when it's not trusted CA.
  * @param rootCaCertificatePath     A relative path to the root CA certificate. Has to be provided when
  *                                  `useGeneratedCertificate` and `trustCertificate` flag is disabled and server
  *                                  is using non-trusted CA certificate.

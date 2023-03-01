@@ -28,6 +28,7 @@ import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.utils.CertificateUtils;
+import lombok.Getter;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -55,6 +56,7 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileWriter;
 import java.math.BigInteger;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -82,7 +84,7 @@ public class ServerCertificateManager {
 	/**
 	 * Variable that holds the path to the folder where the certificate related files will be stored.
 	 */
-	private final Path certificateFolderPath;
+	@Getter private final Path certificateFolderPath;
 
 	/**
 	 * Get path to the default folder where server certificates will be stored.
@@ -272,8 +274,8 @@ public class ServerCertificateManager {
 
 		// Add DNS name to the cert to be used for SSL
 		issuedCertBuilder.addExtension(Extension.subjectAlternativeName, false, new DERSequence(new ASN1Encodable[]{
-			new GeneralName(GeneralName.dNSName, "localhost"),
-			new GeneralName(GeneralName.iPAddress, "127.0.0.1")
+			new GeneralName(GeneralName.dNSName, InetAddress.getLocalHost().getHostName()),
+			new GeneralName(GeneralName.iPAddress, InetAddress.getLocalHost().getHostAddress())
 		}));
 
 		final X509CertificateHolder issuedCertHolder = issuedCertBuilder.build(csrContentSigner);
