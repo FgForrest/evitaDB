@@ -82,7 +82,11 @@ ${argument_name:defaultValue}
 
 ## Storage configuration
 
-## TLS configuration
+## Cache configuration
+
+## API configuration
+
+### TLS configuration
 
 TLS support is enabled by default and cannot be disabled. It's configured in the `certificate` subsection of the `api`.
 It allows configuring these settings:
@@ -163,10 +167,20 @@ It allows configuring these settings:
 If no custom certificate is configured, the server will not start and an exception will be thrown. The server doesn't
 provide an unsecured connection for security reasons.
 
+### GraphQL API configuration
+
+### REST API configuration
+
+### gRPC API configuration
+
+#### Mutual TLS configuration
+
+### System API configuration
+
 There is a special `api.endpoints.system` endpoint that allows access over the unsecured HTTP protocol. Since it's the
 only exposed endpoint on the unsecured http protocol, it must run on a separate port. The endpoint allows anyone to
 download the public part of the server certificate.
 
-It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and 
-`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](#default-mtls-behaviour--not-secure-) for 
+It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and
+`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](#default-mtls-behaviour--not-secure-) for
 more information.
