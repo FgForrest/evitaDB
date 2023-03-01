@@ -189,8 +189,6 @@ public class TransactionalLayerMaintainer {
 	 * This method will retrieve transactional layer for passed producer, asks it for creating copy of the producer
 	 * with applying transactional change. When copy is successfully created transactional memory item is removed from
 	 * the transaction.
-	 *
-	 * Method returns NULL if no transactional changes were made to the object, and it may remain same.
 	 */
 	@Nonnull
 	public <S, T> S getStateCopyWithCommittedChanges(@Nonnull TransactionalLayerProducer<T, S> transactionalLayerProducer, @Nullable Transaction transaction) {

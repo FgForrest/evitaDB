@@ -89,8 +89,11 @@ public interface AttributeIndexContract {
 	 * Method inserts new sortable attribute to the index.
 	 */
 	void insertSortAttribute(
-		AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales,
-		@Nullable Locale locale, Object value, int recordId
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value,
+		int recordId
 	);
 
 	/**

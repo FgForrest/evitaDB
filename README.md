@@ -1,4 +1,35 @@
-# evitaDB
+<h1 align="center" style="border-bottom: none">
+    <a href="https://evitadb.io" target="_blank"><img src="https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/assets/img/evita.png"/></a><br>evitaDB
+</h1>
+
+<p align="center">Visit <a href="https://evitadb.io" target="_blank">evitadb.io</a> for the full documentation,
+examples and guides.</p>
+
+<p align="center">
+  <a href="https://github.com/FgForrest/evitaDB" title="Build"><img src="https://img.shields.io/github/v/release/FgForrest/evitadb?color=%23ff00a0&include_prereleases&label=version&sort=semver"/></a>
+  &nbsp;
+  <a href="https://codecov.io/gh/FgForrest/evitaDB"><img src="https://codecov.io/gh/FgForrest/evitaDB/branch/dev/graph/badge.svg?token=9VDOBPOBFL"/></a>
+  &nbsp;
+  <a href="https://github.com/FgForrest/evitaDB" title="Platform"><img src="https://img.shields.io/badge/Built%20with-Java-red"/></a>
+  &nbsp;
+  <a href="https://github.com/FgForrest/evitaDB" title="GitHub Workflow Status"><img src="https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/ci-dev.yml"/></a>
+  &nbsp;
+  <a href="https://github.com/FgForrest/evitaDB/blob/master/LICENSE" title="License"><img src="https://img.shields.io/badge/license-BSL_1.1-blue.svg"/></a>
+</p>
+
+<p align="center">
+  <a href="https://evitadb.io/en/blog" title="Blog"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50px"/></a>
+  &nbsp;
+  <a href="https://evitadb.io/documentation/index" title="Documentation"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/saving-book.png" width="50px"/></a>
+  &nbsp;
+  <a href="https://evitadb.io/research/introduction" title="Research"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/microscope.png" width="50px"/></a>
+  &nbsp;
+  <a href="https://twitter.com/evitadb_io" title="Twitter"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png" width="50px"/></a>
+  &nbsp;
+  <a href="https://github.com/FgForrest/evitaDB/" title="GitHub"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png" width="50px"/></a>
+  &nbsp;
+  <a href="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f" title="PGP public key"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/fingerprint-scan.png" width="50px"/></a>
+</p>
 
 evitaDB is a specialized database with easy-to-use API for e-commerce systems. It is a low-latency NoSQL in-memory engine 
 that handles all the complex tasks that e-commerce systems have to deal with on a daily basis. evitaDB is expected to act 
@@ -7,13 +38,11 @@ as a fast secondary lookup/search index used by front stores.
 We aim for an order of magnitude better latency (10x faster or better) for common e-commerce tasks than other SQL or 
 NoSQL database solutions on the same hardware specification. evitaDB should not be used for storing and processing primary data.
 
-PGP public key: [9d1149b0c74e939dd766c7a93de3cdccf660797f](https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f)
-
 ## Why should you consider using evitaDB instead of Elasticsearch, MongoDB or relational database?
 
 - evitaDB is a database specialized for e-commerce tasks and has everything you need to implement an e-commerce catalog
 - evitaDB is [more performant](docs/performance/performance_comparison.md) than Elasticsearch or PostgreSQL on the same
-  HW sizing
+  HW sizing in typical e-commerce scenarios
 - evitaDB has a ready to use API from the day one:
 
     - [GraphQL](docs/user/en/use/connectors/graphql.md) - targets rich JavaScript front-ends
@@ -104,3 +133,9 @@ In order code to be accepted it will fulfill following criteria:
 - all classes and methods will have comprehensible JavaDoc
 - there will be no TODO statements in the code
 - there will be no commented out code
+
+-------------------------------------------------------------------------
+
+[Icons sourced at Icons8.com](https://icons8.com/)
+
+[//]: # (https://icons8.com/icon/set/github/carbon-copy--static--white)

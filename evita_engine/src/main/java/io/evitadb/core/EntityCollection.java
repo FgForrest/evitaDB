@@ -96,7 +96,6 @@ import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.index.transactionalMemory.diff.DataSourceChanges;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
@@ -134,6 +133,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -922,7 +922,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			return new EntityCollection(
 				this.catalogAccessor.get(),
 				this.entityTypePrimaryKey,
-				transactionalLayer.getStateCopyWithCommittedChanges(this.schema, transaction).getDelegate(),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.schema, transaction)
+					.map(EntitySchemaDecorator::getDelegate)
+					.orElse(null),
 				this.pkSequence,
 				this.indexPkSequence,
 				this.catalogPersistenceService,
@@ -1444,7 +1446,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			if (removedIndex == null) {
 				throw new EvitaInternalError("Entity index for key " + entityIndexKey + " doesn't exists!");
 			} else {
-				ofNullable(TransactionalMemory.getTransactionalMemoryLayer())
+				ofNullable(getTransactionalMemoryLayer())
 					.ifPresent(removedIndex::removeTransactionalMemoryOfReferencedProducers);
 			}
 		}

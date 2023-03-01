@@ -60,7 +60,6 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -83,6 +82,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -124,7 +124,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Contains reference to the callback that needs to be called one catalog contents are changed (i.e. transaction
 	 * is committed).
 	 */
-	private final Consumer<CatalogContract> updatedCatalogCallback;
+	private final UnaryOperator<CatalogContract> updatedCatalogCallback;
 	/**
 	 * Reference, that allows to access transaction object.
 	 */
@@ -201,7 +201,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		@Nonnull CatalogContract catalog,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nullable EvitaSessionTerminationCallback terminationCallback,
-		@Nonnull Consumer<CatalogContract> updatedCatalogCallback,
+		@Nonnull UnaryOperator<CatalogContract> updatedCatalogCallback,
 		@Nonnull SessionTraits sessionTraits
 	) {
 		this.catalog = new AtomicReference<>(catalog);
@@ -267,8 +267,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				ofNullable(transactionAccessor.get())
 					.ifPresent(Transaction::close);
 			}
-			// unbind the session - so that the callbacks can open a new session in the same thread
-			TransactionalMemory.unbindSessionPrematurely(getId());
+
 			// then apply termination callbacks
 			ofNullable(terminationCallback)
 				.ifPresent(it -> it.onTermination(this));
@@ -689,6 +688,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		assertTransactionIsNotOpened();
 		//noinspection resource
 		final Transaction transaction = createAndInitTransaction();
+		this.transactionAccessor.set(transaction);
 		return transaction.getId();
 	}
 
@@ -700,33 +700,37 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			.map(Transaction::getId);
 	}
 
+	@Nonnull
+	public Optional<Transaction> getOpenedTransaction() {
+		return ofNullable(transactionAccessor.get())
+			.filter(it -> !it.isClosed());
+	}
+
 	@Override
 	public void closeTransaction() {
-		if (transactionAccessor.get() == null) {
-			throw new UnexpectedTransactionStateException("No transaction has been opened!");
-		}
-		final Transaction transaction = transactionAccessor.get();
-		destroyTransaction();
-		transaction.close();
+		transactionAccessor.getAndUpdate(transaction -> {
+			Assert.isPremiseValid(transaction != null, "Transaction unexpectedly not present!");
+			transaction.close();
+			return null;
+		});
 	}
 
 	@Override
 	public boolean isRollbackOnly() {
-		return getOpenedTransactionId().isPresent() && transactionAccessor.get().isRollbackOnly();
+		return ofNullable(transactionAccessor.get())
+			.map(Transaction::isRollbackOnly)
+			.orElse(false);
 	}
 
 	@Override
 	public void setRollbackOnly() {
-		if (transactionAccessor.get() == null) {
-			throw new UnexpectedTransactionStateException("No transaction has been opened!");
-		}
-		final Transaction transaction = transactionAccessor.get();
-		transaction.setRollbackOnly();
-	}
-
-	@Override
-	public void clearCache() {
-		// clear entity cache
+		getOpenedTransaction()
+			.ifPresentOrElse(
+				Transaction::setRollbackOnly,
+				() -> {
+					throw new UnexpectedTransactionStateException("No transaction has been opened!");
+				}
+			);
 	}
 
 	@Override
@@ -824,22 +828,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	private Transaction createTransaction() {
 		Assert.isTrue(!isReadOnly(), "Evita session is read only!");
 		final Transaction transaction = new Transaction(
-			id,
 			getCatalog(),
 			(currentCatalog, updatedCatalog) -> {
-				this.catalog.set(updatedCatalog);
-				/** TOBEDONE JNO - this should be uncommented when transactions are handled in one thread sequentially
-				 * TOBEDONE JNO - this code conflicts with parallel tests in io.evitadb.api.EvitaApiFunctionalTest
-				 final CatalogContract previousCatalog = this.catalog.compareAndExchange(currentCatalog, updatedCatalog);
-				 Assert.isPremiseValid(
-				 previousCatalog == currentCatalog, "The expected catalog instance didn't match!"
-				 );
-				 **/
+				final CatalogContract previousCatalog = this.catalog.compareAndExchange(currentCatalog, updatedCatalog);
+				Assert.isPremiseValid(
+					previousCatalog == currentCatalog, "The expected catalog instance didn't match!"
+				);
 				ofNullable(this.updatedCatalogCallback)
-					.ifPresent(it -> {
-						it.accept(updatedCatalog);
-						this.clearCache();
-					});
+					.ifPresent(it -> this.catalog.set(it.apply(updatedCatalog)));
 			}
 		);
 		// when the session is marked as "dry run" we never commit the transaction but always roll-back
@@ -889,16 +885,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
-	 * Destroys transaction reference.
-	 */
-	private void destroyTransaction() {
-		transactionAccessor.getAndUpdate(transaction -> {
-			Assert.isPremiseValid(transaction != null, "Transaction unexpectedly not present!");
-			return null;
-		});
-	}
-
-	/**
 	 * Executes passed lambda in existing transaction or throws exception.
 	 *
 	 * @throws UnexpectedTransactionStateException if transaction is not open
@@ -907,7 +893,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (transactionAccessor.get() == null && getCatalog().supportsTransaction()) {
 			try (final Transaction newTransaction = createTransaction()) {
 				transactionAccessor.set(newTransaction);
-				return logic.apply(this);
+				return Transaction.executeInTransactionIfProvided(
+					newTransaction,
+					() -> logic.apply(this)
+				);
 			} catch (Throwable ex) {
 				ofNullable(transactionAccessor.get())
 					.ifPresent(Transaction::setRollbackOnly);
@@ -918,7 +907,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		} else {
 			// the transaction might already exist
 			try {
-				return logic.apply(this);
+				return Transaction.executeInTransactionIfProvided(
+					transactionAccessor.get(),
+					() -> logic.apply(this)
+				);
 			} catch (Throwable ex) {
 				ofNullable(transactionAccessor.get())
 					.ifPresent(Transaction::setRollbackOnly);

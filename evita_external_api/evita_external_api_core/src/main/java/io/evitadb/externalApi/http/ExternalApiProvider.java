@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.http;
 
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.undertow.server.HttpHandler;
 
 import javax.annotation.Nonnull;
@@ -36,13 +37,19 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface ExternalApiProvider {
+public interface ExternalApiProvider<T extends AbstractApiConfiguration> {
 
 	/**
 	 * @return system-wide unique camelCase code of API to be able to select which APIs to register
 	 */
 	@Nonnull
 	String getCode();
+
+	/**
+	 * @return configuration the provider was set up with
+	 */
+	@Nonnull
+	T getConfiguration();
 
 	/**
 	 * @return HTTP handler that is responsible for processing all requests addressed to this API

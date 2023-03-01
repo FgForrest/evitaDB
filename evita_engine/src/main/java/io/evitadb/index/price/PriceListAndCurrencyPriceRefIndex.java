@@ -44,7 +44,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
@@ -59,6 +58,8 @@ import java.time.OffsetDateTime;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Function;
+
+import static io.evitadb.core.Transaction.isTransactionAvailable;
 
 /**
  * Index contains information used for filtering by price that is related to specific price list and currency combination.
@@ -226,7 +227,7 @@ public class PriceListAndCurrencyPriceRefIndex implements VoidTransactionMemoryP
 	@Nonnull
 	public int[] getIndexedPriceIds() {
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (TransactionalMemory.isTransactionalMemoryAvailable()) {
+		if (isTransactionAvailable()) {
 			return this.indexedPriceIds.getArray();
 		} else {
 			if (memoizedIndexedPriceIds == null) {

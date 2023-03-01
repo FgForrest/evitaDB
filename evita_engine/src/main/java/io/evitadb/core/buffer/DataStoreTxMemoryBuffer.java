@@ -29,7 +29,6 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
 import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.diff.DataSourceChanges;
 import io.evitadb.store.exception.CompressionKeyUnknownException;
 import io.evitadb.store.model.RecordWithCompressedId;
@@ -44,11 +43,13 @@ import javax.annotation.Nullable;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static java.util.Optional.ofNullable;
 
 /**
  * DataStoreTxMemoryBuffer represents volatile temporal memory between the {@link EntityCollection} and persistent
- * storage that takes {@link io.evitadb.index.transactionalMemory.TransactionalMemory} into an account. Even if
+ * storage that takes {@link io.evitadb.core.Transaction} into an account. Even if
  * transactional memory is not available this buffer traps updates of certain objects in {@link BufferedChangeSet} to
  * avoid persistence of large indexes with each update (which would drastically slow initial bulk database setup).
  *
@@ -91,7 +92,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 * entity index is just being created for the first time and the transactions were not yet enabled on it.
 	 */
 	public I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
 			return bufferedChangeSet.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
 		} else {
@@ -104,7 +105,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 * `accessorWhenMissing` is executed to retrieve primary read-only index from the origin collection.
 	 */
 	public I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
 			return bufferedChangeSet.getIndexIfExists(entityIndexKey, accessorWhenMissing);
 		} else {
@@ -117,7 +118,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 * `removalPropagation` function is called to propagate deletion to the origin collection.
 	 */
 	public I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
 			return bufferedChangeSet.removeIndex(entityIndexKey, removalPropagation);
 		} else {
@@ -131,7 +132,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 */
 	@Nullable
 	public <T extends StoragePart> T fetch(long primaryKey, @Nonnull Class<T> containerType) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
 			return persistenceService.getStoragePart(primaryKey, containerType);
 		} else if (layer.isContainerRemovedByPrimaryKey(primaryKey, containerType)) {
@@ -148,7 +149,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 */
 	@Nullable
 	public <T extends StoragePart> byte[] fetchBinary(long primaryKey, @Nonnull Class<T> containerType, @Nonnull Function<T, byte[]> serializer) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
 			return persistenceService.getStoragePartAsBinary(primaryKey, containerType);
 		} else if (layer.isContainerRemovedByPrimaryKey(primaryKey, containerType)) {
@@ -166,7 +167,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 */
 	@Nullable
 	public <T extends StoragePart, U extends Comparable<U>> T fetch(@Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
 			try {
 				final long storagePartId = ofNullable(this.bufferedChangeSet.getNonFlushedCompressedId(originalKey))
@@ -202,7 +203,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 */
 	@Nullable
 	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(@Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer, @Nonnull Function<T, byte[]> serializer) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
 			try {
 				final long nonFlushedCompressedId = ofNullable(this.bufferedChangeSet.getNonFlushedCompressedId(originalKey))
@@ -233,7 +234,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 * doesn't really remove it.
 	 */
 	public <T extends StoragePart> boolean removeByPrimaryAndOriginalKey(long primaryKey, @Nonnull Comparable<?> originalKey, @Nonnull Class<T> entityClass) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
 			return this.persistenceService.removeStoragePart(primaryKey, entityClass);
 		} else {
@@ -250,7 +251,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 * doesn't really remove it.
 	 */
 	public <T extends StoragePart> boolean removeByPrimaryKey(long primaryKey, @Nonnull Class<T> entityClass) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
 			return this.persistenceService.removeStoragePart(primaryKey, entityClass);
 		} else {
@@ -267,7 +268,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 * no uniqueId assigned so far (e.g. they haven't been stored yet).
 	 */
 	public <T extends StoragePart> boolean removeByOriginalKey(@Nonnull Comparable<?> originalKey, @Nonnull Class<T> entityClass) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
 			return false;
 		} else {
@@ -281,7 +282,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	 * when transaction is committed.
 	 */
 	public <T extends StoragePart> void update(@Nonnull T value) {
-		final DataSourceChanges<IK, I> layer = TransactionalMemory.getTransactionalMemoryLayer(transactionalMemoryDataSource);
+		final DataSourceChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
 		if (layer == null) {
 			final long partId = this.persistenceService.putStoragePart(0L, value);
 			if (value instanceof RecordWithCompressedId) {

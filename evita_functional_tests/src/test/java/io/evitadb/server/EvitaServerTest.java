@@ -33,6 +33,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse
 import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.testUtils.TestChannelCreator;
+import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.TestFileSupport;
 import io.grpc.ManagedChannel;
@@ -64,10 +65,11 @@ class EvitaServerTest implements TestConstants, TestFileSupport {
 			evita.defineCatalog(TEST_CATALOG);
 			assertFalse(evita.getConfiguration().cache().enabled());
 
-			final GrpcProvider grpcProvider = evitaServer.getExternalApiServer().getExternalApiProviderByCode(GrpcProvider.CODE);
+			final ExternalApiServer externalApiServer = evitaServer.getExternalApiServer();
+			final GrpcProvider grpcProvider = externalApiServer.getExternalApiProviderByCode(GrpcProvider.CODE);
 			assertNotNull(grpcProvider);
 
-			final ManagedChannel channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), grpcProvider.getServer().getPort());
+			final ManagedChannel channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), externalApiServer);
 
 			final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 

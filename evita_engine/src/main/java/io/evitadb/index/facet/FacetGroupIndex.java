@@ -32,7 +32,6 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.utils.Assert;
 import lombok.Data;
@@ -49,6 +48,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -109,7 +109,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	 * @return true if entity id was really added
 	 */
 	public boolean addFacet(int facetPrimaryKey, int entityPrimaryKey) {
-		final FacetGroupIndexChanges txLayer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final FacetGroupIndexChanges txLayer = getTransactionalMemoryLayer(this);
 		// fetch or create index for referenced entity id (inside correct type)
 		final FacetIdIndex facetIdIndex = this.facetIdIndexes.computeIfAbsent(
 			facetPrimaryKey,
@@ -135,7 +135,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 		// if facet was removed check whether there are any data left
 		if (removed && facetIdIndex.isEmpty()) {
 			// we need to keep track of removed internal transactional memory related data structures
-			final FacetGroupIndexChanges txLayer = TransactionalMemory.getTransactionalMemoryLayer(this);
+			final FacetGroupIndexChanges txLayer = getTransactionalMemoryLayer(this);
 			// remove the index entirely
 			this.facetIdIndexes.remove(facetPrimaryKey);
 			ofNullable(txLayer).ifPresent(it -> it.addRemovedItem(facetIdIndex));

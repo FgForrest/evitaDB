@@ -45,7 +45,6 @@ import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
@@ -71,6 +70,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.core.Transaction.removeTransactionalMemoryLayerIfExists;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
@@ -319,7 +319,7 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 			this.entityIdsByLanguage.remove(locale);
 			this.dirty.setToTrue();
 			// remove the changes container - the bitmap got removed entirely
-			TransactionalMemory.removeTransactionalMemoryLayerIfExists(recordIdsWithLanguage);
+			removeTransactionalMemoryLayerIfExists(recordIdsWithLanguage);
 		}
 	}
 

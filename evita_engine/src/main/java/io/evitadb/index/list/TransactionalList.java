@@ -28,7 +28,6 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import lombok.Getter;
 
@@ -46,6 +45,8 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -102,7 +103,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public int size() {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.listDelegate.size();
 		} else {
@@ -112,7 +113,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public boolean isEmpty() {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.listDelegate.isEmpty();
 		} else {
@@ -122,7 +123,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public boolean contains(Object obj) {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.listDelegate.contains(Objects.requireNonNull(obj));
 		} else {
@@ -132,7 +133,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public Iterator<V> iterator() {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.listDelegate.iterator();
 		} else {
@@ -148,7 +149,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T> T[] toArray(@Nonnull T[] array) {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return (T[]) this.listDelegate.toArray();
 		} else {
@@ -166,7 +167,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public boolean remove(Object o) {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.listDelegate.remove(Objects.requireNonNull(o));
 		} else {
@@ -232,12 +233,12 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public void clear() {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.listDelegate.clear();
 		} else {
 			layer.cleanAll(
-				ofNullable(TransactionalMemory.getTransactionalMemoryLayer())
+				ofNullable(getTransactionalMemoryLayer())
 					.orElseThrow(() -> new IllegalStateException("Transactional layer must be present!"))
 			);
 		}
@@ -245,7 +246,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public V get(int index) {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.listDelegate.get(index);
 		} else {
@@ -255,7 +256,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public V set(int index, V element) {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.listDelegate.set(index, element);
 		} else {
@@ -268,7 +269,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public void add(int index, V element) {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			this.listDelegate.add(index, Objects.requireNonNull(element));
 		} else {
@@ -278,7 +279,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public V remove(int index) {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
 			return this.listDelegate.remove(index);
 		} else {
@@ -320,7 +321,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public ListIterator<V> listIterator() {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.listDelegate.listIterator();
 		} else {
@@ -330,7 +331,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public ListIterator<V> listIterator(int index) {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.listDelegate.listIterator(index);
 		} else {
@@ -340,7 +341,7 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 
 	@Override
 	public List<V> subList(int fromIndex, int toIndex) {
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.listDelegate.subList(fromIndex, toIndex);
 		} else {
@@ -386,9 +387,9 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	public Object clone() throws CloneNotSupportedException {
 		// clone transactional list contents with all recorded changes and create separate transactional memory piece for it
 		@SuppressWarnings("unchecked") final TransactionalList<V> clone = (TransactionalList<V>) super.clone();
-		final ListChanges<V> layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final ListChanges<V> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer != null) {
-			final ListChanges<V> clonedLayer = TransactionalMemory.getTransactionalMemoryLayer(clone);
+			final ListChanges<V> clonedLayer = getTransactionalMemoryLayer(clone);
 			if (clonedLayer != null) {
 				clonedLayer.getRemovedItems().addAll(layer.getRemovedItems());
 				clonedLayer.getAddedItems().putAll(layer.getAddedItems());

@@ -10,6 +10,7 @@
     <option name="ignoredFiles">
       <set>
         <option value="$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/workaround/pom.xml" />
+        <option value="$PROJECT_DIR$/jacoco/pom.xml" />
         <option value="$PROJECT_DIR$/roaringBitmap/pom.xml" />
         <option value="$PROJECT_DIR$/workaround/grpc/pom.xml" />
         <option value="$PROJECT_DIR$/workaround/roaringBitmap/pom.xml" />

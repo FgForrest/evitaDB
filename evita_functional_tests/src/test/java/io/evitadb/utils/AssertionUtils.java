@@ -26,9 +26,9 @@ package io.evitadb.utils;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -38,7 +38,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -57,7 +56,6 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AssertionUtils {
-	private static final UUID MOCK_SESSION_ID = UUID.randomUUID();
 
 	/**
 	 * Compares computation result of the formula with the expected contents and reports failure when the contents
@@ -106,24 +104,23 @@ public class AssertionUtils {
 	 * after transactional memory is committed in `verifyAfterCommit` lambda.
 	 */
 	public static <S, X, T extends TransactionalLayerProducer<X, S>> void assertStateAfterCommit(T tested, Consumer<T> doInTransaction, BiConsumer<T, S> verifyAfterCommit) {
-		TransactionalMemory.bindSession(
-			MOCK_SESSION_ID,
+		Transaction.executeInTransactionIfProvided(
+			Transaction.createMockTransactionForTests(),
 			() -> {
-				assertFalse(TransactionalMemory.isTransactionalMemoryAvailable());
-				TransactionalMemory.open(MOCK_SESSION_ID);
-
 				AtomicReference<S> copyHolder = new AtomicReference<>();
-				TransactionalMemory.addTransactionCommitHandler(MOCK_SESSION_ID, transactionalLayer -> {
+				final Transaction transaction = Transaction.getTransaction().orElseThrow();
+				transaction.addTransactionCommitHandler(transactionalLayer -> {
 					final S stateCopyWithCommittedChanges = transactionalLayer.getStateCopyWithCommittedChanges(tested, null);
 					copyHolder.set(stateCopyWithCommittedChanges);
 				});
 
 				try {
 					doInTransaction.accept(tested);
-					TransactionalMemory.commit(MOCK_SESSION_ID);
 				} catch (Throwable ex) {
-					TransactionalMemory.rollback(MOCK_SESSION_ID);
+					transaction.setRollbackOnly();
 					throw ex;
+				} finally {
+					transaction.close();
 				}
 
 				final S committedCopy = copyHolder.get();
@@ -137,21 +134,20 @@ public class AssertionUtils {
 	 * after transactional memory is rollbacked in `verifyAfterRollback` lambda.
 	 */
 	public static <S, X, T extends TransactionalLayerProducer<X, S>> void assertStateAfterRollback(T tested, Consumer<T> doInTransaction, BiConsumer<T, S> verifyAfterRollback) {
-		TransactionalMemory.bindSession(
-			MOCK_SESSION_ID,
+		Transaction.executeInTransactionIfProvided(
+			Transaction.createMockTransactionForTests(),
 			() -> {
-				assertFalse(TransactionalMemory.isTransactionalMemoryAvailable());
-				TransactionalMemory.open(MOCK_SESSION_ID);
-
 				AtomicReference<S> copyHolder = new AtomicReference<>();
-				TransactionalMemory.addTransactionCommitHandler(MOCK_SESSION_ID, transactionalLayer -> {
+				final Transaction transaction = Transaction.getTransaction().orElseThrow();
+				transaction.addTransactionCommitHandler(transactionalLayer -> {
 					final S stateCopyWithCommittedChanges = transactionalLayer.getStateCopyWithCommittedChanges(tested, null);
 					copyHolder.set(stateCopyWithCommittedChanges);
 				});
 
 				doInTransaction.accept(tested);
 
-				TransactionalMemory.rollback(MOCK_SESSION_ID);
+				transaction.setRollbackOnly();
+				transaction.close();
 
 				final S committedCopy = copyHolder.get();
 				verifyAfterRollback.accept(tested, committedCopy);

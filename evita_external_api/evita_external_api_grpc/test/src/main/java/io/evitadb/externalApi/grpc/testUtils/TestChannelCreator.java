@@ -23,7 +23,15 @@
 
 package io.evitadb.externalApi.grpc.testUtils;
 
-import io.evitadb.driver.certificate.ClientCertificateManager;
+import io.evitadb.driver.certificate.ClientCertificateManager.Builder;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
+import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.system.SystemProvider;
+import io.evitadb.utils.Assert;
 import io.grpc.ClientInterceptor;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.NettyChannelBuilder;
@@ -39,25 +47,31 @@ import javax.annotation.Nonnull;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class TestChannelCreator {
-	/**
-	 * Channel used in gRPC tests.
-	 */
-	private static ManagedChannel channel;
 
 	/**
 	 * Builds (first call) or gets the channel instance.
 	 *
-	 * @param interceptor instance of {@link ClientInterceptor} for passing metadata containing session information
-	 * @param port        where gRPC service listens on
-	 * @param <T>         implementation of {@link ClientInterceptor}
+	 * @param interceptor       instance of {@link ClientInterceptor} for passing metadata containing session information
+	 * @param externalApiServer where gRPC service listens on
 	 */
-	public static <T extends ClientInterceptor> ManagedChannel getChannel(@Nonnull T interceptor, int port) {
-		if (channel == null) {
-			channel = NettyChannelBuilder.forAddress("localhost", port)
-				.sslContext(new ClientCertificateManager.Builder().build().buildClientSslContext())
-				.intercept(interceptor)
-				.build();
+	public static ManagedChannel getChannel(@Nonnull ClientSessionInterceptor interceptor, @Nonnull ExternalApiServer externalApiServer) {
+		final ApiOptions apiOptions = externalApiServer.getApiOptions();
+		final int grpcPort = apiOptions.getEndpointConfiguration(GrpcProvider.CODE).getHost()[0].port();
+		final CertificateSettings certificate = apiOptions.certificate();
+		final Builder builder = new Builder();
+		if (certificate.generateAndUseSelfSigned()) {
+			final AbstractApiConfiguration systemEndpoint = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+			Assert.notNull(systemEndpoint, "System endpoint is not enabled!");
+			builder.useGeneratedCertificate(true, systemEndpoint.getHost()[0].hostName(), systemEndpoint.getHost()[0].port());
 		}
-		return channel;
+		return NettyChannelBuilder.forAddress("localhost", grpcPort)
+			.sslContext(
+				builder
+					.build()
+					.buildClientSslContext()
+			)
+			.intercept(interceptor)
+			.build();
 	}
+
 }

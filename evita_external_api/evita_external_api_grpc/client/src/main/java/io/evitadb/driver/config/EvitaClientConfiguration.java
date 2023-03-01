@@ -42,9 +42,9 @@ import java.util.concurrent.TimeUnit;
  * @param port                      The port the gRPC server listens on.
  * @param systemApiPort             The port the system API server listens on.
  * @param useGeneratedCertificate   Whether to use generated certificate by the server for the connection or not.
- * @param trustFetchedCertificate   Whether to trust the server CA certificate or not when it's not trusted CA.
+ * @param trustCertificate          Whether to trust the server CA certificate or not when it's not trusted CA.
  * @param rootCaCertificatePath     A relative path to the root CA certificate. Has to be provided when
- *                                  `useGeneratedCertificate` and `trustFetchedCertificate` flag is disabled and server
+ *                                  `useGeneratedCertificate` and `trustCertificate` flag is disabled and server
  *                                  is using non-trusted CA certificate.
  * @param certificateFolderPath     A relative path to the folder where the client certificate and private key will be located,
  *                                  or if already not present there, downloaded. In the latter, the default path in the
@@ -62,7 +62,7 @@ public record EvitaClientConfiguration(
 	int port,
 	int systemApiPort,
 	boolean useGeneratedCertificate,
-	boolean trustFetchedCertificate,
+	boolean trustCertificate,
 	boolean mtlsEnabled,
 	@Nullable Path rootCaCertificatePath,
 	@Nullable Path certificateFileName,
@@ -94,7 +94,7 @@ public record EvitaClientConfiguration(
 		private int port = DEFAULT_GRPC_API_PORT;
 		private int systemApiPort = DEFAULT_SYSTEM_API_PORT;
 		private boolean useGeneratedCertificate = true;
-		private boolean trustFetchedCertificate = false;
+		private boolean trustCertificate = false;
 		private boolean mtlsEnabled = false;
 		private Path rootCaCertificatePath = null;
 		private Path certificatePath = null;
@@ -129,8 +129,8 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
-		public EvitaClientConfiguration.Builder trustFetchedCertificate(boolean trustFetchedCertificate) {
-			this.trustFetchedCertificate = trustFetchedCertificate;
+		public EvitaClientConfiguration.Builder trustCertificate(boolean trustCertificate) {
+			this.trustCertificate = trustCertificate;
 			return this;
 		}
 
@@ -186,7 +186,7 @@ public record EvitaClientConfiguration(
 				port,
 				systemApiPort,
 				useGeneratedCertificate,
-				trustFetchedCertificate,
+				trustCertificate,
 				mtlsEnabled,
 				rootCaCertificatePath,
 				certificatePath,

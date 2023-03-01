@@ -66,5 +66,5 @@ public interface ExternalApiProviderRegistrar<T extends AbstractApiConfiguration
      * @param externalApiConfiguration configuration parameters for this provider (structure is defined by provider itself)
      */
     @Nonnull
-    ExternalApiProvider register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull T externalApiConfiguration);
+    ExternalApiProvider<T> register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull T externalApiConfiguration);
 }

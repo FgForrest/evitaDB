@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc;
 
+import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.exception.GrpcServerStartFailedException;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.grpc.Server;
@@ -39,9 +40,13 @@ import java.io.IOException;
  * @see GrpcProviderRegistrar
  */
 @RequiredArgsConstructor
-public class GrpcProvider implements ExternalApiProvider {
+public class GrpcProvider implements ExternalApiProvider<GrpcConfig> {
 
 	public static final String CODE = "gRPC";
+
+	@Nonnull
+	@Getter
+	private final GrpcConfig configuration;
 
 	@Getter
 	private final Server server;

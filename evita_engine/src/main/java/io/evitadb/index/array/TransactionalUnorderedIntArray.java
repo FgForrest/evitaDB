@@ -29,7 +29,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.iterator.ConstantIntIterator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalMemory;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import lombok.Getter;
 
@@ -41,9 +40,9 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
 
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayer;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.getTransactionalMemoryLayerIfExists;
-import static io.evitadb.index.transactionalMemory.TransactionalMemory.isTransactionalMemoryAvailable;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
+import static io.evitadb.core.Transaction.isTransactionAvailable;
 
 /**
  * This array keeps unique (distinct) integer values in unordered fashion.
@@ -102,7 +101,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * Method returns the underlying array of record ids.
 	 */
 	public int[] getArray() {
-		final UnorderedIntArrayChanges layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return this.lookup.getArray();
 		} else {
@@ -114,7 +113,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 	 * Method returns subset of underlying array of record ids.
 	 */
 	public int[] getSubArray(int startIndex, int endIndex) {
-		final UnorderedIntArrayChanges layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return Arrays.copyOfRange(this.lookup.getArray(), startIndex, endIndex);
 		} else {
@@ -279,7 +278,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 
 	@Override
 	public UnorderedIntArrayChanges createLayer() {
-		return isTransactionalMemoryAvailable() ? new UnorderedIntArrayChanges() : null;
+		return isTransactionAvailable() ? new UnorderedIntArrayChanges() : null;
 	}
 
 	@Nonnull

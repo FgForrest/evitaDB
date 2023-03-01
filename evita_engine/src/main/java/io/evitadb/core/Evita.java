@@ -561,14 +561,16 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Replaces current catalog reference with updated one. Catalogs
 	 */
-	private void replaceCatalogReference(@Nonnull CatalogContract catalog) {
+	@Nonnull
+	private CatalogContract replaceCatalogReference(@Nonnull CatalogContract catalog) {
 		Assert.notNull(catalog, "Sanity check.");
 		final String catalogName = catalog.getName();
 		// catalog indexes are ConcurrentHashMap - we can do it safely here
 		final AtomicReference<CatalogContract> originalCatalog = new AtomicReference<>();
-		this.catalogs.computeIfPresent(
+		final CatalogContract actualCatalog = this.catalogs.computeIfPresent(
 			catalogName, (cName, currentCatalog) -> {
 				// replace catalog only when reference/pointer differs
+				// TOBEDONE JNO - we should add `&& currentCatalog.getVersion() < catalog.getVersion()` when the commits are linearized
 				if (currentCatalog != catalog) {
 					originalCatalog.set(currentCatalog);
 					// we have to also atomically update the catalog reference in all active sessions
@@ -584,6 +586,8 @@ public final class Evita implements EvitaContract {
 		// notify structural changes callbacks
 		ofNullable(originalCatalog.get())
 			.ifPresent(it -> notifyStructuralChangeObservers(catalog, it));
+
+		return actualCatalog;
 	}
 
 	/**

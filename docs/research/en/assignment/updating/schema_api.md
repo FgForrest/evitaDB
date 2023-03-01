@@ -28,7 +28,7 @@ must strictly correspond to the predefined schema and violations will generate e
 specified at the moment of collection creation.
 
 There are several partial lax modes between strict and lax mode - see
-<SourceClass branch="POC">evita_api/src/main/java/io/evitadb/api/schema/EvolutionMode.java</SourceClass>.
+<SourceClass>[EvolutionMode.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/EvolutionMode.java)</SourceClass>
 
 ### Schema definition example
 

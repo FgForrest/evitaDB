@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql;
 
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.undertow.server.HttpHandler;
 import lombok.Getter;
@@ -37,9 +38,13 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class GraphQLProvider implements ExternalApiProvider {
+public class GraphQLProvider implements ExternalApiProvider<GraphQLConfig> {
 
     public static final String CODE = "graphQL";
+
+    @Nonnull
+    @Getter
+    private final GraphQLConfig configuration;
 
     @Nonnull
     @Getter

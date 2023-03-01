@@ -24,6 +24,12 @@
 package io.evitadb.externalApi.system;
 
 import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.utils.ConsoleWriter;
+import io.evitadb.utils.ConsoleWriter.ConsoleColor;
+import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.StringUtils;
 import io.undertow.server.HttpHandler;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -37,16 +43,56 @@ import javax.annotation.Nonnull;
  * @author Tomáš Pozler, 2023
  */
 @RequiredArgsConstructor
-public class SystemProvider implements ExternalApiProvider {
+public class SystemProvider implements ExternalApiProvider<SystemConfig> {
 	public static final String CODE = "system";
+
+	@Nonnull
+	@Getter
+	private final SystemConfig configuration;
 
 	@Nonnull
 	@Getter
 	private final HttpHandler apiHandler;
 
 	@Nonnull
+	@Getter
+	private final String[] rootCertificateUrls;
+
+	@Nonnull
+	@Getter
+	private final String[] clientCertificateUrls;
+
+	@Nonnull
+	@Getter
+	private final String[] clientPrivateKeyUrls;
+
+	@Nonnull
 	@Override
 	public String getCode() {
 		return CODE;
+	}
+
+	@Override
+	public void afterStart() {
+		for (String certificateUrl : rootCertificateUrls) {
+			ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			ConsoleWriter.write(certificateUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		}
+		for (String certificateUrl : clientCertificateUrls) {
+			ConsoleWriter.write(StringUtils.rightPad("   - client certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			ConsoleWriter.write(certificateUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		}
+		for (String clientPrivateKey : clientPrivateKeyUrls) {
+			ConsoleWriter.write(StringUtils.rightPad("   - client private key served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			ConsoleWriter.write(clientPrivateKey + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("""
+                \n************************* WARNING!!! *************************
+                You use mTLS with automatically generated client certificate.
+                This is not safe for production environments!
+                Supply the certificate for production manually and set `useGeneratedCertificate` to false.
+                ************************* WARNING!!! *************************\n\n""",
+				ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD
+			);
+		}
 	}
 }
