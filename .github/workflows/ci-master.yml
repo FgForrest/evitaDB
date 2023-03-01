@@ -8,6 +8,7 @@ on:
     paths:                         # but react only to changes in code or pipeline definition
       - evita*/**/*.java
       - evita*/**/pom.xml
+      - docker/**.*
       - .github/**.*
 
 concurrency:
