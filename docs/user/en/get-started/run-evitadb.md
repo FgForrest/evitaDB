@@ -185,5 +185,43 @@ API `system` listening on               http://your-domain:5557/system/
 
 </LanguageSpecific>
 <LanguageSpecific to="evitaql,graphql,rest,csharp">
-<Include>docs/user/en/operate/run.md</Include>
+
+### Install Docker
+
+Before we get started, you need to install Docker. You can find instructions for your platform in the
+[Docker documentation](https://docs.docker.com/get-docker/).
+
+### Pull and run image
+
+Once Docker is installed, you need to grab the evitaDB image from
+[Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general) and create a container.
+You can do both in one command using `docker run`. This is the easiest way to run evitaDB for testing purposes:
+
+```shell
+# run on foreground, destroy container after exit, use host ports without NAT
+docker run --name evitadb -i --rm --net=host \ 
+index.docker.io/evitadb/evitadb:latest
+```
+
+When you start the evitaDB server you should see the following information in the console output:
+
+```
+            _ _        ____  ____  
+  _____   _(_) |_ __ _|  _ \| __ ) 
+ / _ \ \ / / | __/ _` | | | |  _ \ 
+|  __/\ V /| | || (_| | |_| | |_) |
+ \___| \_/ |_|\__\__,_|____/|____/ 
+
+You'll see some version here
+Visit us at: https://evitadb.io
+
+Root CA Certificate fingerprint:        You'll see some fingerprint here
+API `graphQL` listening on              https://your-server:5555/gql/
+API `rest` listening on                 https://your-server:5555/rest/
+API `gRPC` listening on                 https://your-server:5556/
+API `system` listening on               http://your-server:5557/system/
+```
+
+More information about running evitaDB Server in Docker is available in the [separate chapter](../operate/run.md).
+
 </LanguageSpecific>
