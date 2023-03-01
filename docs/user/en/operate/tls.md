@@ -29,7 +29,7 @@ published: false
          An entity that proves itself with a private key is considered authentic - a private key is similar to an ID card
          [see more](https://en.wikipedia.org/wiki/Public-key_cryptography)
       </dd>
-      <dt>private key</dt>
+      <dt>public key</dt>
       <dd>
          the public key is the second part public/private key pair - it may be freely distributed  and its ownership 
          does not entitle to anything, it only serves to prove the authenticity of the private key 

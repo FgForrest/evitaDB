@@ -187,6 +187,7 @@ You can control all evitaDB settings in the container using environment variable
 ## run interactively, use host ports without NAT, specify your own data directory and additional configuration options
 docker run --name evitadb -i --net=host \
 -v "__data_dir__:/evita/data" \
+-v "__certificate_dir__:/evita/certificates" \
 -e "EVITA_JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5000" \
 -e "EVITA_ARGS=-Dapi.endpoints.graphQL.enabled=false -Dapi.endpoints.grpc.enabled=false" \
 index.docker.io/evitadb/evitadb:latest
@@ -214,6 +215,10 @@ You can take advantage of all the following variables:
         <Tr>
             <Td>**`EVITA_STORAGE_DIR`**</Td>
             <Td>path to storage directory, default: `/evita/data`</Td>
+        </Tr>
+        <Tr>
+            <Td>**`EVITA_CERTIFICATE_DIR`**</Td>
+            <Td>path to directory with automatically generated server certificates. Default: `/evita/certificates`</Td>
         </Tr>
         <Tr>
             <Td>**`EVITA_JAVA_OPTS`**</Td>
@@ -252,10 +257,12 @@ You can also provide the entire configuration YAML file using a special volume i
 docker run --name evitadb -i --net=host \
 -v "__config_file__:/evita/conf/evita-configuration.yaml" \ 
 -v "__data_dir__:/evita/data" \
+-v "__certificate_dir__:/evita/certificates" \
 index.docker.io/evitadb/evitadb:latest
 ```
 
-You need to replace `__config_file__` with the path to the YAML file on the host file system.
+You need to replace `__config_file__` with the path to the YAML file and `__data_dir__`, `__certificate_dir__` with 
+existing folders on the host file system.
 
 <Note type="info">
 The contents should match the default configuration file 
@@ -310,6 +317,7 @@ You can completely override the default logback configuration by providing your 
 docker run --name evitadb -i --net=host \
 -v "__config_file__:/evita/conf/evita-configuration.yaml" \ 
 -v "__data_dir__:/evita/data" \
+-v "__certificate_dir__:/evita/certificates" \
 -v "__path_to_log_file__:/evita/logback.xml" \
 index.docker.io/evitadb/evitadb:latest
 ```
@@ -350,6 +358,7 @@ services:
       - EVITA_JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5000
     volumes:
       - ./path/toYourDataDirectory:/evita/data
+      - ./path/toYourCertificateDirectory:/evita/certificates
     ports:
       - 5000:5000
       - 5555:5555

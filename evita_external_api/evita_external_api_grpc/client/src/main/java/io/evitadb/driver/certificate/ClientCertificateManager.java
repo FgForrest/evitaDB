@@ -60,6 +60,8 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Main purpose of this class is to build the {@link SslContext} for the client. It contains a builder that is used to
  * collect and hold all necessary parameters from EvitaClientConfiguration and modify them if necessary to be
@@ -112,12 +114,16 @@ public class ClientCertificateManager {
 		}
 
 		public Builder clientCertificateFilePath(@Nullable Path clientCertificateFilePath) {
-			this.clientCertificateFilePath = certificateClientFolderPath.resolve(clientCertificateFilePath);
+			this.clientCertificateFilePath = ofNullable(clientCertificateFilePath)
+				.map(it -> certificateClientFolderPath.resolve(it))
+				.orElse(null);
 			return this;
 		}
 
 		public Builder clientPrivateKeyFilePath(@Nullable Path clientPrivateKeyFilePath) {
-			this.clientPrivateKeyFilePath = certificateClientFolderPath.resolve(clientPrivateKeyFilePath);
+			this.clientPrivateKeyFilePath = ofNullable(clientPrivateKeyFilePath)
+				.map(it -> certificateClientFolderPath.resolve(it))
+				.orElse(null);
 			return this;
 		}
 

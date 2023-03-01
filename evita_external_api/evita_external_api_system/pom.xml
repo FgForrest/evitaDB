@@ -25,14 +25,17 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<artifactId>evita_external_api_system</artifactId>
+	<packaging>jar</packaging>
+	<name>evitaDB - System API</name>
+	<description>Module contains System API for evitaDB.</description>
 	<parent>
-		<artifactId>evita_external_api</artifactId>
 		<groupId>io.evitadb</groupId>
+		<artifactId>evita_external_api</artifactId>
 		<version>0.5-SNAPSHOT</version>
 	</parent>
-	<modelVersion>4.0.0</modelVersion>
 
-	<artifactId>evita_external_api_system</artifactId>
 	<dependencies>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
@@ -54,11 +57,5 @@
 			<version>${project.parent.version}</version>
 		</dependency>
 	</dependencies>
-
-	<properties>
-		<maven.compiler.source>17</maven.compiler.source>
-		<maven.compiler.target>17</maven.compiler.target>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-	</properties>
 
 </project>
