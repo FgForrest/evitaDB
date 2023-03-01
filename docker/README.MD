@@ -16,6 +16,7 @@ docker run -i --rm --net=host -v "__config_file__:/evita/conf/evita-configuratio
 ## Environment variables
 - **EVITA_CONFIG_FILE** - Path to configuration file. Default: `/evita/conf/evita-configuration.yaml`
 - **EVITA_STORAGE_DIR** - Path to storage directory. Default: `/evita/data`
+- **EVITA_CERTIFICATE_DIR** - Path to directory with automatically generated server certificates. Default: `/evita/certificates`
 - **EVITA_JAVA_OPTS** - Java commandline options. Default: none (empty string)
 - **EVITA_ARGS** - Evita Server command-line arguments. Default: none (empty string) 
 
