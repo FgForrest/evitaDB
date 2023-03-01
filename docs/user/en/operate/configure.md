@@ -87,11 +87,9 @@ ${argument_name:defaultValue}
 TLS support is enabled by default and cannot be disabled. It's configured in the `certificate` subsection of the `api`.
 It allows configuring these settings:
 
-
-
-<Dl>
-  <Dt>generateAndUseSelfSigned</Dt>
-  <Dd>
+<dl>
+  <dt>generateAndUseSelfSigned</dt>
+  <dd>
     <Note type="info">
 
     <NoteTitle toggles="false">
@@ -107,9 +105,9 @@ It allows configuring these settings:
     <Term document="docs/user/en/operate/tls.md">certificate</Term> and its 
     <Term document="docs/user/en/operate/tls.md">private key</Term> are automatically generated on server startup 
     and used to communicate with clients.
-  </Dd>
-  <Dt>folderPath</Dt>
-  <Dd>
+  </dd>
+  <dt>folderPath</dt>
+  <dd>
     <Note type="info">
 
     <NoteTitle toggles="false">
@@ -123,9 +121,9 @@ It allows configuring these settings:
 
     It represents a path to a folder where the generated authority certificate and its private key are stored.
     This setting is used only when `generateAndUseSelfSigned` is set to `true`.
-  </Dd>
-  <Dt>custom</Dt>
-  <Dd>
+  </dd>
+  <dt>custom</dt>
+  <dd>
     This section allows you to configure an externally supplied <Term document="docs/user/en/operate/tls.md">certificate</Term>. 
     It is only used if the `generateAndUseSelfSigned` is set to `false`.
 
@@ -159,8 +157,8 @@ It allows configuring these settings:
     described in great detail in [this article](https://medium.com/expedia-group-tech/how-to-import-public-certificates-into-javas-truststore-from-a-browser-a35e49a806dc).
 
     </Note>
-  </Dd>
-</Dl>
+  </dd>
+</dl>
 
 If no custom certificate is configured, the server will not start and an exception will be thrown. The server doesn't
 provide an unsecured connection for security reasons.
