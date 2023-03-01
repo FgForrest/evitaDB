@@ -3,12 +3,12 @@ title: Configuration
 perex:
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
+proofreading: 'needed'
 published: false
 ---
 
-**Work in progress**
-
-This article will contain description of evitaDB server configuration options.
+The evitaDB server is configured in YAML format and its default settings are best described by the following code
+snippet:
 
 ```yaml
 server:
@@ -37,7 +37,7 @@ cache:
 
 api:
   ioThreads: 4
-  certificate:
+  certificate:                                    # [see TLS Configuration](#tls-configuration) 
     generateAndUseSelfSigned: true
     folderPath: './evita-server-certificates/'
     custom:
@@ -61,6 +61,22 @@ api:
       enabled: true
       host: localhost:5557
 ```
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Where the default configuration bundled with Docker image is located?
+</NoteTitle>
+
+The default configuration file is located in the file <SourceClass>docker/evita-configuration.yaml</SourceClass>.
+As you can see it contains variables that allow propagating arguments from the command line / environment variables
+located at the server start-up. The format used in this file is:
+
+```
+${argument_name:defaultValue}
+```
+</Note>
 
 ## TLS Configuration
 
