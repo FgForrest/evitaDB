@@ -47,6 +47,7 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
@@ -75,6 +76,12 @@ public class CatalogSchemaBuildingContext {
 	 */
 	@Nonnull
 	private final Set<String> registeredCustomEnums = createHashSet(32);
+	/**
+	 * Reference to OpenAPI instance when built.
+	 */
+	@Nonnull
+	@Getter
+	private final AtomicReference<OpenAPI> openApi = new AtomicReference<>();
 
 	/**
 	 * Routing handler is used to register REST handlers for each mapping created in OpenAPI schema.
@@ -161,6 +168,7 @@ public class CatalogSchemaBuildingContext {
 		openApi.setPaths(paths);
 
 		validateReferences(openApi);
+		this.openApi.set(openApi);
 		return openApi;
 	}
 

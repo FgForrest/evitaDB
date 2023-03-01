@@ -68,9 +68,11 @@ public class OpenApiOperationParameter {
 		parameter.name(this.name);
 		parameter.description(this.description);
 		if (deprecationNotice != null) {
-			parameter.deprecated(true);
+			parameter.deprecated(true); // openapi doesn't support false here
 		}
-		parameter.required(this.type instanceof OpenApiNonNull);
+		if (this.type instanceof OpenApiNonNull) {
+			parameter.required(true); // openapi doesn't support false here
+		}
 		parameter.schema(this.type.toSchema());
 		return parameter;
 	}

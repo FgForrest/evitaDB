@@ -117,7 +117,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 		children.forEach(property -> {
 			Assert.isPremiseValid(
-				containerBuilder.hasProperty(property.getName()),
+				!containerBuilder.hasProperty(property.getName()),
 				() -> createSchemaBuildingError(
 					"There is already defined property `" + property.getName() + "` with container name `" + containerName + "`."
 				)

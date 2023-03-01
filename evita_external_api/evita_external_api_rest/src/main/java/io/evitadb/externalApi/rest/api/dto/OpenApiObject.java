@@ -60,7 +60,7 @@ public class OpenApiObject implements OpenApiComplexType {
 
 	@Nonnull
 	private final String name;
-	@Nonnull
+	@Nullable
 	private final String description;
 	@Nullable
 	private final String deprecationNotice;
@@ -119,7 +119,7 @@ public class OpenApiObject implements OpenApiComplexType {
 		schema.name(this.name);
 		schema.description(this.description);
 		if (this.deprecationNotice != null) {
-			schema.deprecated(true);
+			schema.deprecated(true); // openapi doesn't support false here
 		}
 
 		this.properties.forEach(prop -> {
@@ -175,7 +175,7 @@ public class OpenApiObject implements OpenApiComplexType {
 		}
 
 		@Nonnull
-		public Builder description(@Nonnull String description) {
+		public Builder description(@Nullable String description) {
 			this.description = description;
 			return this;
 		}
@@ -222,7 +222,6 @@ public class OpenApiObject implements OpenApiComplexType {
 			return this;
 		}
 
-		@Nonnull
 		public boolean hasProperty(@Nonnull String name) {
 			return this.properties.containsKey(name);
 		}
@@ -232,14 +231,6 @@ public class OpenApiObject implements OpenApiComplexType {
 			Assert.isPremiseValid(
 				name != null && !name.isEmpty(),
 				() -> new OpenApiSchemaBuildingError("Missing object name.")
-			);
-			Assert.isPremiseValid(
-				description != null && !description.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Object `" + name + "` is missing description.")
-			);
-			Assert.isPremiseValid(
-				properties.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Object `" + name + "` is missing properties.")
 			);
 			if (!unionObjects.isEmpty()) {
 				Assert.isPremiseValid(

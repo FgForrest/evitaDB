@@ -213,7 +213,8 @@ public class EntityObjectBuilder {
 
 		if (!entitySchema.getLocales().isEmpty()) {
 			final OpenApiObject.Builder localizedAttributesObjectBuilder = LocalizedAttributesDescriptor.THIS
-				.to(objectBuilderTransformer);
+				.to(objectBuilderTransformer)
+				.name(LocalizedAttributesDescriptor.THIS.name(entitySchema));
 			entitySchema.getLocales().forEach(locale ->
 				localizedAttributesObjectBuilder.property(p -> p
 					.name(locale.toLanguageTag())
@@ -312,17 +313,19 @@ public class EntityObjectBuilder {
 		});
 
 		final OpenApiTypeReference globalDataObject = entitySchemaBuildingCtx.getCatalogCtx().registerType(globalDataObjectBuilder.build());
-		final OpenApiTypeReference localizedDataForLocaleObject = entitySchemaBuildingCtx.getCatalogCtx().registerType(localizedDataForLocaleObjectBuilder.build());
-
 		final OpenApiProperty globalDataProperty = SectionedAssociatedDataDescriptor.GLOBAL
 			.to(propertyBuilderTransformer)
 			.type(nonNull(globalDataObject))
 			.build();
 		associatedDataObject.property(globalDataProperty);
 
+		final OpenApiTypeReference localizedDataForLocaleObject = entitySchemaBuildingCtx.getCatalogCtx().registerType(localizedDataForLocaleObjectBuilder.build());
+
+
 		if (!entitySchema.getLocales().isEmpty()) {
 			final OpenApiObject.Builder localizedDataObjectBuilder = LocalizedAssociatedDataDescriptor.THIS
-				.to(objectBuilderTransformer);
+				.to(objectBuilderTransformer)
+				.name(LocalizedAssociatedDataDescriptor.THIS.name(entitySchema));
 			entitySchema.getLocales().forEach(locale ->
 				localizedDataObjectBuilder.property(p -> p
 					.name(locale.toLanguageTag())

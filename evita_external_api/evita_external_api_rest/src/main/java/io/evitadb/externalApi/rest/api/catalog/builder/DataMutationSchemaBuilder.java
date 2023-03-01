@@ -34,11 +34,13 @@ import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescr
 import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
+import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
@@ -64,14 +66,16 @@ public class DataMutationSchemaBuilder {
 		pathItemBuilder.buildAndAddUpsertMutationOperationIntoPathItem(entitySchemaBuildingContext,
 			buildUpsertEntitySchema(false),
 			pathItemWithPrimaryKeyInPath,
-			true);
+			true
+		);
 
 		final PathItem pathItem = pathItemBuilder.buildAndAddDeleteEntitiesByQueryPathItem(entitySchemaBuildingContext);
 		if (entitySchemaBuildingContext.getSchema().isWithGeneratedPrimaryKey()) {
 			pathItemBuilder.buildAndAddUpsertMutationOperationIntoPathItem(entitySchemaBuildingContext,
 				buildUpsertEntitySchema(true),
 				pathItem,
-				false);
+				false
+			);
 		}
 	}
 

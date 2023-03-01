@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.model;
 
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
@@ -49,5 +50,15 @@ public interface SectionedAssociatedDataDescriptor extends AssociatedDataDescrip
 			Contains localized associated data.
 			""")
 		// type is expected to be a map with individual associated data
+		.build();
+
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("*SectionedAssociatedData")
+		.description("""
+			Associated data carry additional data entries that are never used for filtering / sorting but may be needed to be fetched
+			along with entity in order to present data to the target consumer (i.e. user / API / bot). Associated data may be stored
+			in slower storage and may contain wide range of data types - from small ones (i.e. numbers, strings, dates) up to large
+			binary arrays representing entire files (i.e. pictures, documents).
+			""")
 		.build();
 }

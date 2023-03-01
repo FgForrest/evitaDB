@@ -88,6 +88,7 @@ public class RESTApiHandlerRegistrar {
 			.evita(context.getEvita())
 			.localized(localizedUrl)
 			.pathItem(pathItem)
+			.openApi(context.getOpenApi()::get)
 			.build());
 
 		routingHandler
@@ -111,6 +112,7 @@ public class RESTApiHandlerRegistrar {
 			.evita(context.getEvita())
 			.localized(localizedUrl)
 			.pathItem(pathItem)
+			.openApi(context.getOpenApi()::get)
 			.build());
 		routingHandler.post(pathToEntityList, handler);
 	}
@@ -131,6 +133,7 @@ public class RESTApiHandlerRegistrar {
 			.evita(context.getEvita())
 			.localized(localizedUrl)
 			.pathItem(pathItem)
+			.openApi(context.getOpenApi()::get)
 			.build());
 		routingHandler.post(pathToEntityList, handler);
 	}
@@ -148,6 +151,7 @@ public class RESTApiHandlerRegistrar {
 				.pathItem(pathItem)
 				.catalog(context.getCatalog())
 				.evita(context.getEvita())
+				.openApi(context.getOpenApi()::get)
 				.localized(localizedUrl)
 				.build()));
 	}
@@ -166,6 +170,7 @@ public class RESTApiHandlerRegistrar {
 					.pathItem(pathItem)
 					.catalog(context.getCatalog())
 					.evita(context.getEvita())
+					.openApi(context.getOpenApi()::get)
 					.localized(localizedUrl)
 					.build()));
 	}
@@ -173,12 +178,14 @@ public class RESTApiHandlerRegistrar {
 	/**
 	 * Register handler for list of collections
 	 */
-	public void registerCollectionsHandler(@Nonnull String collectionsSchemaName, @Nonnull PathItem pathItem) {
+	public void registerCollectionsHandler(@Nonnull String collectionsSchemaName,
+	                                       @Nonnull PathItem pathItem) {
 		routingHandler
 			.get(UrlPathCreator.URL_PATH_SEPARATOR + collectionsSchemaName, new CollectionsHandler(
 				RESTApiContext.builder()
 					.objectMapper(objectMapper)
 					.pathItem(pathItem)
+					.openApi(context.getOpenApi()::get)
 					.catalog(context.getCatalog())
 					.evita(context.getEvita())
 					.build()));
@@ -197,6 +204,7 @@ public class RESTApiHandlerRegistrar {
 			.entityType(schemaBuildingContext.getSchema().getName())
 			.evita(context.getEvita())
 			.pathItem(pathItem)
+			.openApi(context.getOpenApi()::get)
 			.build(),
 			withPrimaryKeyInUrl);
 		if (withPrimaryKeyInUrl) {
@@ -215,6 +223,7 @@ public class RESTApiHandlerRegistrar {
 			.entityType(schemaBuildingContext.getSchema().getName())
 			.evita(context.getEvita())
 			.pathItem(pathItem)
+			.openApi(context.getOpenApi()::get)
 			.build());
 		routingHandler.delete(pathToEntity, handler);
 	}
@@ -228,6 +237,7 @@ public class RESTApiHandlerRegistrar {
 			.entityType(schemaBuildingContext.getSchema().getName())
 			.evita(context.getEvita())
 			.pathItem(pathItem)
+			.openApi(context.getOpenApi()::get)
 			.build());
 		routingHandler.delete(pathToEntity, handler);
 	}
@@ -244,6 +254,7 @@ public class RESTApiHandlerRegistrar {
 			.entityType(schemaBuildingContext.getSchema().getName())
 			.evita(context.getEvita())
 			.pathItem(pathItem)
+			.openApi(context.getOpenApi()::get)
 			.build());
 
 		routingHandler.get(urlPathToEntity, handler);
@@ -252,13 +263,15 @@ public class RESTApiHandlerRegistrar {
 	/**
 	 * Register handler for OpenAPI schema
 	 */
-	public void registerOpenApiSchemaHandler(@Nonnull Supplier<OpenAPI> openApiSupplier, @Nonnull PathItem pathItem) {
+	public void registerOpenApiSchemaHandler(@Nonnull PathItem pathItem) {
 		routingHandler
 			.get("", new OpenApiSchemaHandler(
 				RESTApiContext.builder()
 					.objectMapper(objectMapper)
-					.openApi(openApiSupplier)
+					.openApi(context.getOpenApi()::get)
 					.pathItem(pathItem)
+					.evita(context.getEvita())
+					.catalog(context.getCatalog())
 					.build()
 			));
 	}

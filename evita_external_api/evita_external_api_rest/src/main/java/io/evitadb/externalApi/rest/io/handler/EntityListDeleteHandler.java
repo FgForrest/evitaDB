@@ -30,6 +30,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.rest.api.catalog.builder.PathItemsCreator;
+import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
 import io.evitadb.externalApi.rest.io.handler.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.io.handler.constraint.OrderByConstraintResolver;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintResolver;
@@ -84,9 +85,9 @@ public class EntityListDeleteHandler extends EntityListHandler {
 	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) throws IOException {
 		final EntityQueryRequestData requestData = getRequestData(exchange);
 
-		final FilterBy filterBy = requestData.isFilterBySet()?(FilterBy) new FilterConstraintResolver(restApiContext, restApiContext.getPathItem().getDelete()).resolve(PathItemsCreator.FILTER_BY, requestData.getFilterBy()):null;
-		final OrderBy orderBy = requestData.isOrderBySet()?(OrderBy) new OrderByConstraintResolver(restApiContext, restApiContext.getPathItem().getDelete()).resolve(PathItemsCreator.ORDER_BY, requestData.getOrderBy()):null;
-		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiContext, restApiContext.getPathItem().getDelete()).resolve(PathItemsCreator.REQUIRE, requestData.getRequire()):null;
+		final FilterBy filterBy = requestData.isFilterBySet()?(FilterBy) new FilterConstraintResolver(restApiContext, restApiContext.getPathItem().getDelete()).resolve(QueryRequestBodyDescriptor.FILTER_BY.name(), requestData.getFilterBy()):null;
+		final OrderBy orderBy = requestData.isOrderBySet()?(OrderBy) new OrderByConstraintResolver(restApiContext, restApiContext.getPathItem().getDelete()).resolve(QueryRequestBodyDescriptor.ORDER_BY.name(), requestData.getOrderBy()):null;
+		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiContext, restApiContext.getPathItem().getDelete()).resolve(QueryRequestBodyDescriptor.REQUIRE.name(), requestData.getRequire()):null;
 
 		return Query.query(
 			collection(restApiContext.getEntityType()),

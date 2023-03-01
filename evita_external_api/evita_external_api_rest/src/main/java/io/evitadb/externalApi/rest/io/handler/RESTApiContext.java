@@ -36,6 +36,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.function.Supplier;
 
 /**
@@ -53,7 +54,7 @@ public class RESTApiContext {
 	@Nonnull private final Supplier<OpenAPI> openApi;
 	@Nonnull private final PathItem pathItem;
 	@Nonnull private final CatalogContract catalog;
-	@Nonnull private final String entityType;
+	@Nullable private final String entityType;
 	private final boolean localized;
 
 	/**

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
 import io.evitadb.externalApi.http.MimeTypes;
+import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
 import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.dto.OpenApiType;
@@ -48,9 +49,6 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PathItemsCreator {
-	public static final String FILTER_BY = "filterBy";
-	public static final String ORDER_BY = "orderBy";
-	public static final String REQUIRE = "require";
 
 	public static final String STATUS_CODE_OK = String.valueOf(StatusCodes.OK);
 	public static final String STATUS_CODE_INTERNAL_SERVER_ERROR = String.valueOf(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -115,26 +113,13 @@ public class PathItemsCreator {
 
 	public static ApiResponse createSchemaResponse(@Nonnull OpenApiType type) {
 		return new ApiResponse()
+			.description("Request was successful.")
 			.content(createApplicationJsonContent(createMediaType(type)));
 	}
 
 	public static ApiResponse createSchemaArrayResponse(@Nonnull OpenApiSimpleType type) {
 		return new ApiResponse()
+			.description("Request was successful.")
 			.content(createApplicationJsonContent(createMediaType(arrayOf(type))));
-	}
-
-
-	@Nonnull
-	public static OpenApiObject createRequestBodyObject(@Nonnull OpenApiSimpleType filterContainer,
-	                                                    @Nonnull OpenApiSimpleType orderContainer,
-	                                                    @Nullable OpenApiSimpleType requireContainer) {
-		final OpenApiObject.Builder objectBuilder = newObject()
-			.property(p -> p.name(FILTER_BY).type(filterContainer))
-			.property(p -> p.name(ORDER_BY).type(orderContainer));
-
-		if(requireContainer != null) {
-			objectBuilder.property(p -> p.name(REQUIRE).type(requireContainer));
-		}
-		return objectBuilder.build();
 	}
 }

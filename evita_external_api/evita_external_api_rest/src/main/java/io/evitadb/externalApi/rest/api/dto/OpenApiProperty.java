@@ -46,7 +46,7 @@ public class OpenApiProperty {
 
 	@Nonnull
 	private final String name;
-	@Nonnull
+	@Nullable
 	private final String description;
 	@Nullable
 	private final String deprecationNotice;
@@ -73,15 +73,26 @@ public class OpenApiProperty {
 		return type instanceof OpenApiNonNull;
 	}
 
+	/**
+	 * Returns OpenAPI schema representing property type
+	 */
 	@Nonnull
-	public Schema<Object> getSchema() {
+	public Schema<?> getSchema() {
+		return toSchema(this.type);
+	}
+
+	/**
+	 * Converts type to OpenAPI schema equivalent.
+	 */
+	@Nonnull
+	private Schema<?> toSchema(@Nonnull OpenApiSimpleType type) {
 		final Schema<Object> schema = new Schema<>();
-		if (this.type instanceof OpenApiScalar scalarType) {
+		if (type instanceof OpenApiScalar scalarType) {
 			final Schema<?> scalarTypeSchema = scalarType.toSchema();
 
 			schema.description(this.description);
 			if (this.deprecationNotice != null) {
-				schema.deprecated(true);
+				schema.deprecated(true); // openapi doesn't support false here
 			}
 
 			schema.type(scalarTypeSchema.getType());
@@ -102,16 +113,16 @@ public class OpenApiProperty {
 				schema.minItems(scalarTypeSchema.getMinItems());
 				schema.maxItems(scalarTypeSchema.getMaxItems());
 			}
-		} else if (this.type instanceof OpenApiTypeReference referenceType) {
+		} else if (type instanceof OpenApiTypeReference referenceType) {
 			schema.$ref(referenceType.toSchema().get$ref());
 			// When using ref description and deprecated flag cannot be used because of OpenAPI limitations.
 			// There is way to do that using oneOf but that generates ugly clients.
-		} else if (this.type instanceof OpenApiArray arrayType) {
+		} else if (type instanceof OpenApiArray arrayType) {
 			final Schema<?> arrayTypeSchema = arrayType.toSchema();
 
 			schema.description(this.description);
 			if (this.deprecationNotice != null) {
-				schema.deprecated(true);
+				schema.deprecated(true); // openapi doesn't support false here
 			}
 
 			schema.type(arrayTypeSchema.getType());
@@ -119,6 +130,8 @@ public class OpenApiProperty {
 
 			schema.minItems(arrayTypeSchema.getMinItems());
 			schema.maxItems(arrayTypeSchema.getMaxItems());
+		} else if (type instanceof OpenApiNonNull nonNullType) {
+			return toSchema(nonNullType.getWrappedType());
 		} else {
 			throw new OpenApiSchemaBuildingError("Unknown type `" + this.type.getClass().getName() + "`.");
 		}
@@ -150,7 +163,7 @@ public class OpenApiProperty {
 		}
 
 		@Nonnull
-		public Builder description(@Nonnull String description) {
+		public Builder description(@Nullable String description) {
 			this.description = description;
 			return this;
 		}
@@ -172,10 +185,6 @@ public class OpenApiProperty {
 			Assert.isPremiseValid(
 				name != null && !name.isEmpty(),
 				() -> new OpenApiSchemaBuildingError("Missing property name.")
-			);
-			Assert.isPremiseValid(
-				description != null && !description.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Property `" + name + "` is missing description.")
 			);
 			Assert.isPremiseValid(
 				type != null,

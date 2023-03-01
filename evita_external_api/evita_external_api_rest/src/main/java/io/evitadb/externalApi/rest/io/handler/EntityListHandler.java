@@ -36,6 +36,7 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.PathItemsCreator;
+import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
 import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RESTApiRequiredParameterMissingException;
 import io.evitadb.externalApi.rest.io.handler.constraint.FilterConstraintResolver;
@@ -99,9 +100,9 @@ public class EntityListHandler extends RESTApiHandler {
 	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) throws IOException {
 		final EntityQueryRequestData requestData = getRequestData(exchange);
 
-		final FilterBy filterBy = requestData.isFilterBySet()?(FilterBy) new FilterConstraintResolver(restApiContext, restApiContext.getPathItem().getPost()).resolve(PathItemsCreator.FILTER_BY, requestData.getFilterBy()):null;
-		final OrderBy orderBy = requestData.isOrderBySet()?(OrderBy) new OrderByConstraintResolver(restApiContext, restApiContext.getPathItem().getPost()).resolve(PathItemsCreator.ORDER_BY, requestData.getOrderBy()):null;
-		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiContext, restApiContext.getPathItem().getPost()).resolve(PathItemsCreator.REQUIRE, requestData.getRequire()):null;
+		final FilterBy filterBy = requestData.isFilterBySet()?(FilterBy) new FilterConstraintResolver(restApiContext, restApiContext.getPathItem().getPost()).resolve(QueryRequestBodyDescriptor.FILTER_BY.name(), requestData.getFilterBy()):null;
+		final OrderBy orderBy = requestData.isOrderBySet()?(OrderBy) new OrderByConstraintResolver(restApiContext, restApiContext.getPathItem().getPost()).resolve(QueryRequestBodyDescriptor.ORDER_BY.name(), requestData.getOrderBy()):null;
+		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiContext, restApiContext.getPathItem().getPost()).resolve(QueryRequestBodyDescriptor.REQUIRE.name(), requestData.getRequire()):null;
 
 		return Query.query(
 			collection(restApiContext.getEntityType()),

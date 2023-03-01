@@ -98,6 +98,14 @@ public interface ParamDescriptor {
         .type(nullable(Boolean.class))
         .build();
 
+    PropertyDescriptor LIMIT = PropertyDescriptor.builder()
+        .name("limit")
+        .description("""
+            Limits number of returned entities.
+            """)
+        .type(nullable(Integer.class))
+        .build();
+
     PropertyDescriptor FETCH_ALL = PropertyDescriptor.builder()
         .name("fetchAll")
         .description("""

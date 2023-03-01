@@ -128,7 +128,10 @@ public class OpenApiScalar implements OpenApiSimpleType {
 			() -> new OpenApiSchemaBuildingError("OpenAPI scalar doesn't support Java type `" + javaType.getName() + "`.")
 		);
 		Assert.isPremiseValid(
-			EvitaDataTypes.isSupportedType(javaType),
+			EvitaDataTypes.isSupportedType(javaType) ||
+				ComplexDataObject.class.isAssignableFrom(javaType) ||
+				Any.class.isAssignableFrom(javaType) ||
+				GenericObject.class.isAssignableFrom(javaType),
 			() -> new OpenApiSchemaBuildingError("OpenAPI scalar doesn't support type `" + javaType.getName() + "`.")
 		);
 		this.javaType = javaType;

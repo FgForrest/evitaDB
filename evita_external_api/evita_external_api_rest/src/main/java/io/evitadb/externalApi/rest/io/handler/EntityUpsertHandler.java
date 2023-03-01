@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.rest.api.catalog.builder.PathItemsCreator;
+import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.data.mutation.RESTEntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RESTMutationObjectParser;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintResolver;
@@ -108,7 +109,7 @@ public class EntityUpsertHandler extends RESTApiHandler {
 
 	@Nullable
 	private EntityContentRequire[] getEntityContentRequires(EntityUpsertRequestData requestData) {
-		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiContext, restApiContext.getPathItem().getPost()).resolve(PathItemsCreator.REQUIRE, requestData.getRequire()):null;
+		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiContext, restApiContext.getPathItem().getPost()).resolve(QueryRequestBodyDescriptor.REQUIRE.name(), requestData.getRequire()):null;
 		if(require != null) {
 			final Optional<RequireConstraint> entityFetch = Arrays.stream(require.getChildren()).filter(requireConstraint -> requireConstraint.getClass().equals(EntityFetch.class)).findFirst();
 

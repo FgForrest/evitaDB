@@ -149,8 +149,6 @@ public class CatalogOpenApiBuilder {
 	 * @return OpenAPI specification
 	 */
 	public OpenAPI build() {
-		final AtomicReference<OpenAPI> openApi = new AtomicReference<>();
-
 		setupForCatalog();
 
 		final List<OpenApiTypeReference> entityObjects = new LinkedList<>();
@@ -174,7 +172,7 @@ public class CatalogOpenApiBuilder {
 			// todo lho split apis to data and schema first
 //			pathItemBuilder.buildAndAddGetEntitySchemaPathItem(entitySchemaBuildingContext);
 		});
-		pathItemBuilder.buildAndAddOpenApiSpecificationPathItem(context, openApi::get);
+		pathItemBuilder.buildAndAddOpenApiSpecificationPathItem(context);
 		pathItemBuilder.buildAndAddCollectionsPathItem(context);
 
 		final List<GlobalAttributeSchemaContract> globallyUniqueAttributes = getGloballyUniqueAttributes(context.getCatalog());
@@ -188,8 +186,7 @@ public class CatalogOpenApiBuilder {
 		// register gathered custom constraint schema types
 		constraintSchemaBuildingCtx.getBuiltTypes().forEach(context::registerType);
 
-		openApi.set(context.buildOpenApi());
-		return openApi.get();
+		return context.buildOpenApi();
 	}
 
 	/**
@@ -309,12 +306,12 @@ public class CatalogOpenApiBuilder {
 			entitySchemaBuildingCtx.getCatalogCtx().registerType(entityObjectBuilder.buildEntityObject(false));
 		}
 
-		final EntitySchemaObjectBuilder entitySchemaObjectBuilder = new EntitySchemaObjectBuilder(
-			entitySchemaBuildingCtx,
-			propertyBuilderTransformer,
-			objectBuilderTransformer
-		);
-		entitySchemaObjectBuilder.buildEntitySchemaObject();
+//		final EntitySchemaObjectBuilder entitySchemaObjectBuilder = new EntitySchemaObjectBuilder(
+//			entitySchemaBuildingCtx,
+//			propertyBuilderTransformer,
+//			objectBuilderTransformer
+//		);
+//		entitySchemaObjectBuilder.buildEntitySchemaObject();
 
 		new DataMutationSchemaBuilder(
 			entitySchemaBuildingCtx,

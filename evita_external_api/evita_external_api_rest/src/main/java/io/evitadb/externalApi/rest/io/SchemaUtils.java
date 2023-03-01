@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.io;
 
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.catalog.builder.PathItemsCreator;
+import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
 import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
 import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -141,7 +142,7 @@ public class SchemaUtils {
 	@Nonnull
 	@SuppressWarnings({"rawtypes"})
 	public static Schema getSchemaFromFilterBy(@Nonnull OpenAPI openAPI, @Nonnull Operation operation, @Nonnull String propertyName) {
-		return getSchemaFromOperationProperty(openAPI, operation, propertyName, PathItemsCreator.FILTER_BY);
+		return getSchemaFromOperationProperty(openAPI, operation, propertyName, QueryRequestBodyDescriptor.FILTER_BY.name());
 	}
 
 	/**
@@ -155,7 +156,7 @@ public class SchemaUtils {
 	@Nonnull
 	@SuppressWarnings({"rawtypes"})
 	public static Schema getSchemaFromOrderBy(@Nonnull OpenAPI openAPI, @Nonnull Operation operation, @Nonnull String propertyName) {
-		return getSchemaFromOperationProperty(openAPI, operation, propertyName, PathItemsCreator.ORDER_BY);
+		return getSchemaFromOperationProperty(openAPI, operation, propertyName, QueryRequestBodyDescriptor.ORDER_BY.name());
 	}
 
 	/**
@@ -170,7 +171,7 @@ public class SchemaUtils {
 	@Nonnull
 	@SuppressWarnings({"rawtypes"})
 	public static Schema getSchemaFromRequire(@Nonnull OpenAPI openAPI, @Nonnull Operation operation, @Nonnull String propertyName) {
-		return getSchemaFromOperationProperty(openAPI, operation, propertyName, PathItemsCreator.REQUIRE);
+		return getSchemaFromOperationProperty(openAPI, operation, propertyName, QueryRequestBodyDescriptor.REQUIRE.name());
 	}
 
 	@Nonnull

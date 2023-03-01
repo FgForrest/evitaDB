@@ -48,7 +48,7 @@ public class OpenApiEnum implements OpenApiComplexType {
 
 	@Nonnull
 	private final String name;
-	@Nonnull
+	@Nullable
 	private final String description;
 	@Nullable
 	private final String deprecationNotice;
@@ -138,7 +138,7 @@ public class OpenApiEnum implements OpenApiComplexType {
 		}
 
 		@Nonnull
-		public Builder description(@Nonnull String description) {
+		public Builder description(@Nullable String description) {
 			this.description = description;
 			return this;
 		}
@@ -168,11 +168,7 @@ public class OpenApiEnum implements OpenApiComplexType {
 				() -> new OpenApiSchemaBuildingError("Missing enum name.")
 			);
 			Assert.isPremiseValid(
-				description != null && !description.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Enum `" + name + "` is missing description.")
-			);
-			Assert.isPremiseValid(
-				items.isEmpty(),
+				!items.isEmpty(),
 				() -> new OpenApiSchemaBuildingError("Enum `" + name + "` is missing items.")
 			);
 			return new OpenApiEnum(name, description, deprecationNotice, format, items);

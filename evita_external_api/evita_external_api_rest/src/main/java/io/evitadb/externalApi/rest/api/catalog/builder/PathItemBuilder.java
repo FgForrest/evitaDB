@@ -40,6 +40,7 @@ import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescr
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.catalog.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.ErrorDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
 import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.dto.OpenApiOperationParameter;
@@ -58,6 +59,7 @@ import io.swagger.v3.oas.models.responses.ApiResponses;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -86,7 +88,8 @@ public class PathItemBuilder {
 	@Nonnull private final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToOpenApiOperationQueryParameterTransformer operationQueryParameterBuilderTransformer;
 
-	public void buildAndAddSingleEntityPathItem(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx, boolean localeInPath) {
+	public void buildAndAddSingleEntityPathItem(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
+	                                            boolean localeInPath) {
 		//this is correct as for localized URL (i.e. one locale) is non-localized entity sufficient
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 		final OpenApiTypeReference entityObject = localeInPath ? entitySchemaBuildingCtx.getEntityObject() : entitySchemaBuildingCtx.getLocalizedEntityObject();
@@ -118,15 +121,20 @@ public class PathItemBuilder {
 		entitySchemaBuildingCtx.getCatalogCtx().getRestApiHandlerRegistrar().registerSingleEntityHandler(entitySchemaBuildingCtx, localeInPath, pathItem);
 	}
 
-	public void buildAndAddEntityListPathItem(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx, boolean localeInPath) {
+	public void buildAndAddEntityListPathItem(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
+	                                          boolean localeInPath) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 		//this is correct as for localized URL (i.e. one locale) is non-localized entity sufficient
 		final OpenApiTypeReference entityObject = localeInPath ? entitySchemaBuildingCtx.getEntityObject() : entitySchemaBuildingCtx.getLocalizedEntityObject();
 
 		final RequestBody requestBody = new RequestBody();
 		final OpenApiSimpleType filterByInputObject = localeInPath ? entitySchemaBuildingCtx.getFilterByLocalizedInputObject() : entitySchemaBuildingCtx.getFilterByInputObject();
-		final OpenApiObject requestListSchema = createRequestBodyObject(filterByInputObject,
-			entitySchemaBuildingCtx.getOrderByInputObject(), entitySchemaBuildingCtx.getRequiredForListInputObject());
+		final OpenApiObject requestListSchema = createRequestBodyObject(
+			entitySchemaBuildingCtx,
+			filterByInputObject,
+			entitySchemaBuildingCtx.getOrderByInputObject(),
+			entitySchemaBuildingCtx.getRequiredForListInputObject()
+		);
 		requestBody.setContent(createApplicationJsonContent(createMediaType(requestListSchema)));
 
 		final var operation = new Operation();
@@ -152,7 +160,8 @@ public class PathItemBuilder {
 		entitySchemaBuildingCtx.getCatalogCtx().getRestApiHandlerRegistrar().registerEntityListHandler(entitySchemaBuildingCtx, localeInPath, pathItem);
 	}
 
-	public void buildAndAddEntityQueryPathItem(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx, boolean localeInPath) {
+	public void buildAndAddEntityQueryPathItem(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
+	                                           boolean localeInPath) {
 		//this is correct as for localized URL (i.e. one locale) is non-localized entity sufficient
 		final var responseObject = new FullResponseObjectBuilder(
 			entitySchemaBuildingCtx,
@@ -163,8 +172,12 @@ public class PathItemBuilder {
 
 		final var requestBody = new RequestBody();
 		final OpenApiSimpleType filterByInputObject = localeInPath ? entitySchemaBuildingCtx.getFilterByLocalizedInputObject() : entitySchemaBuildingCtx.getFilterByInputObject();
-		final var requestListSchema = createRequestBodyObject(filterByInputObject,
-			entitySchemaBuildingCtx.getOrderByInputObject(), entitySchemaBuildingCtx.getRequiredForQueryInputObject());
+		final var requestListSchema = createRequestBodyObject(
+			entitySchemaBuildingCtx,
+			filterByInputObject,
+			entitySchemaBuildingCtx.getOrderByInputObject(),
+			entitySchemaBuildingCtx.getRequiredForQueryInputObject()
+		);
 		requestBody.setContent(createApplicationJsonContent(createMediaType(requestListSchema)));
 
 		final var operation = new Operation();
@@ -189,8 +202,7 @@ public class PathItemBuilder {
 		entitySchemaBuildingCtx.getCatalogCtx().getRestApiHandlerRegistrar().registerEntityQueryHandler(entitySchemaBuildingCtx, localeInPath, pathItem);
 	}
 
-	public void buildAndAddOpenApiSpecificationPathItem(@Nonnull CatalogSchemaBuildingContext catalogCtx,
-	                                                    @Nonnull Supplier<OpenAPI> openApiSupplier) {
+	public void buildAndAddOpenApiSpecificationPathItem(@Nonnull CatalogSchemaBuildingContext catalogCtx) {
 		final Operation operation = new Operation();
 		operation.setDescription("OpenAPI Specification in YAML format.");
 
@@ -204,7 +216,7 @@ public class PathItemBuilder {
 		final var pathItem = new PathItem();
 		pathItem.setGet(operation);
 		catalogCtx.registerPath(UrlPathCreator.createBaseUrlPathToCatalog(catalogCtx.getCatalog()), pathItem);
-		catalogCtx.getRestApiHandlerRegistrar().registerOpenApiSchemaHandler(openApiSupplier, pathItem);
+		catalogCtx.getRestApiHandlerRegistrar().registerOpenApiSchemaHandler(pathItem);
 	}
 
 	public void buildAndAddCollectionsPathItem(@Nonnull CatalogSchemaBuildingContext catalogCtx) {
@@ -282,9 +294,8 @@ public class PathItemBuilder {
 		final var operation = new Operation();
 		operation.setDescription(unknownEntityObject.getDescription());
 
-		operation.addParametersItem(newQueryParameter()
-			.name("limit") // todo lho descriptor for it
-			.type(DataTypesConverter.getOpenApiScalar(Integer.class))
+		operation.addParametersItem(ParamDescriptor.LIMIT
+			.to(operationQueryParameterBuilderTransformer)
 			.build()
 			.toParameter());
 
@@ -355,8 +366,12 @@ public class PathItemBuilder {
 		final RequireSchemaBuilder requireSchemaBuilder = new RequireSchemaBuilder(entitySchemaBuildingContext.getConstraintSchemaBuildingCtx(),
 			entitySchemaBuildingContext.getSchema().getName(), RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_DELETE);
 
-		final var requestListSchema = createRequestBodyObject(filterByInputObject,
-			entitySchemaBuildingContext.getOrderByInputObject(), requireSchemaBuilder.build());
+		final var requestListSchema = createRequestBodyObject(
+			entitySchemaBuildingContext,
+			filterByInputObject,
+			entitySchemaBuildingContext.getOrderByInputObject(),
+			requireSchemaBuilder.build()
+		);
 		requestBody.setContent(createApplicationJsonContent(createMediaType(requestListSchema)));
 
 		final var operation = new Operation();
@@ -459,6 +474,7 @@ public class PathItemBuilder {
 	@Nonnull
 	private OpenApiObject createUnknownEntityObject(@Nonnull List<OpenApiTypeReference> entityObjects) {
 		final OpenApiObject.Builder objectBuilder = newObject()
+			.name("UnknownEntity") // todo lho descriptor for it
 			.unionType(OpenApiObjectUnionType.ONE_OF)
 			.unionDiscriminator("type");// todo lho descriptor for it
 		entityObjects.forEach(objectBuilder::unionObject);
@@ -556,5 +572,24 @@ public class PathItemBuilder {
 	private OpenApiSimpleType createCollectionsObject(@Nonnull CatalogSchemaBuildingContext catalogCtx) {
 		final OpenApiTypeReference collectionObject = catalogCtx.registerType(CollectionDescriptor.THIS.to(objectBuilderTransformer).build());
 		return arrayOf(collectionObject);
+	}
+
+
+	@Nonnull
+	public OpenApiObject createRequestBodyObject(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingContext,
+	                                             @Nonnull OpenApiSimpleType filterContainer,
+	                                             @Nonnull OpenApiSimpleType orderContainer,
+	                                             @Nullable OpenApiSimpleType requireContainer) {
+		// todo lho after localized distinctions are refactored, this could be registered as well
+		final OpenApiObject.Builder objectBuilder = QueryRequestBodyDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(QueryRequestBodyDescriptor.THIS.name(entitySchemaBuildingContext.getSchema()))
+			.property(QueryRequestBodyDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(filterContainer))
+			.property(QueryRequestBodyDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(orderContainer));
+
+		if(requireContainer != null) {
+			objectBuilder.property(QueryRequestBodyDescriptor.REQUIRE.to(propertyBuilderTransformer).type(requireContainer));
+		}
+		return objectBuilder.build();
 	}
 }
