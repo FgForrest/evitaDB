@@ -8,8 +8,10 @@ published: false
 
 evitaDB is a [Java application](https://openjdk.org/), and you can run it as an
 [embedded database](#run-embedded-in-you-application) in any Java application or as 
-[a separate service](#run-as-service-inside-docker) that connects to applications via 
+[a separate service](../operate/run.md) that connects to applications via 
 the HTTPS protocol using one of the provided web APIs.
+
+<LanguageSpecific to="java">
 
 <Note type="question">
 
@@ -180,3 +182,8 @@ API `graphQL` listening on              https://your-domain:5555/gql/
 API `rest` listening on                 https://your-domain:5555/rest/
 API `system` listening on               http://your-domain:5557/system/
 ```
+
+</LanguageSpecific>
+<LanguageSpecific to="evitaql,graphql,rest,csharp">
+<Include>docs/user/en/operate/run.md</Include>
+</LanguageSpecific>
