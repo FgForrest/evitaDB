@@ -80,7 +80,7 @@ on the [Certbot site](https://certbot.eff.org/).
 
 ### Self-signed certificate authority
 
-In this guide, we will focus on the second group: self-signed certificates. When using [mTLS](#mutual-tls), it is 
+In this guide, we will focus on the second group: self-signed certificates. When using [mTLS](#mutual-tls-for-grpc), it is 
 necessary for the server to have access to a <Term>certificate authority</Term> that trusts it, and for clients that 
 prove their identity with a <Term>certificate</Term> issued by that authority to allow communication.
 
@@ -117,7 +117,7 @@ openssl req -x509 \
 ```
 
 It generates a <Term>certificate</Term> `rootCA.crt` and a <Term>private key</Term> `rootCA.key` for 
-the <Term>certification authority</Term> (after confirmation you have to enter a password).
+the <Term>certificate authority</Term> (after confirmation you have to enter a password).
 
 <Note type="warning">
 After running the commands in steps 1 and 2, you must enter a password - if you want an unencrypted certificate without 
@@ -206,7 +206,7 @@ Now you are ready for the final step.
 Finally, you're ready to generate signed certificate which you can use for evitaDB server or any of the clients in case
 the [mTLS](#mutual-tls-for-grpc) is enabled.
 
-Generate new <Term>certificate</Term> signed by the [certificate authority](#creating-a-certificate-authority) 
+Generate new <Term>certificate</Term> signed by the [certificate authority](#creating-certificate-authority) 
 represented by the `rootCA.crt` and its <Term>private key</Term> `rootCA.key` using the following command:
 
 ```bash
@@ -382,6 +382,6 @@ Client logs the fingerprint using [configured logging library](run.md#control-lo
 ### Recommended mTLS usage (secure)
 
 For each of the gRPC client generate their own <Term>certificate</Term> using trusted <Term>certificate authority</Term>
-(such as [Let's Encrypt](https://letsencrypt.org)), or your own [self-signed authority](#creating-a-certificate-authority).
+(such as [Let's Encrypt](https://letsencrypt.org)), or your own [self-signed authority](#creating-certificate-authority).
 Disable `generateAndUseSelfSigned` and configure server certificate and each of client certificates in 
 [configuration](configure.md#tls-configuration).

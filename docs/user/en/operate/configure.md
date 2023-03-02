@@ -20,8 +20,8 @@ server:                                           # [see Server configuration](#
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: null
-  lockTimeoutSeconds: 50
-  waitOnCloseSeconds: 50
+  lockTimeoutSeconds: 60
+  waitOnCloseSeconds: 60
   outputBufferSize: 4MB
   maxOpenedReadHandles: 12
   computeCRC32C: true
@@ -70,8 +70,8 @@ api:                                              # [see API configuration](#api
 </NoteTitle>
 
 The default configuration file is located in the file <SourceClass>docker/evita-configuration.yaml</SourceClass>.
-As you can see it contains variables that allow propagating arguments from the command line / environment variables
-located at the server start-up. The format used in this file is:
+As you can see, it contains variables that allow the propagation of arguments from the command line / environment
+variables that are present when the server is started. The format used in this file is :
 
 ```
 ${argument_name:defaultValue}
@@ -123,6 +123,62 @@ This section contains general settings for the evitaDB server. It allows configu
 </dl>
 
 ## Storage configuration
+
+This section contains configuration options for the storage layer of the database.
+
+<dl>
+    <dt>storageDirectory</dt>
+    <dd>
+        **Default:** `null`
+
+        It defines the folder where evitaDB stores its catalog data. The path can be specified relative to the working
+        directory of the application in absolute form (recommended).
+    </dd>
+    <dt>lockTimeoutSeconds</dt>
+    <dd>
+        **Default:** `60`
+
+        It specifies the maximum amount of time the thread may wait to get an exclusive WRITE lock on the file to write 
+        its data. Changing this value should not be necessary if everything is going well.
+    </dd>
+    <dt>waitOnCloseSeconds</dt>
+    <dd>
+        **Default:** `60`
+
+        It specifies a timeout for evitaDB to wait for the release of read handles to a file. If the file handle is not 
+        released within the timeout, the calling process will get an exception. Changing this value should not be 
+        necessary if everything works fine.
+    </dd>
+    <dt>outputBufferSize</dt>
+    <dd>
+        **Default:** `4MB`
+
+        The output buffer size determines how large a buffer is kept in memory for output purposes. The size of the 
+        buffer limits the maximum size of an individual record in the key/value data store.
+    </dd>
+    <dt>maxOpenedReadHandles</dt>
+    <dd>
+        **Default:** `12`
+
+        It defines the maximum number of simultaneously opened file read handles.
+
+        <Note type="warning">
+            This setting should be set in sync with file handle settings in operating system. 
+            Read these articles for [Linux](https://www.baeldung.com/linux/limit-file-descriptors) or 
+            [MacOS](https://gist.github.com/tombigel/d503800a282fcadbee14b537735d202c)            
+        </Note>
+    </dd>
+    <dt>computeCRC32C</dt>
+    <dd>
+        **Default:** `true`
+
+        It determines whether CRC32C checksums are calculated for written records in a key/value store, and also whether 
+        the CRC32C checksum is checked when a record is read.
+
+        It is strongly recommended that this setting be set to `true`, as it will report potentially corrupt records as 
+        early as possible.
+    </dd>
+</dl>
 
 ## Cache configuration
 

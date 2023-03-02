@@ -45,9 +45,9 @@ import java.util.Optional;
  * @param waitOnCloseSeconds   This timeout represents a time that will MemTable wait for processes to release their
  *                             read handles to file. After this timeout files will be closed by force and processes may
  *                             experience an exception.
- * @param outputBufferSize     Output buffer size determines how big buffer will be held in memory for output purposes.
- *                             The size of the buffer also limits the maximum size of the single record, that can be
- *                             stored in MemTable.
+ * @param outputBufferSize     The output buffer size determines how large a buffer is kept in memory for output
+ *                             purposes. The size of the buffer limits the maximum size of an individual record in the
+ *                             key/value data store.
  * @param maxOpenedReadHandles Maximum number of simultaneously opened {@link java.io.InputStream} to MemTable file.
  * @param computeCRC32C        Contains setting that determined whether CRC32C checksums will be computed for written
  *                             records and also whether the CRC32C checksum will be checked on record read.
