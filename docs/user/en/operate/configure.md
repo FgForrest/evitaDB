@@ -85,40 +85,35 @@ This section contains general settings for the evitaDB server. It allows configu
 <dl>
     <dt>coreThreadCount</dt>
     <dd>
-        **Default:** `4`
-
-        It defines the minimum number of threads in the evitaDB main thread pool, threads are used for query processing, 
+        <p>**Default:** `4`</p>
+        <p>It defines the minimum number of threads in the evitaDB main thread pool, threads are used for query processing, 
         transactional updates and service tasks (vacuuming, cache revalidation). The value should be at least equal to 
-        the number of machine cores.
+        the number of machine cores.</p>
     </dd>
     <dt>maxThreadCount</dt>
     <dd>
-        **Default:** `16`
-
-        It defines the maximum number of threads in the evitaDB main thread pool. The value should be a multiple of the 
-        `coreThreadCount` value.
+        <p>**Default:** `16`</p>
+        <p>It defines the maximum number of threads in the evitaDB main thread pool. The value should be a multiple of the 
+        `coreThreadCount` value.</p>
     </dd>
     <dt>threadPriority</dt>
     <dd>
-        **Default:** `5`
-
-        It defines the priority of the threads created in the pool (for future use). 
+        <p>**Default:** `5`</p>
+        <p>It defines the priority of the threads created in the pool (for future use).</p> 
     </dd>
     <dt>queueSize</dt>
     <dd>
-        **Default:** `100`
-
-        It defines the maximum number of tasks that can accumulate in the queue waiting for the free thread from 
+        <p>**Default:** `100`</p>
+        <p>It defines the maximum number of tasks that can accumulate in the queue waiting for the free thread from 
         the thread pool to process them. Tasks that exceed this limit will be discarded (new requests/other tasks will 
-        fail with an exception).
+        fail with an exception).</p>
     </dd>
     <dt>closeSessionsAfterSecondsOfInactivity</dt>
     <dd>
-        **Default: `60`**
-
-        It specifies the maximum acceptable period of 
+        <p>**Default: `60`**</p>
+        <p>It specifies the maximum acceptable period of 
         <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> inactivity before 
-        it is forcibly closed by the server side.
+        it is forcibly closed by the server side.</p>
     </dd>
 </dl>
 
@@ -129,39 +124,33 @@ This section contains configuration options for the storage layer of the databas
 <dl>
     <dt>storageDirectory</dt>
     <dd>
-        **Default:** `null`
-
-        It defines the folder where evitaDB stores its catalog data. The path can be specified relative to the working
-        directory of the application in absolute form (recommended).
+        <p>**Default:** `null`</p>
+        <p>It defines the folder where evitaDB stores its catalog data. The path can be specified relative to the working
+        directory of the application in absolute form (recommended).</p>
     </dd>
     <dt>lockTimeoutSeconds</dt>
     <dd>
-        **Default:** `60`
-
-        It specifies the maximum amount of time the thread may wait to get an exclusive WRITE lock on the file to write 
-        its data. Changing this value should not be necessary if everything is going well.
+        <p>**Default:** `60`</p>
+        <p>It specifies the maximum amount of time the thread may wait to get an exclusive WRITE lock on the file to write 
+        its data. Changing this value should not be necessary if everything is going well.</p>
     </dd>
     <dt>waitOnCloseSeconds</dt>
     <dd>
-        **Default:** `60`
-
-        It specifies a timeout for evitaDB to wait for the release of read handles to a file. If the file handle is not 
+        <p>**Default:** `60`</p>
+        <p>It specifies a timeout for evitaDB to wait for the release of read handles to a file. If the file handle is not 
         released within the timeout, the calling process will get an exception. Changing this value should not be 
-        necessary if everything works fine.
+        necessary if everything works fine.</p>
     </dd>
     <dt>outputBufferSize</dt>
     <dd>
-        **Default:** `4MB`
-
-        The output buffer size determines how large a buffer is kept in memory for output purposes. The size of the 
-        buffer limits the maximum size of an individual record in the key/value data store.
+        <p>**Default:** `4MB`</p>
+        <p>The output buffer size determines how large a buffer is kept in memory for output purposes. The size of the 
+        buffer limits the maximum size of an individual record in the key/value data store.</p>
     </dd>
     <dt>maxOpenedReadHandles</dt>
     <dd>
-        **Default:** `12`
-
-        It defines the maximum number of simultaneously opened file read handles.
-
+        <p>**Default:** `12`</p>
+        <p>It defines the maximum number of simultaneously opened file read handles.</p>
         <Note type="warning">
             This setting should be set in sync with file handle settings in operating system. 
             Read these articles for [Linux](https://www.baeldung.com/linux/limit-file-descriptors) or 
@@ -170,13 +159,13 @@ This section contains configuration options for the storage layer of the databas
     </dd>
     <dt>computeCRC32C</dt>
     <dd>
-        **Default:** `true`
-
-        It determines whether CRC32C checksums are calculated for written records in a key/value store, and also whether 
-        the CRC32C checksum is checked when a record is read.
-
-        It is strongly recommended that this setting be set to `true`, as it will report potentially corrupt records as 
-        early as possible.
+        <p>**Default:** `true`</p>
+        <p>It determines whether CRC32C checksums are calculated for written records in a key/value store, and also whether 
+        the CRC32C checksum is checked when a record is read.</p>
+        <Note type="warning">
+            It is strongly recommended that this setting be set to `true`, as it will report potentially corrupt records as 
+            early as possible.
+        </Note>
     </dd>
 </dl>
 
@@ -190,48 +179,37 @@ In current version we recommend disabling the cache until [the issue #37](https:
 is resolved.
 </Note>
 
-: testAlternative DL
-:: with multiple paragraphs
-    asdf
-
-    adsfsdfas
-
-: with another bullet
-:: and again a new definition
-
 <dl>
     <dt>enabled</dt>
     <dd>
-        **Default:** `true`
-
-        This setting enables or disables the use of the cache entirely.
+        <p>**Default:** `true`</p>
+        <p>This setting enables or disables the use of the cache entirely.</p>
     </dd>
     <dt>reflection</dt>
     <dd>
-        **Default:** `CACHE`
-
-        This setting enables or disables caching of Java reflection information. The `CACHE` mode is usually recommended 
-        unless you're running some kind of test.
+        <p>**Default:** `CACHE`</p>
+        <p>This setting enables or disables caching of Java reflection information. The `CACHE` mode is usually recommended 
+        unless you're running some kind of test.</p>
     </dd>
     <dt>reevaluateEachSeconds</dt>
     <dd>
-        **Default:** `60`
+        <p>**Default:** `60`</p>
     </dd>
     <dt>anteroomRecordCount</dt>
     <dd>
-        **Default:** `100k`
+        <p>**Default:** `100k`</p>
     </dd>
     <dt>minimalComplexityThreshold</dt>
     <dd>
-        **Default:** `10k`
+        <p>**Default:** `10k`</p>
     </dd>
     <dt>minimalUsageThreshold</dt>
     <dd>
-        **Default:** `2`
+        <p>**Default:** `2`</p>
     </dd>
     <dt>cacheSizeInBytes</dt>
     <dd>
-        **Default:** `null`
+        <p>**Default:** `null`</p>
     </dd>
 </dl>
 
@@ -245,31 +223,26 @@ It allows configuring these settings:
 <dl>
   <dt>generateAndUseSelfSigned</dt>
   <dd>
-    **Default:** `true`
-
-    When set to `true`, a self-signed <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
+    <p>**Default:** `true`</p>
+    <p>When set to `true`, a self-signed <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
     <Term document="docs/user/en/operate/tls.md">certificate</Term> and its 
     <Term document="docs/user/en/operate/tls.md">private key</Term> are automatically generated on server startup 
-    and used to communicate with clients.
+    and used to communicate with clients.</p>
   </dd>
   <dt>folderPath</dt>
   <dd>
-    **Default:** the sub-folder `evita-server-certificates` in the working directory
-
-    It represents a path to a folder where the generated authority certificate and its private key are stored.
-    This setting is used only when `generateAndUseSelfSigned` is set to `true`.
+    <p>**Default:** the sub-folder `evita-server-certificates` in the working directory</p>
+    <p>It represents a path to a folder where the generated authority certificate and its private key are stored.
+    This setting is used only when `generateAndUseSelfSigned` is set to `true`.</p>
   </dd>
   <dt>custom</dt>
   <dd>
-    This section allows you to configure an externally supplied <Term document="docs/user/en/operate/tls.md">certificate</Term>. 
-    It is only used if the `generateAndUseSelfSigned` is set to `false`.
-
-    The section requiers these nested settings: 
-
+    <p>This section allows you to configure an externally supplied <Term document="docs/user/en/operate/tls.md">certificate</Term>. 
+    It is only used if the `generateAndUseSelfSigned` is set to `false`.</p>
+    <p>The section requires these nested settings:</p>
       - **`certificate`**: path to the public part of the certificate file (*.crt)
       - **`privateKey`**: path to the private key of the certificate (*.key)
       - **`privateKeyPassword`**: password for the private key
-
     <Note type="info">
 
     <NoteTitle toggles="false">
