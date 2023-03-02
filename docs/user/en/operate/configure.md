@@ -182,6 +182,59 @@ This section contains configuration options for the storage layer of the databas
 
 ## Cache configuration
 
+The cache speeds up responses for fully or partially identical queries. The cache might in some case increase
+the throughput of the system several times.
+
+<Note type="warning">
+In current version we recommend disabling the cache until [the issue #37](https://github.com/FgForrest/evitaDB/issues/37)
+is resolved.
+</Note>
+
+: testAlternative DL
+:: with multiple paragraphs
+    asdf
+
+    adsfsdfas
+
+: with another bullet
+:: and again a new definition
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        **Default:** `true`
+
+        This setting enables or disables the use of the cache entirely.
+    </dd>
+    <dt>reflection</dt>
+    <dd>
+        **Default:** `CACHE`
+
+        This setting enables or disables caching of Java reflection information. The `CACHE` mode is usually recommended 
+        unless you're running some kind of test.
+    </dd>
+    <dt>reevaluateEachSeconds</dt>
+    <dd>
+        **Default:** `60`
+    </dd>
+    <dt>anteroomRecordCount</dt>
+    <dd>
+        **Default:** `100k`
+    </dd>
+    <dt>minimalComplexityThreshold</dt>
+    <dd>
+        **Default:** `10k`
+    </dd>
+    <dt>minimalUsageThreshold</dt>
+    <dd>
+        **Default:** `2`
+    </dd>
+    <dt>cacheSizeInBytes</dt>
+    <dd>
+        **Default:** `null`
+    </dd>
+</dl>
+
 ## API configuration
 
 ### TLS configuration
