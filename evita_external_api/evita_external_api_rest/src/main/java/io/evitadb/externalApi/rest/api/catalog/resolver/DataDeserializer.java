@@ -26,10 +26,6 @@ package io.evitadb.externalApi.rest.api.catalog.resolver;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
-import io.evitadb.api.query.filter.AttributeSpecialValue;
-import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.require.FacetStatisticsDepth;
-import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -37,7 +33,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
-import io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator;
+import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
 import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
 import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
@@ -88,8 +84,8 @@ public class DataDeserializer {
 			final Class schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI));
 			return Array.newInstance(schemaClass, 0);
 		}
-		if(SchemaCreator.TYPE_ARRAY.equals(schema.getType())) {
-			if(SchemaCreator.FORMAT_RANGE.equals(schema.getFormat())) {
+		if(OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
+			if(OpenApiScalar.FORMAT_RANGE.equals(schema.getFormat())) {
 				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI)), data, schema.getName());
 			}
 			return deserializeArray(openAPI, schema, data);
@@ -109,8 +105,8 @@ public class DataDeserializer {
 			final Class<?> schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI));
 			return Array.newInstance(schemaClass, 0);
 		}
-		if(SchemaCreator.TYPE_ARRAY.equals(schema.getType())) {
-			if(SchemaCreator.FORMAT_RANGE.equals(schema.getFormat())) {
+		if(OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
+			if(OpenApiScalar.FORMAT_RANGE.equals(schema.getFormat())) {
 				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI)), jsonNode, schema.getName());
 			}
 			return deserializeArray(openAPI, schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
@@ -147,7 +143,7 @@ public class DataDeserializer {
 					"is not an ArrayNode. Schema: " + schema.getName(), "Error when parsing data.");
 			}
 
-			if(schema.getType() == null || SchemaCreator.TYPE_OBJECT.equals(schema.getType())) {
+			if(schema.getType() == null || OpenApiScalar.TYPE_OBJECT.equals(schema.getType())) {
 				final Map<String, Object> dataMap = createHashMap(20);
 				final Iterator<String> namesIterator = jsonNode.fieldNames();
 				while (namesIterator.hasNext()) {
@@ -170,15 +166,63 @@ public class DataDeserializer {
 	/**
 	 * Deserializes objects in array represented by {@link ArrayNode}
 	 * @throws RESTApiInvalidArgumentException is thrown when JsonNode is not instance of ArrayNode or when schema type
-	 * is not {@link SchemaCreator#TYPE_ARRAY}.
+	 * is not {@link OpenApiScalar#TYPE_ARRAY}.
 	 */
 	public static Object[] deserializeArray(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
-		if(!SchemaCreator.TYPE_ARRAY.equals(schema.getType())) {
+		if(!OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
 			throw new RESTApiInvalidArgumentException("Can't deserialize value, schema type is not array. Name: " + schema.getName());
 		}
 
 		return deserializeArray(openAPI, schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
 	}
+
+	/**
+	 * Deserialize value from JsonNode.
+	 *
+	 * @throws RESTApiInternalError when Class ob object is not among supported classes for deserialization
+	 */
+	@SuppressWarnings("unchecked")
+	@Nullable
+	public static <T extends Serializable> T deserialize(@Nonnull Class<T> targetClass, @Nullable JsonNode value) {
+		if (value == null || value.isNull()) {
+			return null;
+		}
+
+		if (targetClass.isArray()) {
+			if(value instanceof ArrayNode arrayNode) {
+				return (T) deserializeArray((Class<? extends Serializable>) targetClass.getComponentType(), arrayNode);
+			} else {
+				throw new RESTApiInternalError("Target class is array but json node is not instance of ArrayNode. " + targetClass.getName());
+			}
+		}
+
+		if (Character.class.isAssignableFrom(targetClass) || char.class.isAssignableFrom(targetClass)) {
+			return (T) Character.valueOf(value.asText().charAt(0));
+		} else if (Integer.class.isAssignableFrom(targetClass) || int.class.isAssignableFrom(targetClass)) {
+			return (T) Integer.valueOf(value.intValue());
+		} else if (Short.class.isAssignableFrom(targetClass) || short.class.isAssignableFrom(targetClass)) {
+			return (T) Short.valueOf(value.shortValue());
+		} else if (Boolean.class.isAssignableFrom(targetClass) || boolean.class.isAssignableFrom(targetClass)) {
+			return (T) Boolean.valueOf(value.booleanValue());
+		} else if (Byte.class.isAssignableFrom(targetClass) || byte.class.isAssignableFrom(targetClass)) {
+			return (T) deserializeByteNumber(value);
+		} else if (String.class.isAssignableFrom(targetClass) ||
+			OffsetDateTime.class.isAssignableFrom(targetClass) ||
+			LocalDateTime.class.isAssignableFrom(targetClass) ||
+			LocalDate.class.isAssignableFrom(targetClass) ||
+			LocalTime.class.isAssignableFrom(targetClass) ||
+			Currency.class.isAssignableFrom(targetClass) ||
+			BigDecimal.class.isAssignableFrom(targetClass) ||
+			Long.class.isAssignableFrom(targetClass) ||
+			long.class.isAssignableFrom(targetClass) ||
+			Locale.class.isAssignableFrom(targetClass)) {
+			return EvitaDataTypes.toTargetType(value.asText(), targetClass);
+		} else if (targetClass.isEnum()) {
+			return deserializeEnum(targetClass, value);
+		}
+		throw new RESTApiInternalError("Deserialization of field of JavaType: " + targetClass.getSimpleName() + " is not implemented yet.");
+	}
+
 
 	private static Object[] deserializeArray(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull String[] data) {
 		final Class<?> arrayClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI));
@@ -212,106 +256,53 @@ public class DataDeserializer {
 
 	@SuppressWarnings("rawtypes")
 	private static Class<? extends Serializable> resolveDataClass(@Nonnull Schema schema) {
-		if(SchemaCreator.TYPE_STRING.equals(schema.getType())) {
+		if(OpenApiScalar.TYPE_STRING.equals(schema.getType())) {
 			if(schema.getFormat() == null) {
 				return String.class;
 			}
 			return switch (schema.getFormat()) {
-				case SchemaCreator.FORMAT_DATE -> LocalDate.class;
-				case SchemaCreator.FORMAT_DATE_TIME -> OffsetDateTime.class;
-				case SchemaCreator.FORMAT_LOCAL_TIME -> LocalTime.class;
-				case SchemaCreator.FORMAT_LOCAL_DATE_TIME -> LocalDateTime.class;
-				case SchemaCreator.FORMAT_CURRENCY -> Currency.class;
-				case SchemaCreator.FORMAT_LOCALE -> Locale.class;
-				case SchemaCreator.FORMAT_CHAR -> Character.class;
-				case SchemaCreator.FORMAT_DECIMAL -> BigDecimal.class;
-				case SchemaCreator.FORMAT_INT_64 -> Long.class;
+				case OpenApiScalar.FORMAT_DATE -> LocalDate.class;
+				case OpenApiScalar.FORMAT_DATE_TIME -> OffsetDateTime.class;
+				case OpenApiScalar.FORMAT_LOCAL_TIME -> LocalTime.class;
+				case OpenApiScalar.FORMAT_LOCAL_DATE_TIME -> LocalDateTime.class;
+				case OpenApiScalar.FORMAT_CURRENCY -> Currency.class;
+				case OpenApiScalar.FORMAT_LOCALE -> Locale.class;
+				case OpenApiScalar.FORMAT_CHAR -> Character.class;
+				case OpenApiScalar.FORMAT_DECIMAL -> BigDecimal.class;
+				case OpenApiScalar.FORMAT_INT_64 -> Long.class;
 				default -> throw new RESTApiInternalError("Unknown schema format " + schema.getFormat() + " for String type.");
 			};
 		}
-		if(SchemaCreator.TYPE_INTEGER.equals(schema.getType())) {
-			if(schema.getFormat() == null) {
+		if(OpenApiScalar.TYPE_INTEGER.equals(schema.getType())) {
+			if(schema.getFormat().equals(OpenApiScalar.FORMAT_INT_32)) {
 				return Integer.class;
-			} else if(schema.getFormat().equals(SchemaCreator.FORMAT_INT_16)) {
+			} else if(schema.getFormat().equals(OpenApiScalar.FORMAT_INT_16)) {
 				return Short.class;
-			} else if(schema.getFormat().equals(SchemaCreator.FORMAT_BYTE)) {
+			} else if(schema.getFormat().equals(OpenApiScalar.FORMAT_BYTE)) {
 				return Byte.class;
 			} else {
 				throw new RESTApiInternalError("Unknown schema format " + schema.getFormat() + " for Integer type.");
 			}
 		}
-		if(SchemaCreator.TYPE_BOOLEAN.equals(schema.getType())) {
+		if(OpenApiScalar.TYPE_BOOLEAN.equals(schema.getType())) {
 			return Boolean.class;
 		}
 		throw new RESTApiInternalError("Unknown schema type " + schema.getType());
-	}
-
-	/**
-	 * Deserialize value from JsonNode.
-	 *
-	 * @throws RESTApiInternalError when Class ob object is not among supported classes for deserialization
-	 */
-	@SuppressWarnings("unchecked")
-	@Nullable
-	public static <T extends Serializable> T deserializeObject(@Nonnull Class<T> targetClass, @Nullable JsonNode value) {
-		if(value == null || value.isNull()) {
-			return null;
-		}
-		if(targetClass.isArray()) {
-			if(value instanceof ArrayNode arrayNode) {
-				return (T) deserializeArray((Class<? extends Serializable>) targetClass.getComponentType(), arrayNode);
-			} else {
-				throw new RESTApiInternalError("Target class is array but json node is not instance of ArrayNode. " + targetClass.getName());
-			}
-		}
-		return switch (targetClass.getSimpleName()) {
-			case "String" -> (T) value.asText();
-			case "Character", "char" -> (T) Character.valueOf(value.asText().charAt(0));
-			case "Integer", "int" -> (T) Integer.valueOf(value.intValue());
-			case "Short", "short" -> (T) Short.valueOf(value.shortValue());
-			case "Long", "long" -> (T) Long.valueOf(value.asText());
-			case "Boolean", "boolean" -> (T) Boolean.valueOf(value.booleanValue());
-			case "Byte", "byte" -> (T) deserializeByteNumber(value);
-			case "BigDecimal" -> (T) new BigDecimal(value.asText());
-			case "OffsetDateTime", "LocalDateTime", "LocalDate", "LocalTime", "Currency", "Locale" ->
-				EvitaDataTypes.toTargetType(value.asText(), targetClass);
-			case "AttributeSpecialValue" -> (T) deserializeAttributeSpecialValue(value);
-			case "OrderDirection" -> (T) deserializeOrderDirection(value);
-			case "FacetStatisticsDepth" -> (T) deserializeFacetStatisticsDepth(value);
-			case "PriceContentMode" -> (T) deserializePriceContentMode(value);
-
-			default ->
-				throw new RESTApiInternalError("Deserialization of field of JavaType: " + targetClass.getSimpleName() + " is not implemented yet.");
-		};
 	}
 
 	@SuppressWarnings("unchecked")
 	private static <T extends Serializable> T[] deserializeArray(@Nonnull Class<T> targetClass, @Nonnull ArrayNode arrayNode) {
 		final Object deserialized = Array.newInstance(targetClass, arrayNode.size());
 		for (int i = 0; i < arrayNode.size(); i++) {
-			 Array.set(deserialized, i, deserializeObject(targetClass, arrayNode.get(i)));
+			 Array.set(deserialized, i, deserialize(targetClass, arrayNode.get(i)));
 		}
 		return (T[]) deserialized;
 	}
 
 	@Nonnull
-	private static AttributeSpecialValue deserializeAttributeSpecialValue(@Nonnull JsonNode value) {
-		return AttributeSpecialValue.valueOf(value.textValue());
-	}
-
-	@Nonnull
-	private static OrderDirection deserializeOrderDirection(@Nonnull JsonNode value) {
-		return Enum.valueOf(OrderDirection.class, value.asText());
-	}
-
-	@Nonnull
-	private static FacetStatisticsDepth deserializeFacetStatisticsDepth(@Nonnull JsonNode value) {
-		return Enum.valueOf(FacetStatisticsDepth.class, value.asText());
-	}
-
-	@Nonnull
-	private static PriceContentMode deserializePriceContentMode(@Nonnull JsonNode value) {
-		return Enum.valueOf(PriceContentMode.class, value.asText());
+	private static <T extends Serializable, E extends Enum<E>> T deserializeEnum(@Nonnull Class<T> targetClass, @Nonnull JsonNode value) {
+		//noinspection unchecked
+		return (T) Enum.valueOf((Class<E>) targetClass, value.asText());
 	}
 
 	@Nullable
@@ -334,18 +325,20 @@ public class DataDeserializer {
 	@Nonnull
 	private static <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull JsonNode value, @Nonnull String attributeName) {
 		if (value instanceof ArrayNode values && values.size() == 2) {
-			return switch (targetClass.getSimpleName()) {
-				case "OffsetDateTime" -> deserializeRange(targetClass, deserializeObject(OffsetDateTime.class, values.get(0)), deserializeObject(OffsetDateTime.class, values.get(1)), attributeName);
-				case "BigDecimal" -> deserializeRange(targetClass, deserializeObject(BigDecimal.class, values.get(0)), deserializeObject(BigDecimal.class, values.get(1)), attributeName);
-				case "Byte" -> deserializeRange(targetClass, deserializeObject(Byte.class, values.get(0)), deserializeObject(Byte.class, values.get(1)), attributeName);
-				case "Short" -> deserializeRange(targetClass, deserializeObject(Short.class, values.get(0)), deserializeObject(Short.class, values.get(1)), attributeName);
-				case "Integer" -> deserializeRange(targetClass, deserializeObject(Integer.class, values.get(0)), deserializeObject(Integer.class, values.get(1)), attributeName);
-				case "Long" -> deserializeRange(targetClass, deserializeObject(Long.class, values.get(0)), deserializeObject(Long.class, values.get(1)), attributeName);
-
-				default ->
-					throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
-						" is not implemented yet. Attribute: " + attributeName);
-			};
+			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(OffsetDateTime.class, values.get(0)), deserialize(OffsetDateTime.class, values.get(1)), attributeName);
+			} else if (BigDecimal.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(BigDecimal.class, values.get(0)), deserialize(BigDecimal.class, values.get(1)), attributeName);
+			} else if (Byte.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(Byte.class, values.get(0)), deserialize(Byte.class, values.get(1)), attributeName);
+			} else if (Short.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(Short.class, values.get(0)), deserialize(Short.class, values.get(1)), attributeName);
+			} else if (Integer.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(Integer.class, values.get(0)), deserialize(Integer.class, values.get(1)), attributeName);
+			} else if (Long.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(Long.class, values.get(0)), deserialize(Long.class, values.get(1)), attributeName);
+			}
+			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() + " is not implemented yet. Attribute: " + attributeName);
 		}
 		throw new RESTApiInternalError("Array of two values is required for range data type. Attribute: " + attributeName);
 	}
@@ -353,18 +346,21 @@ public class DataDeserializer {
 	@Nonnull
 	private static <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull String[] values, @Nonnull String attributeName) {
 		if (values.length == 2) {
-			return switch (targetClass.getSimpleName()) {
-				case "OffsetDateTime" -> deserializeRange(targetClass, deserialize(OffsetDateTime.class, values[0]), deserialize(OffsetDateTime.class, values[1]), attributeName);
-				case "BigDecimal" -> deserializeRange(targetClass, deserialize(BigDecimal.class, values[0]), deserialize(BigDecimal.class, values[1]), attributeName);
-				case "Byte" -> deserializeRange(targetClass, deserialize(Byte.class, values[0]), deserialize(Byte.class, values[1]), attributeName);
-				case "Short" -> deserializeRange(targetClass, deserialize(Short.class, values[0]), deserialize(Short.class, values[1]), attributeName);
-				case "Integer" -> deserializeRange(targetClass, deserialize(Integer.class, values[0]), deserialize(Integer.class, values[1]), attributeName);
-				case "Long" -> deserializeRange(targetClass, deserialize(Long.class, values[0]), deserialize(Long.class, values[1]), attributeName);
-
-				default ->
-					throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
-						" is not implemented yet. Attribute: " + attributeName);
-			};
+			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(OffsetDateTime.class, values[0]), deserialize(OffsetDateTime.class, values[1]), attributeName);
+			} else if (BigDecimal.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(BigDecimal.class, values[0]), deserialize(BigDecimal.class, values[1]), attributeName);
+			} else if (Byte.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(Byte.class, values[0]), deserialize(Byte.class, values[1]), attributeName);
+			} else if (Short.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(Short.class, values[0]), deserialize(Short.class, values[1]), attributeName);
+			} else if (Integer.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(Integer.class, values[0]), deserialize(Integer.class, values[1]), attributeName);
+			} else if (Long.class.isAssignableFrom(targetClass)) {
+				return deserializeRange(targetClass, deserialize(Long.class, values[0]), deserialize(Long.class, values[1]), attributeName);
+			}
+			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
+				" is not implemented yet. Attribute: " + attributeName);
 		}
 		throw new RESTApiInternalError("Array of two values is required for range data type. Attribute: " + attributeName);
 	}
@@ -373,44 +369,53 @@ public class DataDeserializer {
 	@SuppressWarnings("unchecked")
 	private static <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nullable Object from, @Nullable Object to, @Nonnull String attributeName) {
 		if (from != null && to != null) {
-			return switch (targetClass.getSimpleName()) {
-				case "OffsetDateTime" -> (T) DateTimeRange.between((OffsetDateTime) from, (OffsetDateTime) to);
-				case "BigDecimal" -> (T) BigDecimalNumberRange.between((BigDecimal) from, (BigDecimal) to);
-				case "Byte" -> (T) ByteNumberRange.between((Byte) from, (Byte) to);
-				case "Short" -> (T) ShortNumberRange.between((Short) from, (Short) to);
-				case "Integer" -> (T) IntegerNumberRange.between((Integer) from, (Integer) to);
-				case "Long" -> (T) LongNumberRange.between((Long) from, (Long) to);
-
-				default ->
-					throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
-						" is not implemented yet. Attribute: " + attributeName);
-			};
+			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
+				return (T) DateTimeRange.between((OffsetDateTime) from, (OffsetDateTime) to);
+			} else if (BigDecimal.class.isAssignableFrom(targetClass)) {
+				return (T) BigDecimalNumberRange.between((BigDecimal) from, (BigDecimal) to);
+			} else if (Byte.class.isAssignableFrom(targetClass)) {
+				return (T) ByteNumberRange.between((Byte) from, (Byte) to);
+			} else if (Short.class.isAssignableFrom(targetClass)) {
+				return (T) ShortNumberRange.between((Short) from, (Short) to);
+			} else if (Integer.class.isAssignableFrom(targetClass)) {
+				return (T) IntegerNumberRange.between((Integer) from, (Integer) to);
+			} else if (Long.class.isAssignableFrom(targetClass)) {
+				return (T) LongNumberRange.between((Long) from, (Long) to);
+			}
+			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
+				" is not implemented yet. Attribute: " + attributeName);
 		} else if(from != null) {
-			return switch (targetClass.getSimpleName()) {
-				case "OffsetDateTime" -> (T) DateTimeRange.since((OffsetDateTime) from);
-				case "BigDecimal" -> (T) BigDecimalNumberRange.from((BigDecimal) from);
-				case "Byte" -> (T) ByteNumberRange.from((Byte) from);
-				case "Short" -> (T) ShortNumberRange.from((Short) from);
-				case "Integer" -> (T) IntegerNumberRange.from((Integer) from);
-				case "Long" -> (T) LongNumberRange.from((Long) from);
-
-				default ->
-					throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
-						" is not implemented yet. Attribute: " + attributeName);
-			};
+			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
+				return (T) DateTimeRange.since((OffsetDateTime) from);
+			} else if (BigDecimal.class.isAssignableFrom(targetClass)) {
+				return (T) BigDecimalNumberRange.from((BigDecimal) from);
+			} else if (Byte.class.isAssignableFrom(targetClass)) {
+				return (T) ByteNumberRange.from((Byte) from);
+			} else if (Short.class.isAssignableFrom(targetClass)) {
+				return (T) ShortNumberRange.from((Short) from);
+			} else if (Integer.class.isAssignableFrom(targetClass)) {
+				return (T) IntegerNumberRange.from((Integer) from);
+			} else if (Long.class.isAssignableFrom(targetClass)) {
+				return (T) LongNumberRange.from((Long) from);
+			}
+			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
+				" is not implemented yet. Attribute: " + attributeName);
 		} else if(to != null) {
-			return switch (targetClass.getSimpleName()) {
-				case "OffsetDateTime" -> (T) DateTimeRange.until((OffsetDateTime) to);
-				case "BigDecimal" -> (T) BigDecimalNumberRange.to((BigDecimal) to);
-				case "Byte" -> (T) ByteNumberRange.to((Byte) to);
-				case "Short" -> (T) ShortNumberRange.to((Short) to);
-				case "Integer" -> (T) IntegerNumberRange.to((Integer) to);
-				case "Long" -> (T) LongNumberRange.to((Long) to);
-
-				default ->
-					throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
-						" is not implemented yet. Attribute: " + attributeName);
-			};
+			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
+				return (T) DateTimeRange.until((OffsetDateTime) to);
+			} else if (BigDecimal.class.isAssignableFrom(targetClass)) {
+				return (T) BigDecimalNumberRange.to((BigDecimal) to);
+			} else if (Byte.class.isAssignableFrom(targetClass)) {
+				return (T) ByteNumberRange.to((Byte) to);
+			} else if (Short.class.isAssignableFrom(targetClass)) {
+				return (T) ShortNumberRange.to((Short) to);
+			} else if (Integer.class.isAssignableFrom(targetClass)) {
+				return (T) IntegerNumberRange.to((Integer) to);
+			} else if (Long.class.isAssignableFrom(targetClass)) {
+				return (T) LongNumberRange.to((Long) to);
+			}
+			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
+				" is not implemented yet. Attribute: " + attributeName);
 		}
 		throw new RESTApiInternalError("Both values for range data type are null which is not allowed. Attribute: " + attributeName);
 	}

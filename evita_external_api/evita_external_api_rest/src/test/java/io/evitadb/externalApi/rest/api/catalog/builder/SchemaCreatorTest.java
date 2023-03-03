@@ -46,8 +46,9 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
 
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createEnumSchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createSchemaByJavaType;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.enumFrom;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.scalarFrom;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -55,166 +56,167 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
+// todo lho rename to scalar test?
 class SchemaCreatorTest {
 
 	@Test
 	void shouldCreateStringSchema() {
 		final var expectedSchema = "type: string";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(String.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(String.class).toSchema()));
 		assertEquals(expectedSchema, writeApiObjectToOneLine(new StringSchema()));
 	}
 
 	@Test
 	void shouldCreateCharacterSchema() {
 		final var expectedSchema = "type: string format: char maxLength: 1 minLength: 1";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Character.class)));
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(char.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Character.class).toSchema()));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(char.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateIntegerSchema() {
-		final var expectedSchema = "type: integer";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Integer.class)));
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(int.class)));
+		final var expectedSchema = "type: integer format: int32";
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Integer.class).toSchema()));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(int.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateShortSchema() {
 		final var expectedSchema = "type: integer format: int16 example: 845";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Short.class)));
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(short.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Short.class).toSchema()));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(short.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateArrayOfIntegersSchema() {
-		final var expectedSchema = "type: array items: type: integer";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Integer[].class)));
+		final var expectedSchema = "type: array items: type: integer format: int32";
+		assertEquals(expectedSchema, writeApiObjectToOneLine(arrayOf(scalarFrom(Integer.class)).toSchema()));
 	}
 
 	@Test
 	void shouldCreateLongSchema() {
 		final var expectedSchema = "type: string format: int64 example: \"685487\"";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Long.class)));
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(long.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Long.class).toSchema()));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(long.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateBigDecimalSchema() {
 		final var expectedSchema = "type: string format: decimal example: \"6584.25\" pattern: \"d+([.]d+)?\"";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(BigDecimal.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(BigDecimal.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateByteSchema() {
 		final var expectedSchema = "type: integer format: int8 example: 6";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Byte.class)));
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(byte.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Byte.class).toSchema()));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(byte.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateBooleanSchema() {
 		final var expectedSchema = "type: boolean";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Boolean.class)));
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(boolean.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Boolean.class).toSchema()));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(boolean.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateOffsetLocalDateTimeSchema() {
 		final var expectedSchema = "type: string format: date-time example: 2022-09-27T13:28:27.357442951+02:00";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(OffsetDateTime.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(OffsetDateTime.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateLocalDateTimeSchema() {
 		final var expectedSchema = "type: string format: local-date-time example: 2022-09-27T13:28:27.357442951";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(LocalDateTime.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(LocalDateTime.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateLocalDateSchema() {
 		final var expectedSchema = "type: string format: date example: 2022-09-27";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(LocalDate.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(LocalDate.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateLocalTimeSchema() {
 		final var expectedSchema = "type: string format: local-time example: 13:28:27.357442951";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(LocalTime.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(LocalTime.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateIntegerNumberRangeSchema() {
-		final var expectedSchema = "type: array format: range items: type: integer maxItems: 2 minItems: 2";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(IntegerNumberRange.class)));
+		final var expectedSchema = "type: array format: range items: type: integer format: int32 maxItems: 2 minItems: 2";
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(IntegerNumberRange.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateLongNumberRangeSchema() {
 		final var expectedSchema = "type: array format: range items: type: string format: int64 example: \"685487\" maxItems: 2 minItems: 2";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(LongNumberRange.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(LongNumberRange.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateShortNumberRangeSchema() {
 		final var expectedSchema = "type: array format: range items: type: integer format: int16 example: 845 maxItems: 2 minItems: 2";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(ShortNumberRange.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(ShortNumberRange.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateBigDecimalNumberRangeSchema() {
 		final var expectedSchema = "type: array format: range items: type: string format: decimal example: \"6584.25\" pattern: \"d+([.]d+)?\" maxItems: 2 minItems: 2";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(BigDecimalNumberRange.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(BigDecimalNumberRange.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateByteNumberRangeSchema() {
 		final var expectedSchema = "type: array format: range items: type: integer format: int8 example: 6 maxItems: 2 minItems: 2";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(ByteNumberRange.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(ByteNumberRange.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateDateTimeRangeSchema() {
 		final var expectedSchema = "type: array format: range items: type: string format: date-time example: 2022-09-27T13:28:27.357442951+02:00 maxItems: 2 minItems: 2";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(DateTimeRange.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(DateTimeRange.class).toSchema()));
 	}
 
 
 	@Test
 	void shouldCreateComplexDataObjectSchema() {
-		final var expectedSchema = "type: object properties: {}";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(ComplexDataObject.class)));
+		final var expectedSchema = "type: object additionalProperties: true";
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(ComplexDataObject.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateCurrencySchema() {
 		final var expectedSchema = "type: string format: iso-4217 example: CZK";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Currency.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Currency.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateLocaleSchema() {
 		final var expectedSchema = "type: string format: locale example: cs-CZ";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Locale.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Locale.class).toSchema()));
 	}
 
 	@Test
 	@Disabled("todo lho remove test probably, no longer applicable")
 	void shouldCreateSchemaForSerializable() {
 		final var expectedSchema = "type: string";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(Serializable.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Serializable.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateAttributeSpecialValueSchema() {
 		//for some reason is NULL expression wrapped by quotation marks
 		final var expectedSchema = "type: string enum: - \"NULL\" - NOT_NULL example: \"NULL\"";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaByJavaType(AttributeSpecialValue.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(enumFrom(AttributeSpecialValue.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateOrderDirectionSchema() {
 		final var expectedSchema = "type: string enum: - ASC - DESC example: ASC";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createEnumSchema(OrderDirection.class)));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(enumFrom(OrderDirection.class).toSchema()));
 	}
 
 	public static String writeApiObjectToOneLine(Object schema) {

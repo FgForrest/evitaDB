@@ -28,9 +28,11 @@ import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,6 +44,8 @@ import javax.annotation.Nullable;
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
+@EqualsAndHashCode
+@ToString
 public class OpenApiProperty {
 
 	@Nonnull
@@ -87,6 +91,8 @@ public class OpenApiProperty {
 	@Nonnull
 	private Schema<?> toSchema(@Nonnull OpenApiSimpleType type) {
 		final Schema<Object> schema = new Schema<>();
+		schema.name(this.name);
+
 		if (type instanceof OpenApiScalar scalarType) {
 			final Schema<?> scalarTypeSchema = scalarType.toSchema();
 
@@ -96,10 +102,13 @@ public class OpenApiProperty {
 			}
 
 			schema.type(scalarTypeSchema.getType());
+			schema.addType(scalarTypeSchema.getType());
 			if (!scalarType.isRange()) {
 				schema.format(scalarTypeSchema.getFormat());
 				schema.pattern(scalarTypeSchema.getPattern());
-				schema.example(scalarTypeSchema.getExample());
+				if (scalarTypeSchema.getExample() != null) {
+					schema.example(scalarTypeSchema.getExample());
+				}
 
 				schema.minimum(scalarTypeSchema.getMinimum());
 				schema.maximum(scalarTypeSchema.getMaximum());

@@ -29,8 +29,10 @@ import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,6 +46,8 @@ import java.util.List;
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
+@EqualsAndHashCode
+@ToString
 public class OpenApiEnum implements OpenApiComplexType {
 
 	@Nonnull

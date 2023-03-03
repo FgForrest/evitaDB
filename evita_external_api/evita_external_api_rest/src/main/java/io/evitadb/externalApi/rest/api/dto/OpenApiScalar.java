@@ -44,6 +44,8 @@ import io.swagger.v3.oas.models.media.NumberSchema;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -67,6 +69,8 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, 2023
  */
+@EqualsAndHashCode
+@ToString
 public class OpenApiScalar implements OpenApiSimpleType {
 
 	@Nonnull
@@ -98,18 +102,25 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		SCALAR_SCHEMA_MAPPINGS.put(GenericObject.class, OpenApiScalar::createGenericObjectSchema);
 	}
 
-	private static final String FORMAT_DATE_TIME = "date-time";
-	private static final String FORMAT_LOCAL_DATE_TIME = "local-date-time";
-	private static final String FORMAT_DATE = "date";
-	private static final String FORMAT_LOCAL_TIME = "local-time";
-	private static final String FORMAT_INT_16 = "int16";
-	private static final String FORMAT_INT_64 = "int64";
-	private static final String FORMAT_CURRENCY = "iso-4217";
-	private static final String FORMAT_BYTE = "int8";
-	private static final String FORMAT_CHAR = "char";
-	private static final String FORMAT_DECIMAL = "decimal";
-	private static final String FORMAT_LOCALE = "locale";
-	private static final String FORMAT_RANGE = "range";
+	public static final String TYPE_ARRAY = "array";
+	public static final String TYPE_OBJECT = "object";
+	public static final String TYPE_STRING = "string";
+	public static final String TYPE_INTEGER = "integer";
+	public static final String TYPE_BOOLEAN = "boolean";
+
+	public static final String FORMAT_DATE_TIME = "date-time";
+	public static final String FORMAT_LOCAL_DATE_TIME = "local-date-time";
+	public static final String FORMAT_DATE = "date";
+	public static final String FORMAT_LOCAL_TIME = "local-time";
+	public static final String FORMAT_INT_16 = "int16";
+	public static final String FORMAT_INT_32 = "int32";
+	public static final String FORMAT_INT_64 = "int64";
+	public static final String FORMAT_CURRENCY = "iso-4217";
+	public static final String FORMAT_BYTE = "int8";
+	public static final String FORMAT_CHAR = "char";
+	public static final String FORMAT_DECIMAL = "decimal";
+	public static final String FORMAT_LOCALE = "locale";
+	public static final String FORMAT_RANGE = "range";
 
 	@Nonnull
 	private final Class<?> javaType;
@@ -124,17 +135,17 @@ public class OpenApiScalar implements OpenApiSimpleType {
 			() -> new OpenApiSchemaBuildingError("OpenAPI scalar cannot be created from Java enum `" + javaType.getName() + "`.")
 		);
 		Assert.isPremiseValid(
-			SCALAR_SCHEMA_MAPPINGS.containsKey(javaType),
-			() -> new OpenApiSchemaBuildingError("OpenAPI scalar doesn't support Java type `" + javaType.getName() + "`.")
-		);
-		Assert.isPremiseValid(
 			EvitaDataTypes.isSupportedType(javaType) ||
 				ComplexDataObject.class.isAssignableFrom(javaType) ||
 				Any.class.isAssignableFrom(javaType) ||
 				GenericObject.class.isAssignableFrom(javaType),
 			() -> new OpenApiSchemaBuildingError("OpenAPI scalar doesn't support type `" + javaType.getName() + "`.")
 		);
-		this.javaType = javaType;
+		if (javaType.isPrimitive()) {
+			this.javaType = EvitaDataTypes.getWrappingPrimitiveClass(javaType);
+		} else {
+			this.javaType = javaType;
+		}
 	}
 
 	@Nonnull

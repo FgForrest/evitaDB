@@ -142,8 +142,6 @@ class CatalogRESTQueryEntityQueryFunctionalTest extends CatalogRESTEndpointFunct
 					"\"require\": {" +
 					"  \"entity_fetch\": {" +
 					"     \"attribute_content\": [\"code\"]" +
-				"hierarchy_ofReference: {" +
-					" hierarchy_stopAt "
 					"    }" +
 					"  }" +
 					"}",

@@ -80,7 +80,6 @@ public class RESTApiHandlerRegistrar {
 	                                        boolean localizedUrl,
 	                                        @Nonnull PathItem pathItem) {
 		final String urlPathToEntity = UrlPathCreator.createUrlPathToEntity(schemaBuildingContext, CatalogDataApiRootDescriptor.ENTITY_GET, localizedUrl);
-		final String urlPathToEntityWithVariable = urlPathToEntity + UrlPathCreator.URL_PATH_SEPARATOR + UrlPathCreator.URL_PRIMARY_KEY_PATH_VARIABLE;
 		final EntityHandler handler = new EntityHandler(RESTApiContext.builder()
 			.objectMapper(objectMapper)
 			.catalog(context.getCatalog())
@@ -92,8 +91,25 @@ public class RESTApiHandlerRegistrar {
 			.build());
 
 		routingHandler
-			.get(urlPathToEntityWithVariable, handler)
 			.get(urlPathToEntity, handler);
+	}
+
+	public void registerSingleEntityWithPKParameterHandler(@Nonnull OpenApiEntitySchemaBuildingContext schemaBuildingContext,
+	                                                       boolean localizedUrl,
+	                                                       @Nonnull PathItem pathItem) {
+		final String urlPathToEntityWithVariable = UrlPathCreator.createUrlPathToEntity(schemaBuildingContext, CatalogDataApiRootDescriptor.ENTITY_GET, localizedUrl) + UrlPathCreator.URL_PATH_SEPARATOR + UrlPathCreator.URL_PRIMARY_KEY_PATH_VARIABLE;
+		final EntityHandler handler = new EntityHandler(RESTApiContext.builder()
+			.objectMapper(objectMapper)
+			.catalog(context.getCatalog())
+			.entityType(schemaBuildingContext.getSchema().getName())
+			.evita(context.getEvita())
+			.localized(localizedUrl)
+			.pathItem(pathItem)
+			.openApi(context.getOpenApi()::get)
+			.build());
+
+		routingHandler
+			.get(urlPathToEntityWithVariable, handler);
 	}
 
 	/**

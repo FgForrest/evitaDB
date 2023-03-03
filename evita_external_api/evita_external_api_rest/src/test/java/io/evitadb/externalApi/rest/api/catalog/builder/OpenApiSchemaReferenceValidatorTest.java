@@ -26,15 +26,15 @@ package io.evitadb.externalApi.rest.api.catalog.builder;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.ArraySchema;
+import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.util.Set;
 
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.addReferenceSchemaAsOneOf;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createArraySchemaOf;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createObjectSchema;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createReferenceSchema;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -53,17 +53,17 @@ class OpenApiSchemaReferenceValidatorTest {
 		final Components components = new Components();
 		openAPI.components(components);
 
-		final Schema<Object> firstSchema = createObjectSchema();
+		final Schema<Object> firstSchema = new ObjectSchema();
 		firstSchema.setName("firstSchema");
 		components.addSchemas(firstSchema.getName(), firstSchema);
 
-		final Schema<Object> secondSchema = createObjectSchema();
+		final Schema<Object> secondSchema = new ObjectSchema();
 		secondSchema.setName("secondSchema");
-		secondSchema.addProperty("firstReference", createReferenceSchema(firstSchema));
+		secondSchema.addProperty("firstReference", typeRefTo(firstSchema.getName()).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
-		final boolean valid = new OpenApiSchemaReferenceValidator(openAPI).validateSchemaReferences();
-		assertTrue(valid);
+		final Set<String> missingSchemas = new OpenApiSchemaReferenceValidator(openAPI).validateSchemaReferences();
+		assertTrue(missingSchemas.isEmpty());
 	}
 
 	@Test
@@ -73,17 +73,17 @@ class OpenApiSchemaReferenceValidatorTest {
 		final Components components = new Components();
 		openAPI.components(components);
 
-		final Schema<Object> firstSchema = createObjectSchema();
+		final Schema<Object> firstSchema = new ObjectSchema();
 		firstSchema.setName("firstSchema");
 		components.addSchemas(firstSchema.getName(), firstSchema);
 
-		final Schema<Object> secondSchema = createObjectSchema();
+		final Schema<Object> secondSchema = new ObjectSchema();
 		secondSchema.setName("secondSchema");
-		addReferenceSchemaAsOneOf(secondSchema, firstSchema);
+		secondSchema.addOneOfItem(typeRefTo(firstSchema.getName()).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
-		final boolean valid = new OpenApiSchemaReferenceValidator(openAPI).validateSchemaReferences();
-		assertTrue(valid);
+		final Set<String> missingSchemas = new OpenApiSchemaReferenceValidator(openAPI).validateSchemaReferences();
+		assertTrue(missingSchemas.isEmpty());
 	}
 
 	@Test
@@ -93,18 +93,18 @@ class OpenApiSchemaReferenceValidatorTest {
 		final Components components = new Components();
 		openAPI.components(components);
 
-		final Schema<Object> firstSchema = createObjectSchema();
+		final Schema<Object> firstSchema = new ObjectSchema();
 		firstSchema.setName("firstSchema");
 		//schema is not added in components
 
-		final Schema<Object> secondSchema = createObjectSchema();
+		final Schema<Object> secondSchema = new ObjectSchema();
 		secondSchema.setName("secondSchema");
-		secondSchema.addProperty("firstReference", createReferenceSchema(firstSchema));
+		secondSchema.addProperty("firstReference", typeRefTo(firstSchema.getName()).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
 		final OpenApiSchemaReferenceValidator validator = new OpenApiSchemaReferenceValidator(openAPI);
-		final boolean valid = validator.validateSchemaReferences();
-		assertFalse(valid);
+		final Set<String> missingSchemas = validator.validateSchemaReferences();
+		assertFalse(missingSchemas.isEmpty());
 
 		final Optional<String> missingSchema = validator.getMissingSchemas().stream().findFirst();
 		assertTrue(missingSchema.isPresent());
@@ -118,18 +118,18 @@ class OpenApiSchemaReferenceValidatorTest {
 		final Components components = new Components();
 		openAPI.components(components);
 
-		final Schema<Object> firstSchema = createObjectSchema();
+		final Schema<Object> firstSchema = new ObjectSchema();
 		firstSchema.setName("firstSchema");
 		//schema is not added in components
 
-		final Schema<Object> secondSchema = createObjectSchema();
+		final Schema<Object> secondSchema = new ObjectSchema();
 		secondSchema.setName("secondSchema");
-		secondSchema.addProperty("firstReference", createArraySchemaOf(createReferenceSchema(firstSchema)));
+		secondSchema.addProperty("firstReference", arrayOf(typeRefTo(firstSchema.getName())).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
 		final OpenApiSchemaReferenceValidator validator = new OpenApiSchemaReferenceValidator(openAPI);
-		final boolean valid = validator.validateSchemaReferences();
-		assertFalse(valid);
+		final Set<String> missingSchemas = validator.validateSchemaReferences();
+		assertFalse(missingSchemas.isEmpty());
 
 		final Optional<String> missingSchema = validator.getMissingSchemas().stream().findFirst();
 		assertTrue(missingSchema.isPresent());
@@ -143,18 +143,18 @@ class OpenApiSchemaReferenceValidatorTest {
 		final Components components = new Components();
 		openAPI.components(components);
 
-		final Schema<Object> firstSchema = createObjectSchema();
+		final Schema<Object> firstSchema = new ObjectSchema();
 		firstSchema.setName("firstSchema");
 		//schema is not added in components
 
 
-		final ArraySchema arraySchema = createArraySchemaOf(createReferenceSchema(firstSchema));
+		final Schema<?> arraySchema = arrayOf(typeRefTo(firstSchema.getName())).toSchema();
 		arraySchema.name("arraySchema");
 		components.addSchemas(arraySchema.getName(), arraySchema);
 
 		final OpenApiSchemaReferenceValidator validator = new OpenApiSchemaReferenceValidator(openAPI);
-		final boolean valid = validator.validateSchemaReferences();
-		assertFalse(valid);
+		final Set<String> missingSchemas = validator.validateSchemaReferences();
+		assertFalse(missingSchemas.isEmpty());
 
 		final Optional<String> missingSchema = validator.getMissingSchemas().stream().findFirst();
 		assertTrue(missingSchema.isPresent());
@@ -168,18 +168,18 @@ class OpenApiSchemaReferenceValidatorTest {
 		final Components components = new Components();
 		openAPI.components(components);
 
-		final Schema<Object> firstSchema = createObjectSchema();
+		final Schema<Object> firstSchema = new ObjectSchema();
 		firstSchema.setName("firstSchema");
 		//schema is not added in components
 
-		final Schema<Object> secondSchema = createObjectSchema();
+		final Schema<Object> secondSchema = new ObjectSchema();
 		secondSchema.setName("secondSchema");
-		addReferenceSchemaAsOneOf(secondSchema, firstSchema);
+		secondSchema.addOneOfItem(typeRefTo(firstSchema.getName()).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
 		final OpenApiSchemaReferenceValidator validator = new OpenApiSchemaReferenceValidator(openAPI);
-		final boolean valid = validator.validateSchemaReferences();
-		assertFalse(valid);
+		final Set<String> missingSchemas = validator.validateSchemaReferences();
+		assertFalse(missingSchemas.isEmpty());
 
 		final Optional<String> missingSchema = validator.getMissingSchemas().stream().findFirst();
 		assertTrue(missingSchema.isPresent());

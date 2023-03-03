@@ -47,12 +47,9 @@ import io.evitadb.externalApi.rest.api.dto.OpenApiOperationParameter;
 import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
-import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.Content;
-import io.swagger.v3.oas.models.media.MediaType;
-import io.swagger.v3.oas.models.parameters.QueryParameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
@@ -62,7 +59,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.COLLECTIONS;
@@ -100,7 +96,7 @@ public class PathItemBuilder {
 			operation.setDeprecated(Boolean.TRUE);
 		}
 
-		final List<OpenApiOperationParameter> parameters = buildSingleEntityParameters(entitySchemaBuildingCtx, localeInPath);
+		final List<OpenApiOperationParameter> parameters = buildSingleEntityParameters(entitySchemaBuildingCtx, localeInPath, false);
 		operation.setParameters(parameters.stream().map(OpenApiOperationParameter::toParameter).toList());
 
 		final var apiResponses = new ApiResponses();
@@ -116,9 +112,50 @@ public class PathItemBuilder {
 
 		final var pathItem = new PathItem();
 		pathItem.setGet(operation);
-		entitySchemaBuildingCtx.getCatalogCtx().registerPath(UrlPathCreator.createBaseUrlPathToCatalog(entitySchemaBuildingCtx.getCatalogCtx().getCatalog()) +
-			UrlPathCreator.createUrlPathToEntity(entitySchemaBuildingCtx, CatalogDataApiRootDescriptor.ENTITY_GET, localeInPath) + UrlPathCreator.URL_PATH_SEPARATOR + UrlPathCreator.URL_PRIMARY_KEY_PATH_VARIABLE, pathItem);
+		entitySchemaBuildingCtx.getCatalogCtx().registerPath(
+			UrlPathCreator.createBaseUrlPathToCatalog(entitySchemaBuildingCtx.getCatalogCtx().getCatalog()) +
+				UrlPathCreator.createUrlPathToEntity(entitySchemaBuildingCtx, CatalogDataApiRootDescriptor.ENTITY_GET, localeInPath),
+			pathItem
+		);
 		entitySchemaBuildingCtx.getCatalogCtx().getRestApiHandlerRegistrar().registerSingleEntityHandler(entitySchemaBuildingCtx, localeInPath, pathItem);
+	}
+
+	public void buildAndAddSingleEntityWithPKPathItem(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
+	                                            boolean localeInPath) {
+		//this is correct as for localized URL (i.e. one locale) is non-localized entity sufficient
+		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
+		final OpenApiTypeReference entityObject = localeInPath ? entitySchemaBuildingCtx.getEntityObject() : entitySchemaBuildingCtx.getLocalizedEntityObject();
+
+		final var operation = new Operation();
+		operation.setDescription(String.format(CatalogDataApiRootDescriptor.ENTITY_GET.description(), entitySchema.getName()));
+		if (entitySchema.getDeprecationNotice() != null) {
+			operation.setDeprecated(Boolean.TRUE);
+		}
+
+		final List<OpenApiOperationParameter> parameters = buildSingleEntityParameters(entitySchemaBuildingCtx, localeInPath, true);
+		operation.setParameters(parameters.stream().map(OpenApiOperationParameter::toParameter).toList());
+
+		final var apiResponses = new ApiResponses();
+		createAndAddOkResponse(apiResponses, entityObject);
+		createAndAddAllErrorResponses(apiResponses, typeRefTo(ErrorDescriptor.THIS.name()));
+
+		//makes sense only when getting single entity
+		final var notFoundAllowedResponse = createSchemaResponse(typeRefTo(ErrorDescriptor.THIS.name()));
+		notFoundAllowedResponse.setDescription("Requested entity wasn't found");
+		apiResponses.addApiResponse(STATUS_CODE_NOT_FOUND, notFoundAllowedResponse);
+
+		operation.setResponses(apiResponses);
+
+		final var pathItem = new PathItem();
+		pathItem.setGet(operation);
+		entitySchemaBuildingCtx.getCatalogCtx().registerPath(
+			UrlPathCreator.createBaseUrlPathToCatalog(entitySchemaBuildingCtx.getCatalogCtx().getCatalog()) +
+			UrlPathCreator.createUrlPathToEntity(entitySchemaBuildingCtx, CatalogDataApiRootDescriptor.ENTITY_GET, localeInPath) +
+				UrlPathCreator.URL_PATH_SEPARATOR +
+				UrlPathCreator.URL_PRIMARY_KEY_PATH_VARIABLE,
+			pathItem
+		);
+		entitySchemaBuildingCtx.getCatalogCtx().getRestApiHandlerRegistrar().registerSingleEntityWithPKParameterHandler(entitySchemaBuildingCtx, localeInPath, pathItem);
 	}
 
 	public void buildAndAddEntityListPathItem(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
@@ -482,12 +519,18 @@ public class PathItemBuilder {
 	}
 
 	@Nonnull
-	private List<OpenApiOperationParameter> buildSingleEntityParameters(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx, boolean localeInPath) {
+	private List<OpenApiOperationParameter> buildSingleEntityParameters(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
+	                                                                    boolean localeInPath,
+	                                                                    boolean withPkInPath) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final List<OpenApiOperationParameter> parameters = new LinkedList<>();
 
-		parameters.add(ParamDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer).build());
+		if (withPkInPath) {
+			parameters.add(ParamDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer).build());
+		} else {
+			parameters.add(ParamDescriptor.PRIMARY_KEY.to(operationQueryParameterBuilderTransformer).build());
+		}
 
 		// build locale argument
 		if (!entitySchema.getLocales().isEmpty()) {

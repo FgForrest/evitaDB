@@ -26,7 +26,9 @@ package io.evitadb.externalApi.rest.api.dto;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,6 +39,8 @@ import javax.annotation.Nullable;
  * @author Lukáš Hornych, 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode
+@ToString
 public class OpenApiArray implements OpenApiSimpleType {
 
 	@Nonnull

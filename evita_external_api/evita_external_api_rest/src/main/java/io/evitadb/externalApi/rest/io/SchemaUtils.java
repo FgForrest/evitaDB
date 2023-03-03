@@ -177,7 +177,16 @@ public class SchemaUtils {
 	@Nonnull
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private static Schema getSchemaFromOperationProperty(@Nonnull OpenAPI openAPI, @Nonnull Operation operation, @Nonnull String propertyName, @Nonnull String rootPropertyName) {
-		final Schema rootSchema = (Schema) operation.getRequestBody().getContent().get(MimeTypes.APPLICATION_JSON).getSchema().getProperties().get(rootPropertyName);
+		final Schema rootSchema = (Schema) getTargetSchema(
+			operation.getRequestBody()
+				.getContent()
+				.get(MimeTypes.APPLICATION_JSON)
+				.getSchema(),
+			openAPI
+		)
+			.getProperties()
+			.get(rootPropertyName);
+
 		if (rootSchema != null) {
 			final Optional<Schema> propertySchema = getSchemaFromPropertiesByPropertyName(openAPI, getTargetSchemaFromRefOrOneOf(rootSchema, openAPI).getProperties(), new LinkedList<>(), propertyName);
 			if(propertySchema.isPresent()) {

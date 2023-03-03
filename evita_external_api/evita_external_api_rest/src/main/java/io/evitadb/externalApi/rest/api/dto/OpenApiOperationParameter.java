@@ -27,7 +27,9 @@ import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -38,13 +40,15 @@ import javax.annotation.Nullable;
  * @author Lukáš Hornych, 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode
+@ToString
 public class OpenApiOperationParameter {
 
 	@Nonnull
 	private final OpenApiOperationParameterLocation location;
 	@Nonnull
 	private final String name;
-	@Nonnull
+	@Nullable
 	private final String description;
 	@Nullable
 	private final String deprecationNotice;
@@ -101,7 +105,7 @@ public class OpenApiOperationParameter {
 		}
 
 		@Nonnull
-		public Builder description(@Nonnull String description) {
+		public Builder description(@Nullable String description) {
 			this.description = description;
 			return this;
 		}
@@ -123,10 +127,6 @@ public class OpenApiOperationParameter {
 			Assert.isPremiseValid(
 				name != null && !name.isEmpty(),
 				() -> new OpenApiSchemaBuildingError("Missing parameter name.")
-			);
-			Assert.isPremiseValid(
-				description != null && !description.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Parameter `" + name + "` is missing description.")
 			);
 			Assert.isPremiseValid(
 				type != null,

@@ -34,13 +34,11 @@ import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescr
 import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
-import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
@@ -64,7 +62,7 @@ public class DataMutationSchemaBuilder {
 		// Delete and upsert mutations use same URL but different HTTP method. In this case one PathItem must be used.
 		final PathItem pathItemWithPrimaryKeyInPath = pathItemBuilder.buildAndAddDeleteSingleEntityPathItem(entitySchemaBuildingContext);
 		pathItemBuilder.buildAndAddUpsertMutationOperationIntoPathItem(entitySchemaBuildingContext,
-			buildUpsertEntitySchema(false),
+			buildUpsertEntityObject(false),
 			pathItemWithPrimaryKeyInPath,
 			true
 		);
@@ -72,7 +70,7 @@ public class DataMutationSchemaBuilder {
 		final PathItem pathItem = pathItemBuilder.buildAndAddDeleteEntitiesByQueryPathItem(entitySchemaBuildingContext);
 		if (entitySchemaBuildingContext.getSchema().isWithGeneratedPrimaryKey()) {
 			pathItemBuilder.buildAndAddUpsertMutationOperationIntoPathItem(entitySchemaBuildingContext,
-				buildUpsertEntitySchema(true),
+				buildUpsertEntityObject(true),
 				pathItem,
 				false
 			);
@@ -80,9 +78,9 @@ public class DataMutationSchemaBuilder {
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildUpsertEntitySchema(boolean withPrimaryKey) {
+	private OpenApiTypeReference buildUpsertEntityObject(boolean withPrimaryKey) {
 		final OpenApiObject.Builder upsertEntityObjectBuilder = newObject()
-			.name(entitySchemaBuildingContext.getSchema().getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION) + "_UpsertEntity");//todo lho descriptor
+			.name(entitySchemaBuildingContext.getSchema().getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION) + withPrimaryKey + "_UpsertEntity");//todo lho descriptor
 
 		if (withPrimaryKey) {
 			upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY

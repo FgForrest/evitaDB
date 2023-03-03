@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -51,7 +52,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			of the client API (returning only single reference or collections) and also help us to protect the consistency
 			of the data so that conforms to the creator mental model.
 			""")
-		.type(nonNull(String.class))
+		.type(nonNull(Cardinality.class))
 		.build();
 
 	PropertyDescriptor REFERENCED_ENTITY_TYPE = PropertyDescriptor.builder()

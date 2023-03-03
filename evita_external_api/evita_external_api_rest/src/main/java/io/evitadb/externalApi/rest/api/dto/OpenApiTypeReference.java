@@ -25,12 +25,12 @@ package io.evitadb.externalApi.rest.api.dto;
 
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
-
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.createReferenceSchema;
 
 /**
  * TODO lho docs
@@ -39,6 +39,8 @@ import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.crea
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
+@EqualsAndHashCode
+@ToString
 public class OpenApiTypeReference implements OpenApiSimpleType {
 
 	@Nonnull

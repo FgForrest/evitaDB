@@ -56,7 +56,6 @@ import java.util.Set;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.*;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
@@ -154,7 +153,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 	                                                          boolean canBeRequired,
 	                                                          @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final Class<? extends Serializable> valueParameterType = valueParameter.type();
-		if (isGeneric(valueParameterType)) {
+		if (isJavaTypeGeneric(valueParameterType)) {
 			// value has generic type, we need to supply value type
 			Assert.isPremiseValid(
 				valueTypeSupplier != null,

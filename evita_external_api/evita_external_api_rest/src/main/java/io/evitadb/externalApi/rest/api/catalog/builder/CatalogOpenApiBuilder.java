@@ -96,11 +96,11 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.FORMAT_CURRENCY;
-import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator.FORMAT_LOCALE;
 import static io.evitadb.externalApi.rest.api.catalog.builder.constraint.RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_LIST;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.enumFrom;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.newEnum;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.FORMAT_CURRENCY;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.FORMAT_LOCALE;
 
 /**
  * Creates OpenAPI specification for Evita's catalog.
@@ -157,12 +157,14 @@ public class CatalogOpenApiBuilder {
 		context.getEntitySchemas().forEach(entitySchema -> {
 			final var entitySchemaBuildingContext = setupForCollection(entitySchema);
 			pathItemBuilder.buildAndAddSingleEntityPathItem(entitySchemaBuildingContext, false);
+			pathItemBuilder.buildAndAddSingleEntityWithPKPathItem(entitySchemaBuildingContext, false);
 			pathItemBuilder.buildAndAddEntityListPathItem(entitySchemaBuildingContext, false);
 			pathItemBuilder.buildAndAddEntityQueryPathItem(entitySchemaBuildingContext, false);
 			localizedEntityObjects.add(entitySchemaBuildingContext.getLocalizedEntityObject());
 
 			if(entitySchemaBuildingContext.isLocalizedEntity()) {
 				pathItemBuilder.buildAndAddSingleEntityPathItem(entitySchemaBuildingContext, true);
+				pathItemBuilder.buildAndAddSingleEntityWithPKPathItem(entitySchemaBuildingContext, true);
 				pathItemBuilder.buildAndAddEntityListPathItem(entitySchemaBuildingContext, true);
 				pathItemBuilder.buildAndAddEntityQueryPathItem(entitySchemaBuildingContext, true);
 

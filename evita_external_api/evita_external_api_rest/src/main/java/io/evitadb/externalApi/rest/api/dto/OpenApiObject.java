@@ -32,8 +32,10 @@ import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,6 +58,8 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
+@EqualsAndHashCode
+@ToString
 public class OpenApiObject implements OpenApiComplexType {
 
 	@Nonnull
@@ -114,6 +118,7 @@ public class OpenApiObject implements OpenApiComplexType {
 			schema.discriminator(new Discriminator().propertyName(unionDiscriminator));
 		} else {
 			schema = new ObjectSchema();
+			schema.setProperties(new LinkedHashMap<>(this.properties.size()));
 		}
 
 		schema.name(this.name);

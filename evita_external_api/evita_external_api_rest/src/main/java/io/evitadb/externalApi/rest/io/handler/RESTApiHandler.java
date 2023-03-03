@@ -59,6 +59,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
  * Generic HTTP request handler for processing REST API requests and responses.
  *
@@ -135,9 +137,6 @@ public abstract class RESTApiHandler implements HttpHandler {
 
     /**
      * Serializes object with response data into JSON.
-     *
-     * @param responseData
-     * @return
      */
     @Nonnull
     protected String serializeResult(@Nonnull Object responseData) {
@@ -195,7 +194,7 @@ public abstract class RESTApiHandler implements HttpHandler {
         //create copy of parameters
         final Map<String, Deque<String>> queryParameters = new HashMap<>(exchange.getQueryParameters());
 
-        final HashMap<String, Object> parameterData = new HashMap<>();
+        final HashMap<String, Object> parameterData = createHashMap(operation.getParameters().size());
         if(operation.getParameters() != null) {
             for (Parameter parameter : operation.getParameters()) {
                 getParameterFromRequest(queryParameters, parameter).ifPresent(data -> {

@@ -29,6 +29,8 @@ import org.junit.jupiter.api.Test;
 
 import static io.evitadb.externalApi.rest.api.catalog.builder.PathItemsCreator.*;
 import static io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreatorTest.writeApiObjectToOneLine;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.scalarFrom;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
@@ -41,63 +43,38 @@ class PathItemsCreatorTest {
 	@Test
 	void shouldCreateMediaTypeAsReferenceToSchema() {
 		final var expectedSchema = "schema: type: string";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createMediaType(SchemaCreator.createStringSchema())));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(createMediaType(scalarFrom(String.class))));
 	}
 
 	@Test
 	void shouldCreateApplicationJsonContent() {
 		final var expectedSchema = "application/json: schema: type: string";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createApplicationJsonContent(createMediaType(SchemaCreator.createStringSchema()))));
+		assertEquals(expectedSchema, writeApiObjectToOneLine(createApplicationJsonContent(createMediaType(scalarFrom(String.class)))));
 	}
 
 	@Test
 	void shouldCreateAndAddOkResponse() {
 		final var apiResponses = new ApiResponses();
-		createAndAddOkResponse(apiResponses, SchemaCreator.createStringSchema());
-		final var expectedSchema = "\"200\": content: application/json: schema: type: string";
+		createAndAddOkResponse(apiResponses, scalarFrom(String.class));
+		final var expectedSchema = "\"200\": description: Request was successful. content: application/json: schema: type: string";
 		assertEquals(expectedSchema, writeApiObjectToOneLine(apiResponses));
 	}
 
 	@Test
 	void shouldCreateSchemaResponse() {
-		final var expectedSchema = "content: application/json: schema: type: string";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaResponse(SchemaCreator.createStringSchema())));
+		final var expectedSchema = "description: Request was successful. content: application/json: schema: type: string";
+		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaResponse(scalarFrom(String.class))));
 	}
-
-	@SuppressWarnings("unchecked")
-	@Disabled("todo lho remove test probably, no longer applicable")
-	@Test
-	void shouldCreateRequestListSchema() {
-		final var expectedSchema = "type: object properties: filterBy: $ref: '#/components/schemas/Filter' orderBy: $ref: '#/components/schemas/Order'";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createRequestBodyObject(SchemaCreator.createStringSchema().name("Filter"), SchemaCreator.createStringSchema().name("Order"), null)));
-	}
-
-	@SuppressWarnings("unchecked")
-	@Test
-	@Disabled("todo lho remove test probably, no longer applicable")
-	void shouldCreateRequestQuerySchemaWithoutRequired() {
-		final var expectedSchema = "type: object properties: filterBy: $ref: '#/components/schemas/Filter' orderBy: $ref: '#/components/schemas/Order'";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createRequestQuerySchema(SchemaCreator.createStringSchema().name("Filter"), SchemaCreator.createStringSchema().name("Order"), null)));
-	}
-
-	@SuppressWarnings("unchecked")
-	@Test
-	@Disabled("todo lho remove test probably, no longer applicable")
-	void shouldCreateRequestQuerySchemaWithRequired() {
-		final var expectedSchema = "type: object properties: filterBy: $ref: '#/components/schemas/Filter' orderBy: $ref: '#/components/schemas/Order' require: $ref: '#/components/schemas/Required'";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createRequestQuerySchema(SchemaCreator.createStringSchema().name("Filter"), SchemaCreator.createStringSchema().name("Order"), SchemaCreator.createStringSchema().name("Required"))));
-	}
-
 	@Test
 	void shouldCreateSchemaArrayResponse() {
-		final var expectedSchema = "content: application/json: schema: type: array items: type: string";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaArrayResponse(SchemaCreator.createStringSchema())));
+		final var expectedSchema = "description: Request was successful. content: application/json: schema: type: array items: type: string";
+		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaArrayResponse(scalarFrom(String.class))));
 	}
 
 	@SuppressWarnings("unchecked")
 	@Test
 	void shouldCreateSchemaArrayResponseAsReference() {
-		final var expectedSchema = "content: application/json: schema: type: array items: $ref: '#/components/schemas/testSchema'";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaArrayResponse(SchemaCreator.createReferenceSchema(SchemaCreator.createStringSchema().name("testSchema")))));
+		final var expectedSchema = "description: Request was successful. content: application/json: schema: type: array items: $ref: '#/components/schemas/testSchema'";
+		assertEquals(expectedSchema, writeApiObjectToOneLine(createSchemaArrayResponse(typeRefTo("testSchema"))));
 	}
 }

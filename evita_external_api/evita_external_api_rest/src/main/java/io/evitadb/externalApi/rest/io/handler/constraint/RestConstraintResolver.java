@@ -35,8 +35,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStru
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
-import io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator;
 import io.evitadb.externalApi.rest.api.catalog.resolver.DataDeserializer;
+import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
 import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
@@ -80,7 +80,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 		}
 
 		final String argumentName = parameterDescriptor.name();
-		return DataDeserializer.deserializeObject(parameterDescriptor.type(), ((JsonNode) value).get(argumentName));
+		return DataDeserializer.deserialize(parameterDescriptor.type(), ((JsonNode) value).get(argumentName));
 	}
 
 	@Nullable
@@ -114,7 +114,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 				final Schema<?> argumentSchema = getSchemaFromOperationProperty(parsedKey.originalKey());
 				return DataDeserializer.deserialize(restApiContext.getOpenApi().get(), argumentSchema, (jsonNode));
 			} else {
-				return DataDeserializer.deserializeObject(type, jsonNode);
+				return DataDeserializer.deserialize(type, jsonNode);
 			}
 		} else {
 			return argument;
@@ -133,7 +133,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 
 	private Object convertArrayArgument(@Nonnull Class<?> classForArray, @Nonnull Schema<?> argumentSchema, @Nonnull JsonNode argument) {
 		final Schema<?> childrenSchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(argumentSchema.getItems(), restApiContext.getOpenApi().get());
-		if(childrenSchema.getType().equals(SchemaCreator.TYPE_ARRAY)) {
+		if(childrenSchema.getType().equals(OpenApiScalar.TYPE_ARRAY)) {
 			if(argument instanceof ArrayNode arrayNode) {
 				final Object objects = Array.newInstance(classForArray.isArray()?classForArray.getComponentType():classForArray, arrayNode.size());
 				for (int i = 0; i < arrayNode.size(); i++) {

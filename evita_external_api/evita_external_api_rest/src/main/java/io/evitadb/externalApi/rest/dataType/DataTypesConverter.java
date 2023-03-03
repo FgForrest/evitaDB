@@ -72,7 +72,7 @@ public class DataTypesConverter {
 
         final OpenApiScalar openApiComponentType;
         if (componentType.isPrimitive()) {
-            openApiComponentType = scalarFrom(EvitaDataTypes.getWrappingPrimitiveClass(componentType));
+            openApiComponentType = scalarFrom(componentType);
         } else {
             openApiComponentType = scalarFrom(componentType);
         }
@@ -95,7 +95,7 @@ public class DataTypesConverter {
                                                      boolean nonNull) {
         final OpenApiScalar openApiComponentType;
         if (replacementComponentType.isPrimitive()) {
-            openApiComponentType = scalarFrom(EvitaDataTypes.getWrappingPrimitiveClass(replacementComponentType));
+            openApiComponentType = scalarFrom(replacementComponentType);
         } else {
             openApiComponentType = scalarFrom(replacementComponentType);
         }

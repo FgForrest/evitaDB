@@ -30,7 +30,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescri
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogOpenApiBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogSchemaBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.builder.OpenApiEntitySchemaBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.builder.SchemaCreator;
 import io.evitadb.externalApi.rest.api.catalog.builder.UrlPathCreator;
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.OpenApiConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.rest.testSuite.TestDataGenerator;
@@ -40,6 +39,7 @@ import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
@@ -49,6 +49,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 
+import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.scalarFrom;
+import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
 import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.ENTITY_TYPE_PRODUCT;
 import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
@@ -77,11 +79,11 @@ class SchemaUtilsTest {
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		openAPI = new CatalogOpenApiBuilder(evita, catalog).build();
 
+		final CatalogSchemaBuildingContext catalogCtx = new CatalogSchemaBuildingContext(evita, catalog);
 		entitySchemaBuildingContext = new OpenApiEntitySchemaBuildingContext(
-			new CatalogSchemaBuildingContext(evita, catalog),
-			new OpenApiConstraintSchemaBuildingContext(catalog),
-			catalog.getEntitySchema(ENTITY_TYPE_PRODUCT).orElseThrow(),
-			null, null
+			catalogCtx,
+			new OpenApiConstraintSchemaBuildingContext(catalogCtx),
+			catalog.getEntitySchema(ENTITY_TYPE_PRODUCT).orElseThrow()
 		);
 
 		urlPathToProductList = UrlPathCreator.createBaseUrlPathToCatalog(catalog) + UrlPathCreator.createUrlPathToEntity(entitySchemaBuildingContext, CatalogDataApiRootDescriptor.ENTITY_LIST, false);
@@ -147,15 +149,15 @@ class SchemaUtilsTest {
 		final Components components = new Components();
 		openAPI.setComponents(components);
 
-		final Schema<Object> integerSchema = SchemaCreator.createIntegerSchema();
+		final Schema<?> integerSchema = scalarFrom(Integer.class).toSchema();
 		integerSchema.setName("MyValue");
 		components.addSchemas(integerSchema.getName(), integerSchema);
 
-		final Schema<Object> referenceToInt = SchemaCreator.createReferenceSchema(integerSchema);
+		final Schema<?> referenceToInt = typeRefTo(integerSchema.getName()).toSchema();
 		referenceToInt.setName("MyReference");
 		components.addSchemas(referenceToInt.getName(), referenceToInt);
 
-		final Schema<Object> topObject = SchemaCreator.createReferenceSchema(referenceToInt);
+		final Schema<?> topObject = typeRefTo(integerSchema.getName()).toSchema();
 		topObject.setName("TopObject");
 		components.addSchemas(topObject.getName(), topObject);
 
@@ -169,12 +171,12 @@ class SchemaUtilsTest {
 		final Components components = new Components();
 		openAPI.setComponents(components);
 
-		final Schema<Object> integerSchema = SchemaCreator.createIntegerSchema();
+		final Schema<?> integerSchema = scalarFrom(Integer.class).toSchema();
 		integerSchema.setName("MyValue");
 		components.addSchemas(integerSchema.getName(), integerSchema);
 
-		final Schema<Object> myObject = SchemaCreator.createObjectSchema();
-		SchemaCreator.addReferenceSchemaAsOneOf(myObject, integerSchema);
+		final Schema<Object> myObject = new ObjectSchema();
+		myObject.addOneOfItem(typeRefTo(integerSchema.getName()).toSchema());
 		components.addSchemas("myObject", integerSchema);
 
 		assertEquals(integerSchema, SchemaUtils.getTargetSchemaFromRefOrOneOf(myObject, openAPI));
