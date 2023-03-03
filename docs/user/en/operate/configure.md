@@ -169,13 +169,13 @@ Yes there are - you can use standardized metric system shortcuts for counts and 
         </Tr>
         <Tr>
             <Td>d</Td>
-            <Td>one day</Td>
-            <Td>1d &rightarrow; 604,800 secs</Td>
+            <Td>one week</Td>
+            <Td>1w &rightarrow; 604,800 secs</Td>
         </Tr>
         <Tr>
             <Td>y</Td>
             <Td>one year</Td>
-            <Td>1d &rightarrow; 31,556,926 secs</Td>
+            <Td>1y &rightarrow; 31,556,926 secs</Td>
         </Tr>
     </Tbody>
 </Table>
@@ -473,16 +473,13 @@ provide an unsecured connection for security reasons.
     <dt>enabled</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>It enables / disables system web API.</p>
+        <p>It enables / disables [mutual authentication](tls.md#mutual-tls-for-grpc).</p>
     </dd>
     <dt>allowedClientCertificatePaths</dt>
     <dd>
-        <p>**Default:** `localhost:5555`</p>
-        <p>It specifies the host and port on which the system API should listen. The value must be different from all 
-        other APIs because the system API needs to run on the insecure HTTP protocol while the other APIs use the secure one.</p>
-        <p>The system endpoint allows anyone to view public <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
-        <Term document="docs/user/en/operate/tls.md">certificate</Term> and it also provides information for 
-        [default `mTLS` implementation](tls.md#default-mtls-behaviour--not-secure-).</p>
+        <p>**Default:** `null`</p>
+        <p>It allows you to define zero or more file paths pointing to public <Term document="docs/user/en/operate/tls.md" name="certificate">client certificates</Term>.
+        Only clients that present the correct certificate will be allowed to communicate with the gRPC web API.</p>
     </dd>
 </dl>
 
@@ -493,16 +490,22 @@ only exposed endpoint on the unsecured http protocol, it must run on a separate 
 download the public part of the server certificate.
 
 It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and
-`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](#default-mtls-behaviour--not-secure-) for
+`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour--not-secure-) for
 more information.
 
 <dl>
     <dt>enabled</dt>
     <dd>
         <p>**Default:** `true`</p>
+        <p>It enables / disables system web API.</p>
     </dd>
     <dt>host</dt>
     <dd>
         <p>**Default:** `localhost:5557`</p>
+        <p>It specifies the host and port on which the system API should listen. The value must be different from all 
+        other APIs because the system API needs to run on the insecure HTTP protocol while the other APIs use the secure one.</p>
+        <p>The system endpoint allows anyone to view public <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
+        <Term document="docs/user/en/operate/tls.md">certificate</Term> and it also provides information for 
+        [default `mTLS` implementation](tls.md#default-mtls-behaviour--not-secure-).</p>
     </dd>
 </dl>
