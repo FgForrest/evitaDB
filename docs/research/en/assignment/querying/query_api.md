@@ -9,7 +9,7 @@ proofreading: 'done'
 The *evitaQL* (evitaDB Query Language) entry point is represented by
 <SourceClass>[Query.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/Query.java)</SourceClass>, and it looks like
 a [Lisp flavoured language](https://en.wikipedia.org/wiki/Lisp_(programming_language)). It always starts with the name
-of the function, followed by a set of arguments in brackets. You can even call functions in these arguments.
+of the function, followed by a set of arguments in brackets. You can even use other functions in these arguments.
 
 evitaQL is represented by a simple [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
 that is parsed to an abstract syntax tree, which consists of constraints
@@ -32,7 +32,7 @@ The parser supports passing values by reference copying the proven approach from
 allowing the use of the character `?` in the query and providing an array of correctly sorted input parameters. It also supports the
 so-called [named queries](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/core/namedparam/NamedParameterJdbcTemplate.html),
 which are widely used in the [Spring framework](https://spring.io/projects/spring-data-jdbc), using variables in the query
-with the `:name` format  and providing a [Map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with the named
+with the `:name` format and providing a [Map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with the named
 input parameters.
 
 In the opposite direction, it offers the `toStringWithParameterExtraction` method on the <SourceClass>[Query.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/Query.java)</SourceClass>
@@ -103,7 +103,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 The query is automatically cleaned and unnecessary constraints are purged before being processed by the evitaDB engine.
 
 There are several handy visitors (more will be added) that allow you to work with the query. They are placed in the package
-<SourceClass branch="POC">evita_query/src/main/java/io/evitadb/api/query/visitor/</SourceClass>, and some have quick methods in the
+<SourceClass>[visitor](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/visitor/)</SourceClass>, and some have quick methods in the
 <SourceClass>[QueryUtils.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/QueryUtils.java)</SourceClass> class.
 
 The query can be "pretty-printed" by using the `prettyPrint` method on the <SourceClass>[Query.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_query/src/main/java/io/evitadb/api/query/Query.java)</SourceClass> class.

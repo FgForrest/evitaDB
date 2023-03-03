@@ -65,8 +65,8 @@ This decision quite complicates the work with the model data which is planned as
 
 Nevertheless, it only complicates the internal code of evitaDB, and it should not impact developer code that uses
 our API. There may even be a new `require` constraint that allows access to dropped data in the future (not planned
-currently). There would (proofreaders note: would implies a condition. Example:I would have washed my hair, if the shower wasn't so cold.) also be an automatic cleaning process that will go through "dirty" entities and clean up dropped data
-once a while.
+currently). There will also be an automatic cleaning process that will go through "dirty" entities and clean up dropped 
+data from time to time.
 
 ## Working with entities from code
 
@@ -106,8 +106,8 @@ evita.updateCatalog(
 );
 ```
 
-This way, the created entity can be immediately checked against the schema. This form of code is a condensed version, and it
-may be split into several parts, which will reveal the "builder" used in the process.
+This way, the created entity can be immediately checked against the schema. This form of code is a condensed version, 
+and it may be split into several parts, which will reveal the "builder" used in the process.
 
 ## Creating entities in detached mode
 

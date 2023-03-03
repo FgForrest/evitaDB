@@ -13,7 +13,7 @@ is no longer available.
 
 ### Evolution
 
-evitaDB is designed to be schema-full (proofreaders note: todo jno: define schema-full) with automatic evolution support. One can start without a schema and immediately
+evitaDB is designed to be schema-full with automatic evolution support. One can start without a schema and immediately
 create new entities in the collection without reasoning about the structure. evitaDB works in "auto evolution" mode
 and builds schemas along the way. The existing schemas are still validated on each entity insertion/update - you will not
 be allowed to store same attribute the first time as a number type and next time as a string. First usage will set up
