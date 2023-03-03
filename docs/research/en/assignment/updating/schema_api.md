@@ -3,21 +3,21 @@ title: Schema API design
 perex:
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 All schema classes are designed as **immutable** and follow similar rules as [entities](entity_api) - including
 naming conventions and [versioning](entity_api#versioning). They don't follow the [soft-removal](entity_api#removal)
-approach, though. The changes in schema affect the database structure and once applied, previous schema of the catalog
+approach, though. The changes in the schema affect the database structure and once applied, the previous schema of the catalog
 is no longer available.
 
 ### Evolution
 
-evitaDB is designed to be schema-full with automatic evolution support. One can start without a schema and immediately
+evitaDB is designed to be schema-full (proofreaders note: todo jno: define schema-full) with automatic evolution support. One can start without a schema and immediately
 create new entities in the collection without reasoning about the structure. evitaDB works in "auto evolution" mode
-and builds schema along the way. The existing schema is still validated on each entity insertion/update - you will not
-be allowed to store same attribute first time as a number type and next time as a string. First usage will set up
-the attribute schema which will have to be respected from that moment on.
+and builds schemas along the way. The existing schemas are still validated on each entity insertion/update - you will not
+be allowed to store same attribute the first time as a number type and next time as a string. First usage will set up
+the attribute schema, which will have to be respected from that moment on.
 
 Default schema implicitly creates all attributes as `nullable`, `filterable` and non-array data types as `sortable`.
 This means the client is immediately able to filter / sort almost by anything, but the database itself will consume
@@ -25,14 +25,14 @@ a lot of resources.
 
 evitaDB can operate in strict schema mode when the structure is defined up-front, and then sealed so that all entities
 must strictly correspond to the predefined schema and violations will generate exceptions. This behaviour needs to be
-specified at the moment of collection creation.
+specified at the moment of collection of the creation.
 
-There are several partial lax modes between strict and lax mode - see
+There are several partial lax modes between the strict and the lax mode - see
 <SourceClass>[EvolutionMode.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/EvolutionMode.java)</SourceClass>
 
 ### Schema definition example
 
-Schema can be programmatically defined this way:
+A schema can be programmatically defined this way:
 
 ```java
 evita.updateCatalog(

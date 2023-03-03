@@ -3,15 +3,15 @@ title: Entity API design
 perex:
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 All model classes are **designed to be immutable**. The reason for this is simplicity, implicit correct behaviour in
-concurrent access (in other words, entities can be cached without fear of race condition situations) and easy identity checks
-(where only primary key and version is necessary to claim two data objects of the same type, if they are identical).
+concurrent access (in other words, entities can be cached without the fear of race condition situations) and easy identity checks
+(where only the primary key and the version is necessary to claim two data objects of the same type, if they are identical).
 
 All model classes are described by interfaces and there should not be any reason for using direct classes or
-instantiating them directly. Interfaces follow this structure:
+instantiating them directly. The interfaces follow this structure:
 
 - **ModelNameContract** - contains all read methods, represents the base contract for the model
 - **ModelNameEditor** - contains all modification methods
@@ -20,7 +20,7 @@ instantiating them directly. Interfaces follow this structure:
 ### Versioning
 
 All model classes are versioned - in other words, when any change in the model instance occurs, a new instance created from
-this altered state will have version number incremented. Version information is not only on
+this altered state will have its version number incremented. Version information is not only on the
 <SourceClass>[EntityContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/EntityContract.java)</SourceClass> level, but
 also on more granular levels (such as
 <SourceClass>[AttributesContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/AttributesContract.java)</SourceClass>
@@ -32,23 +32,24 @@ All model classes that support versioning implement the
 This version information is used for two purposes:
 
 1. **fast hashing + equality check:** only the primaryKey + version information suffices to tell whether two instances are equal,
-  and we can tell that with enough confidence even if only part of the entity was really loaded from the persistent
-  storage (if you need thorough comparison that compares all model data, you need to take advantage of the method
-  `differsFrom` in the <SourceClass>[ContentComparator.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/ContentComparator.java)</SourceClass> interface)
+  and we can tell that with enough confidence even if only a part of the entity was really loaded from the persistent
+  storage (if you need thorough comparison that compares all model data, you need to take advantage of the `differsFrom` method
+  in the <SourceClass>[ContentComparator.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/ContentComparator.java)</SourceClass> interface)
 2. **optimistic locking:** when there is a concurrent update of the same entity, we could automatically resolve the conflict,
-  providing that the changes themselves do not overlap
+  provided that the changes themselves do not overlap
 
 This information may prove useful when this database goes into to distributed mode.
 
 ### Removal
 
 No data is really removed once it is created and stored. When you remove the reference / attribute / whatever, it stays
-in the entity and is just marked as `dropped`. See implementations of interface
+in the entity and is just marked as `dropped`. See the implementations of the
 <SourceClass>[Droppable.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/Droppable.java)</SourceClass>
+interface.
 
 This decision has two roots:
 
-- it's good to have the last version of the data when things go wrong - we can still restore the previous value
+- it's good to have the last version of the data when things go wrong, because we can still restore the previous value
 - it's easy implementation-wise, and it doesn't require data deletion
 
 This decision quite complicates the work with the model data which is planned as follows:
@@ -63,8 +64,8 @@ This decision quite complicates the work with the model data which is planned as
   doesn't start from one)
 
 Nevertheless, it only complicates the internal code of evitaDB, and it should not impact developer code that uses
-our API. There may even be a new require constraint that allows access to dropped data in the future (not planned
-currently). There would also be an automatic cleaning process that will go through "dirty" entities and clean up dropped data
+our API. There may even be a new `require` constraint that allows access to dropped data in the future (not planned
+currently). There would (proofreaders note: would implies a condition. Example:I would have washed my hair, if the shower wasn't so cold.) also be an automatic cleaning process that will go through "dirty" entities and clean up dropped data
 once a while.
 
 ## Working with entities from code
@@ -105,12 +106,12 @@ evita.updateCatalog(
 );
 ```
 
-This way, the created entity can be immediately checked against the schema. This form of code is a condensed version and it
+This way, the created entity can be immediately checked against the schema. This form of code is a condensed version, and it
 may be split into several parts, which will reveal the "builder" used in the process.
 
 ## Creating entities in detached mode
 
-Entities can be also created even when Evita instance is not at hand:
+Entities can be also created even when an EvitaDB instance is not at hand:
 
 ```java
 final SealedEntity brand = new InitialEntityBuilder("brand", 1)
@@ -128,10 +129,10 @@ and the `toMutation()` is executed internally).
 
 ## Session
 
-Communication with Evita instance goes always through the
-<SourceClass>[EvitaSession.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/EvitaSession.java)</SourceClass> interface. Session are
+Communication with evitaDB instance goes always through the
+<SourceClass>[EvitaSession.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/EvitaSession.java)</SourceClass> interface. Sessions are
 created by the clients to envelope a "piece of work" with evitaDB. In the web environment, it's a good idea to have
-a session per request, in batch processing it's recommended to keep a single session for an entire batch.
+one session per request, in batch processing it's recommended to keep a single session for an entire batch.
 
 There may be multiple transactions (<SourceClass>[Transaction.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/Transaction.java)</SourceClass>
 during a single session instance's life, but transaction overlap is not supported - there can be, at most, a single
@@ -144,8 +145,8 @@ research stage.
 
 ## Read only vs. Read-Write sessions
 
-We distinguish between sessions by checking, if they allow writes ahead of session creation, or not. Read only sessions are opened by calling the
-<SourceClass>[Evita.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/Evita.java)</SourceClass>`queryCatalog`, and read-write
+We distinguish between the sessions by checking, if they allow writes ahead of session creation, or not. Read only sessions are opened by calling the
+<SourceClass>[Evita.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_db/src/main/java/io/evitadb/api/Evita.java)</SourceClass> `queryCatalog`, and read-write
 sessions by calling the `updateCatalog` method. No writes will be allowed in a read-only session. This also allows evitaDB to optimize
 its behaviour when working with the database.
 
