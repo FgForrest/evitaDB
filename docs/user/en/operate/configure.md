@@ -30,8 +30,8 @@ cache:                                            # [see Cache configuration](#c
   enabled: true
   reflection: CACHE
   reevaluateEachSeconds: 60
-  anteroomRecordCount: 100k
-  minimalComplexityThreshold: 10k
+  anteroomRecordCount: 100K
+  minimalComplexityThreshold: 10K
   minimalUsageThreshold: 2
   cacheSizeInBytes: null
 
@@ -321,14 +321,14 @@ is resolved.
     </dd>
     <dt>anteroomRecordCount</dt>
     <dd>
-        <p>**Default:** `100k`</p>
+        <p>**Default:** `100K`</p>
         <p>It defines the maximum number of records in cache anteroom. When this count is reached the re-evaluation
         process is automatically triggered leading to anteroom purge. The anteroom is also periodically purged
         each `reevaluateEachSeconds`. See [detailed caching process description](../deep-dive/cache.md).</p>
     </dd>
     <dt>minimalComplexityThreshold</dt>
     <dd>
-        <p>**Default:** `10k`</p>
+        <p>**Default:** `10K`</p>
         <p>It specifies the minimum computational complexity that must be achieved to store the cached result in the 
         cache. It's sort of a virtual number, so there's no guide as to how big it should be. If the cache fills up with
         a lot of results of doubtful use, you might try to increase this threshold to higher values.</p>
