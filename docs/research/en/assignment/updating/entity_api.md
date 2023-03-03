@@ -20,7 +20,7 @@ instantiating them directly. The interfaces follow this structure:
 ### Versioning
 
 All model classes are versioned - in other words, when any change in the model instance occurs, a new instance created from
-this altered state will have version number incremented. Version information is not only on
+this altered state will have its version number incremented. Version information is not only on the
 <SourceClass>[EntityContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/EntityContract.java)</SourceClass> level, but
 also on more granular levels (such as
 <SourceClass>[AttributesContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/AttributesContract.java)</SourceClass>
