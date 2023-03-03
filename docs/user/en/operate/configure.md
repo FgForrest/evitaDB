@@ -89,20 +89,21 @@ Yes there are - you can use standardized metric system shortcuts for counts and 
         <Tr>
             <Td>M</Td>
             <Td>one million</Td>
-            <Td>1K &rightarrow; 1,000,000</Td>
+            <Td>1M &rightarrow; 1,000,000</Td>
         </Tr>
         <Tr>
             <Td>G</Td>
             <Td>one billion</Td>
-            <Td>1K &rightarrow; 1,000,000,000</Td>
+            <Td>1G &rightarrow; 1,000,000,000</Td>
         </Tr>
         <Tr>
             <Td>T</Td>
             <Td>one trillion</Td>
-            <Td>1K &rightarrow; 1,000,000,000,000</Td>
+            <Td>1T &rightarrow; 1,000,000,000,000</Td>
         </Tr>
     </Tbody>
 </Table>
+
 
 <Table caption="Size formats">
     <Thead>
@@ -116,25 +117,26 @@ Yes there are - you can use standardized metric system shortcuts for counts and 
         <Tr>
             <Td>KB</Td>
             <Td>one kilobyte</Td>
-            <Td>1K &rightarrow; 1,024</Td>
+            <Td>1KB &rightarrow; 1,024</Td>
         </Tr>
         <Tr>
             <Td>MB</Td>
             <Td>one megabyte</Td>
-            <Td>1K &rightarrow; 1,048,576</Td>
+            <Td>1MB &rightarrow; 1,048,576</Td>
         </Tr>
         <Tr>
             <Td>GB</Td>
             <Td>one gigabyte</Td>
-            <Td>1K &rightarrow; 1,073,741,824</Td>
+            <Td>1GB &rightarrow; 1,073,741,824</Td>
         </Tr>
         <Tr>
             <Td>TB</Td>
             <Td>one terabyte</Td>
-            <Td>1K &rightarrow; 1,099,511,627,776</Td>
+            <Td>1TB &rightarrow; 1,099,511,627,776</Td>
         </Tr>
     </Tbody>
 </Table>
+
 
 <Table caption="Time formats">
     <Thead>
@@ -357,6 +359,8 @@ is resolved.
 
 ## API configuration
 
+This section of the configuration allows you to selectively enable, disable, and tweak specific APIs. 
+
 ### TLS configuration
 
 TLS support is enabled by default and cannot be disabled. It's configured in the `certificate` subsection of the `api`.
@@ -417,11 +421,70 @@ provide an unsecured connection for security reasons.
 
 ### GraphQL API configuration
 
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>It enables / disables GraphQL web API.</p>
+    </dd>
+    <dt>host</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the REST 
+        API, but not to the gRPC or System API.</p>
+    </dd>
+</dl>
+
 ### REST API configuration
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>It enables / disables REST web API.</p>
+    </dd>
+    <dt>host</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the GraphQL 
+        API, but not to the gRPC or System API.</p>
+    </dd>
+</dl>
 
 ### gRPC API configuration
 
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>It enables / disables gRPC web API.</p>
+    </dd>
+    <dt>host</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>It specifies the host and port that the GraphQL API should listen on. The value must be different from all 
+        other APIs because gRPC internally uses completely different web server.</p>
+    </dd>
+</dl>
+
 #### Mutual TLS configuration
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>It enables / disables system web API.</p>
+    </dd>
+    <dt>allowedClientCertificatePaths</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>It specifies the host and port on which the system API should listen. The value must be different from all 
+        other APIs because the system API needs to run on the insecure HTTP protocol while the other APIs use the secure one.</p>
+        <p>The system endpoint allows anyone to view public <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
+        <Term document="docs/user/en/operate/tls.md">certificate</Term> and it also provides information for 
+        [default `mTLS` implementation](tls.md#default-mtls-behaviour--not-secure-).</p>
+    </dd>
+</dl>
 
 ### System API configuration
 
@@ -432,3 +495,14 @@ download the public part of the server certificate.
 It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and
 `api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](#default-mtls-behaviour--not-secure-) for
 more information.
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+    </dd>
+    <dt>host</dt>
+    <dd>
+        <p>**Default:** `localhost:5557`</p>
+    </dd>
+</dl>
