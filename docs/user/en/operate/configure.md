@@ -66,6 +66,124 @@ api:                                              # [see API configuration](#api
 
 <NoteTitle toggles="true">
 
+##### Are there any shortcuts for large numbers?
+</NoteTitle>
+
+Yes there are - you can use standardized metric system shortcuts for counts and sizes (all abbreviations are
+**case-sensitive**). See following table:
+
+<Table caption="Number formats">
+    <Thead>
+        <Tr>
+            <Th>Abbreviation</Th>
+            <Th>Meaning</Th>
+            <Th>Example</Th>
+        </Tr>
+    </Thead>
+    <Tbody>
+        <Tr>
+            <Td>K</Td>
+            <Td>one thousand</Td>
+            <Td>1K &rightarrow; 1,000</Td>
+        </Tr>
+        <Tr>
+            <Td>M</Td>
+            <Td>one million</Td>
+            <Td>1K &rightarrow; 1,000,000</Td>
+        </Tr>
+        <Tr>
+            <Td>G</Td>
+            <Td>one billion</Td>
+            <Td>1K &rightarrow; 1,000,000,000</Td>
+        </Tr>
+        <Tr>
+            <Td>T</Td>
+            <Td>one trillion</Td>
+            <Td>1K &rightarrow; 1,000,000,000,000</Td>
+        </Tr>
+    </Tbody>
+</Table>
+
+<Table caption="Size formats">
+    <Thead>
+        <Tr>
+            <Th>Abbreviation</Th>
+            <Th>Meaning</Th>
+            <Th>Example</Th>
+        </Tr>
+    </Thead>
+    <Tbody>
+        <Tr>
+            <Td>KB</Td>
+            <Td>one kilobyte</Td>
+            <Td>1K &rightarrow; 1,024</Td>
+        </Tr>
+        <Tr>
+            <Td>MB</Td>
+            <Td>one megabyte</Td>
+            <Td>1K &rightarrow; 1,048,576</Td>
+        </Tr>
+        <Tr>
+            <Td>GB</Td>
+            <Td>one gigabyte</Td>
+            <Td>1K &rightarrow; 1,073,741,824</Td>
+        </Tr>
+        <Tr>
+            <Td>TB</Td>
+            <Td>one terabyte</Td>
+            <Td>1K &rightarrow; 1,099,511,627,776</Td>
+        </Tr>
+    </Tbody>
+</Table>
+
+<Table caption="Time formats">
+    <Thead>
+        <Tr>
+            <Th>Abbreviation</Th>
+            <Th>Meaning</Th>
+            <Th>Example</Th>
+        </Tr>
+    </Thead>
+    <Tbody>
+        <Tr>
+            <Td>1s</Td>
+            <Td>one second</Td>
+            <Td>1s &rightarrow; 1 secs</Td>
+        </Tr>
+        <Tr>
+            <Td>m</Td>
+            <Td>one minute</Td>
+            <Td>1m &rightarrow; 60 secs</Td>
+        </Tr>
+        <Tr>
+            <Td>h</Td>
+            <Td>one hour</Td>
+            <Td>1h &rightarrow; 3,600 secs</Td>
+        </Tr>
+        <Tr>
+            <Td>d</Td>
+            <Td>one day</Td>
+            <Td>1d &rightarrow; 86,400 secs</Td>
+        </Tr>
+        <Tr>
+            <Td>d</Td>
+            <Td>one day</Td>
+            <Td>1d &rightarrow; 604,800 secs</Td>
+        </Tr>
+        <Tr>
+            <Td>y</Td>
+            <Td>one year</Td>
+            <Td>1d &rightarrow; 31,556,926 secs</Td>
+        </Tr>
+    </Tbody>
+</Table>
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
 ##### Where the default configuration bundled with Docker image is located?
 </NoteTitle>
 
@@ -194,22 +312,46 @@ is resolved.
     <dt>reevaluateEachSeconds</dt>
     <dd>
         <p>**Default:** `60`</p>
+        <p>It defines the period for re-evaluating cache adepts to be propagated to cache or pruned.
+        The reevaluation may be also triggered by exceeding maximum allowed `anteroomRecordCount`, but no later than
+        `reevaluateEachSeconds` since the last re-evaluation (with the exception when there is no free thread in 
+        thread pool to serve this task). See [detailed caching process description](../deep-dive/cache.md).</p>
     </dd>
     <dt>anteroomRecordCount</dt>
     <dd>
         <p>**Default:** `100k`</p>
+        <p>It defines the maximum number of records in cache anteroom. When this count is reached the re-evaluation
+        process is automatically triggered leading to anteroom purge. The anteroom is also periodically purged
+        each `reevaluateEachSeconds`. See [detailed caching process description](../deep-dive/cache.md).</p>
     </dd>
     <dt>minimalComplexityThreshold</dt>
     <dd>
         <p>**Default:** `10k`</p>
+        <p>It specifies the minimum computational complexity that must be achieved to store the cached result in the 
+        cache. It's sort of a virtual number, so there's no guide as to how big it should be. If the cache fills up with
+        a lot of results of doubtful use, you might try to increase this threshold to higher values.</p>
     </dd>
     <dt>minimalUsageThreshold</dt>
     <dd>
         <p>**Default:** `2`</p>
+        <p>It specifies the minimum number of times a computed result can be reused before it is cached. If the cache is 
+        filling up with cached values with low hit ratios, you might try increasing this threshold to higher values.</p>
     </dd>
     <dt>cacheSizeInBytes</dt>
     <dd>
-        <p>**Default:** `null`</p>
+        <p>**Default:** `null`, which means that evitaDB uses 25% of the free memory measured at the moment it starts and loads all data into it</p>
+        <p>evitaDB tries to estimate the memory size of each cached object and avoid exceeding this threshold.</p>
+        <Note type="question">
+
+        <NoteTitle toggles="true">
+    
+        ##### How do we measure the object size?
+        </NoteTitle>
+
+        Measuring the exact amount of memory each object allocates is not easy in Java, and at the moment it's only 
+        an approximation from our side. According to our experience, our estimates are set higher than the reality and 
+        the system stops at around 90% of the set `cacheSizeInBytes` limit (but this experience is based on OS Linux, x86_64 architecture).
+        </Note>
     </dd>
 </dl>
 
