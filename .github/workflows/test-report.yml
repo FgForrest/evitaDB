@@ -22,3 +22,8 @@ jobs:
         if: success() || failure() # always run even if the previous step fails
         with:
           report_paths: '**/TEST-*.xml'
+          commit: ${{github.event.workflow_run.head_sha}}
+          require_tests: true
+          summary: true
+          detailed_summary: true
+          annotate_notice: true

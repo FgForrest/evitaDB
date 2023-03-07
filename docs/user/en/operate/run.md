@@ -27,6 +27,25 @@ docker run --name evitadb -i --rm --net=host \
 index.docker.io/evitadb/evitadb:latest
 ```
 
+When you start the evitaDB server you should see the following information in the console output:
+
+```
+            _ _        ____  ____  
+  _____   _(_) |_ __ _|  _ \| __ ) 
+ / _ \ \ / / | __/ _` | | | |  _ \ 
+|  __/\ V /| | || (_| | |_| | |_) |
+ \___| \_/ |_|\__\__,_|____/|____/ 
+
+You'll see some version here
+Visit us at: https://evitadb.io
+
+Root CA Certificate fingerprint:        You'll see some fingerprint here
+API `graphQL` listening on              https://your-server:5555/gql/
+API `rest` listening on                 https://your-server:5555/rest/
+API `gRPC` listening on                 https://your-server:5556/
+API `system` listening on               http://your-server:5557/system/
+```
+
 <Note type="info">
 
 <NoteTitle toggles="true">
@@ -288,26 +307,8 @@ you will also see the ports configuration here.
 ### Control logging
 
 evitaDB uses the [Slf4j](https://www.slf4j.org/) logging facade with [Logback](https://logback.qos.ch/) implementation, but
-you're free to change this. When you start the evitaDB server you should see the following information in the console output:
-
-```
-            _ _        ____  ____  
-  _____   _(_) |_ __ _|  _ \| __ ) 
- / _ \ \ / / | __/ _` | | | |  _ \ 
-|  __/\ V /| | || (_| | |_| | |_) |
- \___| \_/ |_|\__\__,_|____/|____/ 
-
-You'll see some version here
-Visit us at: https://evitadb.io
-
-Root CA Certificate fingerprint:        You'll see some fingerprint here
-API `graphQL` listening on              https://your-server:5555/gql/
-API `rest` listening on                 https://your-server:5555/rest/
-API `gRPC` listening on                 https://your-server:5556/
-API `system` listening on               http://your-server:5557/system/
-```
-
-The default logback configuration is defined in a file <SourceClass>evita_server/src/main/resources/logback.xml</SourceClass>.
+you're free to change this. The default logback configuration is defined in a file 
+<SourceClass>evita_server/src/main/resources/logback.xml</SourceClass>.
 
 You can completely override the default logback configuration by providing your own
 [logback configuration file](https://logback.qos.ch/manual/configuration.html#syntax) in a volume:
