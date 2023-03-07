@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.io.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -56,9 +55,9 @@ public class EntityQueryHandler extends EntityListHandler {
 
 	private Map<String, String> referenceNameToFieldName;
 
-	public EntityQueryHandler(@Nonnull RESTApiContext restApiContext) {
-		super(restApiContext);
-		this.referenceNameToFieldName = restApiContext.getEntitySchema().getReferences().values().stream()
+	public EntityQueryHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+		super(restApiHandlingContext);
+		this.referenceNameToFieldName = restApiHandlingContext.getEntitySchema().getReferences().values().stream()
 			.map(referenceSchema -> new SimpleEntry<>(referenceSchema.getName(), referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION)))
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 	}
@@ -69,32 +68,32 @@ public class EntityQueryHandler extends EntityListHandler {
 
 		final Query query = resolveQuery(exchange);
 
-		log.debug("Generated Evita query for entity query of type `" + restApiContext.getEntityType() + "` is `" + query + "`.");
+		log.debug("Generated Evita query for entity query of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
 
-		try(final EvitaSessionContract evitaSession = restApiContext.createReadOnlySession()) {
-			final EvitaResponse<EntityClassifier> response = evitaSession.query(query, EntityClassifier.class);
+		restApiHandlingContext.queryCatalog(session -> {
+			final EvitaResponse<EntityClassifier> response = session.query(query, EntityClassifier.class);
 
 			final QueryResponse.QueryResponseBuilder queryResponseBuilder = QueryResponse.builder();
 			setRecordPage(response, queryResponseBuilder);
 			setExtraResults(response, queryResponseBuilder);
 
 			setSuccessResponse(exchange, serializeResult(queryResponseBuilder.build()));
-		}
+		});
 	}
 
 	private void setRecordPage(@Nonnull final EvitaResponse<EntityClassifier> response, QueryResponse.QueryResponseBuilder queryResponseBuilder) {
 		final DataChunk<EntityClassifier> recordPage = response.getRecordPage();
 		if(recordPage instanceof io.evitadb.dataType.PaginatedList<EntityClassifier> paginatedList) {
-			final PaginatedList restPaginatedList = new PaginatedList(paginatedList, new EntityJsonSerializer(restApiContext, paginatedList.getData()).serialize());
+			final PaginatedList restPaginatedList = new PaginatedList(paginatedList, new EntityJsonSerializer(restApiHandlingContext, paginatedList.getData()).serialize());
 			queryResponseBuilder.recordPage(restPaginatedList);
 		} else if(recordPage instanceof io.evitadb.dataType.StripList<EntityClassifier> stripList) {
-			final StripList restStripList = new StripList(stripList, new EntityJsonSerializer(restApiContext, stripList.getData()).serialize());
+			final StripList restStripList = new StripList(stripList, new EntityJsonSerializer(restApiHandlingContext, stripList.getData()).serialize());
 			queryResponseBuilder.recordPage(restStripList);
 		}
 	}
 
 	private void setExtraResults(@Nonnull final EvitaResponse<EntityClassifier> response, QueryResponse.QueryResponseBuilder queryResponseBuilder) {
-		final JsonNode extraResultsNode = new ExtraResultsJsonSerializer(restApiContext, response.getExtraResults(), referenceNameToFieldName).serialize();
+		final JsonNode extraResultsNode = new ExtraResultsJsonSerializer(restApiHandlingContext, response.getExtraResults(), referenceNameToFieldName).serialize();
 		if(!extraResultsNode.isEmpty()) {
 			queryResponseBuilder.extraResults(extraResultsNode);
 		}

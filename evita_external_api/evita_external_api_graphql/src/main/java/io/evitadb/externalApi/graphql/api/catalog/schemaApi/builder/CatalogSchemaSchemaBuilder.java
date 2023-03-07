@@ -81,26 +81,26 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	@Override
 	public void build() {
 		// build reusable objects
-		graphQLSchemaBuildingCtx.registerType(buildEntitySchemaObject());
-		graphQLSchemaBuildingCtx.registerType(buildCatalogSchemaObject());
+		context.registerType(buildEntitySchemaObject());
+		context.registerType(buildCatalogSchemaObject());
 
 		// catalog schema mutations
-		graphQLSchemaBuildingCtx.registerType(CreateCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(ModifyCatalogSchemaNameMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(RemoveCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(CreateCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(ModifyCatalogSchemaNameMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(RemoveCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// global attribute schema mutations
-		graphQLSchemaBuildingCtx.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// other mutation objects should be already created by EntitySchemaSchemaBuilder
-		graphQLSchemaBuildingCtx.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// build catalog field
-		graphQLSchemaBuildingCtx.registerQueryField(buildCatalogSchemaField());
-		graphQLSchemaBuildingCtx.registerMutationField(buildUpdateCatalogSchemaField());
+		context.registerQueryField(buildCatalogSchemaField());
+		context.registerMutationField(buildUpdateCatalogSchemaField());
 	}
 
 	/*
@@ -117,31 +117,31 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 	@Nonnull
 	private GraphQLObjectType buildCatalogSchemaObject() {
-		final CatalogSchemaContract catalogSchema = graphQLSchemaBuildingCtx.getSchema();
+		final CatalogSchemaContract catalogSchema = context.getSchema();
 
 		final GraphQLObjectType.Builder schemaObjectBuilder = CatalogSchemaDescriptor.THIS.to(objectBuilderTransformer);
 
 		if (!catalogSchema.getAttributes().isEmpty()) {
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				CatalogSchemaDescriptor.THIS,
 				schemaObjectBuilder,
 				buildGlobalAttributeSchemasField()
 			);
 		}
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			CatalogSchemaDescriptor.THIS,
 			CatalogSchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
 		);
 
-		if (!graphQLSchemaBuildingCtx.getEntitySchemas().isEmpty()) {
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+		if (!context.getEntitySchemas().isEmpty()) {
+			context.registerFieldToObject(
 				CatalogSchemaDescriptor.THIS,
 				schemaObjectBuilder,
 				buildEntitySchemasField()
 			);
 		}
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			CatalogSchemaDescriptor.THIS,
 			CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS,
 			new AllEntitySchemasDataFetcher()
@@ -174,10 +174,10 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		final GraphQLObjectType.Builder attributeSchemasObjectBuilder = GlobalAttributeSchemasDescriptor.THIS
 			.to(objectBuilderTransformer);
 
-		graphQLSchemaBuildingCtx.getSchema().getAttributes()
+		context.getSchema().getAttributes()
 			.values()
 			.forEach(attributeSchema ->
-				graphQLSchemaBuildingCtx.registerFieldToObject(
+				context.registerFieldToObject(
 					GlobalAttributeSchemasDescriptor.THIS,
 					attributeSchemasObjectBuilder,
 					buildGlobalAttributeSchemaField(attributeSchema)
@@ -226,7 +226,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		final GraphQLObjectType.Builder entitySchemasObjectBuilder = EntitySchemasDescriptor.THIS
 			.to(objectBuilderTransformer);
 
-		graphQLSchemaBuildingCtx.getEntitySchemas().forEach(entitySchema -> {
+		context.getEntitySchemas().forEach(entitySchema -> {
 			final GraphQLFieldDefinition entitySchemaField = newFieldDefinition()
 				.name(entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
 				.description(entitySchema.getDescription())
@@ -236,7 +236,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 			final CatalogEntitySchemaDataFetcher dataFetcher = new CatalogEntitySchemaDataFetcher(entitySchema.getName());
 			final BuiltFieldDescriptor fieldDescriptor = new BuiltFieldDescriptor(entitySchemaField, dataFetcher);
 
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				EntitySchemasDescriptor.THIS,
 				entitySchemasObjectBuilder,
 				fieldDescriptor
@@ -254,21 +254,21 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_ATTRIBUTES
 			.to(fieldBuilderTransformer)
 			.type(nonNull(list(nonNull(typeRef(ATTRIBUTE_SCHEMA_UNION_NAME))))));
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
 		);
 
 		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.to(fieldBuilderTransformer));
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ASSOCIATED_DATA,
 			new AllAssociatedDataSchemasDataFetcher()
 		);
 
 		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_REFERENCES.to(fieldBuilderTransformer));
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_REFERENCES,
 			new AllReferenceSchemasDataFetcher()

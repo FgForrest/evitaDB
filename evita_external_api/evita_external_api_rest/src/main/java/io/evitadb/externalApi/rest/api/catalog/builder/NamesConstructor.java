@@ -41,6 +41,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyPar
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.DataChunkAggregateDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -66,6 +67,16 @@ public class NamesConstructor {
 	@Nonnull
 	public static String constructEntityObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
 		return EntityDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	}
+
+	@Nonnull
+	public static String constructEntityListRequestBodyObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
+		return QueryRequestBodyDescriptor.THIS_LIST.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	}
+
+	@Nonnull
+	public static String constructEntityQueryRequestBodyObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
+		return QueryRequestBodyDescriptor.THIS_QUERY.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
 	}
 
 	@Nonnull

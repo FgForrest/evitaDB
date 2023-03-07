@@ -34,39 +34,39 @@ import javax.annotation.Nonnull;
  */
 public class CatalogRestRefreshingObserver implements CatalogStructuralChangeObserver {
 
-	private final RESTApiManager restApiManager;
+	private final RestManager restManager;
 
-	public CatalogRestRefreshingObserver(RESTApiManager restApiManager) {
-		this.restApiManager = restApiManager;
+	public CatalogRestRefreshingObserver(RestManager restManager) {
+		this.restManager = restManager;
 	}
 
 	@Override
 	public void onCatalogCreate(@Nonnull String catalogName) {
-		restApiManager.registerNewCatalog(catalogName);
+		restManager.registerCatalog(catalogName);
 	}
 
 	@Override
 	public void onCatalogDelete(@Nonnull String catalogName) {
-		restApiManager.unregisterCatalog(catalogName);
+		restManager.unregisterCatalog(catalogName);
 	}
 
 	@Override
 	public void onEntityCollectionCreate(@Nonnull String catalogName, @Nonnull String entityType) {
-		restApiManager.updateExistingCatalog(catalogName);
+		restManager.refreshCatalog(catalogName);
 	}
 
 	@Override
 	public void onEntityCollectionDelete(@Nonnull String catalogName, @Nonnull String entityType) {
-		restApiManager.updateExistingCatalog(catalogName);
+		restManager.refreshCatalog(catalogName);
 	}
 
 	@Override
 	public void onCatalogSchemaUpdate(@Nonnull String catalogName) {
-		restApiManager.updateExistingCatalog(catalogName);
+		restManager.refreshCatalog(catalogName);
 	}
 
 	@Override
 	public void onEntitySchemaUpdate(@Nonnull String catalogName, @Nonnull String entityType) {
-		restApiManager.updateExistingCatalog(catalogName);
+		restManager.refreshCatalog(catalogName);
 	}
 }

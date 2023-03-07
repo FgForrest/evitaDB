@@ -49,7 +49,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyPar
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
-import io.evitadb.externalApi.rest.io.handler.RESTApiContext;
+import io.evitadb.externalApi.rest.io.handler.RestHandlingContext;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -69,20 +69,20 @@ import java.util.Map.Entry;
  */
 @Slf4j
 public class ExtraResultsJsonSerializer {
-	private final RESTApiContext restApiContext;
+	private final RestHandlingContext restHandlingContext;
 
 	private final Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
 	private final Map<String, String> referenceNameToFieldName;
 
-	public ExtraResultsJsonSerializer(@Nonnull RESTApiContext restApiContext,
+	public ExtraResultsJsonSerializer(@Nonnull RestHandlingContext restHandlingContext,
 	                                  @Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults,
 	                                  @Nonnull Map<String, String> referenceNameToFieldName) {
-		this.restApiContext = restApiContext;
+		this.restHandlingContext = restHandlingContext;
 		this.extraResults = extraResults;
 		this.referenceNameToFieldName = referenceNameToFieldName;
-		this.objectJsonSerializer = new ObjectJsonSerializer(restApiContext.getObjectMapper());
+		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}
 
 	/**
@@ -258,7 +258,7 @@ public class ExtraResultsJsonSerializer {
 
 	@Nonnull
 	private JsonNode serializeEntity(@Nonnull EntityClassifier entityDecorator) {
-		return new EntityJsonSerializer(restApiContext, entityDecorator).serialize();
+		return new EntityJsonSerializer(restHandlingContext, entityDecorator).serialize();
 	}
 
 	@Nonnull

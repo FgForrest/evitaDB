@@ -34,7 +34,6 @@ import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.dataType.GenericObject;
-import io.evitadb.externalApi.rest.api.catalog.DataTypeDescriptor;
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.ArraySchema;
@@ -48,20 +47,16 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Currency;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static io.evitadb.externalApi.rest.api.catalog.RestDataTypeDescriptor.*;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**

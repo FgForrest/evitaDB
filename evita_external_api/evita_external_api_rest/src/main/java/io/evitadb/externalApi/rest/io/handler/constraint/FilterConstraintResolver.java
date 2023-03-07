@@ -35,7 +35,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.Constraint
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
-import io.evitadb.externalApi.rest.io.handler.RESTApiContext;
+import io.evitadb.externalApi.rest.io.handler.CollectionRestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
@@ -58,8 +58,8 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 	@Nonnull
 	private final ConstraintDescriptor wrapperContainer;
 
-	public FilterConstraintResolver(@Nonnull RESTApiContext restApiContext, @Nonnull Operation operation) {
-		super(restApiContext, operation);
+	public FilterConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext, @Nonnull Operation operation) {
+		super(restHandlingContext, operation);
 
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(And.class);
 		Assert.isPremiseValid(
@@ -88,7 +88,7 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 	@Nonnull
 	@Override
 	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(restApiContext.getEntityType());
+		return new EntityDataLocator(restHandlingContext.getEntityType());
 	}
 
 	@Nonnull
@@ -108,6 +108,6 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 
 	@Override
 	protected Schema getSchemaFromOperationProperty(@Nonnull String propertyName) {
-		return SchemaUtils.getSchemaFromFilterBy(restApiContext.getOpenApi().get(), operation, propertyName);
+		return SchemaUtils.getSchemaFromFilterBy(restHandlingContext.getOpenApi(), operation, propertyName);
 	}
 }

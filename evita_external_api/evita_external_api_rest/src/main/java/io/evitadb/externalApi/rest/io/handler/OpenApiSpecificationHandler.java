@@ -21,37 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest;
+package io.evitadb.externalApi.rest.io.handler;
 
-import io.evitadb.externalApi.http.ExternalApiProvider;
-import io.evitadb.externalApi.rest.configuration.RESTConfig;
-import io.undertow.server.HttpHandler;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.externalApi.http.MimeTypes;
+import io.evitadb.externalApi.rest.api.OpenApiWriter;
+import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 
 /**
- * Descriptor of external API provider that provides REST API.
+ * Returns OpenAPI schema for whole collection.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public class RESTProvider implements ExternalApiProvider<RESTConfig> {
+public class OpenApiSpecificationHandler extends RestHandler<RestHandlingContext> {
 
-	public static final String CODE = "rest";
+	public OpenApiSpecificationHandler(@Nonnull RestHandlingContext restHandlingContext) {
+		super(restHandlingContext);
+	}
 
-	@Nonnull
-	@Getter
-	private final RESTConfig configuration;
-
-	@Nonnull
-	@Getter
-	private final HttpHandler apiHandler;
+	@Override
+	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
+		setSuccessResponse(exchange, OpenApiWriter.toYaml(restApiHandlingContext.getOpenApi()));
+	}
 
 	@Nonnull
 	@Override
-	public String getCode() {
-		return CODE;
+	protected String getContentType() {
+		return MimeTypes.APPLICATION_YAML;
 	}
 }

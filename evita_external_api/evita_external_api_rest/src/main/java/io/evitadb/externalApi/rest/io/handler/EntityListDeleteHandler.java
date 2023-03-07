@@ -23,20 +23,17 @@
 
 package io.evitadb.externalApi.rest.io.handler;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.externalApi.rest.api.catalog.builder.PathItemsCreator;
 import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
 import io.evitadb.externalApi.rest.io.handler.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.io.handler.constraint.OrderByConstraintResolver;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.io.model.EntityQueryRequestData;
 import io.evitadb.externalApi.rest.io.serializer.EntityJsonSerializer;
-import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,17 +50,8 @@ import static io.evitadb.api.query.QueryConstraints.collection;
  */
 @Slf4j
 public class EntityListDeleteHandler extends EntityListHandler {
-	public EntityListDeleteHandler(@Nonnull RESTApiContext restApiContext) {
-		super(restApiContext);
-	}
-
-	@Override
-	protected void validateContext() {
-		Assert.isPremiseValid(restApiContext.getObjectMapper() != null, "Instance of ObjectMapper must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEvita() != null, "Instance of Evita must be set in context.");
-		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEntityType() != null, "Entity type must be set in context.");
-		Assert.isPremiseValid(restApiContext.getPathItem() != null, "PathItem must be set in context.");
+	public EntityListDeleteHandler(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+		super(restHandlingContext);
 	}
 
 	@Override
@@ -72,12 +60,12 @@ public class EntityListDeleteHandler extends EntityListHandler {
 
 		final Query query = resolveQuery(exchange);
 
-		log.debug("Generated Evita query for deletion of entity list of type `" + restApiContext.getEntityType() + "` is `" + query + "`.");
+		log.debug("Generated Evita query for deletion of entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
 
-		try(final EvitaSessionContract evitaSession = restApiContext.createReadWriteSession()) {
-			final SealedEntity[] deletedEntities = evitaSession.deleteEntitiesAndReturnBodies(query);
-			setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiContext, Arrays.asList(deletedEntities)).serialize()));
-		}
+		restApiHandlingContext.updateCatalog(session -> {
+			final SealedEntity[] deletedEntities = session.deleteEntitiesAndReturnBodies(query);
+			setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, Arrays.asList(deletedEntities)).serialize()));
+		});
 	}
 
 	@Override
@@ -85,12 +73,12 @@ public class EntityListDeleteHandler extends EntityListHandler {
 	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) throws IOException {
 		final EntityQueryRequestData requestData = getRequestData(exchange);
 
-		final FilterBy filterBy = requestData.isFilterBySet()?(FilterBy) new FilterConstraintResolver(restApiContext, restApiContext.getPathItem().getDelete()).resolve(QueryRequestBodyDescriptor.FILTER_BY.name(), requestData.getFilterBy()):null;
-		final OrderBy orderBy = requestData.isOrderBySet()?(OrderBy) new OrderByConstraintResolver(restApiContext, restApiContext.getPathItem().getDelete()).resolve(QueryRequestBodyDescriptor.ORDER_BY.name(), requestData.getOrderBy()):null;
-		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiContext, restApiContext.getPathItem().getDelete()).resolve(QueryRequestBodyDescriptor.REQUIRE.name(), requestData.getRequire()):null;
+		final FilterBy filterBy = requestData.isFilterBySet()?(FilterBy) new FilterConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.FILTER_BY.name(), requestData.getFilterBy()):null;
+		final OrderBy orderBy = requestData.isOrderBySet()?(OrderBy) new OrderByConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.ORDER_BY.name(), requestData.getOrderBy()):null;
+		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.REQUIRE.name(), requestData.getRequire()):null;
 
 		return Query.query(
-			collection(restApiContext.getEntityType()),
+			collection(restApiHandlingContext.getEntityType()),
 			addLocaleIntoFilterByWhenUrlPathLocalized(exchange, filterBy),
 			orderBy,
 			require

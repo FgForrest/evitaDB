@@ -38,7 +38,7 @@ import java.util.Optional;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class RESTConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
+public class RestConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
 	private static final String BASE_REST_PATH = "rest";
 	/**
 	 * Controls the prefix REST API will react on.
@@ -46,13 +46,13 @@ public class RESTConfig extends AbstractApiConfiguration implements ApiWithSpeci
 	 */
 	@Getter private final String prefix;
 
-	public RESTConfig() {
+	public RestConfig() {
 		super();
 		this.prefix = BASE_REST_PATH;
 	}
 
 	@JsonCreator
-	public RESTConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
+	public RestConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                  @Nonnull @JsonProperty("host") String host,
 	                  @JsonProperty("prefix") String prefix) {
 		super(enabled, host);

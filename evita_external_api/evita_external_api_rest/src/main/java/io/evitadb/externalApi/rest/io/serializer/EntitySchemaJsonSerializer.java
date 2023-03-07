@@ -47,7 +47,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescrip
 import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.DataTypeDescriptor;
 import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
-import io.evitadb.externalApi.rest.io.handler.RESTApiContext;
+import io.evitadb.externalApi.rest.io.handler.RestHandlingContext;
 import io.evitadb.utils.NamingConvention;
 import lombok.extern.slf4j.Slf4j;
 
@@ -130,12 +130,12 @@ public class EntitySchemaJsonSerializer {
 	@Nonnull
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	public EntitySchemaJsonSerializer(@Nonnull RESTApiContext restApiContext,
+	public EntitySchemaJsonSerializer(@Nonnull RestHandlingContext restHandlingContext,
 	                                  @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
 	                                  @Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchemaFetcher = entitySchemaFetcher;
 		this.entitySchema = entitySchema;
-		this.objectJsonSerializer = new ObjectJsonSerializer(restApiContext.getObjectMapper());
+		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}
 
 	/**

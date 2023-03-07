@@ -27,7 +27,7 @@ import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
-import io.evitadb.externalApi.rest.configuration.RESTConfig;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 
 import javax.annotation.Nonnull;
 
@@ -36,33 +36,27 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class RESTProviderRegistrar implements ExternalApiProviderRegistrar<RESTConfig> {
+public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestConfig> {
 
 	@Nonnull
 	@Override
 	public String getExternalApiCode() {
-		return RESTProvider.CODE;
+		return RestProvider.CODE;
 	}
 
 	@Nonnull
 	@Override
-	public Class<RESTConfig> getConfigurationClass() {
-		return RESTConfig.class;
+	public Class<RestConfig> getConfigurationClass() {
+		return RestConfig.class;
 	}
 
-	/**
-	 * Register REST API
-	 * @param evitaSystemDataProvider ready-to-use Evita with access to internal data structures
-	 * @param restConfiguration configuration parameters for this provider (structure is defined by provider itself)
-	 * @return
-	 */
 	@Nonnull
 	@Override
-	public ExternalApiProvider register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull RESTConfig restConfiguration) {
-		final RESTApiManager restApiManager = new RESTApiManager(evitaSystemDataProvider);
-
-		evitaSystemDataProvider.getEvita().registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restApiManager));
-
-		return new RESTProvider(restConfiguration, restApiManager.getRestRouter());
+	public ExternalApiProvider<RestConfig> register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider,
+	                                                @Nonnull ApiOptions apiOptions,
+	                                                @Nonnull RestConfig restConfiguration) {
+		final RestManager restManager = new RestManager(evitaSystemDataProvider);
+		evitaSystemDataProvider.getEvita().registerStructuralChangeObserver(new CatalogRestRefreshingObserver(restManager));
+		return new RestProvider(restConfiguration, restManager.getRestRouter());
 	}
 }

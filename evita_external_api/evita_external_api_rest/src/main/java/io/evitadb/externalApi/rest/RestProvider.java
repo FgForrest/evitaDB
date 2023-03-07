@@ -21,29 +21,37 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.builder.constraint;
+package io.evitadb.externalApi.rest;
 
-import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.undertow.server.HttpHandler;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link ConstraintSchemaBuildingContext} for OpenAPI.
+ * Descriptor of external API provider that provides REST API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class OpenApiConstraintSchemaBuildingContext extends ConstraintSchemaBuildingContext<OpenApiSimpleType, OpenApiObject> {
+@RequiredArgsConstructor
+public class RestProvider implements ExternalApiProvider<RestConfig> {
+
+	public static final String CODE = "rest";
 
 	@Nonnull
 	@Getter
-	private final CatalogRestBuildingContext catalogCtx;
+	private final RestConfig configuration;
 
-	public OpenApiConstraintSchemaBuildingContext(@Nonnull CatalogRestBuildingContext catalogCtx) {
-		super(catalogCtx.getCatalog());
-		this.catalogCtx = catalogCtx;
+	@Nonnull
+	@Getter
+	private final HttpHandler apiHandler;
+
+	@Nonnull
+	@Override
+	public String getCode() {
+		return CODE;
 	}
 }

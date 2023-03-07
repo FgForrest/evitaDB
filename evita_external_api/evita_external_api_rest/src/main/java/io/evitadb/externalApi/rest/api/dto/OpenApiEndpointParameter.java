@@ -28,6 +28,7 @@ import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 
@@ -42,11 +43,13 @@ import javax.annotation.Nullable;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @EqualsAndHashCode
 @ToString
-public class OpenApiOperationParameter {
+public class OpenApiEndpointParameter {
 
 	@Nonnull
+	@Getter
 	private final OpenApiOperationParameterLocation location;
 	@Nonnull
+	@Getter
 	private final String name;
 	@Nullable
 	private final String description;
@@ -56,12 +59,12 @@ public class OpenApiOperationParameter {
 	private final OpenApiSimpleType type;
 
 	@Nonnull
-	public static OpenApiOperationParameter.Builder newPathParameter() {
+	public static OpenApiEndpointParameter.Builder newPathParameter() {
 		return new Builder(OpenApiOperationParameterLocation.PATH);
 	}
 
 	@Nonnull
-	public static OpenApiOperationParameter.Builder newQueryParameter() {
+	public static OpenApiEndpointParameter.Builder newQueryParameter() {
 		return new Builder(OpenApiOperationParameterLocation.QUERY);
 	}
 
@@ -123,7 +126,7 @@ public class OpenApiOperationParameter {
 		}
 
 		@Nonnull
-		public OpenApiOperationParameter build() {
+		public OpenApiEndpointParameter build() {
 			Assert.isPremiseValid(
 				name != null && !name.isEmpty(),
 				() -> new OpenApiSchemaBuildingError("Missing parameter name.")
@@ -132,7 +135,7 @@ public class OpenApiOperationParameter {
 				type != null,
 				() -> new OpenApiSchemaBuildingError("Parameter `" + name + "` is missing type.")
 			);
-			return new OpenApiOperationParameter(location, name, description, deprecationNotice, type);
+			return new OpenApiEndpointParameter(location, name, description, deprecationNotice, type);
 		}
 	}
 }

@@ -26,7 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.builder.transformer;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptorTransformer;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
-import io.evitadb.externalApi.rest.api.dto.OpenApiOperationParameter;
+import io.evitadb.externalApi.rest.api.dto.OpenApiEndpointParameter;
 import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import lombok.RequiredArgsConstructor;
 
@@ -38,14 +38,14 @@ import javax.annotation.Nonnull;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class PropertyDescriptorToOpenApiOperationQueryParameterTransformer implements PropertyDescriptorTransformer<OpenApiOperationParameter.Builder> {
+public class PropertyDescriptorToOpenApiOperationQueryParameterTransformer implements PropertyDescriptorTransformer<OpenApiEndpointParameter.Builder> {
 
 	@Nonnull
 	private final PropertyDataTypeDescriptorTransformer<OpenApiSimpleType> propertyDataTypeDescriptorTransformer;
 
 	@Override
-	public OpenApiOperationParameter.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
-		final OpenApiOperationParameter.Builder parameterBuilder = OpenApiOperationParameter.newQueryParameter()
+	public OpenApiEndpointParameter.Builder apply(@Nonnull PropertyDescriptor propertyDescriptor) {
+		final OpenApiEndpointParameter.Builder parameterBuilder = OpenApiEndpointParameter.newQueryParameter()
 			.name(propertyDescriptor.name())
 			.description(propertyDescriptor.description());
 

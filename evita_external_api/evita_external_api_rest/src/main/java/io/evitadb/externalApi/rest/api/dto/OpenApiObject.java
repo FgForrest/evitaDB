@@ -23,10 +23,8 @@
 
 package io.evitadb.externalApi.rest.api.dto;
 
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.StringUtils;
 import io.swagger.v3.oas.models.media.Discriminator;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;

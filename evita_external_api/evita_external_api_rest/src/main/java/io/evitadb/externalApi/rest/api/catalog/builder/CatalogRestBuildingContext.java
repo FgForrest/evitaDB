@@ -23,20 +23,27 @@
 
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.rest.api.dto.OpenApiComplexType;
+import io.evitadb.externalApi.rest.api.dto.OpenApiEndpoint;
 import io.evitadb.externalApi.rest.api.dto.OpenApiEnum;
+import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.api.dto.Rest;
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
-import io.evitadb.externalApi.rest.io.handler.RESTApiHandlerRegistrar;
+import io.evitadb.externalApi.rest.io.serializer.BigDecimalSerializer;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.SpecVersion;
 import io.swagger.v3.oas.models.info.Contact;
@@ -44,10 +51,13 @@ import io.swagger.v3.oas.models.info.Info;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
@@ -57,40 +67,36 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CatalogSchemaBuildingContext {
+public class CatalogRestBuildingContext {
 
+	@Getter @Nonnull private final Evita evita;
+	@Getter @Nonnull private final CatalogContract catalog;
+	@Getter @Nonnull private final Set<EntitySchemaContract> entitySchemas;
+
+	/**
+	 * This instance of object mapper is shared by all REST handlers registered via RoutingHandler.
+	 */
 	@Getter
 	@Nonnull
-	private final Evita evita;
-	@Getter
-	@Nonnull
-	private final CatalogContract catalog;
-	@Getter
-	@Nonnull
-	private final Set<EntitySchemaContract> entitySchemas;
-	@Nonnull
-	private final Map<String, OpenApiComplexType> registeredTypes = createHashMap(100);
-	private final Map<String, PathItem> registeredPaths = createHashMap(100);
+	private final ObjectMapper objectMapper;
+
+	@Nonnull private final Map<String, OpenApiComplexType> registeredTypes = createHashMap(100);
+	/**
+	 * Gathered all entity objects for all collections (non-localized).
+	 */
+	@Nonnull @Getter private final List<OpenApiTypeReference> entityObjects;
+	/**
+	 * Gathered all entity objects for all collections (localized).
+	 */
+	@Nonnull @Getter private final List<OpenApiTypeReference> localizedEntityObjects;
+	private final Map<Path, Map<HttpMethod, OpenApiEndpoint<?>>> registeredEndpoints = createHashMap(100);
 	/**
 	 * Holds all globally registered custom enums that will be inserted into GraphQL schema.
 	 */
 	@Nonnull
 	private final Set<String> registeredCustomEnums = createHashSet(32);
-	/**
-	 * Reference to OpenAPI instance when built.
-	 */
-	@Nonnull
-	@Getter
-	private final AtomicReference<OpenAPI> openApi = new AtomicReference<>();
 
-	/**
-	 * Routing handler is used to register REST handlers for each mapping created in OpenAPI schema.
-	 */
-	@Getter
-	@Nonnull
-	private final RESTApiHandlerRegistrar restApiHandlerRegistrar;
-
-	public CatalogSchemaBuildingContext(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
+	public CatalogRestBuildingContext(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
 		this.evita = evita;
 		this.catalog = catalog;
 		this.entitySchemas = evita.queryCatalog(catalog.getName(), session -> {
@@ -104,13 +110,40 @@ public class CatalogSchemaBuildingContext {
 			);
 			return schemas;
 		});
+		this.objectMapper = setupObjectMapper();
+		entityObjects = new ArrayList<>(this.entitySchemas.size());
+		localizedEntityObjects = new ArrayList<>(this.entitySchemas.size());
+	}
 
-		restApiHandlerRegistrar = new RESTApiHandlerRegistrar(this);
+	@Nonnull
+	private static ObjectMapper setupObjectMapper() {
+		final ObjectMapper objectMapper = new ObjectMapper();
+		objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+		final SimpleModule module = new SimpleModule();
+		module.addSerializer(new BigDecimalSerializer());
+		objectMapper.registerModule(module);
+
+		return objectMapper;
 	}
 
 	@Nonnull
 	public CatalogSchemaContract getSchema() {
 		return catalog.getSchema();
+	}
+
+	@Nonnull
+	public OpenApiTypeReference registerEntityObject(@Nonnull OpenApiObject entityObject) {
+		final OpenApiTypeReference ref = registerType(entityObject);
+		entityObjects.add(ref);
+		return ref;
+	}
+
+	@Nonnull
+	public OpenApiTypeReference registerLocalizedEntityObject(@Nonnull OpenApiObject entityObject) {
+		final OpenApiTypeReference ref = registerType(entityObject);
+		localizedEntityObjects.add(ref);
+		return ref;
 	}
 
 	/**
@@ -141,16 +174,30 @@ public class CatalogSchemaBuildingContext {
 			.map(OpenApiTypeReference::typeRefTo);
 	}
 
-	public void registerPath(@Nonnull String urlPath, @Nonnull PathItem pathItem) {
+	public void registerEndpoint(@Nonnull OpenApiEndpoint<?> endpoint) {
 		Assert.isPremiseValid(
-			!registeredPaths.containsKey(urlPath),
-			() -> new OpenApiSchemaBuildingError("There is already registered path `" + urlPath + "`.")
+			!registeredEndpoints.containsKey(endpoint.getPath()) ||
+				!registeredEndpoints.get(endpoint.getPath()).containsKey(endpoint.getMethod()),
+			() -> new OpenApiSchemaBuildingError("There is already registered `" + endpoint.getMethod() + "` endpoint at `" + endpoint.getPath() + "`.")
 		);
-		registeredPaths.put(urlPath, pathItem);
+
+		registeredEndpoints.computeIfAbsent(
+			endpoint.getPath(),
+			path -> createHashMap(HttpMethod.values().length)
+		)
+			.put(endpoint.getMethod(), endpoint);
 	}
 
 	@Nonnull
-	public OpenAPI buildOpenApi() {
+	public Rest buildRest() {
+		final OpenAPI openApi = buildOpenApi();
+		final List<Rest.Endpoint> endpoints = buildEndpoints(openApi);
+
+		return new Rest(openApi, endpoints);
+	}
+
+	@Nonnull
+	private OpenAPI buildOpenApi() {
 		final OpenAPI openApi = new OpenAPI(SpecVersion.V31);
 
 		final Info info = new Info();
@@ -164,12 +211,32 @@ public class CatalogSchemaBuildingContext {
 		openApi.setComponents(components);
 
 		final Paths paths = new Paths();
-		registeredPaths.forEach(paths::addPathItem);
+		registeredEndpoints.forEach((path, endpoints) -> {
+			final PathItem pathItem = new PathItem();
+			endpoints.forEach((method, endpoint) -> {
+				pathItem.operation(method, endpoint.toOperation());
+			});
+			paths.addPathItem(path.toString(), pathItem);
+		});
 		openApi.setPaths(paths);
 
 		validateReferences(openApi);
-		this.openApi.set(openApi);
 		return openApi;
+	}
+
+	@Nonnull
+	private List<Rest.Endpoint> buildEndpoints(@Nonnull OpenAPI openApi) {
+		final List<Rest.Endpoint> builtEndpoints = new LinkedList<>();
+		registeredEndpoints.forEach((path, endpoints) ->
+			endpoints.forEach((method, endpoint) ->
+				builtEndpoints.add(new Rest.Endpoint(
+					path.subpath(1, path.getNameCount()).toString(), // strip "/rest" prefix
+					endpoint.getMethod(),
+					endpoint.toHandler(objectMapper, evita, openApi)
+				))
+			)
+		);
+		return builtEndpoints;
 	}
 
 	private void validateReferences(OpenAPI openApi) {

@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.io.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -34,7 +33,6 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RESTMutationObj
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RESTMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.io.model.EntitySchemaUpdateRequestData;
 import io.evitadb.externalApi.rest.io.serializer.EntitySchemaJsonSerializer;
-import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
@@ -51,19 +49,10 @@ import java.util.List;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class EntitySchemaUpdateHandler extends RESTApiHandler {
+public class EntitySchemaUpdateHandler extends RestHandler<CollectionRestHandlingContext> {
 
-	public EntitySchemaUpdateHandler(@Nonnull RESTApiContext restApiContext) {
-		super(restApiContext);
-	}
-
-	@Override
-	protected void validateContext() {
-		Assert.isPremiseValid(restApiContext.getObjectMapper() != null, "Instance of ObjectMapper must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEvita() != null, "Instance of Evita must be set in context.");
-		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEntityType() != null, "Entity type must be set in context.");
-		Assert.isPremiseValid(restApiContext.getPathItem() != null, "PathItem must be set in context.");
+	public EntitySchemaUpdateHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+		super(restApiHandlingContext);
 	}
 
 	@Override
@@ -73,7 +62,7 @@ public class EntitySchemaUpdateHandler extends RESTApiHandler {
 		final EntitySchemaUpdateRequestData requestData = getRequestData(exchange);
 		validateRequestData(requestData);
 
-		final RESTMutationObjectParser restMutationObjectParser = new RESTMutationObjectParser(restApiContext.getObjectMapper());
+		final RESTMutationObjectParser restMutationObjectParser = new RESTMutationObjectParser(restApiHandlingContext.getObjectMapper());
 		final EntitySchemaMutationAggregateConverter mutationAggregateResolver = new EntitySchemaMutationAggregateConverter(
 			restMutationObjectParser,
 			new RESTMutationResolvingExceptionFactory()
@@ -84,21 +73,21 @@ public class EntitySchemaUpdateHandler extends RESTApiHandler {
 			schemaMutations.addAll(mutationAggregateResolver.convert(elementsIterator.next()));
 		}
 		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(
-			restApiContext.getEntityType(),
+			restApiHandlingContext.getEntityType(),
 			schemaMutations.toArray(EntitySchemaMutation[]::new)
 		);
 
-		try(final EvitaSessionContract evitaSession = restApiContext.createReadWriteSession()) {
-			final EntitySchemaContract updatedEntitySchema = evitaSession.updateAndFetchEntitySchema(entitySchemaMutation);
+		restApiHandlingContext.updateCatalog(session -> {
+			final EntitySchemaContract updatedEntitySchema = session.updateAndFetchEntitySchema(entitySchemaMutation);
 			setSuccessResponse(
 				exchange,
 				serializeResult(new EntitySchemaJsonSerializer(
-					restApiContext,
-					evitaSession::getEntitySchemaOrThrow,
+					restApiHandlingContext,
+					session::getEntitySchemaOrThrow,
 					updatedEntitySchema
 				).serialize())
 			);
-		}
+		});
 	}
 
 	@Nonnull
@@ -110,7 +99,7 @@ public class EntitySchemaUpdateHandler extends RESTApiHandler {
 				"Request's body contains no data."
 			);
 		}
-		return restApiContext.getObjectMapper().readValue(content, EntitySchemaUpdateRequestData.class);
+		return restApiHandlingContext.getObjectMapper().readValue(content, EntitySchemaUpdateRequestData.class);
 	}
 
 	protected void validateRequestData(@Nonnull EntitySchemaUpdateRequestData requestData) {

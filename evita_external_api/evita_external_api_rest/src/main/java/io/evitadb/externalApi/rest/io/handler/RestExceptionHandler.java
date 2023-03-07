@@ -30,7 +30,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.http.ExternalApiExceptionHandler;
 import io.evitadb.externalApi.http.MimeTypes;
-import io.evitadb.externalApi.rest.RESTProvider;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
@@ -44,12 +44,12 @@ import javax.annotation.Nonnull;
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class RESTApiExceptionHandler extends ExternalApiExceptionHandler {
+public class RestExceptionHandler extends ExternalApiExceptionHandler {
 
     @Nonnull
     private final ObjectMapper objectMapper;
 
-    public RESTApiExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
+    public RestExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
         super(next);
         this.objectMapper = objectMapper;
     }
@@ -57,7 +57,7 @@ public class RESTApiExceptionHandler extends ExternalApiExceptionHandler {
     @Nonnull
     @Override
     protected String getExternalApiCode() {
-        return RESTProvider.CODE;
+        return RestProvider.CODE;
     }
 
     @Override

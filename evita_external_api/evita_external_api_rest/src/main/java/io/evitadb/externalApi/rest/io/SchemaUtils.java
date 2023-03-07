@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.io;
 
 import io.evitadb.externalApi.http.MimeTypes;
-import io.evitadb.externalApi.rest.api.catalog.builder.PathItemsCreator;
 import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
 import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
 import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;

@@ -119,7 +119,8 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildRecordPageObject() {
 		//this is correct as for localized URL (i.e. one locale) is non-localized entity sufficient
-		final OpenApiTypeReference entityObject = localizedUrl ? entitySchemaBuildingCtx.getEntityObject() : entitySchemaBuildingCtx.getLocalizedEntityObject();
+		// todo lho the localizedUrl logic is confusing
+		final OpenApiTypeReference entityObject = typeRefTo(constructEntityObjectName(entitySchemaBuildingCtx.getSchema(), !localizedUrl));
 
 		final OpenApiObject recordPageObject = RecordPageDescriptor.THIS
 			.to(objectBuilderTransformer)
@@ -134,7 +135,8 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildRecordStripObject() {
 		//this is correct as for localized URL (i.e. one locale) is non-localized entity sufficient
-		final OpenApiTypeReference entityObject = localizedUrl ? entitySchemaBuildingCtx.getEntityObject() : entitySchemaBuildingCtx.getLocalizedEntityObject();
+		// todo lho the localizedUrl logic is confusing
+		final OpenApiTypeReference entityObject = typeRefTo(constructEntityObjectName(entitySchemaBuildingCtx.getSchema(), !localizedUrl));
 
 		final OpenApiObject recordStripObject = RecordStripDescriptor.THIS
 			.to(objectBuilderTransformer)

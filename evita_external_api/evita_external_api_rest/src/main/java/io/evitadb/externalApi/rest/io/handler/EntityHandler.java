@@ -23,14 +23,12 @@
 
 package io.evitadb.externalApi.rest.io.handler;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.rest.io.handler.constraint.FilterByConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.serializer.EntityJsonSerializer;
-import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
@@ -47,40 +45,32 @@ import static io.evitadb.api.query.QueryConstraints.collection;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class EntityHandler extends RESTApiHandler {
-	public EntityHandler(@Nonnull RESTApiContext restApiContext) {
-		super(restApiContext);
-	}
+public class EntityHandler extends RestHandler<CollectionRestHandlingContext> {
 
-	@Override
-	protected void validateContext() {
-		Assert.isPremiseValid(restApiContext.getObjectMapper() != null, "Instance of ObjectMapper must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEvita() != null, "Instance of Evita must be set in context.");
-		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEntityType() != null, "Entity type must be set in context.");
-		Assert.isPremiseValid(restApiContext.getPathItem() != null, "PathItem must be set in context.");
+	public EntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+		super(restApiHandlingContext);
 	}
 
 	@Override
 	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
 		validateRequest(exchange);
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiContext.getPathItem().getGet());
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 
 		final Query query = Query.query(
-			collection(restApiContext.getEntityType()),
-			FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(parametersFromRequest, restApiContext.getEntitySchema()),
+			collection(restApiHandlingContext.getEntityType()),
+			FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(parametersFromRequest, restApiHandlingContext.getEntitySchema()),
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 		);
 
-		log.debug("Generated Evita query for single entity fetch of type `" + restApiContext.getEntityType() + "` is `" + query + "`.");
+		log.debug("Generated Evita query for single entity fetch of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
 
-		try(final EvitaSessionContract evitaSession = restApiContext.createReadOnlySession()) {
+		restApiHandlingContext.queryCatalog(evitaSession -> {
 			final Optional<EntityClassifier> entity = evitaSession.queryOne(query, EntityClassifier.class);
 			if(entity.isPresent()) {
-				setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiContext, entity.get()).serialize()));
+				setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, entity.get()).serialize()));
 			} else {
 				throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested entity wasn't found.");
 			}
-		}
+		});
 	}
 }

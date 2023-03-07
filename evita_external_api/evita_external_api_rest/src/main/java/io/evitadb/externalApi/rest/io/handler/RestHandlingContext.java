@@ -24,20 +24,18 @@
 package io.evitadb.externalApi.rest.io.handler;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.PathItem;
-import lombok.Builder;
-import lombok.Data;
+import io.swagger.v3.oas.models.Operation;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 /**
  * This class contains information required to process REST API requests. Not all attributes has to be set
@@ -45,41 +43,31 @@ import java.util.function.Supplier;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Data
-@Builder
-public class RESTApiContext {
+@AllArgsConstructor
+public class RestHandlingContext {
 
-	@Nonnull private final Evita evita;
-	@Nonnull private final ObjectMapper objectMapper;
-	@Nonnull private final Supplier<OpenAPI> openApi;
-	@Nonnull private final PathItem pathItem;
-	@Nonnull private final CatalogContract catalog;
-	@Nullable private final String entityType;
-	private final boolean localized;
+	@Nonnull @Getter protected final ObjectMapper objectMapper;
+
+	@Nonnull protected final Evita evita;
+	@Nonnull @Getter protected final CatalogSchemaContract catalogSchema;
+
+	@Nonnull @Getter private final OpenAPI openApi;
+	@Nonnull @Getter private final Operation endpointOperation;
+
+	@Getter private final boolean localized;
 
 	/**
 	 * Creates Evita's read-only session
 	 */
-	@Nonnull
-	public EvitaSessionContract createReadOnlySession() {
-		return evita.createReadOnlySession(catalog.getName());
+	public void queryCatalog(@Nonnull Consumer<EvitaSessionContract> queryLogic) {
+		evita.queryCatalog(catalogSchema.getName(), queryLogic);
 	}
 
 	/**
 	 * Creates Evita's read/write session
 	 */
-	@Nonnull
-	public EvitaSessionContract createReadWriteSession() {
-		return evita.createReadWriteSession(catalog.getName());
-	}
-
-	/**
-	 * Gets entity schema for entity defined in this context data
-	 */
-	@Nonnull
-	public EntitySchemaContract getEntitySchema() {
-		return new EvitaSystemDataProvider(evita).getCatalog(catalog.getName()).getEntitySchema(entityType)
-			.orElseThrow(() -> new RESTApiInternalError("No schema found for entity: " + entityType + " in catalog: " + catalog));
+	public void updateCatalog(@Nonnull Consumer<EvitaSessionContract> updater) {
+		evita.updateCatalog(catalogSchema.getName(), updater);
 	}
 
 	/**
@@ -87,8 +75,8 @@ public class RESTApiContext {
 	 */
 	@Nonnull
 	public EntitySchemaContract getEntitySchema(@Nonnull String entityName) {
-		return new EvitaSystemDataProvider(evita).getCatalog(catalog.getName())
+		return evita.getCatalogInstanceOrThrowException(catalogSchema.getName())
 			.getEntitySchema(entityName)
-			.orElseThrow(() -> new RESTApiInternalError("No schema found for entity: " + entityName + " in catalog: " + catalog));
+			.orElseThrow(() -> new RESTApiInternalError("No schema found for entity: " + entityName + " in catalog: " + catalogSchema.getName()));
 	}
 }

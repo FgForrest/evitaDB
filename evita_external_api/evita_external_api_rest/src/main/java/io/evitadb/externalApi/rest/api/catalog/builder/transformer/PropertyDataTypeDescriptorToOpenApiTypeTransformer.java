@@ -27,7 +27,7 @@ import io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptorTransformer;
-import io.evitadb.externalApi.rest.api.catalog.builder.CatalogSchemaBuildingContext;
+import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter.ConvertedEnum;
@@ -50,7 +50,7 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo
 public class PropertyDataTypeDescriptorToOpenApiTypeTransformer implements PropertyDataTypeDescriptorTransformer<OpenApiSimpleType> {
 
 	@Nonnull
-	private final CatalogSchemaBuildingContext catalogSchemaBuildingContext;
+	private final CatalogRestBuildingContext catalogRestBuildingContext;
 
 	@Override
 	public OpenApiSimpleType apply(@Nonnull PropertyDataTypeDescriptor typeDescriptor) {
@@ -61,7 +61,7 @@ public class PropertyDataTypeDescriptorToOpenApiTypeTransformer implements Prope
 					primitiveType.javaType(),
 					primitiveType.nonNull()
 				);
-				catalogSchemaBuildingContext.registerCustomEnumIfAbsent(enumType.enumType());
+				catalogRestBuildingContext.registerCustomEnumIfAbsent(enumType.enumType());
 				return enumType.resultType();
 			} else {
 				return DataTypesConverter.getOpenApiScalar(

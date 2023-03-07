@@ -31,10 +31,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationAg
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.RequireSchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
+import io.evitadb.externalApi.rest.api.dto.OpenApiCollectionEndpoint;
 import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
-import io.swagger.v3.oas.models.PathItem;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -53,34 +53,30 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
 @RequiredArgsConstructor
 public class DataMutationSchemaBuilder {
 
-	@Nonnull private final OpenApiEntitySchemaBuildingContext entitySchemaBuildingContext;
+	@Nonnull private final OpenApiEntitySchemaBuildingContext collectionBuildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 	@Nonnull private final PathItemBuilder pathItemBuilder;
 
 	public void buildAndAddEntitiesAndPathItems() {
 		// Delete and upsert mutations use same URL but different HTTP method. In this case one PathItem must be used.
-		final PathItem pathItemWithPrimaryKeyInPath = pathItemBuilder.buildAndAddDeleteSingleEntityPathItem(entitySchemaBuildingContext);
-		pathItemBuilder.buildAndAddUpsertMutationOperationIntoPathItem(entitySchemaBuildingContext,
-			buildUpsertEntityObject(false),
-			pathItemWithPrimaryKeyInPath,
-			true
-		);
+		final OpenApiCollectionEndpoint entityDeleteEndpoint = pathItemBuilder.buildEntityDeleteEndpoint(collectionBuildingContext);
+		collectionBuildingContext.getCatalogCtx().registerEndpoint(entityDeleteEndpoint);
+		final OpenApiCollectionEndpoint entityUpsertEndpoint = pathItemBuilder.buildEntityUpsertEndpoint(collectionBuildingContext, buildUpsertEntityObject(false), true);
+		collectionBuildingContext.getCatalogCtx().registerEndpoint(entityUpsertEndpoint);
 
-		final PathItem pathItem = pathItemBuilder.buildAndAddDeleteEntitiesByQueryPathItem(entitySchemaBuildingContext);
-		if (entitySchemaBuildingContext.getSchema().isWithGeneratedPrimaryKey()) {
-			pathItemBuilder.buildAndAddUpsertMutationOperationIntoPathItem(entitySchemaBuildingContext,
-				buildUpsertEntityObject(true),
-				pathItem,
-				false
-			);
+		final OpenApiCollectionEndpoint entitiesDeleteByQueryEndpoint = pathItemBuilder.buildEntitiesDeleteByQueryEndpoint(collectionBuildingContext);
+		collectionBuildingContext.getCatalogCtx().registerEndpoint(entitiesDeleteByQueryEndpoint);
+		if (collectionBuildingContext.getSchema().isWithGeneratedPrimaryKey()) {
+			final OpenApiCollectionEndpoint entityUpsertWithPkEndpoint = pathItemBuilder.buildEntityUpsertEndpoint(collectionBuildingContext, buildUpsertEntityObject(true), false);
+			collectionBuildingContext.getCatalogCtx().registerEndpoint(entityUpsertWithPkEndpoint);
 		}
 	}
 
 	@Nonnull
 	private OpenApiTypeReference buildUpsertEntityObject(boolean withPrimaryKey) {
 		final OpenApiObject.Builder upsertEntityObjectBuilder = newObject()
-			.name(entitySchemaBuildingContext.getSchema().getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION) + withPrimaryKey + "_UpsertEntity");//todo lho descriptor
+			.name(collectionBuildingContext.getSchema().getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION) + withPrimaryKey + "_UpsertEntity");//todo lho descriptor
 
 		if (withPrimaryKey) {
 			upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY
@@ -98,23 +94,23 @@ public class DataMutationSchemaBuilder {
 				.type(nonNull(arrayOf(localMutationSchema.get())))));
 
 		final RequireSchemaBuilder requireSchemaBuilder = new RequireSchemaBuilder(
-			entitySchemaBuildingContext.getConstraintSchemaBuildingCtx(),
-			entitySchemaBuildingContext.getSchema().getName(),
+			collectionBuildingContext.getConstraintSchemaBuildingCtx(),
+			collectionBuildingContext.getSchema().getName(),
 			RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_UPSERT
 		);
 		upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.REQUIRE
 			.to(propertyBuilderTransformer)
 			.type(nonNull(requireSchemaBuilder.build())));
 
-		return entitySchemaBuildingContext.getCatalogCtx().registerType(upsertEntityObjectBuilder.build());
+		return collectionBuildingContext.getCatalogCtx().registerType(upsertEntityObjectBuilder.build());
 	}
 
 	@Nonnull
 	private Optional<OpenApiTypeReference> buildLocalMutationSchema() {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingContext.getSchema();
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final String schemaName = LocalMutationAggregateDescriptor.THIS.name(entitySchema);
-		final Optional<OpenApiTypeReference> existingSchema = entitySchemaBuildingContext.getCatalogCtx().getRegisteredType(schemaName);
+		final Optional<OpenApiTypeReference> existingSchema = collectionBuildingContext.getCatalogCtx().getRegisteredType(schemaName);
 		if (existingSchema.isPresent()) {
 			return existingSchema;
 		}
@@ -165,6 +161,6 @@ public class DataMutationSchemaBuilder {
 		if (!hasAnyMutations) {
 			return Optional.empty();
 		}
-		return Optional.of(entitySchemaBuildingContext.getCatalogCtx().registerType(localMutationObjectBuilder.build()));
+		return Optional.of(collectionBuildingContext.getCatalogCtx().registerType(localMutationObjectBuilder.build()));
 	}
 }

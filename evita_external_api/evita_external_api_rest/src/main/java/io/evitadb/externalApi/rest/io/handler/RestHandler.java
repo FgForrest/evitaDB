@@ -67,17 +67,15 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public abstract class RESTApiHandler implements HttpHandler {
+public abstract class RestHandler<CTX extends RestHandlingContext> implements HttpHandler {
+
     private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
     @Nonnull
-    protected final RESTApiContext restApiContext;
+    protected final CTX restApiHandlingContext;
 
-    protected RESTApiHandler(@Nonnull RESTApiContext restApiContext) {
-        this.restApiContext = restApiContext;
-        validateContext();
+    protected RestHandler(@Nonnull CTX restApiHandlingContext) {
+        this.restApiHandlingContext = restApiHandlingContext;
     }
-
-    protected abstract void validateContext();
 
     /**
      * Validates HTTP request.
@@ -142,7 +140,7 @@ public abstract class RESTApiHandler implements HttpHandler {
     protected String serializeResult(@Nonnull Object responseData) {
         final String json;
         try {
-            json = restApiContext.getObjectMapper().writeValueAsString(responseData);
+            json = restApiHandlingContext.getObjectMapper().writeValueAsString(responseData);
         } catch (JsonProcessingException e) {
             throw new OpenApiInternalError(
                 "Could not serialize Java object response to JSON: " + e.getMessage(),
@@ -215,7 +213,7 @@ public abstract class RESTApiHandler implements HttpHandler {
     protected @Nonnull Optional<Object> getParameterFromRequest(final Map<String, Deque<String>> queryParameters, @Nonnull Parameter parameter) {
         final Deque<String> queryParam = queryParameters.get(parameter.getName());
         if(queryParam != null) {
-            return Optional.ofNullable(DataDeserializer.deserialize(restApiContext.getOpenApi().get(), getParameterSchema(parameter), queryParam.toArray(new String[]{})));
+            return Optional.ofNullable(DataDeserializer.deserialize(restApiHandlingContext.getOpenApi(), getParameterSchema(parameter), queryParam.toArray(new String[]{})));
         } else if(Boolean.TRUE.equals(parameter.getRequired())) {
             throw new RESTApiRequiredParameterMissingException("Required parameter " + parameter.getName() +
                 " is missing in query data (" + parameter.getIn() + ")");
@@ -225,6 +223,6 @@ public abstract class RESTApiHandler implements HttpHandler {
 
     @SuppressWarnings("rawtypes")
     protected Schema getParameterSchema(@Nonnull Parameter parameter) {
-        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), restApiContext.getOpenApi().get());
+        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), restApiHandlingContext.getOpenApi());
     }
 }

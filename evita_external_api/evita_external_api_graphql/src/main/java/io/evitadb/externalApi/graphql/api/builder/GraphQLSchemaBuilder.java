@@ -75,11 +75,11 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 	protected final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
 
 	@Nonnull
-	protected final C graphQLSchemaBuildingCtx;
+	protected final C context;
 
-	protected GraphQLSchemaBuilder(@Nonnull C graphQLSchemaBuildingCtx) {
-		this.graphQLSchemaBuildingCtx = graphQLSchemaBuildingCtx;
-		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToGraphQLTypeTransformer(graphQLSchemaBuildingCtx);
+	protected GraphQLSchemaBuilder(@Nonnull C context) {
+		this.context = context;
+		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToGraphQLTypeTransformer(context);
 		this.staticEndpointBuilderTransformer = new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
 		this.argumentBuilderTransformer = new PropertyDescriptorToGraphQLArgumentTransformer(propertyDataTypeBuilderTransformer);
 		this.fieldBuilderTransformer = new PropertyDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);

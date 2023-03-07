@@ -22,6 +22,7 @@
  */
 
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.rest.RestProviderRegistrar;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 /**
@@ -32,7 +33,7 @@ module evita.external.api.rest {
 	uses CatalogPersistenceServiceFactory;
 	uses ExternalApiProviderRegistrar;
 
-	provides ExternalApiProviderRegistrar with io.evitadb.externalApi.rest.RESTProviderRegistrar;
+	provides ExternalApiProviderRegistrar with RestProviderRegistrar;
 
 	opens io.evitadb.externalApi.rest.configuration to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.rest.io.model to com.fasterxml.jackson.databind;

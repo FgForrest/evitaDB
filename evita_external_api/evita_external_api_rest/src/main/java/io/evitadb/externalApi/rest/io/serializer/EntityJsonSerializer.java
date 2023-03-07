@@ -42,7 +42,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
-import io.evitadb.externalApi.rest.io.handler.RESTApiContext;
+import io.evitadb.externalApi.rest.io.handler.RestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import lombok.extern.slf4j.Slf4j;
@@ -58,23 +58,24 @@ import java.util.Map.Entry;
  */
 @Slf4j
 public class EntityJsonSerializer {
-	private final RESTApiContext restApiContext;
+	private final RestHandlingContext restHandlingContext;
 	private final EntityClassifier entityClassifier;
 	private final List<EntityClassifier> entityClassifiers;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	public EntityJsonSerializer(@Nonnull RESTApiContext restApiContext, @Nonnull EntityClassifier entityClassifier) {
-		this.restApiContext = restApiContext;
+	public EntityJsonSerializer(@Nonnull RestHandlingContext restHandlingContext, @Nonnull EntityClassifier entityClassifier) {
+		this.restHandlingContext = restHandlingContext;
 		this.entityClassifier = entityClassifier;
 		this.entityClassifiers = null;
-		this.objectJsonSerializer = new ObjectJsonSerializer(restApiContext.getObjectMapper());
+		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}
 
-	public EntityJsonSerializer(@Nonnull RESTApiContext restApiContext, @Nonnull List<EntityClassifier> entityClassifiers) {
-		this.restApiContext = restApiContext;
+	public EntityJsonSerializer(@Nonnull RestHandlingContext restHandlingContext,
+	                            @Nonnull List<EntityClassifier> entityClassifiers) {
+		this.restHandlingContext = restHandlingContext;
 		this.entityClassifier = null;
 		this.entityClassifiers = entityClassifiers;
-		this.objectJsonSerializer = new ObjectJsonSerializer(restApiContext.getObjectMapper());
+		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}
 
 	/**
@@ -137,7 +138,7 @@ public class EntityJsonSerializer {
 			final ObjectNode attributesNode = objectJsonSerializer.objectNode();
 			rootNode.putIfAbsent(EntityDescriptor.ATTRIBUTES.name(), attributesNode);
 			final Set<AttributeKey> attributeKeys = entity.getAttributeKeys();
-			if (restApiContext.isLocalized()) {
+			if (restHandlingContext.isLocalized()) {
 				writeAttributesIntoNode(attributesNode, attributeKeys, entity);
 			} else {
 				final Map<String, List<AttributeKey>> localeSeparatedKeys = separateAttributeKeysByLocale(entity, attributeKeys);
@@ -171,7 +172,7 @@ public class EntityJsonSerializer {
 		if (!entity.getAssociatedDataKeys().isEmpty()) {
 			final ObjectNode associatedDataNode = objectJsonSerializer.objectNode();
 			final Set<AssociatedDataKey> associatedDataKeys = entity.getAssociatedDataKeys();
-			if (restApiContext.isLocalized()) {
+			if (restHandlingContext.isLocalized()) {
 				writeAssociatedDataIntoNode(associatedDataNode, associatedDataKeys, entity);
 			} else {
 				final Map<String, List<AssociatedDataKey>> localeSeparatedKeys = separateAssociatedDataKeysByLocale(entity, associatedDataKeys);
@@ -263,7 +264,7 @@ public class EntityJsonSerializer {
 	 */
 	@Nonnull
 	private String getReferencedEntityName(ReferenceContract firstReference) {
-		return restApiContext.getEntitySchema(firstReference.getReferencedEntityType()).getNameVariant(NamingConvention.CAMEL_CASE);
+		return restHandlingContext.getEntitySchema(firstReference.getReferencedEntityType()).getNameVariant(NamingConvention.CAMEL_CASE);
 	}
 
 	/**
@@ -319,7 +320,9 @@ public class EntityJsonSerializer {
 			.ifPresent(it -> rootNode.putIfAbsent(EntityDescriptor.PRICE_FOR_SALE.name(), objectJsonSerializer.serializeObject(it)));
 	}
 
-	private void writeAttributesIntoNode(@Nonnull ObjectNode attributesNode, @Nonnull Collection<AttributeKey> attributeKeys, @Nonnull EntityContract entity) {
+	private void writeAttributesIntoNode(@Nonnull ObjectNode attributesNode,
+	                                     @Nonnull Collection<AttributeKey> attributeKeys,
+	                                     @Nonnull EntityContract entity) {
 		for (AttributeKey attributeKey : attributeKeys) {
 			final Optional<AttributeValue> attributeValue = attributeKey.isLocalized() ?
 				entity.getAttributeValue(attributeKey.getAttributeName(), attributeKey.getLocale()) :

@@ -23,13 +23,11 @@
 
 package io.evitadb.externalApi.rest.io.handler;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.rest.io.handler.constraint.FilterByConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.serializer.EntityJsonSerializer;
-import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,33 +41,26 @@ import java.util.Map;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class UnknownEntityListHandler extends RESTApiHandler {
-	public UnknownEntityListHandler(@Nonnull RESTApiContext restApiContext) {
-		super(restApiContext);
-	}
+public class UnknownEntityListHandler extends RestHandler<RestHandlingContext> {
 
-	@Override
-	protected void validateContext() {
-		Assert.isPremiseValid(restApiContext.getObjectMapper() != null, "Instance of ObjectMapper must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEvita() != null, "Instance of Evita must be set in context.");
-		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
-		Assert.isPremiseValid(restApiContext.getPathItem() != null, "PathItem must be set in context.");
+	public UnknownEntityListHandler(@Nonnull RestHandlingContext restHandlingContext) {
+		super(restHandlingContext);
 	}
 
 	@Override
 	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiContext.getPathItem().getGet());
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 
 		final Query query = Query.query(
-			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restApiContext.getCatalog()),
+			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restApiHandlingContext.getCatalogSchema()),
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 		);
 
-		log.debug("Generated Evita query for unknown entity list fetch of type `" + restApiContext.getEntityType() + "` is `" + query + "`.");
+		log.debug("Generated Evita query for unknown entity list fetch is `" + query + "`.");
 
-		try (final EvitaSessionContract evitaSession = restApiContext.createReadOnlySession()) {
-			final List<EntityClassifier> entities = evitaSession.queryList(query, EntityClassifier.class);
-			setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiContext, entities).serialize()));
-		}
+		restApiHandlingContext.queryCatalog(session -> {
+			final List<EntityClassifier> entities = session.queryList(query, EntityClassifier.class);
+			setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, entities).serialize()));
+		});
 	}
 }

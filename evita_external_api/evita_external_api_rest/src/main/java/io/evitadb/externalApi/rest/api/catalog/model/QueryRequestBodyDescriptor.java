@@ -55,10 +55,24 @@ public interface QueryRequestBodyDescriptor {
 		// type is expected to be constraint container
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
+	ObjectDescriptor THIS_LIST = ObjectDescriptor.builder()
+		.name("*ListRequestBody")
+		.description("""
+			Request body for listing entities.
+			""")
+		.build();
+
+	ObjectDescriptor THIS_QUERY = ObjectDescriptor.builder()
 		.name("*QueryRequestBody")
 		.description("""
 			Request body for querying entities.
+			""")
+		.build();
+
+	ObjectDescriptor THIS_DELETE = ObjectDescriptor.builder()
+		.name("*DeleteRequestBody")
+		.description("""
+			Request body for deleting entities.
 			""")
 		.build();
 }

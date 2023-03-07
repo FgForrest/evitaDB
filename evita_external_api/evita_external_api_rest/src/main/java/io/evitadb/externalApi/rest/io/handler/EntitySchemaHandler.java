@@ -23,11 +23,9 @@
 
 package io.evitadb.externalApi.rest.io.handler;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.rest.io.serializer.EntitySchemaJsonSerializer;
-import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
@@ -41,39 +39,30 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class EntitySchemaHandler extends RESTApiHandler {
+public class EntitySchemaHandler extends RestHandler<CollectionRestHandlingContext> {
 
-	public EntitySchemaHandler(@Nonnull RESTApiContext restApiContext) {
-		super(restApiContext);
-	}
-
-	@Override
-	protected void validateContext() {
-		Assert.isPremiseValid(restApiContext.getObjectMapper() != null, "Instance of ObjectMapper must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEvita() != null, "Instance of Evita must be set in context.");
-		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEntityType() != null, "Entity type must be set in context.");
-		Assert.isPremiseValid(restApiContext.getPathItem() != null, "PathItem must be set in context.");
+	public EntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+		super(restApiHandlingContext);
 	}
 
 	@Override
 	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
 		validateRequest(exchange);
 
-		try(final EvitaSessionContract evitaSession = restApiContext.createReadOnlySession()) {
-			final Optional<SealedEntitySchema> entitySchema = evitaSession.getEntitySchema(restApiContext.getEntityType());
+		restApiHandlingContext.queryCatalog(session -> {
+			final Optional<SealedEntitySchema> entitySchema = session.getEntitySchema(restApiHandlingContext.getEntityType());
 			if(entitySchema.isPresent()) {
 				setSuccessResponse(
 					exchange,
 					serializeResult(new EntitySchemaJsonSerializer(
-						restApiContext,
-						evitaSession::getEntitySchemaOrThrow,
+						restApiHandlingContext,
+						session::getEntitySchemaOrThrow,
 						entitySchema.get()
 					).serialize())
 				);
 			} else {
 				throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested entity schema wasn't found.");
 			}
-		}
+		});
 	}
 }

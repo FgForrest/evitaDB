@@ -68,24 +68,24 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Override
     @Nonnull
 	public GraphQLSchema build() {
-		graphQLSchemaBuildingCtx.registerType(buildCatalogObject());
+		context.registerType(buildCatalogObject());
 
-		graphQLSchemaBuildingCtx.registerQueryField(buildLivenessField());
-		graphQLSchemaBuildingCtx.registerQueryField(buildCatalogField());
-		graphQLSchemaBuildingCtx.registerQueryField(buildCatalogsField());
+		context.registerQueryField(buildLivenessField());
+		context.registerQueryField(buildCatalogField());
+		context.registerQueryField(buildCatalogsField());
 
-		graphQLSchemaBuildingCtx.registerMutationField(buildCreateCatalogField());
-		graphQLSchemaBuildingCtx.registerMutationField(buildRenameCatalogField());
-		graphQLSchemaBuildingCtx.registerMutationField(buildReplaceCatalogField());
-		graphQLSchemaBuildingCtx.registerMutationField(buildDeleteCatalogIfExistsField());
+		context.registerMutationField(buildCreateCatalogField());
+		context.registerMutationField(buildRenameCatalogField());
+		context.registerMutationField(buildReplaceCatalogField());
+		context.registerMutationField(buildDeleteCatalogIfExistsField());
 
-		return graphQLSchemaBuildingCtx.buildGraphQLSchema();
+		return context.buildGraphQLSchema();
 	}
 
 
 	@Nonnull
 	private GraphQLObjectType buildCatalogObject() {
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			CatalogDescriptor.THIS,
 			CatalogDescriptor.SUPPORTS_TRANSACTION,
 			PropertyDataFetcher.fetching(CatalogContract::supportsTransaction)

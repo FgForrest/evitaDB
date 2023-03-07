@@ -40,7 +40,7 @@ import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
 import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
-import io.evitadb.externalApi.rest.io.handler.RESTApiContext;
+import io.evitadb.externalApi.rest.io.handler.CollectionRestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
@@ -63,12 +63,12 @@ import java.util.stream.Stream;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 public abstract class RestConstraintResolver<C extends Constraint<?>> extends ConstraintResolver<C, Object> {
-	protected final RESTApiContext restApiContext;
+	protected final CollectionRestHandlingContext restHandlingContext;
 	protected final Operation operation;
 
-	protected RestConstraintResolver(@Nonnull RESTApiContext restApiContext, @Nonnull Operation operation) {
-		super(restApiContext.getCatalog().getSchema());
-		this.restApiContext = restApiContext;
+	protected RestConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext, @Nonnull Operation operation) {
+		super(restHandlingContext.getCatalogSchema());
+		this.restHandlingContext = restHandlingContext;
 		this.operation = operation;
 	}
 
@@ -87,7 +87,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 	@Override
 	protected Object extractFromArgumentFromWrapperRange(@Nonnull ParsedKey parsedKey, @Nullable Object value, @Nonnull ValueParameterDescriptor parameterDescriptor) {
 		final Schema<?> argumentSchema = getSchemaFromOperationProperty(parsedKey.originalKey());
-		final Object[] deserialized = DataDeserializer.deserializeArray(restApiContext.getOpenApi().get(), argumentSchema, (JsonNode) value);
+		final Object[] deserialized = DataDeserializer.deserializeArray(restHandlingContext.getOpenApi(), argumentSchema, (JsonNode) value);
 		return deserialized[0];
 	}
 
@@ -95,7 +95,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 	@Override
 	protected Object extractToArgumentFromWrapperRange(@Nonnull ParsedKey parsedKey, @Nullable Object value, @Nonnull ValueParameterDescriptor parameterDescriptor) {
 		final Schema<?> argumentSchema = getSchemaFromOperationProperty(parsedKey.originalKey());
-		final Object[] deserialized = DataDeserializer.deserializeArray(restApiContext.getOpenApi().get(), argumentSchema, (JsonNode) value);
+		final Object[] deserialized = DataDeserializer.deserializeArray(restHandlingContext.getOpenApi(), argumentSchema, (JsonNode) value);
 		return deserialized[1];
 	}
 
@@ -112,7 +112,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 				return convertArrayArgument(valueParameterDescriptor.type(), argumentSchema, jsonNode);
 			} else if(type.equals(Serializable.class)) {
 				final Schema<?> argumentSchema = getSchemaFromOperationProperty(parsedKey.originalKey());
-				return DataDeserializer.deserialize(restApiContext.getOpenApi().get(), argumentSchema, (jsonNode));
+				return DataDeserializer.deserialize(restHandlingContext.getOpenApi(), argumentSchema, (jsonNode));
 			} else {
 				return DataDeserializer.deserialize(type, jsonNode);
 			}
@@ -132,7 +132,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 	}
 
 	private Object convertArrayArgument(@Nonnull Class<?> classForArray, @Nonnull Schema<?> argumentSchema, @Nonnull JsonNode argument) {
-		final Schema<?> childrenSchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(argumentSchema.getItems(), restApiContext.getOpenApi().get());
+		final Schema<?> childrenSchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(argumentSchema.getItems(), restHandlingContext.getOpenApi());
 		if(childrenSchema.getType().equals(OpenApiScalar.TYPE_ARRAY)) {
 			if(argument instanceof ArrayNode arrayNode) {
 				final Object objects = Array.newInstance(classForArray.isArray()?classForArray.getComponentType():classForArray, arrayNode.size());
@@ -145,7 +145,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 				"Can't get array  if JsonNode is not instance of ArrayNode. Class: " + argument.getClass().getSimpleName());
 
 		} else {
-			return DataDeserializer.deserialize(restApiContext.getOpenApi().get(), argumentSchema, argument);
+			return DataDeserializer.deserialize(restHandlingContext.getOpenApi(), argumentSchema, argument);
 		}
 	}
 
@@ -232,13 +232,13 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 	@Nonnull
 	@Override
 	protected Object createEmptyWrapperObject() {
-		return restApiContext.getObjectMapper().getNodeFactory().objectNode();
+		return restHandlingContext.getObjectMapper().getNodeFactory().objectNode();
 	}
 
 	@Nonnull
 	@Override
 	protected Object createEmptyListObject() {
-		return restApiContext.getObjectMapper().getNodeFactory().arrayNode();
+		return restHandlingContext.getObjectMapper().getNodeFactory().arrayNode();
 	}
 
 	@SuppressWarnings("rawtypes")

@@ -27,7 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.EntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RESTMutationObjectParser;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RESTMutationResolvingExceptionFactory;
-import io.evitadb.externalApi.rest.io.handler.RESTApiContext;
+import io.evitadb.externalApi.rest.io.handler.CollectionRestHandlingContext;
 
 import javax.annotation.Nonnull;
 import java.util.Iterator;
@@ -40,10 +40,11 @@ import java.util.List;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-public class RESTEntityUpsertMutationConverter extends EntityUpsertMutationConverter<JsonNode> {
+public class RestEntityUpsertMutationConverter extends EntityUpsertMutationConverter<JsonNode> {
 
-	public RESTEntityUpsertMutationConverter(@Nonnull RESTApiContext restApiContext, @Nonnull RESTMutationObjectParser restMutationObjectParser) {
-		super(restApiContext.getEntitySchema(),restApiContext.getObjectMapper(), restMutationObjectParser, new RESTMutationResolvingExceptionFactory());
+	public RestEntityUpsertMutationConverter(@Nonnull CollectionRestHandlingContext restHandlingContext,
+	                                         @Nonnull RESTMutationObjectParser restMutationObjectParser) {
+		super(restHandlingContext.getEntitySchema(), restHandlingContext.getObjectMapper(), restMutationObjectParser, new RESTMutationResolvingExceptionFactory());
 	}
 
 	@Nonnull

@@ -25,11 +25,9 @@ package io.evitadb.externalApi.rest.io.handler;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.io.serializer.ObjectJsonSerializer;
-import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
@@ -40,37 +38,30 @@ import java.util.Map;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CollectionsHandler extends RESTApiHandler {
-	public CollectionsHandler(@Nonnull RESTApiContext restApiContext) {
-		super(restApiContext);
-	}
+public class CollectionsHandler extends RestHandler<RestHandlingContext> {
 
-	@Override
-	protected void validateContext() {
-		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEvita() != null, "Instance of Evita must be set in context.");
-		Assert.isPremiseValid(restApiContext.getObjectMapper() != null, "Instance of ObjectMapper must be set in context.");
-		Assert.isPremiseValid(restApiContext.getPathItem() != null, "Instance of PathItem must be set in context.");
+	public CollectionsHandler(@Nonnull RestHandlingContext restHandlingContext) {
+		super(restHandlingContext);
 	}
 
 	@Override
 	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiContext.getPathItem().getGet());
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(ParamDescriptor.ENTITY_COUNT.name());
 
-		try(final EvitaSessionContract readOnlySession = restApiContext.getEvita().createReadOnlySession(restApiContext.getCatalog().getName())) {
-			final ObjectJsonSerializer objectJsonSerializer = new ObjectJsonSerializer(restApiContext.getObjectMapper());
+		restApiHandlingContext.queryCatalog(session -> {
+			final ObjectJsonSerializer objectJsonSerializer = new ObjectJsonSerializer(restApiHandlingContext.getObjectMapper());
 			final ArrayNode collections = objectJsonSerializer.arrayNode();
-			for (String entityType : readOnlySession.getAllEntityTypes()) {
+			for (String entityType : session.getAllEntityTypes()) {
 				final ObjectNode collectionNode = objectJsonSerializer.objectNode();
 				collectionNode.putIfAbsent(CollectionDescriptor.ENTITY_TYPE.name(), objectJsonSerializer.serializeObject(entityType));
 				collections.add(collectionNode);
 				if(withCounts != null && withCounts) {
-					collectionNode.putIfAbsent(CollectionDescriptor.COUNT.name(), objectJsonSerializer.serializeObject(readOnlySession.getEntityCollectionSize(entityType)));
+					collectionNode.putIfAbsent(CollectionDescriptor.COUNT.name(), objectJsonSerializer.serializeObject(session.getEntityCollectionSize(entityType)));
 				}
 			}
 
 			setSuccessResponse(exchange, serializeResult(collections));
-		}
+		});
 	}
 }

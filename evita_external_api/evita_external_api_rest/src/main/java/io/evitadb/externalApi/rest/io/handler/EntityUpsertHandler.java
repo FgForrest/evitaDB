@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.io.handler;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -32,14 +31,12 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
 import io.evitadb.externalApi.exception.HttpExchangeException;
-import io.evitadb.externalApi.rest.api.catalog.builder.PathItemsCreator;
 import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.resolver.data.mutation.RESTEntityUpsertMutationConverter;
+import io.evitadb.externalApi.rest.api.catalog.resolver.data.mutation.RestEntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RESTMutationObjectParser;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.io.model.EntityUpsertRequestData;
 import io.evitadb.externalApi.rest.io.serializer.EntityJsonSerializer;
-import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
@@ -57,21 +54,13 @@ import java.util.Optional;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class EntityUpsertHandler extends RESTApiHandler {
+public class EntityUpsertHandler extends RestHandler<CollectionRestHandlingContext> {
+
 	private final boolean withPrimaryKeyInUrl;
 
-	public EntityUpsertHandler(@Nonnull RESTApiContext restApiContext, boolean withPrimaryKeyInUrl) {
-		super(restApiContext);
+	public EntityUpsertHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext, boolean withPrimaryKeyInUrl) {
+		super(restApiHandlingContext);
 		this.withPrimaryKeyInUrl = withPrimaryKeyInUrl;
-	}
-
-	@Override
-	protected void validateContext() {
-		Assert.isPremiseValid(restApiContext.getObjectMapper() != null, "Instance of ObjectMapper must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEvita() != null, "Instance of Evita must be set in context.");
-		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEntityType() != null, "Entity type must be set in context.");
-		Assert.isPremiseValid(restApiContext.getPathItem() != null, "PathItem must be set in context.");
 	}
 
 	@Override
@@ -81,7 +70,7 @@ public class EntityUpsertHandler extends RESTApiHandler {
 		final EntityUpsertRequestData requestData = getRequestData(exchange);
 
 		if(withPrimaryKeyInUrl) {
-			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiContext.getPathItem().getPut());
+			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 			if (parametersFromRequest.containsKey(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY.name())) {
 				requestData.setPrimaryKey((Integer) parametersFromRequest.get(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY.name()));
 			} else {
@@ -94,22 +83,22 @@ public class EntityUpsertHandler extends RESTApiHandler {
 
 		validateRequestData(requestData);
 
-		final RESTMutationObjectParser restMutationObjectParser = new RESTMutationObjectParser(restApiContext.getObjectMapper());
+		final RESTMutationObjectParser restMutationObjectParser = new RESTMutationObjectParser(restApiHandlingContext.getObjectMapper());
 
-		final RESTEntityUpsertMutationConverter mutationResolver = new RESTEntityUpsertMutationConverter(restApiContext, restMutationObjectParser);
+		final RestEntityUpsertMutationConverter mutationResolver = new RestEntityUpsertMutationConverter(restApiHandlingContext, restMutationObjectParser);
 		final EntityMutation entityMutation = mutationResolver.resolve(requestData.getPrimaryKey(), requestData.getEntityExistence(), requestData.getMutations());
 
 		final EntityContentRequire[] children = getEntityContentRequires(requestData);
 
-		try(final EvitaSessionContract evitaSession = restApiContext.createReadWriteSession()) {
-			final SealedEntity upsertedEntity = evitaSession.upsertAndFetchEntity(entityMutation, children);
-			setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiContext, upsertedEntity).serialize()));
-		}
+		restApiHandlingContext.updateCatalog(session -> {
+			final SealedEntity upsertedEntity = session.upsertAndFetchEntity(entityMutation, children);
+			setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, upsertedEntity).serialize()));
+		});
 	}
 
 	@Nullable
 	private EntityContentRequire[] getEntityContentRequires(EntityUpsertRequestData requestData) {
-		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiContext, restApiContext.getPathItem().getPost()).resolve(QueryRequestBodyDescriptor.REQUIRE.name(), requestData.getRequire()):null;
+		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.REQUIRE.name(), requestData.getRequire()):null;
 		if(require != null) {
 			final Optional<RequireConstraint> entityFetch = Arrays.stream(require.getChildren()).filter(requireConstraint -> requireConstraint.getClass().equals(EntityFetch.class)).findFirst();
 
@@ -134,7 +123,7 @@ public class EntityUpsertHandler extends RESTApiHandler {
 				"Request's body contains no data."
 			);
 		}
-		return restApiContext.getObjectMapper().readValue(content, EntityUpsertRequestData.class);
+		return restApiHandlingContext.getObjectMapper().readValue(content, EntityUpsertRequestData.class);
 	}
 
 	protected void validateRequestData(@Nonnull EntityUpsertRequestData requestData) {

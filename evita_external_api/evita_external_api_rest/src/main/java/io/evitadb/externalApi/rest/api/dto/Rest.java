@@ -21,39 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.handler;
+package io.evitadb.externalApi.rest.api.dto;
 
-import io.evitadb.externalApi.http.MimeTypes;
-import io.evitadb.externalApi.rest.api.OpenApiWriter;
-import io.evitadb.utils.Assert;
+import io.evitadb.externalApi.rest.io.handler.RestHandler;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.undertow.server.HttpServerExchange;
+import io.swagger.v3.oas.models.PathItem;
 
 import javax.annotation.Nonnull;
-import java.util.function.Supplier;
+import java.util.List;
 
 /**
- * Returns OpenAPI schema for whole collection.
+ * TODO lho docs
  *
- * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, 2023
  */
-public class OpenApiSchemaHandler extends RESTApiHandler {
+public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) {
 
-	public OpenApiSchemaHandler(@Nonnull RESTApiContext restApiContext) {
-		super(restApiContext);
-	}
-
-	@Override
-	protected void validateContext() {}
-
-	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		setSuccessResponse(exchange, OpenApiWriter.toYaml(restApiContext.getOpenApi().get()));
-	}
-
-	@Nonnull
-	@Override
-	protected String getContentType() {
-		return MimeTypes.APPLICATION_YAML;
-	}
+	public record Endpoint(@Nonnull String path,
+	                       @Nonnull PathItem.HttpMethod method,
+	                       @Nonnull RestHandler<?> handler) {}
 }

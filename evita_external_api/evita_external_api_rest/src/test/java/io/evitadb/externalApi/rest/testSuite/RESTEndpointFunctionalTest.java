@@ -28,9 +28,9 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.rest.RESTProvider;
-import io.evitadb.externalApi.rest.RESTProviderRegistrar;
-import io.evitadb.externalApi.rest.configuration.RESTConfig;
+import io.evitadb.externalApi.rest.RestProvider;
+import io.evitadb.externalApi.rest.RestProviderRegistrar;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
@@ -83,8 +83,8 @@ public abstract class RESTEndpointFunctionalTest {
 
 		server = new ExternalApiServer(
 			evita,
-			new ApiOptions(null, new CertificateSettings.Builder().build(), Map.of(RESTProvider.CODE, new RESTConfig())),
-			Collections.singleton(new RESTProviderRegistrar())
+			new ApiOptions(null, new CertificateSettings.Builder().build(), Map.of(RestProvider.CODE, new RestConfig())),
+			Collections.singleton(new RestProviderRegistrar())
 		);
 		server.start();
 

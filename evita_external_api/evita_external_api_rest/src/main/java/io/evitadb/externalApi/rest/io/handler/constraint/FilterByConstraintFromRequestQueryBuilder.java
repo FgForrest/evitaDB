@@ -23,11 +23,11 @@
 
 package io.evitadb.externalApi.rest.io.handler.constraint;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
 import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
@@ -49,7 +49,7 @@ import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.rest.api.catalog.builder.CatalogOpenApiBuilder.getGloballyUniqueAttributes;
+import static io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuilder.getGloballyUniqueAttributes;
 
 /**
  * Creates {@link io.evitadb.api.query.filter.FilterBy} constraint for Evita query from request parameters.
@@ -115,19 +115,20 @@ public class FilterByConstraintFromRequestQueryBuilder {
 	/**
 	 * Creates filter by constraints from request parameters when requesting single unknown entity.
 	 * @param parameters query parameters
-	 * @param catalog
+	 * @param catalogSchema
 	 * @return filter by
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
-	public static <A extends Serializable & Comparable<A>> FilterBy buildFilterByForUnknownEntity(@Nonnull Map<String, Object> parameters, @Nonnull CatalogContract catalog) {
+	public static <A extends Serializable & Comparable<A>> FilterBy buildFilterByForUnknownEntity(@Nonnull Map<String, Object> parameters,
+	                                                                                              @Nonnull CatalogSchemaContract catalogSchema) {
 		final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
 		if (parameters.containsKey(ParamDescriptor.LOCALE.name())) {
 			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(ParamDescriptor.LOCALE.name())));
 		}
 
-		getGloballyUniqueAttributes(catalog).stream()
+		getGloballyUniqueAttributes(catalogSchema).stream()
 			.map(arg -> arg.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
 			.forEach(name -> {
 				if (parameters.containsKey(name)) {
@@ -154,14 +155,15 @@ public class FilterByConstraintFromRequestQueryBuilder {
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
-	public static <A extends Serializable & Comparable<A>> FilterBy buildFilterByForUnknownEntityList(@Nonnull Map<String, Object> parameters, @Nonnull CatalogContract catalog) {
+	public static <A extends Serializable & Comparable<A>> FilterBy buildFilterByForUnknownEntityList(@Nonnull Map<String, Object> parameters,
+	                                                                                                  @Nonnull CatalogSchemaContract catalogSchema) {
 		final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
 		if (parameters.containsKey(ParamDescriptor.LOCALE.name())) {
 			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(ParamDescriptor.LOCALE.name())));
 		}
 
-		getGloballyUniqueAttributes(catalog)
+		getGloballyUniqueAttributes(catalogSchema)
 			.forEach(arg -> {
 				final String name = arg.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION);
 				if (parameters.containsKey(name)) {

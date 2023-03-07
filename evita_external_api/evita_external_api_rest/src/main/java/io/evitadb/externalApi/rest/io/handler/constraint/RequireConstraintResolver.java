@@ -35,7 +35,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.Constraint
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
-import io.evitadb.externalApi.rest.io.handler.RESTApiContext;
+import io.evitadb.externalApi.rest.io.handler.CollectionRestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
@@ -54,8 +54,8 @@ import java.util.Set;
  */
 public class RequireConstraintResolver extends RestConstraintResolver<RequireConstraint> {
 
-	public RequireConstraintResolver(@Nonnull RESTApiContext restApiContext, @Nonnull Operation operation) {
-		super(restApiContext, operation);
+	public RequireConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext, @Nonnull Operation operation) {
+		super(restHandlingContext, operation);
 	}
 
 	@Override
@@ -78,7 +78,7 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 	@Nonnull
 	@Override
 	protected DataLocator getRootDataLocator() {
-		return new GenericDataLocator(restApiContext.getEntityType());
+		return new GenericDataLocator(restHandlingContext.getEntityType());
 	}
 
 	@Nonnull
@@ -104,6 +104,6 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 	}
 
 	protected Schema getSchemaFromOperationProperty(@Nonnull String propertyName) {
-		return SchemaUtils.getSchemaFromRequire(restApiContext.getOpenApi().get(), operation, propertyName);
+		return SchemaUtils.getSchemaFromRequire(restHandlingContext.getOpenApi(), operation, propertyName);
 	}
 }

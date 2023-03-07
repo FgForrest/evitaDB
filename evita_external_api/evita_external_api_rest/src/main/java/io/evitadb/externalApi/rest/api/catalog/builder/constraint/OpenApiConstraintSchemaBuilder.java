@@ -42,7 +42,6 @@ import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter.ConvertedEnum;
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.evitadb.utils.Assert;
-import io.swagger.v3.oas.models.media.Schema;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

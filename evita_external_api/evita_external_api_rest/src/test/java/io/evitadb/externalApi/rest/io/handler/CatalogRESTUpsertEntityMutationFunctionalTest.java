@@ -276,8 +276,9 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{"filterBy": {
-					"entity_primaryKey_inSet": [%d]
+				{
+					"filterBy": {
+						"entity_primaryKey_inSet": [%d]
 					},
 					"require": {
 						"entity_fetch": {

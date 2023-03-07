@@ -23,14 +23,12 @@
 
 package io.evitadb.externalApi.rest.io.handler;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.serializer.EntityJsonSerializer;
-import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
@@ -45,39 +43,31 @@ import java.util.Optional;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class EntityDeleteHandler extends RESTApiHandler {
-	public EntityDeleteHandler(@Nonnull RESTApiContext restApiContext) {
-		super(restApiContext);
-	}
+public class EntityDeleteHandler extends RestHandler<CollectionRestHandlingContext> {
 
-	@Override
-	protected void validateContext() {
-		Assert.isPremiseValid(restApiContext.getObjectMapper() != null, "Instance of ObjectMapper must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEvita() != null, "Instance of Evita must be set in context.");
-		Assert.isPremiseValid(restApiContext.getCatalog() != null, "Catalog must be set in context.");
-		Assert.isPremiseValid(restApiContext.getEntityType() != null, "Entity type must be set in context.");
-		Assert.isPremiseValid(restApiContext.getPathItem() != null, "PathItem must be set in context.");
+	public EntityDeleteHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+		super(restApiHandlingContext);
 	}
 
 	@Override
 	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
 		validateRequest(exchange);
 
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiContext.getPathItem().getDelete());
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 		if(parametersFromRequest.containsKey(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY.name())) {
 			final EntityContentRequire[] entityContentRequires = RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest);
 
-			try(final EvitaSessionContract evitaSession = restApiContext.createReadWriteSession()) {
-				final Optional<SealedEntity> entity = evitaSession.deleteEntity(restApiContext.getEntityType(),
+			restApiHandlingContext.updateCatalog(session -> {
+				final Optional<SealedEntity> entity = session.deleteEntity(restApiHandlingContext.getEntityType(),
 					(Integer) parametersFromRequest.get(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY.name()),
 					entityContentRequires);
 
 				if(entity.isPresent()) {
-					setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiContext, entity.get()).serialize()));
+					setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, entity.get()).serialize()));
 				} else {
 					throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested entity wasn't found and thus wasn't deleted.");
 				}
-			}
+			});
 		} else {
 			throw new HttpExchangeException(StatusCodes.BAD_REQUEST, "Primary key wasn't found in URL.");
 		}

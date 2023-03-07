@@ -39,7 +39,6 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.scalarFrom;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -53,12 +52,12 @@ import static org.mockito.Mockito.verify;
  */
 class PropertyDescriptorToOpenApiPropertyTransformerTest {
 
-	private CatalogSchemaBuildingContext context;
+	private CatalogRestBuildingContext context;
 	private PropertyDescriptorToOpenApiPropertyTransformer transformer;
 
 	@BeforeEach
 	void setUp() {
-		context = mock(CatalogSchemaBuildingContext.class);
+		context = mock(CatalogRestBuildingContext.class);
 		transformer = new PropertyDescriptorToOpenApiPropertyTransformer(
 			new PropertyDataTypeDescriptorToOpenApiTypeTransformer(context)
 		);

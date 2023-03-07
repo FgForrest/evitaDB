@@ -145,11 +145,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private static final PriceBigDecimalFieldDecorator PRICE_FIELD_DECORATOR = new PriceBigDecimalFieldDecorator();
 
 	@Nonnull
-	private final GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx;
+	private final GraphQLConstraintSchemaBuildingContext constraintContext;
 
 	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull EvitaContract evita, @Nonnull CatalogContract catalog) {
 		super(new CatalogGraphQLSchemaBuildingContext(evita, catalog));
-		this.constraintSchemaBuildingCtx = new GraphQLConstraintSchemaBuildingContext(graphQLSchemaBuildingCtx);
+		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(context);
 	}
 
 	@Override
@@ -157,84 +157,84 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	public GraphQLSchema build() {
 		buildCommonTypes();
 		buildFields();
-		return graphQLSchemaBuildingCtx.buildGraphQLSchema();
+		return context.buildGraphQLSchema();
 	}
 
 	private void buildCommonTypes() {
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
-		graphQLSchemaBuildingCtx.registerType(scalarEnum);
-		graphQLSchemaBuildingCtx.registerType(buildAssociatedDataScalarEnum(scalarEnum));
+		context.registerType(scalarEnum);
+		context.registerType(buildAssociatedDataScalarEnum(scalarEnum));
 
-		graphQLSchemaBuildingCtx.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
+		context.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
 
 		// query objects
 		final GraphQLInterfaceType entityClassifierInterface = EntityDescriptor.THIS_INTERFACE.to(interfaceBuilderTransformer).build();
-		graphQLSchemaBuildingCtx.registerType(entityClassifierInterface);
-		graphQLSchemaBuildingCtx.registerTypeResolver(
+		context.registerType(entityClassifierInterface);
+		context.registerTypeResolver(
 			entityClassifierInterface,
-			new EntityDtoTypeResolver(graphQLSchemaBuildingCtx.getEntityTypeToEntityObject())
+			new EntityDtoTypeResolver(context.getEntityTypeToEntityObject())
 		);
-		graphQLSchemaBuildingCtx.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(buildPriceObject());
-		graphQLSchemaBuildingCtx.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(buildHistogramObject());
+		context.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(buildPriceObject());
+		context.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
+		context.registerType(buildHistogramObject());
 		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
-		graphQLSchemaBuildingCtx.registerType(buildAttributeNamedHistogramObject());
-		graphQLSchemaBuildingCtx.registerType(buildFacetRequestImpactObject());
+		context.registerType(buildAttributeNamedHistogramObject());
+		context.registerType(buildFacetRequestImpactObject());
 
 		// upsert objects
-		graphQLSchemaBuildingCtx.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(RemoveAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(UpsertAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(SetHierarchicalPlacementMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(RemovePriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(UpsertPriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(InsertReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(RemoveReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(SetReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(ReferenceAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(RemoveAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(UpsertAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(SetHierarchicalPlacementMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(RemovePriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(UpsertPriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(InsertReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(RemoveReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(SetReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(ReferenceAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		context.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 	}
 
 	private void buildFields() {
 		// "collections" field
-		graphQLSchemaBuildingCtx.registerQueryField(buildCollectionsField());
+		context.registerQueryField(buildCollectionsField());
 
 		// "get_entity" field
-		graphQLSchemaBuildingCtx.registerQueryField(buildUnknownSingleEntityField());
+		context.registerQueryField(buildUnknownSingleEntityField());
 
 		// "list_entity" field
-		graphQLSchemaBuildingCtx.registerQueryField(buildUnknownEntityListField());
+		context.registerQueryField(buildUnknownEntityListField());
 
 		// collection-specific fields
-		graphQLSchemaBuildingCtx.getEntitySchemas().forEach(entitySchema -> {
+		context.getEntitySchemas().forEach(entitySchema -> {
 			final EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx = setupForCollection(entitySchema);
 
 			// collection specific "get_entity" field
-			graphQLSchemaBuildingCtx.registerQueryField(buildSingleEntityField(entitySchemaBuildingCtx));
+			context.registerQueryField(buildSingleEntityField(entitySchemaBuildingCtx));
 
 			// collection specific "list_entity" field
-			graphQLSchemaBuildingCtx.registerQueryField(buildEntityListField(entitySchemaBuildingCtx));
+			context.registerQueryField(buildEntityListField(entitySchemaBuildingCtx));
 
 			// collection specific "query_entity" field
-			graphQLSchemaBuildingCtx.registerQueryField(buildEntityQueryField(entitySchemaBuildingCtx));
+			context.registerQueryField(buildEntityQueryField(entitySchemaBuildingCtx));
 
 			// collection specific "count_entity" field
-			graphQLSchemaBuildingCtx.registerQueryField(buildCollectionSizeField(entitySchemaBuildingCtx));
+			context.registerQueryField(buildCollectionSizeField(entitySchemaBuildingCtx));
 
 			// collection specific "upsert_entity" field
-			graphQLSchemaBuildingCtx.registerMutationField(buildUpsertEntityField(entitySchemaBuildingCtx));
+			context.registerMutationField(buildUpsertEntityField(entitySchemaBuildingCtx));
 
 			// collection specific "delete_entity" field
-			graphQLSchemaBuildingCtx.registerMutationField(buildDeleteEntitiesField(entitySchemaBuildingCtx));
+			context.registerMutationField(buildDeleteEntitiesField(entitySchemaBuildingCtx));
 		});
 
 		// register gathered custom constraint types
-		graphQLSchemaBuildingCtx.registerTypes(new HashSet<>(constraintSchemaBuildingCtx.getBuiltTypes()));
+		context.registerTypes(new HashSet<>(constraintContext.getBuiltTypes()));
 	}
 
 
@@ -249,7 +249,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.name(localeEnumName)
 				.description(CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM.description());
 			entitySchema.getLocales().forEach(l -> localeEnumBuilder.value(l.toLanguageTag().replace("-", "_"), l));
-			graphQLSchemaBuildingCtx.registerCustomEnumIfAbsent(localeEnumBuilder.build());
+			context.registerCustomEnumIfAbsent(localeEnumBuilder.build());
 		}
 
 		if (!entitySchema.getCurrencies().isEmpty()) {
@@ -258,24 +258,24 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.name(currencyEnumName)
 				.description(CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM.description());
 			entitySchema.getCurrencies().forEach(c -> currencyEnumBuilder.value(c.toString(), c));
-			graphQLSchemaBuildingCtx.registerCustomEnumIfAbsent(currencyEnumBuilder.build());
+			context.registerCustomEnumIfAbsent(currencyEnumBuilder.build());
 		}
 
 		final EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx = new EntitySchemaGraphQLSchemaBuildingContext(
-			graphQLSchemaBuildingCtx,
+			context,
 			entitySchema
 		);
 
 		// build filter schema
 		final GraphQLType filterBySchemaDescriptor = new FilterBySchemaBuilder(
-			constraintSchemaBuildingCtx,
+			constraintContext,
 			entitySchemaBuildingCtx.getSchema().getName()
 		).build();
 		entitySchemaBuildingCtx.setFilterByInputObject(filterBySchemaDescriptor);
 
 		// build order schema
 		final GraphQLType orderBySchemaDescriptor = new OrderBySchemaBuilder(
-			constraintSchemaBuildingCtx,
+			constraintContext,
 			entitySchemaBuildingCtx.getSchema().getName()
 		).build();
 		entitySchemaBuildingCtx.setOrderByInputObject(orderBySchemaDescriptor);
@@ -301,7 +301,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
  			.type(typeRef(EntityDescriptor.THIS_INTERFACE.name()));
 
 		// build globally unique attribute filters
-		final List<GlobalAttributeSchemaContract> globalAttributes = graphQLSchemaBuildingCtx.getCatalog()
+		final List<GlobalAttributeSchemaContract> globalAttributes = context.getCatalog()
 			.getSchema()
 			.getAttributes()
 			.values()
@@ -324,7 +324,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownSingleEntityFieldBuilder.build(),
-			new GetUnknownEntityDataFetcher(graphQLSchemaBuildingCtx.getSchema(), graphQLSchemaBuildingCtx.getEntitySchemas())
+			new GetUnknownEntityDataFetcher(context.getSchema(), context.getEntitySchemas())
 		);
 	}
 
@@ -336,7 +336,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.argument(ListUnknownEntitiesQueryHeaderDescriptor.LIMIT.to(argumentBuilderTransformer));
 
 		// build globally unique attribute filters
-		final List<GlobalAttributeSchemaContract> globalAttributes = graphQLSchemaBuildingCtx.getCatalog()
+		final List<GlobalAttributeSchemaContract> globalAttributes = context.getCatalog()
 			.getSchema()
 			.getAttributes()
 			.values()
@@ -359,7 +359,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownEntityListFieldBuilder.build(),
-			new ListUnknownEntitiesDataFetcher(graphQLSchemaBuildingCtx.getSchema(), graphQLSchemaBuildingCtx.getEntitySchemas())
+			new ListUnknownEntitiesDataFetcher(context.getSchema(), context.getEntitySchemas())
 		);
 	}
 
@@ -408,7 +408,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			singleEntityFieldBuilder.build(),
-			new GetEntityDataFetcher(graphQLSchemaBuildingCtx.getSchema(), entitySchema)
+			new GetEntityDataFetcher(context.getSchema(), entitySchema)
 		);
 	}
 
@@ -430,7 +430,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityListFieldBuilder.build(),
-			new ListEntitiesDataFetcher(graphQLSchemaBuildingCtx.getSchema(), entitySchema)
+			new ListEntitiesDataFetcher(context.getSchema(), entitySchema)
 		);
 	}
 
@@ -455,7 +455,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		if (!entitySchema.getCurrencies().isEmpty() ||
 			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFaceted)) {
 			final GraphQLType requireSchemaDescriptor = new RequireSchemaBuilder(
-				constraintSchemaBuildingCtx,
+				constraintContext,
 				entitySchemaBuildingCtx.getSchema().getName()
 			).build();
 
@@ -466,7 +466,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityQueryFieldBuilder.build(),
-			new QueryEntitiesDataFetcher(graphQLSchemaBuildingCtx.getSchema(), entitySchema)
+			new QueryEntitiesDataFetcher(context.getSchema(), entitySchema)
 		);
 	}
 
@@ -645,7 +645,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.name(objectName);
 
 		attributeSchemas.forEach(attributeSchema ->
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				objectName,
 				attributesBuilder,
 				buildAttributeField(attributeSchema)
@@ -714,7 +714,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.name(objectName);
 
 		entitySchemaBuildingCtx.getSchema().getAssociatedData().values().forEach(associatedDataSchema ->
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				objectName,
 				associatedDataBuilder,
 				buildSingleAssociatedDataField(associatedDataSchema)
@@ -798,14 +798,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.name(referenceObjectName)
 			.description(referenceSchema.getDescription());
 
-		graphQLSchemaBuildingCtx.registerFieldToObject(
+		context.registerFieldToObject(
 			referenceObjectName,
 			referenceObjectBuilder,
 			buildReferenceReferencedEntityField(referenceSchema)
 		);
 
 		if (referenceSchema.getReferencedGroupType() != null) {
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				referenceObjectName,
 				referenceObjectBuilder,
 				buildReferenceGroupEntityField(referenceSchema)
@@ -813,7 +813,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		}
 
 		if (!referenceSchema.getAttributes().isEmpty()) {
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				referenceObjectName,
 				referenceObjectBuilder,
 				buildReferenceAttributesField(entitySchemaBuildingCtx, referenceSchema)
@@ -848,7 +848,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildReferenceReferencedEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract referencedEntitySchema;
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			referencedEntitySchema = graphQLSchemaBuildingCtx
+			referencedEntitySchema = context
 				.getSchema()
 				.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
 		} else {
@@ -871,7 +871,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildReferenceGroupEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract referencedEntitySchema;
 		if (referenceSchema.isReferencedGroupTypeManaged()) {
-			referencedEntitySchema = graphQLSchemaBuildingCtx
+			referencedEntitySchema = context
 				.getSchema()
 				.getEntitySchemaOrThrowException(referenceSchema.getReferencedGroupType());
 		} else {
@@ -906,7 +906,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		buildExtraResultsField(entitySchemaBuildingCtx).ifPresent(responseFields::add);
 
 		responseFields.forEach(responseField ->
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				objectName,
 				responseObjectBuilder,
 				responseField
@@ -1021,7 +1021,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		}
 
 		extraResultFields.forEach(extraResultField ->
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				objectName,
 				extraResultsObjectBuilder,
 				extraResultField
@@ -1150,7 +1150,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				referenceSchema
 			);
 
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				objectName,
 				facetSummaryObjectBuilder,
 				facetGroupStatisticsField
@@ -1184,7 +1184,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
 			Optional.ofNullable(referenceSchema.getReferencedGroupType())
-				.map(groupType -> graphQLSchemaBuildingCtx
+				.map(groupType -> context
 					.getSchema()
 					.getEntitySchemaOrThrowException(groupType))
 				.orElse(null) :
@@ -1209,7 +1209,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private GraphQLObjectType buildFacetStatisticsObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract facetEntitySchema = referenceSchema.isReferencedEntityTypeManaged() ?
-			graphQLSchemaBuildingCtx
+			context
 				.getSchema()
 				.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType()) :
 			null;
@@ -1233,7 +1233,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.values()
 			.stream()
 			.filter(referenceSchema -> referenceSchema.isReferencedEntityTypeManaged() &&
-				graphQLSchemaBuildingCtx.getSchema().getEntitySchema(referenceSchema.getReferencedEntityType())
+				context.getSchema().getEntitySchema(referenceSchema.getReferencedEntityType())
 					.map(EntitySchemaContract::isWithHierarchy)
 					.orElseThrow(() -> new GraphQLSchemaBuildingError("Reference `" + referenceSchema.getName() + "` should have existing entity schema but no schema found.")))
 			.toList();
@@ -1279,14 +1279,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.name(objectName);
 
 		if (entitySchema.isWithHierarchy()) {
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				objectName,
 				parentsObjectBuilder,
 				buildSelfParentsOfEntityField(entitySchemaBuildingCtx)
 			);
 		}
 		referenceSchemas.forEach(referenceSchema ->
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				objectName,
 				parentsObjectBuilder,
 				buildParentsOfEntityField(entitySchemaBuildingCtx, referenceSchema)
@@ -1318,7 +1318,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.to(objectBuilderTransformer)
 			.name(objectName);
 
-		graphQLSchemaBuildingCtx.registerFieldToObject(
+		context.registerFieldToObject(
 			objectName,
 			parentsOfEntityObjectBuilder,
 			buildSelfParentsOfEntityParentEntitiesField(entitySchemaBuildingCtx)
@@ -1364,13 +1364,13 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.to(objectBuilderTransformer)
 			.name(objectName);
 
-		graphQLSchemaBuildingCtx.registerFieldToObject(
+		context.registerFieldToObject(
 			objectName,
 			parentsOfEntityObjectBuilder,
 			buildParentsOfEntityParentEntitiesField(referenceSchema)
 		);
 
-		graphQLSchemaBuildingCtx.registerFieldToObject(
+		context.registerFieldToObject(
 			objectName,
 			parentsOfEntityObjectBuilder,
 			buildParentsOfEntityReferencesField(entitySchemaBuildingCtx, referenceSchema)
@@ -1395,7 +1395,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull
 	private GraphQLObjectType buildParentsOfEntityReferencesObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                               @Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = graphQLSchemaBuildingCtx
+		final EntitySchemaContract referencedEntitySchema = context
 			.getSchema()
 			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
 		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
@@ -1411,7 +1411,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 	@Nonnull
 	private BuiltFieldDescriptor buildParentsOfEntityParentEntitiesField(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = graphQLSchemaBuildingCtx
+		final EntitySchemaContract referencedEntitySchema = context
 			.getSchema()
 			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
 		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
@@ -1438,14 +1438,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.name(objectName);
 
 		if (entitySchema.isWithHierarchy()) {
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				objectName,
 				hierarchyStatisticsObjectBuilder,
 				buildSelfLevelInfoField(entitySchemaBuildingCtx)
 			);
 		}
 		referenceSchemas.forEach(referenceSchema ->
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			context.registerFieldToObject(
 				objectName,
 				hierarchyStatisticsObjectBuilder,
 				buildLevelInfoField(entitySchemaBuildingCtx, referenceSchema)
@@ -1478,7 +1478,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.to(fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(objectName))))));
 
-		graphQLSchemaBuildingCtx.registerFieldToObject(
+		context.registerFieldToObject(
 			objectName,
 			selfLevelInfoObjectBuilder,
 			buildSelfLevelInfoEntityField(entitySchemaBuildingCtx)
@@ -1526,7 +1526,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.to(fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(objectName))))));
 
-		graphQLSchemaBuildingCtx.registerFieldToObject(
+		context.registerFieldToObject(
 			objectName,
 			levelInfoObjectBuilder,
 			buildLevelInfoEntityField(referenceSchema)
@@ -1537,7 +1537,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 	@Nonnull
 	private BuiltFieldDescriptor buildLevelInfoEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = graphQLSchemaBuildingCtx
+		final EntitySchemaContract referencedEntitySchema = context
 			.getSchema()
 			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
 		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
@@ -1597,7 +1597,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			upsertEntityFieldBuilder.build(),
-			new UpsertEntityMutatingDataFetcher(CDO_OBJECT_MAPPER, graphQLSchemaBuildingCtx.getSchema(), entitySchema)
+			new UpsertEntityMutatingDataFetcher(CDO_OBJECT_MAPPER, context.getSchema(), entitySchema)
 		);
 	}
 
@@ -1622,24 +1622,24 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			deleteEntityByQueryField,
-			new DeleteEntitiesMutatingDataFetcher(graphQLSchemaBuildingCtx.getSchema(), entitySchema)
+			new DeleteEntitiesMutatingDataFetcher(context.getSchema(), entitySchema)
 		);
 	}
 
 
 	@Nonnull
 	private GraphQLObjectType buildPriceObject() {
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.PRICE_WITH_TAX,
 			new PriceBigDecimalDataFetcher(PriceDescriptor.PRICE_WITH_TAX.name())
 		);
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.PRICE_WITHOUT_TAX,
 			new PriceBigDecimalDataFetcher(PriceDescriptor.PRICE_WITHOUT_TAX.name())
 		);
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.TAX_RATE,
 			new PriceBigDecimalDataFetcher(PriceDescriptor.TAX_RATE.name())
@@ -1679,17 +1679,17 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull
 	private GraphQLObjectType buildFacetRequestImpactObject() {
 		// register custom data fetcher because of the request impact being java record
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.DIFFERENCE,
 			PropertyDataFetcher.fetching(RequestImpact::difference)
 		);
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.MATCH_COUNT,
 			PropertyDataFetcher.fetching(RequestImpact::matchCount)
 		);
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		context.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.HAS_SENSE,
 			PropertyDataFetcher.fetching(RequestImpact::hasSense)

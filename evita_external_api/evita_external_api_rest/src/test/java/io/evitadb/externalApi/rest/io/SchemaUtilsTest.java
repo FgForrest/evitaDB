@@ -27,8 +27,8 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.builder.CatalogOpenApiBuilder;
-import io.evitadb.externalApi.rest.api.catalog.builder.CatalogSchemaBuildingContext;
+import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuilder;
+import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.builder.OpenApiEntitySchemaBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.builder.UrlPathCreator;
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.OpenApiConstraintSchemaBuildingContext;
@@ -77,9 +77,9 @@ class SchemaUtilsTest {
 		final List<SealedEntity> sealedEntities = TestDataGenerator.generateMainCatalogEntities(evita);
 
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		openAPI = new CatalogOpenApiBuilder(evita, catalog).build();
+		openAPI = new CatalogRestBuilder(evita, catalog).build().openApi();
 
-		final CatalogSchemaBuildingContext catalogCtx = new CatalogSchemaBuildingContext(evita, catalog);
+		final CatalogRestBuildingContext catalogCtx = new CatalogRestBuildingContext(evita, catalog);
 		entitySchemaBuildingContext = new OpenApiEntitySchemaBuildingContext(
 			catalogCtx,
 			new OpenApiConstraintSchemaBuildingContext(catalogCtx),

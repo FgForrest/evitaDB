@@ -26,17 +26,13 @@ package io.evitadb.externalApi.rest.api.catalog.builder;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.OpenApiConstraintSchemaBuildingContext;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
-import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
-
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
 
 /**
  * This context is used to build OpenApi schema of single Evita entity.
@@ -46,33 +42,18 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo
 @Data
 public class OpenApiEntitySchemaBuildingContext {
 
-	@Nonnull
-	private final CatalogSchemaBuildingContext catalogCtx;
-	@Nonnull
-	private final OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx;
-	@Nonnull
-	private final EntitySchemaContract schema;
-
-	/**
-	 * Represents Evita's entity object.
-	 */
-	private OpenApiObject entityObject;
-	/**
-	 * Represents Evita's entity object with localized attributes and associated data.
-	 */
-	private OpenApiObject localizedEntityObject;
+	@Nonnull private final CatalogRestBuildingContext catalogCtx;
+	@Nonnull private final OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx;
+	@Nonnull private final EntitySchemaContract schema;
 
 	private OpenApiSimpleType filterByInputObject;
-
-	/**
-	 * Filter by input object for querying localized entity object
-	 */
 	private OpenApiSimpleType filterByLocalizedInputObject;
+
 	private OpenApiSimpleType orderByInputObject;
 
 	private OpenApiSimpleType requiredForListInputObject;
-
 	private OpenApiSimpleType requiredForQueryInputObject;
+	private OpenApiSimpleType requiredForDeleteInputObject;
 
 	@Nonnull
 	public CatalogContract getCatalog() {
@@ -84,48 +65,6 @@ public class OpenApiEntitySchemaBuildingContext {
 	 */
 	public boolean isLocalizedEntity() {
 		return !schema.getLocales().isEmpty();
-	}
-
-	/**
-	 * Set built entity object corresponding to this schema. Can be set only once before all other methods need it.
-	 */
-	public void setEntityObject(@Nonnull OpenApiObject entityObject) {
-		Assert.isPremiseValid(
-			this.entityObject == null,
-			() -> new OpenApiSchemaBuildingError("Entity object for schema `" + schema.getName() + "` has been already initialized.")
-		);
-		this.entityObject = entityObject;
-		catalogCtx.registerType(entityObject);
-	}
-
-	/**
-	 * Returns entity object it has been already initialized.
-	 */
-	@Nonnull
-	public OpenApiTypeReference getEntityObject() {
-		return Optional.ofNullable(typeRefTo(entityObject))
-			.orElseThrow(() -> new OpenApiSchemaBuildingError("Entity object for schema `" + schema.getName() + "` has not been initialized yet."));
-	}
-
-	/**
-	 * Set built localized entity object corresponding to this schema. Can be set only once before all other methods need it.
-	 */
-	public void setLocalizedEntityObject(@Nonnull OpenApiObject localizedEntityObject) {
-		Assert.isPremiseValid(
-			this.localizedEntityObject == null,
-			() -> new OpenApiSchemaBuildingError("Localized entity object for schema `" + schema.getName() + "` has been already initialized.")
-		);
-		this.localizedEntityObject = localizedEntityObject;
-		catalogCtx.registerType(this.localizedEntityObject);
-	}
-
-	/**
-	 * Returns localized entity object it has been already initialized.
-	 */
-	@Nonnull
-	public OpenApiTypeReference getLocalizedEntityObject() {
-		return Optional.ofNullable(typeRefTo(localizedEntityObject))
-			.orElseThrow(() -> new OpenApiSchemaBuildingError("Localized entity object for schema `" + schema.getName() + "` has not been initialized yet."));
 	}
 
 	/**
@@ -198,6 +137,20 @@ public class OpenApiEntitySchemaBuildingContext {
 	@Nonnull
 	public OpenApiSimpleType getRequiredForQueryInputObject() {
 		return Optional.ofNullable(requiredForQueryInputObject)
+			.orElseThrow(() -> new OpenApiSchemaBuildingError("Required for query object for schema `" + schema.getName() + "` has not been initialized."));
+	}
+
+	public void setRequiredForDeleteInputObject(@Nonnull OpenApiSimpleType requiredForDeleteInputObject) {
+		Assert.isPremiseValid(
+			this.requiredForDeleteInputObject == null,
+			() -> new OpenApiSchemaBuildingError("Required for query object for schema `" + schema.getName() + "` has been already initialized.")
+		);
+		this.requiredForDeleteInputObject = requiredForDeleteInputObject;
+	}
+
+	@Nonnull
+	public OpenApiSimpleType getRequiredForDeleteInputObject() {
+		return Optional.ofNullable(requiredForDeleteInputObject)
 			.orElseThrow(() -> new OpenApiSchemaBuildingError("Required for query object for schema `" + schema.getName() + "` has not been initialized."));
 	}
 }
