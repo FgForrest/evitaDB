@@ -32,7 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -69,11 +69,11 @@ public class OrderBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
-			() -> new OpenApiSchemaBuildingError("Could not find `orderBy` order query.")
+			() -> new OpenApiBuildingError("Could not find `orderBy` order query.")
 		);
 		Assert.isPremiseValid(
 			descriptors.size() == 1,
-			() -> new OpenApiSchemaBuildingError(
+			() -> new OpenApiBuildingError(
 				"There multiple variants of `orderBy` order query, cannot decide which to choose."
 			)
 		);

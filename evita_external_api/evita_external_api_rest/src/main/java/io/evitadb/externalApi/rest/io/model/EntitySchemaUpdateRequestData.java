@@ -26,21 +26,27 @@ package io.evitadb.externalApi.rest.io.model;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import lombok.Builder;
-import lombok.Data;
 import lombok.extern.jackson.Jacksonized;
+
+import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
  * DTO used for entity schema update.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@Data
 @Builder
 @Jacksonized
 public class EntitySchemaUpdateRequestData {
+
 	private final JsonNode mutations;
 
-	public boolean isMutationsSet() {
-		return mutations != null && !(mutations instanceof NullNode);
+	@Nonnull
+	public Optional<JsonNode> getMutations() {
+		if (mutations == null || mutations instanceof NullNode) {
+			return Optional.empty();
+		}
+		return Optional.of(mutations);
 	}
 }

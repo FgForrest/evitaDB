@@ -27,7 +27,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.OpenApiConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 
@@ -73,7 +73,7 @@ public class OpenApiEntitySchemaBuildingContext {
 	public void setFilterByInputObject(@Nonnull OpenApiSimpleType filterByInputObject) {
 		Assert.isPremiseValid(
 			this.filterByInputObject == null,
-			() -> new OpenApiSchemaBuildingError("FilterBy input object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new OpenApiBuildingError("FilterBy input object for schema `" + schema.getName() + "` has been already initialized.")
 		);
 		this.filterByInputObject = filterByInputObject;
 	}
@@ -81,7 +81,7 @@ public class OpenApiEntitySchemaBuildingContext {
 	@Nonnull
 	public OpenApiSimpleType getFilterByInputObject() {
 		return Optional.ofNullable(filterByInputObject)
-			.orElseThrow(() -> new OpenApiSchemaBuildingError("FilterBy for schema `" + schema.getName() + "` has not been initialized."));
+			.orElseThrow(() -> new OpenApiBuildingError("FilterBy for schema `" + schema.getName() + "` has not been initialized."));
 	}
 
 	/**
@@ -90,7 +90,7 @@ public class OpenApiEntitySchemaBuildingContext {
 	public void setFilterByLocalizedInputObject(@Nonnull OpenApiSimpleType filterByLocalizedInputObject) {
 		Assert.isPremiseValid(
 			this.filterByLocalizedInputObject == null,
-			() -> new OpenApiSchemaBuildingError("FilterBy input object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new OpenApiBuildingError("FilterBy input object for schema `" + schema.getName() + "` has been already initialized.")
 		);
 		this.filterByLocalizedInputObject = filterByLocalizedInputObject;
 	}
@@ -101,7 +101,7 @@ public class OpenApiEntitySchemaBuildingContext {
 	public void setOrderByInputObject(@Nonnull OpenApiSimpleType orderByInputObject) {
 		Assert.isPremiseValid(
 			this.orderByInputObject == null,
-			() -> new OpenApiSchemaBuildingError("OrderBy input object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new OpenApiBuildingError("OrderBy input object for schema `" + schema.getName() + "` has been already initialized.")
 		);
 		this.orderByInputObject = orderByInputObject;
 	}
@@ -109,13 +109,13 @@ public class OpenApiEntitySchemaBuildingContext {
 	@Nonnull
 	public OpenApiSimpleType getOrderByInputObject() {
 		return Optional.ofNullable(orderByInputObject)
-			.orElseThrow(() -> new OpenApiSchemaBuildingError("OrderBy for schema `" + schema.getName() + "` has not been initialized."));
+			.orElseThrow(() -> new OpenApiBuildingError("OrderBy for schema `" + schema.getName() + "` has not been initialized."));
 	}
 
 	public void setRequiredForListInputObject(@Nonnull OpenApiSimpleType requiredForListInputObject) {
 		Assert.isPremiseValid(
 			this.requiredForListInputObject == null,
-			() -> new OpenApiSchemaBuildingError("Required for list object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new OpenApiBuildingError("Required for list object for schema `" + schema.getName() + "` has been already initialized.")
 		);
 		this.requiredForListInputObject = requiredForListInputObject;
 	}
@@ -123,13 +123,13 @@ public class OpenApiEntitySchemaBuildingContext {
 	@Nonnull
 	public OpenApiSimpleType getRequiredForListInputObject() {
 		return Optional.ofNullable(requiredForListInputObject)
-			.orElseThrow(() -> new OpenApiSchemaBuildingError("Required for list object for schema `" + schema.getName() + "` has not been initialized."));
+			.orElseThrow(() -> new OpenApiBuildingError("Required for list object for schema `" + schema.getName() + "` has not been initialized."));
 	}
 
 	public void setRequiredForQueryInputObject(@Nonnull OpenApiSimpleType requiredForQueryInputObject) {
 		Assert.isPremiseValid(
 			this.requiredForQueryInputObject == null,
-			() -> new OpenApiSchemaBuildingError("Required for query object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new OpenApiBuildingError("Required for query object for schema `" + schema.getName() + "` has been already initialized.")
 		);
 		this.requiredForQueryInputObject = requiredForQueryInputObject;
 	}
@@ -137,13 +137,13 @@ public class OpenApiEntitySchemaBuildingContext {
 	@Nonnull
 	public OpenApiSimpleType getRequiredForQueryInputObject() {
 		return Optional.ofNullable(requiredForQueryInputObject)
-			.orElseThrow(() -> new OpenApiSchemaBuildingError("Required for query object for schema `" + schema.getName() + "` has not been initialized."));
+			.orElseThrow(() -> new OpenApiBuildingError("Required for query object for schema `" + schema.getName() + "` has not been initialized."));
 	}
 
 	public void setRequiredForDeleteInputObject(@Nonnull OpenApiSimpleType requiredForDeleteInputObject) {
 		Assert.isPremiseValid(
 			this.requiredForDeleteInputObject == null,
-			() -> new OpenApiSchemaBuildingError("Required for query object for schema `" + schema.getName() + "` has been already initialized.")
+			() -> new OpenApiBuildingError("Required for query object for schema `" + schema.getName() + "` has been already initialized.")
 		);
 		this.requiredForDeleteInputObject = requiredForDeleteInputObject;
 	}
@@ -151,6 +151,6 @@ public class OpenApiEntitySchemaBuildingContext {
 	@Nonnull
 	public OpenApiSimpleType getRequiredForDeleteInputObject() {
 		return Optional.ofNullable(requiredForDeleteInputObject)
-			.orElseThrow(() -> new OpenApiSchemaBuildingError("Required for query object for schema `" + schema.getName() + "` has not been initialized."));
+			.orElseThrow(() -> new OpenApiBuildingError("Required for query object for schema `" + schema.getName() + "` has not been initialized."));
 	}
 }

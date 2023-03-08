@@ -34,10 +34,10 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
-import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
-import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
-import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
-import io.evitadb.externalApi.rest.exception.RESTApiTooManyValuesPresentException;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
+import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
+import io.evitadb.externalApi.rest.exception.RestTooManyValuesPresentException;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.ArraySchema;
@@ -74,7 +74,7 @@ public class DataDeserializer {
 	/**
 	 * Deserializes data from string array. It can return single object, array or range object.
 	 *
-	 * @throws RESTApiTooManyValuesPresentException is thrown when single object is required by schema but data array
+	 * @throws RestTooManyValuesPresentException is thrown when single object is required by schema but data array
 	 * contains more than one value.
 	 */
 	@SuppressWarnings({"rawtypes"})
@@ -91,7 +91,7 @@ public class DataDeserializer {
 			return deserializeArray(openAPI, schema, data);
 		} else {
 			if(data.length > 1) {
-				throw new RESTApiTooManyValuesPresentException("Expected one value of parameter " + schema.getName() + " but found: " + data.length);
+				throw new RestTooManyValuesPresentException("Expected one value of parameter " + schema.getName() + " but found: " + data.length);
 			}
 			return deserialize(schema, data[0]);
 		}
@@ -134,12 +134,12 @@ public class DataDeserializer {
 				return objects;
 			}
 			else {
-				throw new RESTApiInvalidArgumentException("Can't parse data form an ArrayNode when schema is not an ArraySchema. " +
+				throw new RestInvalidArgumentException("Can't parse data form an ArrayNode when schema is not an ArraySchema. " +
 					"Schema: " + schema.getName(), "Error when parsing data.");
 			}
 		} else {
 			if(schema instanceof ArraySchema) {
-				throw new RESTApiInvalidArgumentException("Can't parse data form an JsonNode when schema is an ArraySchema but JsonNode " +
+				throw new RestInvalidArgumentException("Can't parse data form an JsonNode when schema is an ArraySchema but JsonNode " +
 					"is not an ArrayNode. Schema: " + schema.getName(), "Error when parsing data.");
 			}
 
@@ -153,7 +153,7 @@ public class DataDeserializer {
 						final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, openAPI);
 						dataMap.put(fieldName, deserializeJsonNodeTree(openAPI, targetPropertySchema, jsonNode.get(fieldName)));
 					} else {
-						throw new RESTApiInvalidArgumentException("Invalid property name: " + fieldName);
+						throw new RestInvalidArgumentException("Invalid property name: " + fieldName);
 					}
 				}
 				return dataMap;
@@ -165,12 +165,12 @@ public class DataDeserializer {
 
 	/**
 	 * Deserializes objects in array represented by {@link ArrayNode}
-	 * @throws RESTApiInvalidArgumentException is thrown when JsonNode is not instance of ArrayNode or when schema type
+	 * @throws RestInvalidArgumentException is thrown when JsonNode is not instance of ArrayNode or when schema type
 	 * is not {@link OpenApiScalar#TYPE_ARRAY}.
 	 */
 	public static Object[] deserializeArray(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
 		if(!OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
-			throw new RESTApiInvalidArgumentException("Can't deserialize value, schema type is not array. Name: " + schema.getName());
+			throw new RestInvalidArgumentException("Can't deserialize value, schema type is not array. Name: " + schema.getName());
 		}
 
 		return deserializeArray(openAPI, schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
@@ -179,7 +179,7 @@ public class DataDeserializer {
 	/**
 	 * Deserialize value from JsonNode.
 	 *
-	 * @throws RESTApiInternalError when Class ob object is not among supported classes for deserialization
+	 * @throws RestInternalError when Class ob object is not among supported classes for deserialization
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
@@ -192,7 +192,7 @@ public class DataDeserializer {
 			if(value instanceof ArrayNode arrayNode) {
 				return (T) deserializeArray((Class<? extends Serializable>) targetClass.getComponentType(), arrayNode);
 			} else {
-				throw new RESTApiInternalError("Target class is array but json node is not instance of ArrayNode. " + targetClass.getName());
+				throw new RestInternalError("Target class is array but json node is not instance of ArrayNode. " + targetClass.getName());
 			}
 		}
 
@@ -220,7 +220,7 @@ public class DataDeserializer {
 		} else if (targetClass.isEnum()) {
 			return deserializeEnum(targetClass, value);
 		}
-		throw new RESTApiInternalError("Deserialization of field of JavaType: " + targetClass.getSimpleName() + " is not implemented yet.");
+		throw new RestInternalError("Deserialization of field of JavaType: " + targetClass.getSimpleName() + " is not implemented yet.");
 	}
 
 
@@ -250,7 +250,7 @@ public class DataDeserializer {
 			}
 			return strings;
 		}
-		throw new RESTApiInvalidArgumentException("Can't get array of string if JsonNode is not instance of ArrayNode. Class: " + jsonNode.getClass().getSimpleName(),
+		throw new RestInvalidArgumentException("Can't get array of string if JsonNode is not instance of ArrayNode. Class: " + jsonNode.getClass().getSimpleName(),
 			"Expecting array but getting single value. Attribute name: " + attributeName);
 	}
 
@@ -270,7 +270,7 @@ public class DataDeserializer {
 				case OpenApiScalar.FORMAT_CHAR -> Character.class;
 				case OpenApiScalar.FORMAT_DECIMAL -> BigDecimal.class;
 				case OpenApiScalar.FORMAT_INT_64 -> Long.class;
-				default -> throw new RESTApiInternalError("Unknown schema format " + schema.getFormat() + " for String type.");
+				default -> throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for String type.");
 			};
 		}
 		if(OpenApiScalar.TYPE_INTEGER.equals(schema.getType())) {
@@ -281,13 +281,13 @@ public class DataDeserializer {
 			} else if(schema.getFormat().equals(OpenApiScalar.FORMAT_BYTE)) {
 				return Byte.class;
 			} else {
-				throw new RESTApiInternalError("Unknown schema format " + schema.getFormat() + " for Integer type.");
+				throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for Integer type.");
 			}
 		}
 		if(OpenApiScalar.TYPE_BOOLEAN.equals(schema.getType())) {
 			return Boolean.class;
 		}
-		throw new RESTApiInternalError("Unknown schema type " + schema.getType());
+		throw new RestInternalError("Unknown schema type " + schema.getType());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -318,7 +318,7 @@ public class DataDeserializer {
 		} else if(decoded.length == 0) {
 			return null;
 		} else {
-			throw new RESTApiQueryResolvingInternalError("Byte value must be always single byte not array of bytes.");
+			throw new RestQueryResolvingInternalError("Byte value must be always single byte not array of bytes.");
 		}
 	}
 
@@ -338,9 +338,9 @@ public class DataDeserializer {
 			} else if (Long.class.isAssignableFrom(targetClass)) {
 				return deserializeRange(targetClass, deserialize(Long.class, values.get(0)), deserialize(Long.class, values.get(1)), attributeName);
 			}
-			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() + " is not implemented yet. Attribute: " + attributeName);
+			throw new RestInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() + " is not implemented yet. Attribute: " + attributeName);
 		}
-		throw new RESTApiInternalError("Array of two values is required for range data type. Attribute: " + attributeName);
+		throw new RestInternalError("Array of two values is required for range data type. Attribute: " + attributeName);
 	}
 
 	@Nonnull
@@ -359,10 +359,10 @@ public class DataDeserializer {
 			} else if (Long.class.isAssignableFrom(targetClass)) {
 				return deserializeRange(targetClass, deserialize(Long.class, values[0]), deserialize(Long.class, values[1]), attributeName);
 			}
-			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
+			throw new RestInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
 				" is not implemented yet. Attribute: " + attributeName);
 		}
-		throw new RESTApiInternalError("Array of two values is required for range data type. Attribute: " + attributeName);
+		throw new RestInternalError("Array of two values is required for range data type. Attribute: " + attributeName);
 	}
 
 	@Nonnull
@@ -382,7 +382,7 @@ public class DataDeserializer {
 			} else if (Long.class.isAssignableFrom(targetClass)) {
 				return (T) LongNumberRange.between((Long) from, (Long) to);
 			}
-			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
+			throw new RestInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
 				" is not implemented yet. Attribute: " + attributeName);
 		} else if(from != null) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
@@ -398,7 +398,7 @@ public class DataDeserializer {
 			} else if (Long.class.isAssignableFrom(targetClass)) {
 				return (T) LongNumberRange.from((Long) from);
 			}
-			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
+			throw new RestInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
 				" is not implemented yet. Attribute: " + attributeName);
 		} else if(to != null) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
@@ -414,10 +414,10 @@ public class DataDeserializer {
 			} else if (Long.class.isAssignableFrom(targetClass)) {
 				return (T) LongNumberRange.to((Long) to);
 			}
-			throw new RESTApiInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
+			throw new RestInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
 				" is not implemented yet. Attribute: " + attributeName);
 		}
-		throw new RESTApiInternalError("Both values for range data type are null which is not allowed. Attribute: " + attributeName);
+		throw new RestInternalError("Both values for range data type are null which is not allowed. Attribute: " + attributeName);
 	}
 
 }

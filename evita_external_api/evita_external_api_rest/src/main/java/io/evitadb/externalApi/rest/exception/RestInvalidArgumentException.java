@@ -23,30 +23,29 @@
 
 package io.evitadb.externalApi.rest.exception;
 
+import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
+
 import javax.annotation.Nonnull;
-import java.io.Serial;
 
 /**
- * Internal OpenAPI error that occurs when OpenAPI schema could not be build.
+ * This exception is published when invalid argument is detected when processing request to REST API.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class OpenApiSchemaBuildingError extends OpenApiInternalError {
-	@Serial private static final long serialVersionUID = 8413453923025458996L;
-
-	public OpenApiSchemaBuildingError(@Nonnull String publicMessage) {
-		super(publicMessage);
-	}
-
-	public OpenApiSchemaBuildingError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(publicMessage, cause);
-	}
-
-	public OpenApiSchemaBuildingError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+public class RestInvalidArgumentException extends ExternalApiInvalidUsageException {
+	public RestInvalidArgumentException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
 		super(privateMessage, publicMessage);
 	}
 
-	public OpenApiSchemaBuildingError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
+	public RestInvalidArgumentException(@Nonnull String publicMessage) {
+		super(publicMessage);
+	}
+
+	public RestInvalidArgumentException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(privateMessage, publicMessage, cause);
+	}
+
+	public RestInvalidArgumentException(@Nonnull String publicMessage, @Nonnull Throwable cause) {
+		super(publicMessage, cause);
 	}
 }

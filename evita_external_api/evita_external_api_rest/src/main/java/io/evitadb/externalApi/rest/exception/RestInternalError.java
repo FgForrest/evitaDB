@@ -23,30 +23,32 @@
 
 package io.evitadb.externalApi.rest.exception;
 
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
+
 import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Internal REST error that occurs when REST query data is being parsed.
+ * This exception is thrown when anything goes wrong during REST request procession
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class RESTApiQueryResolvingInternalError extends RESTApiInternalError {
-	@Serial private static final long serialVersionUID = 3600123197360588077L;
+public class RestInternalError extends ExternalApiInternalError {
+	@Serial private static final long serialVersionUID = 5280954168651654279L;
 
-	public RESTApiQueryResolvingInternalError(@Nonnull String publicMessage) {
+	public RestInternalError(@Nonnull String publicMessage) {
 		super(publicMessage);
 	}
 
-	public RESTApiQueryResolvingInternalError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
+	public RestInternalError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(publicMessage, cause);
 	}
 
-	public RESTApiQueryResolvingInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+	public RestInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
 		super(privateMessage, publicMessage);
 	}
 
-	public RESTApiQueryResolvingInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
+	public RestInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(privateMessage, publicMessage, cause);
 	}
 }

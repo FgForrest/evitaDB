@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-class OpenApiSchemaReferenceValidatorTest {
+class OpenApiReferenceValidatorTest {
 
 	@Test
 	void shouldSuccessfullyValidateSchemaWithPropertyReference() {
@@ -61,7 +61,7 @@ class OpenApiSchemaReferenceValidatorTest {
 		secondSchema.addProperty("firstReference", typeRefTo(firstSchema.getName()).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
-		final Set<String> missingSchemas = new OpenApiSchemaReferenceValidator(openAPI).validateSchemaReferences();
+		final Set<String> missingSchemas = new OpenApiReferenceValidator(openAPI).validateSchemaReferences();
 		assertTrue(missingSchemas.isEmpty());
 	}
 
@@ -81,7 +81,7 @@ class OpenApiSchemaReferenceValidatorTest {
 		secondSchema.addOneOfItem(typeRefTo(firstSchema.getName()).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
-		final Set<String> missingSchemas = new OpenApiSchemaReferenceValidator(openAPI).validateSchemaReferences();
+		final Set<String> missingSchemas = new OpenApiReferenceValidator(openAPI).validateSchemaReferences();
 		assertTrue(missingSchemas.isEmpty());
 	}
 
@@ -101,7 +101,7 @@ class OpenApiSchemaReferenceValidatorTest {
 		secondSchema.addProperty("firstReference", typeRefTo(firstSchema.getName()).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
-		final OpenApiSchemaReferenceValidator validator = new OpenApiSchemaReferenceValidator(openAPI);
+		final OpenApiReferenceValidator validator = new OpenApiReferenceValidator(openAPI);
 		final Set<String> missingSchemas = validator.validateSchemaReferences();
 		assertFalse(missingSchemas.isEmpty());
 
@@ -126,7 +126,7 @@ class OpenApiSchemaReferenceValidatorTest {
 		secondSchema.addProperty("firstReference", arrayOf(typeRefTo(firstSchema.getName())).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
-		final OpenApiSchemaReferenceValidator validator = new OpenApiSchemaReferenceValidator(openAPI);
+		final OpenApiReferenceValidator validator = new OpenApiReferenceValidator(openAPI);
 		final Set<String> missingSchemas = validator.validateSchemaReferences();
 		assertFalse(missingSchemas.isEmpty());
 
@@ -151,7 +151,7 @@ class OpenApiSchemaReferenceValidatorTest {
 		arraySchema.name("arraySchema");
 		components.addSchemas(arraySchema.getName(), arraySchema);
 
-		final OpenApiSchemaReferenceValidator validator = new OpenApiSchemaReferenceValidator(openAPI);
+		final OpenApiReferenceValidator validator = new OpenApiReferenceValidator(openAPI);
 		final Set<String> missingSchemas = validator.validateSchemaReferences();
 		assertFalse(missingSchemas.isEmpty());
 
@@ -176,7 +176,7 @@ class OpenApiSchemaReferenceValidatorTest {
 		secondSchema.addOneOfItem(typeRefTo(firstSchema.getName()).toSchema());
 		components.addSchemas(secondSchema.getName(), secondSchema);
 
-		final OpenApiSchemaReferenceValidator validator = new OpenApiSchemaReferenceValidator(openAPI);
+		final OpenApiReferenceValidator validator = new OpenApiReferenceValidator(openAPI);
 		final Set<String> missingSchemas = validator.validateSchemaReferences();
 		assertFalse(missingSchemas.isEmpty());
 

@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.dto;
 
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.Discriminator;
 import io.swagger.v3.oas.models.media.ObjectSchema;
@@ -233,12 +233,12 @@ public class OpenApiObject implements OpenApiComplexType {
 		public OpenApiObject build() {
 			Assert.isPremiseValid(
 				name != null && !name.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Missing object name.")
+				() -> new OpenApiBuildingError("Missing object name.")
 			);
 			if (!unionObjects.isEmpty()) {
 				Assert.isPremiseValid(
 					unionDiscriminator != null && !unionDiscriminator.isEmpty(),
-					() -> new OpenApiSchemaBuildingError("Object `" + name + "` is supposed to be union but no discriminator was specified.")
+					() -> new OpenApiBuildingError("Object `" + name + "` is supposed to be union but no discriminator was specified.")
 				);
 			}
 			return new OpenApiObject(name, description, deprecationNotice, new ArrayList<>(properties.values()), unionType, unionDiscriminator, unionObjects);

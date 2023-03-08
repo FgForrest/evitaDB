@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -116,11 +116,11 @@ public class RequireSchemaBuilder extends OpenApiConstraintSchemaBuilder {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
-			() -> new OpenApiSchemaBuildingError("Could not find `require` require query.")
+			() -> new OpenApiBuildingError("Could not find `require` require query.")
 		);
 		Assert.isPremiseValid(
 			descriptors.size() == 1,
-			() -> new OpenApiSchemaBuildingError(
+			() -> new OpenApiBuildingError(
 				"There multiple variants of `require` require query, cannot decide which to choose."
 			)
 		);

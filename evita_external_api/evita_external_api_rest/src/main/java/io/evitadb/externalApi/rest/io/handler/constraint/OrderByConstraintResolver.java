@@ -32,8 +32,8 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
-import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
 import io.evitadb.externalApi.rest.io.handler.CollectionRestHandlingContext;
 import io.evitadb.utils.Assert;
@@ -73,7 +73,7 @@ public class OrderByConstraintResolver extends RestConstraintResolver<OrderConst
 	@Override
 	@Nonnull
 	protected ConstraintDescriptor getWrapperContainer() {
-		throw new RESTApiInternalError("Wrapper container is not supported for `order` constraints.");
+		throw new RestInternalError("Wrapper container is not supported for `order` constraints.");
 	}
 
 	@Nonnull
@@ -88,11 +88,11 @@ public class OrderByConstraintResolver extends RestConstraintResolver<OrderConst
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
-			() -> new OpenApiSchemaBuildingError("Could not find `orderBy` order query.")
+			() -> new OpenApiBuildingError("Could not find `orderBy` order query.")
 		);
 		Assert.isPremiseValid(
 			descriptors.size() == 1,
-			() -> new OpenApiSchemaBuildingError(
+			() -> new OpenApiBuildingError(
 				"There multiple variants of `orderBy` order query, cannot decide which to choose."
 			)
 		);

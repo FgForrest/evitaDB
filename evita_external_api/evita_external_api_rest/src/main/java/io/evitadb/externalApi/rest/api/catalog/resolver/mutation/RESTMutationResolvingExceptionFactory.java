@@ -26,8 +26,8 @@ package io.evitadb.externalApi.rest.api.catalog.resolver.mutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
-import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 
 import javax.annotation.Nonnull;
 
@@ -42,20 +42,20 @@ public class RESTMutationResolvingExceptionFactory implements MutationResolvingE
 	@Nonnull
 	@Override
 	public <T extends EvitaInternalError> T createInternalError(@Nonnull String message) {
-		return (T) new RESTApiInternalError(message);
+		return (T) new RestInternalError(message);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Nonnull
 	@Override
 	public <T extends EvitaInternalError> T createInternalError(@Nonnull String message, @Nonnull Throwable cause) {
-		return (T) new RESTApiInternalError(message, cause);
+		return (T) new RestInternalError(message, cause);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Nonnull
 	@Override
 	public <T extends EvitaInvalidUsageException> T createInvalidArgumentException(@Nonnull String message) {
-		return (T) new RESTApiInvalidArgumentException(message);
+		return (T) new RestInvalidArgumentException(message);
 	}
 }

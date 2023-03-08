@@ -46,7 +46,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaD
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.DataTypeDescriptor;
-import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
+import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.io.handler.RestHandlingContext;
 import io.evitadb.utils.NamingConvention;
 import lombok.extern.slf4j.Slf4j;
@@ -124,17 +124,9 @@ public class EntitySchemaJsonSerializer {
 	}
 
 	@Nonnull
-	private final Function<String, EntitySchemaContract> entitySchemaFetcher;
-	@Nonnull
-	private final EntitySchemaContract entitySchema;
-	@Nonnull
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	public EntitySchemaJsonSerializer(@Nonnull RestHandlingContext restHandlingContext,
-	                                  @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
-	                                  @Nonnull EntitySchemaContract entitySchema) {
-		this.entitySchemaFetcher = entitySchemaFetcher;
-		this.entitySchema = entitySchema;
+	public EntitySchemaJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
 		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}
 
@@ -143,7 +135,8 @@ public class EntitySchemaJsonSerializer {
 	 *
 	 * @return serialized entity or list of entities
 	 */
-	public JsonNode serialize() {
+	public JsonNode serialize(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+	                          @Nonnull EntitySchemaContract entitySchema) {
 		final ObjectNode rootNode = objectJsonSerializer.objectNode();
 
 		rootNode.put(EntitySchemaDescriptor.VERSION.name(), entitySchema.getVersion());
@@ -161,7 +154,7 @@ public class EntitySchemaJsonSerializer {
 
 		rootNode.set(EntitySchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(entitySchema));
 		rootNode.set(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), serializeAssociatedDataSchemas(entitySchema));
-		rootNode.set(EntitySchemaDescriptor.REFERENCES.name(), serializeReferenceSchemas(entitySchema));
+		rootNode.set(EntitySchemaDescriptor.REFERENCES.name(), serializeReferenceSchemas(entitySchemaFetcher, entitySchema));
 
 		return rootNode;
 	}
@@ -235,14 +228,15 @@ public class EntitySchemaJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serializeReferenceSchemas(@Nonnull EntitySchemaContract entitySchema) {
+	private ObjectNode serializeReferenceSchemas(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+	                                             @Nonnull EntitySchemaContract entitySchema) {
 		final Collection<ReferenceSchemaContract> referenceSchemas = entitySchema.getReferences().values();
 
 		final ObjectNode referenceSchemasMap = objectJsonSerializer.objectNode();
 		if (!referenceSchemas.isEmpty()) {
 			referenceSchemas.forEach(referenceSchema -> referenceSchemasMap.set(
 				referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
-				serializeReferenceSchema(referenceSchema)
+				serializeReferenceSchema(entitySchemaFetcher, referenceSchema)
 			));
 		}
 
@@ -250,7 +244,8 @@ public class EntitySchemaJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serializeReferenceSchema(@Nonnull ReferenceSchemaContract referenceSchema) {
+	private ObjectNode serializeReferenceSchema(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+	                                            @Nonnull ReferenceSchemaContract referenceSchema) {
 		final ObjectNode referenceSchemaNode = objectJsonSerializer.objectNode();
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.NAME.name(), referenceSchema.getName());
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(referenceSchema.getNameVariants()));
@@ -287,6 +282,6 @@ public class EntitySchemaJsonSerializer {
 	private static String serializeType(@Nonnull Class<?> javaType) {
 		return Optional.ofNullable(DATA_TYPES.get(javaType))
 			.map(DataTypeDescriptor::name)
-			.orElseThrow(() -> new RESTApiQueryResolvingInternalError("Unknown data type `" + javaType.getName() + "`."));
+			.orElseThrow(() -> new RestQueryResolvingInternalError("Unknown data type `" + javaType.getName() + "`."));
 	}
 }

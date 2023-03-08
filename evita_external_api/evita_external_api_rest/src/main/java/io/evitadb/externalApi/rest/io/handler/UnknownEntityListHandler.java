@@ -34,6 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Handles requests for multiple unknown entities identified by their URLs or codes.
@@ -43,12 +44,17 @@ import java.util.Map;
 @Slf4j
 public class UnknownEntityListHandler extends RestHandler<RestHandlingContext> {
 
+	@Nonnull
+	private final EntityJsonSerializer entityJsonSerializer;
+
 	public UnknownEntityListHandler(@Nonnull RestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
 
 	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
+	@Nonnull
+	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 
 		final Query query = Query.query(
@@ -58,9 +64,9 @@ public class UnknownEntityListHandler extends RestHandler<RestHandlingContext> {
 
 		log.debug("Generated Evita query for unknown entity list fetch is `" + query + "`.");
 
-		restApiHandlingContext.queryCatalog(session -> {
-			final List<EntityClassifier> entities = session.queryList(query, EntityClassifier.class);
-			setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, entities).serialize()));
-		});
+		final List<EntityClassifier> entities = restApiHandlingContext.queryCatalog(session ->
+			session.queryList(query, EntityClassifier.class));
+
+		return Optional.of(entityJsonSerializer.serialize(entities));
 	}
 }

@@ -23,25 +23,27 @@
 
 package io.evitadb.externalApi.rest.io.handler;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySchemaMutationAggregateConverter;
-import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RESTMutationObjectParser;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RESTMutationResolvingExceptionFactory;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.model.EntitySchemaUpdateRequestData;
 import io.evitadb.externalApi.rest.io.serializer.EntitySchemaJsonSerializer;
+import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Handles update request for entity schema.
@@ -49,65 +51,56 @@ import java.util.List;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class EntitySchemaUpdateHandler extends RestHandler<CollectionRestHandlingContext> {
+public class UpdateEntitySchemaHandler extends RestHandler<CollectionRestHandlingContext> {
 
-	public EntitySchemaUpdateHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+	@Nonnull private final EntitySchemaMutationAggregateConverter mutationAggregateResolver;
+	@Nonnull private final EntitySchemaJsonSerializer entitySchemaJsonSerializer;
+
+	public UpdateEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
+		this.mutationAggregateResolver = new EntitySchemaMutationAggregateConverter(
+			new RESTMutationObjectParser(restApiHandlingContext.getObjectMapper()),
+			new RESTMutationResolvingExceptionFactory()
+		);
+		this.entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restApiHandlingContext);
 	}
 
 	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		validateRequest(exchange);
-
+	@Nonnull
+	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final EntitySchemaUpdateRequestData requestData = getRequestData(exchange);
-		validateRequestData(requestData);
-
-		final RESTMutationObjectParser restMutationObjectParser = new RESTMutationObjectParser(restApiHandlingContext.getObjectMapper());
-		final EntitySchemaMutationAggregateConverter mutationAggregateResolver = new EntitySchemaMutationAggregateConverter(
-			restMutationObjectParser,
-			new RESTMutationResolvingExceptionFactory()
-		);
 
 		final List<EntitySchemaMutation> schemaMutations = new LinkedList<>();
-		for (Iterator<JsonNode> elementsIterator = requestData.getMutations().elements(); elementsIterator.hasNext(); ) {
-			schemaMutations.addAll(mutationAggregateResolver.convert(elementsIterator.next()));
+		final JsonNode inputMutations = requestData.getMutations()
+			.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
+		for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
+			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
 		}
 		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(
 			restApiHandlingContext.getEntityType(),
 			schemaMutations.toArray(EntitySchemaMutation[]::new)
 		);
 
-		restApiHandlingContext.updateCatalog(session -> {
+		final JsonNode serializedUpdatedEntitySchema = restApiHandlingContext.updateCatalog(session -> {
 			final EntitySchemaContract updatedEntitySchema = session.updateAndFetchEntitySchema(entitySchemaMutation);
-			setSuccessResponse(
-				exchange,
-				serializeResult(new EntitySchemaJsonSerializer(
-					restApiHandlingContext,
-					session::getEntitySchemaOrThrow,
-					updatedEntitySchema
-				).serialize())
-			);
+			return entitySchemaJsonSerializer.serialize(session::getEntitySchemaOrThrow, updatedEntitySchema);
 		});
+
+		return Optional.of(serializedUpdatedEntitySchema);
 	}
 
 	@Nonnull
-	protected EntitySchemaUpdateRequestData getRequestData(@Nonnull HttpServerExchange exchange) throws IOException {
+	protected EntitySchemaUpdateRequestData getRequestData(@Nonnull HttpServerExchange exchange) {
 		final String content = readRequestBody(exchange);
-		if(content.trim().length() == 0) {
-			throw new HttpExchangeException(
-				StatusCodes.BAD_REQUEST,
-				"Request's body contains no data."
-			);
-		}
-		return restApiHandlingContext.getObjectMapper().readValue(content, EntitySchemaUpdateRequestData.class);
-	}
+		Assert.isTrue(
+			content.trim().length() > 0,
+			() -> new RestInvalidArgumentException("Request's body contains no data.")
+		);
 
-	protected void validateRequestData(@Nonnull EntitySchemaUpdateRequestData requestData) {
-		if (!requestData.isMutationsSet()) {
-			throw new HttpExchangeException(
-				StatusCodes.BAD_REQUEST,
-				"Mutations are not set in request data."
-			);
+		try {
+			return restApiHandlingContext.getObjectMapper().readValue(content, EntitySchemaUpdateRequestData.class);
+		} catch (JsonProcessingException e) {
+			throw new RestInternalError("Could not parse request body: ", e);
 		}
 	}
 }

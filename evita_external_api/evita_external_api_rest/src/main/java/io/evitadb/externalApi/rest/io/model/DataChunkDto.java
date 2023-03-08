@@ -24,16 +24,17 @@
 package io.evitadb.externalApi.rest.io.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.evitadb.dataType.DataChunk;
 import io.evitadb.externalApi.rest.api.dto.DataChunkType;
 import lombok.Getter;
 
 /**
- * This class is used to convert information from {@link io.evitadb.dataType.DataChunk} into form serializable into JSON.
+ * This class is used to convert information from {@link DataChunk} into form serializable into JSON.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Getter
-public abstract class DataChunk {
+public abstract class DataChunkDto {
 
 	private final JsonNode data;
 	private final DataChunkType type;
@@ -45,7 +46,7 @@ public abstract class DataChunk {
 	private final boolean singlePage;
 	private final boolean empty;
 
-	protected DataChunk(io.evitadb.dataType.DataChunk<?> paginatedList, JsonNode data, DataChunkType type) {
+	protected DataChunkDto(DataChunk<?> paginatedList, JsonNode data, DataChunkType type) {
 		this.data = data;
 		this.type = type;
 		totalRecordCount = paginatedList.getTotalRecordCount();

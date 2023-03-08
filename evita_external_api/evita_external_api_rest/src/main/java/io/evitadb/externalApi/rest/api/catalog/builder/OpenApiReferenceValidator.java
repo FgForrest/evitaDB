@@ -45,12 +45,12 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class OpenApiSchemaReferenceValidator {
+public class OpenApiReferenceValidator {
 	private final HashSet<String> visitedSchemas;
 	@Getter private final HashSet<String> missingSchemas;
 	@SuppressWarnings("rawtypes") private final Map<String, Schema> schemas;
 
-	public OpenApiSchemaReferenceValidator(@Nonnull OpenAPI openAPI) {
+	public OpenApiReferenceValidator(@Nonnull OpenAPI openAPI) {
 		this.schemas = openAPI.getComponents().getSchemas();
 		visitedSchemas = createHashSet(100);
 		missingSchemas = createHashSet(100);

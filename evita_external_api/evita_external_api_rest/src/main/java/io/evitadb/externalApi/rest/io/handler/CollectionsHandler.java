@@ -32,6 +32,7 @@ import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * This handler is used to get list of names (and counts) of existing collections withing one catalog.
@@ -40,28 +41,33 @@ import java.util.Map;
  */
 public class CollectionsHandler extends RestHandler<RestHandlingContext> {
 
+	@Nonnull
+	private final ObjectJsonSerializer objectJsonSerializer;
+
 	public CollectionsHandler(@Nonnull RestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
+		objectJsonSerializer = new ObjectJsonSerializer(restApiHandlingContext.getObjectMapper());
 	}
 
 	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
+	@Nonnull
+	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(ParamDescriptor.ENTITY_COUNT.name());
 
-		restApiHandlingContext.queryCatalog(session -> {
-			final ObjectJsonSerializer objectJsonSerializer = new ObjectJsonSerializer(restApiHandlingContext.getObjectMapper());
-			final ArrayNode collections = objectJsonSerializer.arrayNode();
+		final ArrayNode collections = restApiHandlingContext.queryCatalog(session -> {
+			final ArrayNode collectionArray = objectJsonSerializer.arrayNode();
 			for (String entityType : session.getAllEntityTypes()) {
 				final ObjectNode collectionNode = objectJsonSerializer.objectNode();
 				collectionNode.putIfAbsent(CollectionDescriptor.ENTITY_TYPE.name(), objectJsonSerializer.serializeObject(entityType));
-				collections.add(collectionNode);
-				if(withCounts != null && withCounts) {
+				collectionArray.add(collectionNode);
+				if (withCounts != null && withCounts) {
 					collectionNode.putIfAbsent(CollectionDescriptor.COUNT.name(), objectJsonSerializer.serializeObject(session.getEntityCollectionSize(entityType)));
 				}
 			}
-
-			setSuccessResponse(exchange, serializeResult(collections));
+			return collectionArray;
 		});
+
+		return Optional.of(collections);
 	}
 }

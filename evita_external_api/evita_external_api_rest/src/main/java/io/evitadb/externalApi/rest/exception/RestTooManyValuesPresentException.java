@@ -27,26 +27,27 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * This exception is thrown when request parameter marked as required is missing
+ * This exception is thrown when request parameter contains array of values but only single value is expected.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class RESTApiRequiredParameterMissingException extends RESTApiInternalError {
-	@Serial private static final long serialVersionUID = 5958414286370961594L;
+public class RestTooManyValuesPresentException extends RestInternalError {
 
-	public RESTApiRequiredParameterMissingException(@Nonnull String publicMessage) {
+	@Serial private static final long serialVersionUID = -8350809265235877148L;
+
+	public RestTooManyValuesPresentException(@Nonnull String publicMessage) {
 		super(publicMessage);
 	}
 
-	public RESTApiRequiredParameterMissingException(@Nonnull String publicMessage, @Nonnull Throwable cause) {
+	public RestTooManyValuesPresentException(@Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(publicMessage, cause);
 	}
 
-	public RESTApiRequiredParameterMissingException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+	public RestTooManyValuesPresentException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
 		super(privateMessage, publicMessage);
 	}
 
-	public RESTApiRequiredParameterMissingException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
+	public RestTooManyValuesPresentException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
 		super(privateMessage, publicMessage, cause);
 	}
 }

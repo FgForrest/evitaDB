@@ -34,7 +34,7 @@ import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.dataType.GenericObject;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.BooleanSchema;
@@ -123,18 +123,18 @@ public class OpenApiScalar implements OpenApiSimpleType {
 	private OpenApiScalar(@Nonnull Class<?> javaType) {
 		Assert.isPremiseValid(
 			!javaType.isArray(),
-			() -> new OpenApiSchemaBuildingError("OpenAPI scalar cannot be created from Java array `" + javaType.getName() + "`.")
+			() -> new OpenApiBuildingError("OpenAPI scalar cannot be created from Java array `" + javaType.getName() + "`.")
 		);
 		Assert.isPremiseValid(
 			!javaType.isEnum(),
-			() -> new OpenApiSchemaBuildingError("OpenAPI scalar cannot be created from Java enum `" + javaType.getName() + "`.")
+			() -> new OpenApiBuildingError("OpenAPI scalar cannot be created from Java enum `" + javaType.getName() + "`.")
 		);
 		Assert.isPremiseValid(
 			EvitaDataTypes.isSupportedType(javaType) ||
 				ComplexDataObject.class.isAssignableFrom(javaType) ||
 				Any.class.isAssignableFrom(javaType) ||
 				GenericObject.class.isAssignableFrom(javaType),
-			() -> new OpenApiSchemaBuildingError("OpenAPI scalar doesn't support type `" + javaType.getName() + "`.")
+			() -> new OpenApiBuildingError("OpenAPI scalar doesn't support type `" + javaType.getName() + "`.")
 		);
 		if (javaType.isPrimitive()) {
 			this.javaType = EvitaDataTypes.getWrappingPrimitiveClass(javaType);

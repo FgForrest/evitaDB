@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.dto;
 
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
@@ -142,7 +142,7 @@ public class OpenApiProperty {
 		} else if (type instanceof OpenApiNonNull nonNullType) {
 			return toSchema(nonNullType.getWrappedType());
 		} else {
-			throw new OpenApiSchemaBuildingError("Unknown type `" + this.type.getClass().getName() + "`.");
+			throw new OpenApiBuildingError("Unknown type `" + this.type.getClass().getName() + "`.");
 		}
 
 		return schema;
@@ -193,11 +193,11 @@ public class OpenApiProperty {
 		public OpenApiProperty build() {
 			Assert.isPremiseValid(
 				name != null && !name.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Missing property name.")
+				() -> new OpenApiBuildingError("Missing property name.")
 			);
 			Assert.isPremiseValid(
 				type != null,
-				() -> new OpenApiSchemaBuildingError("Property `" + name + "` is missing type.")
+				() -> new OpenApiBuildingError("Property `" + name + "` is missing type.")
 			);
 			return new OpenApiProperty(name, description, deprecationNotice, type);
 		}

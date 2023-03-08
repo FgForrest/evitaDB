@@ -21,33 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.exception;
+package io.evitadb.externalApi.rest.io.model;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import io.evitadb.dataType.StripList;
+import io.evitadb.externalApi.rest.api.dto.DataChunkType;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.io.Serial;
 
 /**
- * Internal OpenAPI error that occurs when OpenAPI query is being parsed.
+ * This class is used to convert information from {@link StripList} into form serializable into JSON.
  *
- * @author Martin Veska, FG Forrest a.s. (c) 2022
+ * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class OpenApiQueryResolvingInternalError extends OpenApiInternalError {
+@Getter
+public class StripListDto extends DataChunkDto {
+	private final int offset;
+	private final int limit;
 
-	@Serial private static final long serialVersionUID = -6567003960815507427L;
-
-	public OpenApiQueryResolvingInternalError(@Nonnull String publicMessage) {
-		super(publicMessage);
-	}
-
-	public OpenApiQueryResolvingInternalError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(publicMessage, cause);
-	}
-
-	public OpenApiQueryResolvingInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
-		super(privateMessage, publicMessage);
-	}
-
-	public OpenApiQueryResolvingInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(privateMessage, publicMessage, cause);
+	public StripListDto(@Nonnull StripList<?> stripList, @Nonnull JsonNode data) {
+		super(stripList, data, DataChunkType.STRIP);
+		offset = stripList.getOffset();
+		limit = stripList.getLimit();
 	}
 }

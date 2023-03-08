@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.dto;
 
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
@@ -169,11 +169,11 @@ public class OpenApiEnum implements OpenApiComplexType {
 		public OpenApiEnum build() {
 			Assert.isPremiseValid(
 				name != null && !name.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Missing enum name.")
+				() -> new OpenApiBuildingError("Missing enum name.")
 			);
 			Assert.isPremiseValid(
 				!items.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Enum `" + name + "` is missing items.")
+				() -> new OpenApiBuildingError("Enum `" + name + "` is missing items.")
 			);
 			return new OpenApiEnum(name, description, deprecationNotice, format, items);
 		}

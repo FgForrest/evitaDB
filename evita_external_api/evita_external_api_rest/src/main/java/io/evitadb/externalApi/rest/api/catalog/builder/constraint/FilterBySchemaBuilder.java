@@ -32,7 +32,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -70,11 +70,11 @@ public class FilterBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
-			() -> new OpenApiSchemaBuildingError("Could not find `filterBy` filter query.")
+			() -> new OpenApiBuildingError("Could not find `filterBy` filter query.")
 		);
 		Assert.isPremiseValid(
 			descriptors.size() == 1,
-			() -> new OpenApiSchemaBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
+			() -> new OpenApiBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
 		);
 		return descriptors.iterator().next();
 	}

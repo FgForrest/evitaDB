@@ -76,7 +76,7 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class PathItemBuilder {
+public class EndpointBuilder {
 
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
@@ -103,7 +103,7 @@ public class PathItemBuilder {
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.queryParameters(queryParameters)
 			.successResponse(entityObject)
-			.handler(EntityHandler::new)
+			.handler(GetEntityHandler::new)
 			.build();
 	}
 
@@ -123,7 +123,7 @@ public class PathItemBuilder {
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(constructEntityListRequestBodyObjectName(entitySchema, !localeInPath)))
 			.successResponse(nonNull(entityObject))
-			.handler(EntityListHandler::new)
+			.handler(ListEntityHandler::new)
 			.build();
 	}
 
@@ -147,7 +147,7 @@ public class PathItemBuilder {
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(constructEntityQueryRequestBodyObjectName(entitySchema, !localeInPath)))
 			.successResponse(nonNull(responseObject))
-			.handler(EntityQueryHandler::new)
+			.handler(QueryEntityHandler::new)
 			.build();
 	}
 
@@ -271,7 +271,7 @@ public class PathItemBuilder {
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(requestObject)
 			.successResponse(nonNull(entityObject))
-			.handler(ctx -> new EntityUpsertHandler(ctx, withPrimaryKeyInPath))
+			.handler(ctx -> new UpsertEntityHandler(ctx, withPrimaryKeyInPath))
 			.build();
 	}
 
@@ -288,7 +288,7 @@ public class PathItemBuilder {
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(QueryRequestBodyDescriptor.THIS_DELETE.name(entitySchema)))
 			.successResponse(nonNull(entityObject))
-			.handler(EntityDeleteHandler::new)
+			.handler(DeleteEntityByQueryHandler::new)
 			.build();
 	}
 
@@ -309,7 +309,7 @@ public class PathItemBuilder {
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.queryParameters(queryParameters)
 			.successResponse(nonNull(entityObject))
-			.handler(EntityDeleteHandler::new)
+			.handler(DeleteEntityHandler::new)
 			.build();
 	}
 
@@ -325,7 +325,7 @@ public class PathItemBuilder {
 			.description(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.successResponse(nonNull(entitySchemaObject))
-			.handler(EntitySchemaHandler::new)
+			.handler(GetEntitySchemaHandler::new)
 			.build();
 	}
 

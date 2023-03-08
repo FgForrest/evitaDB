@@ -21,24 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.model;
+package io.evitadb.externalApi.rest.exception;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.externalApi.rest.api.dto.DataChunkType;
-import lombok.Getter;
+import javax.annotation.Nonnull;
+import java.io.Serial;
 
 /**
- * This class is used to convert information from {@link io.evitadb.dataType.StripList} into form serializable into JSON.
+ * This exception is thrown when request parameter marked as required is missing
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Getter
-public class StripList extends DataChunk {
-	private final int offset;
-	private final int limit;
-	public StripList(io.evitadb.dataType.StripList<?> stripList, JsonNode data) {
-		super(stripList, data, DataChunkType.STRIP);
-		offset = stripList.getOffset();
-		limit = stripList.getLimit();
+public class RestRequiredParameterMissingException extends RestInternalError {
+	@Serial private static final long serialVersionUID = 5958414286370961594L;
+
+	public RestRequiredParameterMissingException(@Nonnull String publicMessage) {
+		super(publicMessage);
+	}
+
+	public RestRequiredParameterMissingException(@Nonnull String publicMessage, @Nonnull Throwable cause) {
+		super(publicMessage, cause);
+	}
+
+	public RestRequiredParameterMissingException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+		super(privateMessage, publicMessage);
+	}
+
+	public RestRequiredParameterMissingException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
+		super(privateMessage, publicMessage, cause);
 	}
 }

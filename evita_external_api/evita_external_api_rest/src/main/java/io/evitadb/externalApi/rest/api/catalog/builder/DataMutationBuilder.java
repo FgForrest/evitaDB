@@ -51,24 +51,24 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class DataMutationSchemaBuilder {
+public class DataMutationBuilder {
 
 	@Nonnull private final OpenApiEntitySchemaBuildingContext collectionBuildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
-	@Nonnull private final PathItemBuilder pathItemBuilder;
+	@Nonnull private final EndpointBuilder endpointBuilder;
 
 	public void buildAndAddEntitiesAndPathItems() {
 		// Delete and upsert mutations use same URL but different HTTP method. In this case one PathItem must be used.
-		final OpenApiCollectionEndpoint entityDeleteEndpoint = pathItemBuilder.buildEntityDeleteEndpoint(collectionBuildingContext);
+		final OpenApiCollectionEndpoint entityDeleteEndpoint = endpointBuilder.buildEntityDeleteEndpoint(collectionBuildingContext);
 		collectionBuildingContext.getCatalogCtx().registerEndpoint(entityDeleteEndpoint);
-		final OpenApiCollectionEndpoint entityUpsertEndpoint = pathItemBuilder.buildEntityUpsertEndpoint(collectionBuildingContext, buildUpsertEntityObject(false), true);
+		final OpenApiCollectionEndpoint entityUpsertEndpoint = endpointBuilder.buildEntityUpsertEndpoint(collectionBuildingContext, buildUpsertEntityObject(false), true);
 		collectionBuildingContext.getCatalogCtx().registerEndpoint(entityUpsertEndpoint);
 
-		final OpenApiCollectionEndpoint entitiesDeleteByQueryEndpoint = pathItemBuilder.buildEntitiesDeleteByQueryEndpoint(collectionBuildingContext);
+		final OpenApiCollectionEndpoint entitiesDeleteByQueryEndpoint = endpointBuilder.buildEntitiesDeleteByQueryEndpoint(collectionBuildingContext);
 		collectionBuildingContext.getCatalogCtx().registerEndpoint(entitiesDeleteByQueryEndpoint);
 		if (collectionBuildingContext.getSchema().isWithGeneratedPrimaryKey()) {
-			final OpenApiCollectionEndpoint entityUpsertWithPkEndpoint = pathItemBuilder.buildEntityUpsertEndpoint(collectionBuildingContext, buildUpsertEntityObject(true), false);
+			final OpenApiCollectionEndpoint entityUpsertWithPkEndpoint = endpointBuilder.buildEntityUpsertEndpoint(collectionBuildingContext, buildUpsertEntityObject(true), false);
 			collectionBuildingContext.getCatalogCtx().registerEndpoint(entityUpsertWithPkEndpoint);
 		}
 	}

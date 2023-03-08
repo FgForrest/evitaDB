@@ -28,8 +28,9 @@ import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.catalog.resolver.DataDeserializer;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
-import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
-import io.evitadb.externalApi.rest.exception.RESTApiRequiredParameterMissingException;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
+import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
@@ -77,9 +78,32 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
         this.restApiHandlingContext = restApiHandlingContext;
     }
 
+    @Override
+    public void handleRequest(HttpServerExchange exchange) throws Exception {
+        validateRequest(exchange);
+
+        final Object resultObject = doHandleRequest(exchange)
+            .orElseThrow(() -> new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found."));
+
+        final String result;
+        if (resultObject instanceof String) {
+            result = (String) resultObject;
+        } else {
+            result = serializeResult(resultObject);
+        }
+        setSuccessResponse(exchange, result);
+    }
+
+    @Nonnull
+    protected String getContentType() {
+        return MimeTypes.APPLICATION_JSON;
+    }
+
+    @Nonnull
+    protected abstract Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange);
+
     /**
      * Validates HTTP request.
-     * @param exchange
      */
     protected void validateRequest(@Nonnull HttpServerExchange exchange) {
         if (!acceptsSupportedContentType(exchange)) {
@@ -96,15 +120,38 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
         }
     }
 
+    @Nullable
+    protected Stream<String> parseAcceptHeaders(@Nonnull HttpServerExchange exchange) {
+        final HeaderValues acceptHeaders = exchange.getRequestHeaders().get(Headers.ACCEPT);
+        if (acceptHeaders == null) {
+            return null;
+        }
+        return acceptHeaders.stream()
+            .flatMap(hv -> Arrays.stream(hv.split(",")))
+            .map(String::strip);
+    }
+
+    protected boolean bodyHasSupportedContentType(HttpServerExchange exchange) {
+        final String bodyContentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
+        if (bodyContentType == null) {
+            return false;
+        }
+        return bodyContentType.startsWith(getContentType());
+    }
+
+    protected boolean acceptsSupportedContentType(@Nonnull HttpServerExchange exchange) {
+        final Stream<String> acceptHeaders = parseAcceptHeaders(exchange);
+        if (acceptHeaders == null) {
+            return true;
+        }
+        return acceptHeaders.anyMatch(hv -> hv.equals(getContentType()));
+    }
+
     /**
      * Reads request body into string.
-     *
-     * @param exchange
-     * @return
-     * @throws IOException
      */
     @Nonnull
-    protected String readRequestBody(@Nonnull HttpServerExchange exchange) throws IOException {
+    protected String readRequestBody(@Nonnull HttpServerExchange exchange) {
         final String bodyContentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
         final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
             .map(String::trim)
@@ -130,7 +177,50 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
              final InputStreamReader isr = new InputStreamReader(is, bodyCharset);
              final BufferedReader bf = new BufferedReader(isr)) {
             return bf.lines().collect(Collectors.joining("\n"));
+        } catch (IOException e) {
+            throw new RestInternalError("Could not read request body: ", e);
         }
+    }
+
+    @Nonnull
+    protected Map<String, Object> getParametersFromRequest(@Nonnull HttpServerExchange exchange, @Nonnull Operation operation) {
+        //create copy of parameters
+        final Map<String, Deque<String>> queryParameters = new HashMap<>(exchange.getQueryParameters());
+
+        final HashMap<String, Object> parameterData = createHashMap(operation.getParameters().size());
+        if(operation.getParameters() != null) {
+            for (Parameter parameter : operation.getParameters()) {
+                getParameterFromRequest(queryParameters, parameter).ifPresent(data -> {
+                        parameterData.put(parameter.getName(), data);
+                        queryParameters.remove(parameter.getName());
+                    }
+                );
+            }
+        }
+
+        if(!queryParameters.isEmpty()) {
+            throw new RestInvalidArgumentException("Following parameters are not supported in this particular request, " +
+                "please look into OpenAPI schema for more information. Parameters: " + String.join(", ", queryParameters.keySet()));
+        }
+        return parameterData;
+    }
+
+    @Nonnull
+    protected Optional<Object> getParameterFromRequest(@Nonnull Map<String, Deque<String>> queryParameters, @Nonnull Parameter parameter) {
+        final Deque<String> queryParam = queryParameters.get(parameter.getName());
+        if(queryParam != null) {
+            return Optional.ofNullable(DataDeserializer.deserialize(restApiHandlingContext.getOpenApi(), getParameterSchema(parameter), queryParam.toArray(new String[]{})));
+        } else if(Boolean.TRUE.equals(parameter.getRequired())) {
+            throw new RestRequiredParameterMissingException("Required parameter " + parameter.getName() +
+                " is missing in query data (" + parameter.getIn() + ")");
+        }
+        return Optional.empty();
+    }
+
+    @Nonnull
+    @SuppressWarnings("rawtypes")
+    protected Schema getParameterSchema(@Nonnull Parameter parameter) {
+        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), restApiHandlingContext.getOpenApi());
     }
 
     /**
@@ -154,75 +244,5 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
         exchange.setStatusCode(StatusCodes.OK);
         exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, getContentType() + CONTENT_TYPE_CHARSET);
         exchange.getResponseSender().send(data);
-    }
-
-    @Nullable
-    protected Stream<String> parseAcceptHeaders(@Nonnull HttpServerExchange exchange) {
-        final HeaderValues acceptHeaders = exchange.getRequestHeaders().get(Headers.ACCEPT);
-        if (acceptHeaders == null) {
-            return null;
-        }
-        return acceptHeaders.stream()
-                .flatMap(hv -> Arrays.stream(hv.split(",")))
-                .map(String::strip);
-    }
-
-    protected boolean bodyHasSupportedContentType(HttpServerExchange exchange) {
-        final String bodyContentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
-        if (bodyContentType == null) {
-            return false;
-        }
-        return bodyContentType.startsWith(getContentType());
-    }
-
-    protected boolean acceptsSupportedContentType(@Nonnull HttpServerExchange exchange) {
-        final Stream<String> acceptHeaders = parseAcceptHeaders(exchange);
-        if (acceptHeaders == null) {
-            return true;
-        }
-        return acceptHeaders.anyMatch(hv -> hv.equals(getContentType()));
-    }
-
-    @Nonnull
-    protected String getContentType() {
-        return MimeTypes.APPLICATION_JSON;
-    }
-
-    protected Map<String, Object> getParametersFromRequest(@Nonnull HttpServerExchange exchange, @Nonnull Operation operation) {
-        //create copy of parameters
-        final Map<String, Deque<String>> queryParameters = new HashMap<>(exchange.getQueryParameters());
-
-        final HashMap<String, Object> parameterData = createHashMap(operation.getParameters().size());
-        if(operation.getParameters() != null) {
-            for (Parameter parameter : operation.getParameters()) {
-                getParameterFromRequest(queryParameters, parameter).ifPresent(data -> {
-                        parameterData.put(parameter.getName(), data);
-                        queryParameters.remove(parameter.getName());
-                    }
-                );
-            }
-        }
-
-        if(!queryParameters.isEmpty()) {
-            throw new RESTApiInvalidArgumentException("Following parameters are not supported in this particular request, " +
-                "please look into OpenAPI schema for more information. Parameters: " + String.join(", ", queryParameters.keySet()));
-        }
-        return parameterData;
-    }
-
-    protected @Nonnull Optional<Object> getParameterFromRequest(final Map<String, Deque<String>> queryParameters, @Nonnull Parameter parameter) {
-        final Deque<String> queryParam = queryParameters.get(parameter.getName());
-        if(queryParam != null) {
-            return Optional.ofNullable(DataDeserializer.deserialize(restApiHandlingContext.getOpenApi(), getParameterSchema(parameter), queryParam.toArray(new String[]{})));
-        } else if(Boolean.TRUE.equals(parameter.getRequired())) {
-            throw new RESTApiRequiredParameterMissingException("Required parameter " + parameter.getName() +
-                " is missing in query data (" + parameter.getIn() + ")");
-        }
-        return Optional.empty();
-    }
-
-    @SuppressWarnings("rawtypes")
-    protected Schema getParameterSchema(@Nonnull Parameter parameter) {
-        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), restApiHandlingContext.getOpenApi());
     }
 }

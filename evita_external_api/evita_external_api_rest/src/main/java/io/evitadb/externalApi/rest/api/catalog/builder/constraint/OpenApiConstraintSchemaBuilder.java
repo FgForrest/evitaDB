@@ -40,7 +40,7 @@ import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter.ConvertedEnum;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -307,6 +307,6 @@ public abstract class OpenApiConstraintSchemaBuilder
 	@Override
 	protected <T extends ExternalApiInternalError> T createSchemaBuildingError(@Nonnull String message) {
 		//noinspection unchecked
-		return (T) new OpenApiSchemaBuildingError(message);
+		return (T) new OpenApiBuildingError(message);
 	}
 }

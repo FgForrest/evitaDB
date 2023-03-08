@@ -47,7 +47,7 @@ import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -416,7 +416,7 @@ public class EntityObjectBuilder {
 			final EntitySchemaContract referencedEntitySchema = entitySchemaBuildingCtx.getCatalogCtx()
 				.getSchema()
 				.getEntitySchema(referenceSchema.getReferencedEntityType())
-				.orElseThrow(() -> new OpenApiSchemaBuildingError("Could not find entity schema for referenced schema `" + referenceSchema.getReferencedEntityType() + "`."));
+				.orElseThrow(() -> new OpenApiBuildingError("Could not find entity schema for referenced schema `" + referenceSchema.getReferencedEntityType() + "`."));
 
 			final var entityName = constructEntityObjectName(referencedEntitySchema, distinguishLocalizedData);
 			referencedEntityObject = typeRefTo(entityName);
@@ -452,7 +452,7 @@ public class EntityObjectBuilder {
 			final EntitySchemaContract referencedGroupSchema = entitySchemaBuildingCtx.getCatalogCtx()
 				.getSchema()
 				.getEntitySchema(referenceSchema.getReferencedGroupType())
-				.orElseThrow(() -> new OpenApiSchemaBuildingError("Could not find entity schema for referenced schema `" + referenceSchema.getReferencedGroupType() + "`."));
+				.orElseThrow(() -> new OpenApiBuildingError("Could not find entity schema for referenced schema `" + referenceSchema.getReferencedGroupType() + "`."));
 
 			final var groupType = constructEntityObjectName(referencedGroupSchema, distinguishLocalizedData);
 			groupEntityObject = typeRefTo(groupType);

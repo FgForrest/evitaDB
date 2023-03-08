@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.handler.RestHandler;
 import io.evitadb.externalApi.rest.io.handler.RestHandlingContext;
 import io.evitadb.utils.Assert;
@@ -164,7 +164,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 		public Builder queryParameter(@Nonnull OpenApiEndpointParameter queryParameter) {
 			Assert.isPremiseValid(
 				queryParameter.getLocation().equals(OpenApiOperationParameterLocation.QUERY),
-				() -> new OpenApiSchemaBuildingError("Only query parameters are supported here.")
+				() -> new OpenApiBuildingError("Only query parameters are supported here.")
 			);
 			this.parameters.add(queryParameter);
 			return this;
@@ -175,7 +175,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 			queryParameters.forEach(queryParameter ->
 				Assert.isPremiseValid(
 					queryParameter.getLocation().equals(OpenApiOperationParameterLocation.QUERY),
-					() -> new OpenApiSchemaBuildingError("Only query parameters are supported here.")
+					() -> new OpenApiBuildingError("Only query parameters are supported here.")
 				)
 			);
 			this.parameters.addAll(queryParameters);
@@ -204,34 +204,34 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 		public OpenApiCatalogEndpoint build() {
 			Assert.isPremiseValid(
 				path != null,
-				() -> new OpenApiSchemaBuildingError("Missing endpoint path.")
+				() -> new OpenApiBuildingError("Missing endpoint path.")
 			);
 			Assert.isPremiseValid(
 				method != null,
-				() -> new OpenApiSchemaBuildingError("Endpoint `" + path + "` is missing method.")
+				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing method.")
 			);
 			Assert.isPremiseValid(
 				description != null && !description.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Endpoint `" + path + "` is missing description.")
+				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing description.")
 			);
 			if (Set.of(POST, PUT, DELETE).contains(method)) {
 				Assert.isPremiseValid(
 					requestBody != null,
-					() -> new OpenApiSchemaBuildingError("Endpoint `" + path + "` is missing request body.")
+					() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing request body.")
 				);
 			} else {
 				Assert.isPremiseValid(
 					requestBody == null,
-					() -> new OpenApiSchemaBuildingError("Endpoint `" + path + "` doesn't support request body.")
+					() -> new OpenApiBuildingError("Endpoint `" + path + "` doesn't support request body.")
 				);
 			}
 			Assert.isPremiseValid(
 				successResponse != null,
-				() -> new OpenApiSchemaBuildingError("Endpoint `" + path + "` is missing success response.")
+				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing success response.")
 			);
 			Assert.isPremiseValid(
 				handlerBuilder != null,
-				() -> new OpenApiSchemaBuildingError("Endpoint `" + path + "` is missing handler.")
+				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing handler.")
 			);
 
 			return new OpenApiCatalogEndpoint(

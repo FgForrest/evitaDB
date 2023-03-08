@@ -170,7 +170,7 @@ class CatalogRESTGetUnknownEntityQueryFunctionalTest extends CatalogRESTEndpoint
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(404)
-			.body("message", equalTo("Requested entity wasn't found"));
+			.body("message", equalTo("Requested resource wasn't found."));
 	}
 
 	//todo price for sale is not present in DATA at all

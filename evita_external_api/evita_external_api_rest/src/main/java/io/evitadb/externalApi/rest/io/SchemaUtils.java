@@ -25,8 +25,8 @@ package io.evitadb.externalApi.rest.io;
 
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
-import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
-import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.ArraySchema;
@@ -92,7 +92,7 @@ public class SchemaUtils {
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	private static Schema getTargetSchemaFromRefOrOneOf(@Nonnull Schema schema, @Nonnull OpenAPI openAPI, int nestingCount) {
 		if(nestingCount > MAX_TARGET_SCHEMA_SEARCH_NESTING_COUNT) {
-			throw new RESTApiInternalError("Max nesting count reached when getting target schema, which probably " +
+			throw new RestInternalError("Max nesting count reached when getting target schema, which probably " +
 				"means that there's a cycle in schema reference structure and application is unable to find schema, which " +
 				"is not an reference. Currently processing schema name: " +  schema, "Error when deserializing query.");
 		}
@@ -120,13 +120,13 @@ public class SchemaUtils {
 		if(schemas.size() == 1) {
 			return schemas.get(0);
 		}
-		throw new RESTApiInternalError("Can't get schema from list, found more than one schema in list. " +
+		throw new RestInternalError("Can't get schema from list, found more than one schema in list. " +
 			"Parent schema: " + parentSchema.getName(),"Error when parsing input data.");
 	}
 
 	@SuppressWarnings({"rawtypes"})
 	private static void throwTargetSchemaAlreadyFound(@Nonnull Schema schema) {
-		throw new RESTApiInternalError("Can't get target schema from any inner location, schema found in " +
+		throw new RestInternalError("Can't get target schema from any inner location, schema found in " +
 			"more than one place. Schema: " + schema.getName(),"Error when parsing input data.");
 	}
 
@@ -136,7 +136,7 @@ public class SchemaUtils {
 	 * @param openAPI OpenAPI schema
 	 * @param operation
 	 * @param propertyName name of searched property
-	 * @throws RESTApiQueryResolvingInternalError when property wasn't found
+	 * @throws RestQueryResolvingInternalError when property wasn't found
 	 */
 	@Nonnull
 	@SuppressWarnings({"rawtypes"})
@@ -150,7 +150,7 @@ public class SchemaUtils {
 	 * @param openAPI OpenAPI schema
 	 * @param operation
 	 * @param propertyName name of searched property
-	 * @throws RESTApiQueryResolvingInternalError when property wasn't found
+	 * @throws RestQueryResolvingInternalError when property wasn't found
 	 */
 	@Nonnull
 	@SuppressWarnings({"rawtypes"})
@@ -164,7 +164,7 @@ public class SchemaUtils {
 	 * @param openAPI OpenAPI schema
 	 * @param operation
 	 * @param propertyName name of searched property
-	 * @throws RESTApiQueryResolvingInternalError when property wasn't found
+	 * @throws RestQueryResolvingInternalError when property wasn't found
 	 *
 	 */
 	@Nonnull
@@ -192,10 +192,10 @@ public class SchemaUtils {
 				return propertySchema.get();
 			}
 
-			throw new RESTApiQueryResolvingInternalError("Attribute wasn't found in Operation, unable to deserialize " +
+			throw new RestQueryResolvingInternalError("Attribute wasn't found in Operation, unable to deserialize " +
 				"attribute: " + propertyName, "Unexpected error when deserializing attribute: " + propertyName);
 		} else {
-			throw new RESTApiQueryResolvingInternalError("Root attribute wasn't found in Operation, unable to deserialize " +
+			throw new RestQueryResolvingInternalError("Root attribute wasn't found in Operation, unable to deserialize " +
 				"attribute: " + rootPropertyName, "Unexpected error when deserializing attribute: " + rootPropertyName);
 		}
 	}

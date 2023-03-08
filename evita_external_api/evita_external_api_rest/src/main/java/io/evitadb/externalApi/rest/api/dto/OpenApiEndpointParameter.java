@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.dto;
 
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.parameters.Parameter;
 import lombok.AccessLevel;
@@ -129,11 +129,11 @@ public class OpenApiEndpointParameter {
 		public OpenApiEndpointParameter build() {
 			Assert.isPremiseValid(
 				name != null && !name.isEmpty(),
-				() -> new OpenApiSchemaBuildingError("Missing parameter name.")
+				() -> new OpenApiBuildingError("Missing parameter name.")
 			);
 			Assert.isPremiseValid(
 				type != null,
-				() -> new OpenApiSchemaBuildingError("Parameter `" + name + "` is missing type.")
+				() -> new OpenApiBuildingError("Parameter `" + name + "` is missing type.")
 			);
 			return new OpenApiEndpointParameter(location, name, description, deprecationNotice, type);
 		}

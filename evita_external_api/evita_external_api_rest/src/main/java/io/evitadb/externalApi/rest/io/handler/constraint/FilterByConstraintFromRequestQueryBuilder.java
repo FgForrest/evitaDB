@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
-import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -198,7 +198,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			}
 			return (V[]) array;
 		} catch (ClassCastException e) {
-			throw new RESTApiInternalError("Could not cast REST list to array of type `" + targetComponentType.getName() + "`");
+			throw new RestInternalError("Could not cast REST list to array of type `" + targetComponentType.getName() + "`");
 		}
 	}
 }

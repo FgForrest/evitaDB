@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.catalog.model.ErrorDescriptor;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.handler.RestHandler;
 import io.evitadb.externalApi.rest.io.handler.RestHandlingContext;
 import io.evitadb.utils.Assert;
@@ -209,7 +209,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 			if (paramItem != null) {
 				Assert.isPremiseValid(
 					paramItem.getLocation().equals(OpenApiOperationParameterLocation.PATH),
-					() -> new OpenApiSchemaBuildingError("Path only supports path parameters.")
+					() -> new OpenApiBuildingError("Path only supports path parameters.")
 				);
 				this.path = this.path.resolve("{" + paramItem.getName() + "}");
 				this.pathParameters.add(paramItem);

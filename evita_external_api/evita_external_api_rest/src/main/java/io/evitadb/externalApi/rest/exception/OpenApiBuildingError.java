@@ -21,31 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.model;
+package io.evitadb.externalApi.rest.exception;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import io.evitadb.externalApi.rest.api.dto.DataChunkType;
-import lombok.Getter;
+import javax.annotation.Nonnull;
+import java.io.Serial;
 
 /**
- * This class is used to convert information from {@link io.evitadb.dataType.PaginatedList} into form serializable into JSON.
+ * Internal OpenAPI error that occurs when OpenAPI schema could not be build.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Getter
-public class PaginatedList extends DataChunk {
-	private final int pageSize;
-	private final int pageNumber;
-	private final int lastPageNumber;
-	private final int firstPageItemNumber;
-	private final int lastPageItemNumber;
+public class OpenApiBuildingError extends OpenApiInternalError {
+	@Serial private static final long serialVersionUID = 8413453923025458996L;
 
-	public PaginatedList(io.evitadb.dataType.PaginatedList<?> paginatedList, JsonNode data) {
-		super(paginatedList, data, DataChunkType.PAGE);
-		pageSize = paginatedList.getPageSize();
-		pageNumber = paginatedList.getPageNumber();
-		lastPageNumber = paginatedList.getLastPageNumber();
-		firstPageItemNumber = paginatedList.getFirstPageItemNumber();
-		lastPageItemNumber = paginatedList.getLastPageItemNumber();
+	public OpenApiBuildingError(@Nonnull String publicMessage) {
+		super(publicMessage);
+	}
+
+	public OpenApiBuildingError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
+		super(publicMessage, cause);
+	}
+
+	public OpenApiBuildingError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+		super(privateMessage, publicMessage);
+	}
+
+	public OpenApiBuildingError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
+		super(privateMessage, publicMessage, cause);
 	}
 }

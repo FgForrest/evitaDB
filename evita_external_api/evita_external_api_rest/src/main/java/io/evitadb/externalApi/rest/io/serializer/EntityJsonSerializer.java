@@ -41,7 +41,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.SectionedAttributesDescriptor;
-import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.handler.RestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
@@ -58,23 +58,12 @@ import java.util.Map.Entry;
  */
 @Slf4j
 public class EntityJsonSerializer {
+
 	private final RestHandlingContext restHandlingContext;
-	private final EntityClassifier entityClassifier;
-	private final List<EntityClassifier> entityClassifiers;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	public EntityJsonSerializer(@Nonnull RestHandlingContext restHandlingContext, @Nonnull EntityClassifier entityClassifier) {
+	public EntityJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
 		this.restHandlingContext = restHandlingContext;
-		this.entityClassifier = entityClassifier;
-		this.entityClassifiers = null;
-		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
-	}
-
-	public EntityJsonSerializer(@Nonnull RestHandlingContext restHandlingContext,
-	                            @Nonnull List<EntityClassifier> entityClassifiers) {
-		this.restHandlingContext = restHandlingContext;
-		this.entityClassifier = null;
-		this.entityClassifiers = entityClassifiers;
 		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}
 
@@ -83,16 +72,30 @@ public class EntityJsonSerializer {
 	 *
 	 * @return serialized entity or list of entities
 	 */
-	public JsonNode serialize() {
-		if (entityClassifier != null) {
-			return serializeSingleEntity(entityClassifier);
-		} else {
-			final ArrayNode arrayNode = objectJsonSerializer.arrayNode();
-			for (EntityClassifier classifier : entityClassifiers) {
-				arrayNode.add(serializeSingleEntity(classifier));
-			}
-			return arrayNode;
+	public JsonNode serialize(@Nonnull EntityClassifier entityClassifier) {
+		return serializeSingleEntity(entityClassifier);
+	}
+
+	/**
+	 * Performs serialization and returns serialized entity in form of JsonNode
+	 *
+	 * @return serialized entity or list of entities
+	 */
+	public JsonNode serialize(@Nonnull List<EntityClassifier> entityClassifiers) {
+		final ArrayNode arrayNode = objectJsonSerializer.arrayNode();
+		for (EntityClassifier classifier : entityClassifiers) {
+			arrayNode.add(serializeSingleEntity(classifier));
 		}
+		return arrayNode;
+	}
+
+	/**
+	 * Performs serialization and returns serialized entity in form of JsonNode
+	 *
+	 * @return serialized entity or list of entities
+	 */
+	public JsonNode serialize( @Nonnull EntityClassifier[] entityClassifiers) {
+		return serialize(Arrays.asList(entityClassifiers));
 	}
 
 	@Nonnull
@@ -111,7 +114,7 @@ public class EntityJsonSerializer {
 			serializeReferences(rootNode, entity);
 			return rootNode;
 		} else {
-			throw new RESTApiInternalError("Unprocessable entity class: " + entityClassifier.getClass().getName());
+			throw new RestInternalError("Unprocessable entity class: " + entityClassifier.getClass().getName());
 		}
 	}
 

@@ -23,11 +23,8 @@
 
 package io.evitadb.externalApi.rest.io.handler;
 
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
-import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.rest.io.serializer.EntitySchemaJsonSerializer;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -39,30 +36,22 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class EntitySchemaHandler extends RestHandler<CollectionRestHandlingContext> {
+public class GetEntitySchemaHandler extends RestHandler<CollectionRestHandlingContext> {
 
-	public EntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+	@Nonnull
+	private final EntitySchemaJsonSerializer entitySchemaJsonSerializer;
+
+	public GetEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
+		entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restApiHandlingContext);
 	}
 
 	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		validateRequest(exchange);
-
-		restApiHandlingContext.queryCatalog(session -> {
-			final Optional<SealedEntitySchema> entitySchema = session.getEntitySchema(restApiHandlingContext.getEntityType());
-			if(entitySchema.isPresent()) {
-				setSuccessResponse(
-					exchange,
-					serializeResult(new EntitySchemaJsonSerializer(
-						restApiHandlingContext,
-						session::getEntitySchemaOrThrow,
-						entitySchema.get()
-					).serialize())
-				);
-			} else {
-				throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested entity schema wasn't found.");
-			}
-		});
+	@Nonnull
+	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+		return restApiHandlingContext.queryCatalog(session ->
+			session.getEntitySchema(restApiHandlingContext.getEntityType())
+				.map(it -> entitySchemaJsonSerializer.serialize(session::getEntitySchemaOrThrow, it))
+		);
 	}
 }

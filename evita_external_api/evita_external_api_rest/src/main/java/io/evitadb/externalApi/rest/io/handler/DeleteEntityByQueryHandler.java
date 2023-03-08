@@ -38,8 +38,7 @@ import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
-import java.util.Arrays;
+import java.util.Optional;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 
@@ -49,33 +48,48 @@ import static io.evitadb.api.query.QueryConstraints.collection;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class EntityListDeleteHandler extends EntityListHandler {
-	public EntityListDeleteHandler(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+public class DeleteEntityByQueryHandler extends ListEntityHandler {
+
+	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
+	@Nonnull private final OrderByConstraintResolver orderByConstraintResolver;
+	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
+	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
+
+	public DeleteEntityByQueryHandler(@Nonnull CollectionRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
-	}
-
-	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		validateRequest(exchange);
-
-		final Query query = resolveQuery(exchange);
-
-		log.debug("Generated Evita query for deletion of entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
-
-		restApiHandlingContext.updateCatalog(session -> {
-			final SealedEntity[] deletedEntities = session.deleteEntitiesAndReturnBodies(query);
-			setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, Arrays.asList(deletedEntities)).serialize()));
-		});
+		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
+		this.orderByConstraintResolver = new OrderByConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
+		this.requireConstraintResolver = new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
+		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
 
 	@Override
 	@Nonnull
-	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) throws IOException {
+	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+		final Query query = resolveQuery(exchange);
+
+		log.debug("Generated Evita query for deletion of entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
+
+		final SealedEntity[] deletedEntities = restApiHandlingContext.updateCatalog(session ->
+			session.deleteEntitiesAndReturnBodies(query));
+
+		return Optional.of(entityJsonSerializer.serialize(deletedEntities));
+	}
+
+	@Override
+	@Nonnull
+	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) {
 		final EntityQueryRequestData requestData = getRequestData(exchange);
 
-		final FilterBy filterBy = requestData.isFilterBySet()?(FilterBy) new FilterConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.FILTER_BY.name(), requestData.getFilterBy()):null;
-		final OrderBy orderBy = requestData.isOrderBySet()?(OrderBy) new OrderByConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.ORDER_BY.name(), requestData.getOrderBy()):null;
-		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.REQUIRE.name(), requestData.getRequire()):null;
+		final FilterBy filterBy = requestData.getFilterBy()
+			.map(it -> (FilterBy) filterConstraintResolver.resolve(QueryRequestBodyDescriptor.FILTER_BY.name(), it))
+			.orElse(null);
+		final OrderBy orderBy = requestData.getOrderBy()
+			.map(it -> (OrderBy) orderByConstraintResolver.resolve(QueryRequestBodyDescriptor.ORDER_BY.name(), it))
+			.orElse(null);
+		final Require require = requestData.getRequire()
+			.map(it -> (Require) requireConstraintResolver.resolve(QueryRequestBodyDescriptor.REQUIRE.name(), it))
+			.orElse(null);
 
 		return Query.query(
 			collection(restApiHandlingContext.getEntityType()),

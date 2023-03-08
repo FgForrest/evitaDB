@@ -21,34 +21,35 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.exception;
+package io.evitadb.externalApi.rest.io.model;
 
-import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.evitadb.dataType.PaginatedList;
+import io.evitadb.externalApi.rest.api.dto.DataChunkType;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.io.Serial;
 
 /**
- * This exception is thrown when anything goes wrong during REST request procession
+ * This class is used to convert information from {@link io.evitadb.dataType.PaginatedList} into form serializable into JSON.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class RESTApiInternalError extends ExternalApiInternalError {
-	@Serial private static final long serialVersionUID = 5280954168651654279L;
+@Getter
+public class PaginatedListDto extends DataChunkDto {
 
-	public RESTApiInternalError(@Nonnull String publicMessage) {
-		super(publicMessage);
-	}
+	private final int pageSize;
+	private final int pageNumber;
+	private final int lastPageNumber;
+	private final int firstPageItemNumber;
+	private final int lastPageItemNumber;
 
-	public RESTApiInternalError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(publicMessage, cause);
-	}
-
-	public RESTApiInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
-		super(privateMessage, publicMessage);
-	}
-
-	public RESTApiInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(privateMessage, publicMessage, cause);
+	public PaginatedListDto(@Nonnull PaginatedList<?> paginatedList, @Nonnull JsonNode data) {
+		super(paginatedList, data, DataChunkType.PAGE);
+		pageSize = paginatedList.getPageSize();
+		pageNumber = paginatedList.getPageNumber();
+		lastPageNumber = paginatedList.getLastPageNumber();
+		firstPageItemNumber = paginatedList.getFirstPageItemNumber();
+		lastPageItemNumber = paginatedList.getLastPageItemNumber();
 	}
 }

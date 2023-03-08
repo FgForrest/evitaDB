@@ -32,8 +32,8 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
-import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
+import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
 import io.evitadb.externalApi.rest.io.handler.CollectionRestHandlingContext;
 import io.evitadb.utils.Assert;
@@ -64,11 +64,11 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(And.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
-			() -> new RESTApiQueryResolvingInternalError("Could not find `and` filter constraint for wrapper container.")
+			() -> new RestQueryResolvingInternalError("Could not find `and` filter constraint for wrapper container.")
 		);
 		Assert.isPremiseValid(
 			descriptors.size() == 1,
-			() -> new RESTApiQueryResolvingInternalError(
+			() -> new RestQueryResolvingInternalError(
 				"There multiple variants of `and` filter constraint, cannot decide which to choose for wrapper container."
 			)
 		);
@@ -97,11 +97,11 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
-			() -> new OpenApiSchemaBuildingError("Could not find `filterBy` filter query.")
+			() -> new OpenApiBuildingError("Could not find `filterBy` filter query.")
 		);
 		Assert.isPremiseValid(
 			descriptors.size() == 1,
-			() -> new OpenApiSchemaBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
+			() -> new OpenApiBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
 		);
 		return descriptors.iterator().next();
 	}

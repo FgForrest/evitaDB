@@ -124,7 +124,7 @@ public class CatalogRestBuilder {
 	@Nonnull private final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToOpenApiOperationQueryParameterTransformer operationQueryParameterBuilderTransformer;
 
-	@Nonnull private final PathItemBuilder pathItemBuilder;
+	@Nonnull private final EndpointBuilder endpointBuilder;
 
 	/**
 	 * Creates new builder.
@@ -139,7 +139,7 @@ public class CatalogRestBuilder {
 		this.operationPathParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationPathParameterTransformer(propertyDataTypeBuilderTransformer);
 		this.operationQueryParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationQueryParameterTransformer(propertyDataTypeBuilderTransformer);
 
-		this.pathItemBuilder = new PathItemBuilder(
+		this.endpointBuilder = new EndpointBuilder(
 			propertyBuilderTransformer,
 			objectBuilderTransformer,
 			operationPathParameterBuilderTransformer,
@@ -200,25 +200,25 @@ public class CatalogRestBuilder {
 	}
 
 	private void buildEndpoints() {
-		buildingContext.registerEndpoint(pathItemBuilder.buildOpenApiSpecificationEndpoint(buildingContext));
+		buildingContext.registerEndpoint(endpointBuilder.buildOpenApiSpecificationEndpoint(buildingContext));
 
-		buildingContext.registerEndpoint(pathItemBuilder.buildCollectionsEndpoint(buildingContext));
+		buildingContext.registerEndpoint(endpointBuilder.buildCollectionsEndpoint(buildingContext));
 
 		buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			final OpenApiEntitySchemaBuildingContext collectionContext = setupForCollection(entitySchema);
 
-			buildingContext.registerEndpoint(pathItemBuilder.buildEntityGetEndpoint(collectionContext, false, false));
-			buildingContext.registerEndpoint(pathItemBuilder.buildEntityGetEndpoint(collectionContext, false, true));
+			buildingContext.registerEndpoint(endpointBuilder.buildEntityGetEndpoint(collectionContext, false, false));
+			buildingContext.registerEndpoint(endpointBuilder.buildEntityGetEndpoint(collectionContext, false, true));
 
-			buildingContext.registerEndpoint(pathItemBuilder.buildEntityListEndpoint(collectionContext, false));
-			buildingContext.registerEndpoint(pathItemBuilder.buildEntityQueryEndpoint(collectionContext, false));
+			buildingContext.registerEndpoint(endpointBuilder.buildEntityListEndpoint(collectionContext, false));
+			buildingContext.registerEndpoint(endpointBuilder.buildEntityQueryEndpoint(collectionContext, false));
 
 			if(collectionContext.isLocalizedEntity()) {
-				buildingContext.registerEndpoint(pathItemBuilder.buildEntityGetEndpoint(collectionContext, true, false));
-				buildingContext.registerEndpoint(pathItemBuilder.buildEntityGetEndpoint(collectionContext, true, true));
+				buildingContext.registerEndpoint(endpointBuilder.buildEntityGetEndpoint(collectionContext, true, false));
+				buildingContext.registerEndpoint(endpointBuilder.buildEntityGetEndpoint(collectionContext, true, true));
 
-				buildingContext.registerEndpoint(pathItemBuilder.buildEntityListEndpoint(collectionContext, true));
-				buildingContext.registerEndpoint(pathItemBuilder.buildEntityQueryEndpoint(collectionContext, true));
+				buildingContext.registerEndpoint(endpointBuilder.buildEntityListEndpoint(collectionContext, true));
+				buildingContext.registerEndpoint(endpointBuilder.buildEntityQueryEndpoint(collectionContext, true));
 			}
 
 			// todo lho split apis to data and schema first
@@ -241,13 +241,13 @@ public class CatalogRestBuilder {
 
 		final List<GlobalAttributeSchemaContract> globallyUniqueAttributes = getGloballyUniqueAttributes(buildingContext.getSchema());
 		if(!globallyUniqueAttributes.isEmpty()) {
-			pathItemBuilder.buildUnknownEntityGetEndpoint(buildingContext, buildingContext.getLocalizedEntityObjects(), globallyUniqueAttributes, false)
+			endpointBuilder.buildUnknownEntityGetEndpoint(buildingContext, buildingContext.getLocalizedEntityObjects(), globallyUniqueAttributes, false)
 				.ifPresent(buildingContext::registerEndpoint);
-			pathItemBuilder.buildUnknownEntityGetEndpoint(buildingContext, buildingContext.getEntityObjects(), globallyUniqueAttributes, true)
+			endpointBuilder.buildUnknownEntityGetEndpoint(buildingContext, buildingContext.getEntityObjects(), globallyUniqueAttributes, true)
 				.ifPresent(buildingContext::registerEndpoint);
-			pathItemBuilder.buildUnknownEntityListEndpoint(buildingContext, buildingContext.getLocalizedEntityObjects(), globallyUniqueAttributes, false)
+			endpointBuilder.buildUnknownEntityListEndpoint(buildingContext, buildingContext.getLocalizedEntityObjects(), globallyUniqueAttributes, false)
 				.ifPresent(buildingContext::registerEndpoint);
-			pathItemBuilder.buildUnknownEntityListEndpoint(buildingContext, buildingContext.getEntityObjects(), globallyUniqueAttributes, true)
+			endpointBuilder.buildUnknownEntityListEndpoint(buildingContext, buildingContext.getEntityObjects(), globallyUniqueAttributes, true)
 				.ifPresent(buildingContext::registerEndpoint);
 		}
 	}
@@ -341,11 +341,11 @@ public class CatalogRestBuilder {
 //		);
 //		entitySchemaObjectBuilder.buildEntitySchemaObject();
 
-		new DataMutationSchemaBuilder(
+		new DataMutationBuilder(
 			entitySchemaBuildingCtx,
 			propertyBuilderTransformer,
 			objectBuilderTransformer,
-			pathItemBuilder
+			endpointBuilder
 		).buildAndAddEntitiesAndPathItems();
 
 		return entitySchemaBuildingCtx;

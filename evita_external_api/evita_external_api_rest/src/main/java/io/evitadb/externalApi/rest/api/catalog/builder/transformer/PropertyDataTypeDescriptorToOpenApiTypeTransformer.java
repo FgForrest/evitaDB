@@ -31,7 +31,7 @@ import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContex
 import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter.ConvertedEnum;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.RequiredArgsConstructor;
 
@@ -79,7 +79,7 @@ public class PropertyDataTypeDescriptorToOpenApiTypeTransformer implements Prope
 			}
 			return openApiType;
 		} else {
-			throw new OpenApiSchemaBuildingError("Unsupported property data type `" + typeDescriptor.getClass().getName() + "`.");
+			throw new OpenApiBuildingError("Unsupported property data type `" + typeDescriptor.getClass().getName() + "`.");
 		}
 	}
 }

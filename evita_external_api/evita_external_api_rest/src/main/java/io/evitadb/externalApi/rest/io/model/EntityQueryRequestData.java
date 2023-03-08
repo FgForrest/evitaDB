@@ -26,31 +26,45 @@ package io.evitadb.externalApi.rest.io.model;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import lombok.Builder;
-import lombok.Data;
 import lombok.extern.jackson.Jacksonized;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
  * DTO used to get root query constraints from request to get list of entities.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Data
 @Builder
 @Jacksonized
 public class EntityQueryRequestData {
+
 	private final JsonNode filterBy;
 	private final JsonNode orderBy;
 	private final JsonNode require;
 
-	public boolean isFilterBySet() {
-		return filterBy != null && !(filterBy instanceof NullNode);
+	@Nonnull
+	public Optional<JsonNode> getFilterBy() {
+		return getContainer(filterBy);
 	}
 
-	public boolean isOrderBySet() {
-		return orderBy != null && !(orderBy instanceof NullNode);
+	@Nonnull
+	public Optional<JsonNode> getOrderBy() {
+		return getContainer(orderBy);
 	}
 
-	public boolean isRequireSet() {
-		return require != null && !(require instanceof NullNode);
+	@Nonnull
+	public Optional<JsonNode> getRequire() {
+		return getContainer(require);
+	}
+
+	@Nonnull
+	private static Optional<JsonNode> getContainer(@Nullable JsonNode container) {
+		if (container == null || container instanceof NullNode) {
+			return Optional.empty();
+		}
+		return Optional.of(container);
 	}
 }

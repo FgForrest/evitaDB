@@ -25,12 +25,10 @@ package io.evitadb.externalApi.rest.io.handler;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.rest.io.handler.constraint.FilterByConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.serializer.EntityJsonSerializer;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -45,14 +43,17 @@ import java.util.Optional;
 @Slf4j
 public class UnknownEntityHandler extends RestHandler<RestHandlingContext> {
 
+	@Nonnull
+	private final EntityJsonSerializer entityJsonSerializer;
+
 	public UnknownEntityHandler(@Nonnull RestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
 
 	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		validateRequest(exchange);
-
+	@Nonnull
+	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 
 		final Query query = Query.query(
@@ -62,13 +63,9 @@ public class UnknownEntityHandler extends RestHandler<RestHandlingContext> {
 
 		log.debug("Generated Evita query for single unknown entity fetch is `" + query + "`.");
 
-		restApiHandlingContext.queryCatalog(session -> {
-			final Optional<EntityClassifier> entity = session.queryOne(query, EntityClassifier.class);
-			if(entity.isPresent()) {
-				setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, entity.get()).serialize()));
-			} else {
-				throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested entity wasn't found");
-			}
-		});
+		final Optional<EntityClassifier> entity = restApiHandlingContext.queryCatalog(session ->
+			session.queryOne(query, EntityClassifier.class));
+
+		return entity.map(entityJsonSerializer::serialize);
 	}
 }

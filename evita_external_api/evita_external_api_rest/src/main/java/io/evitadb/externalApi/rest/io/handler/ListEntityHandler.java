@@ -23,10 +23,9 @@
 
 package io.evitadb.externalApi.rest.io.handler;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
-import io.evitadb.api.query.QueryConstraints;
-import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
@@ -35,8 +34,9 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
-import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
-import io.evitadb.externalApi.rest.exception.RESTApiRequiredParameterMissingException;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
+import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
 import io.evitadb.externalApi.rest.io.handler.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.io.handler.constraint.OrderByConstraintResolver;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintResolver;
@@ -48,15 +48,16 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-import static io.evitadb.api.query.QueryConstraints.and;
-import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.QueryUtils.findFilter;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -65,35 +66,52 @@ import static java.util.Optional.ofNullable;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class EntityListHandler extends RestHandler<CollectionRestHandlingContext> {
+public class ListEntityHandler extends RestHandler<CollectionRestHandlingContext> {
 
-	public EntityListHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
+	@Nonnull private final OrderByConstraintResolver orderByConstraintResolver;
+	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
+
+	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
+
+	public ListEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
+
+		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
+		this.orderByConstraintResolver = new OrderByConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
+		this.requireConstraintResolver = new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
+
+		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
 
 	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		validateRequest(exchange);
-
+	@Nonnull
+	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Query query = resolveQuery(exchange);
 
 		log.debug("Generated Evita query for entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
 
-		restApiHandlingContext.queryCatalog(session -> {
-			final List<EntityClassifier> entities = session.queryList(query, EntityClassifier.class);
-			setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, entities).serialize()));
-		});
+		final List<EntityClassifier> entities = restApiHandlingContext.queryCatalog(session ->
+			session.queryList(query, EntityClassifier.class));
+
+		return of(entityJsonSerializer.serialize(entities));
 	}
 
 	@Nonnull
-	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) throws IOException {
+	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) {
 		final EntityQueryRequestData requestData = getRequestData(exchange);
 
-		final FilterBy filterBy = requestData.isFilterBySet()?(FilterBy) new FilterConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.FILTER_BY.name(), requestData.getFilterBy()):null;
-		final OrderBy orderBy = requestData.isOrderBySet()?(OrderBy) new OrderByConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.ORDER_BY.name(), requestData.getOrderBy()):null;
-		final Require require = requestData.isRequireSet()?(Require) new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation()).resolve(QueryRequestBodyDescriptor.REQUIRE.name(), requestData.getRequire()):null;
+		final FilterBy filterBy = requestData.getFilterBy()
+			.map(container -> (FilterBy) filterConstraintResolver.resolve(QueryRequestBodyDescriptor.FILTER_BY.name(), container))
+			.orElse(null);
+		final OrderBy orderBy = requestData.getOrderBy()
+			.map(container -> (OrderBy) orderByConstraintResolver.resolve(QueryRequestBodyDescriptor.ORDER_BY.name(), container))
+			.orElse(null);
+		final Require require = requestData.getRequire()
+			.map(container -> (Require) requireConstraintResolver.resolve(QueryRequestBodyDescriptor.REQUIRE.name(), container))
+			.orElse(null);
 
-		return Query.query(
+		return query(
 			collection(restApiHandlingContext.getEntityType()),
 			addLocaleIntoFilterByWhenUrlPathLocalized(exchange, filterBy),
 			orderBy,
@@ -101,48 +119,69 @@ public class EntityListHandler extends RestHandler<CollectionRestHandlingContext
 		);
 	}
 
+	@Nonnull
 	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull HttpServerExchange exchange, @Nullable FilterBy filterBy) {
 		if (restApiHandlingContext.isLocalized()) {
 			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 			final Locale locale = (Locale) parametersFromRequest.get(ParamDescriptor.LOCALE.name());
 			if (locale == null) {
-				throw new RESTApiRequiredParameterMissingException("Missing LOCALE in URL path.");
+				throw new RestRequiredParameterMissingException("Missing LOCALE in URL path.");
 			}
 
-			final Optional<FilterConstraint> localeEquals = ofNullable(QueryUtils.findFilter(Query.query(filterBy, QueryConstraints.require()),
-				EntityLocaleEquals.class));
-			if(localeEquals.isPresent()) {
-				throw new RESTApiInvalidArgumentException("When using localized URL path then entity_locale_equals constraint can't be present in filterBy.");
+			final Optional<FilterConstraint> localeEquals = ofNullable(findFilter(
+				query(
+					filterBy,
+					require()
+				),
+				EntityLocaleEquals.class
+			));
+			if (localeEquals.isPresent()) {
+				throw new RestInvalidArgumentException("When using localized URL path then entity_locale_equals constraint can't be present in filterBy.");
 			}
 
 			if (filterBy != null) {
-				final EntityLocaleEquals newLocaleConstraint = QueryConstraints.entityLocaleEquals(locale);
-				return new FilterBy(and(combineConstraints(((And)filterBy.getChildren()[0]).getChildren(), newLocaleConstraint, FilterConstraint.class)));
+				final EntityLocaleEquals newLocaleConstraint = entityLocaleEquals(locale);
+				return filterBy(
+					and(
+						combineConstraints(
+							((And)filterBy.getChildren()[0]).getChildren(),
+							newLocaleConstraint,
+							FilterConstraint.class
+						)
+					)
+				);
 			} else {
-				return QueryConstraints.filterBy(QueryConstraints.entityLocaleEquals(locale));
+				return filterBy(
+					entityLocaleEquals(locale)
+				);
 			}
 		}
 		return filterBy;
 	}
 
+	@Nonnull
 	@SuppressWarnings("unchecked")
 	protected <T> T[] combineConstraints(@Nonnull T[] constraints, @Nonnull T constraint, @Nonnull Class<T> classForArray) {
+		final Object array;
 		if (ArrayUtils.isEmpty(constraints)) {
-			final Object array = Array.newInstance(classForArray, 1);
+			array = Array.newInstance(classForArray, 1);
 			Array.set(array, 0, constraint);
-			return (T[]) array;
 		} else {
-			final Object array = Array.newInstance(classForArray, 1 + constraints.length);
+			array = Array.newInstance(classForArray, 1 + constraints.length);
 			for (int i = 0; i < constraints.length; i++) {
 				Array.set(array, i, constraints[i]);
 			}
 			Array.set(array, constraints.length, constraint);
-			return (T[]) array;
 		}
+		return (T[]) array;
 	}
 
 	@Nonnull
-	protected EntityQueryRequestData getRequestData(@Nonnull HttpServerExchange exchange) throws IOException {
-		return restApiHandlingContext.getObjectMapper().readValue(readRequestBody(exchange), EntityQueryRequestData.class);
+	protected EntityQueryRequestData getRequestData(@Nonnull HttpServerExchange exchange) {
+		try {
+			return restApiHandlingContext.getObjectMapper().readValue(readRequestBody(exchange), EntityQueryRequestData.class);
+		} catch (JsonProcessingException e) {
+			throw new RestInternalError("Could not parse request body: ", e);
+		}
 	}
 }

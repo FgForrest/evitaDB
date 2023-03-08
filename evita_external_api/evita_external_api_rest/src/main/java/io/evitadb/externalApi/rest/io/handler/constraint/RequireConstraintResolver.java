@@ -32,8 +32,8 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
-import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
 import io.evitadb.externalApi.rest.io.handler.CollectionRestHandlingContext;
 import io.evitadb.utils.Assert;
@@ -72,7 +72,7 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 	@Override
 	@Nonnull
 	protected ConstraintDescriptor getWrapperContainer() {
-		throw new RESTApiInternalError("Wrapper container is not supported for `require` constraints.");
+		throw new RestInternalError("Wrapper container is not supported for `require` constraints.");
 	}
 
 	@Nonnull
@@ -87,11 +87,11 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
-			() -> new OpenApiSchemaBuildingError("Could not find `require` require query.")
+			() -> new OpenApiBuildingError("Could not find `require` require query.")
 		);
 		Assert.isPremiseValid(
 			descriptors.size() == 1,
-			() -> new OpenApiSchemaBuildingError(
+			() -> new OpenApiBuildingError(
 				"There multiple variants of `require` require query, cannot decide which to choose."
 			)
 		);

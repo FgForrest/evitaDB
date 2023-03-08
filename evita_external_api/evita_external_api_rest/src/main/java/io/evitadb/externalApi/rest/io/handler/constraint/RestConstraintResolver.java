@@ -37,8 +37,8 @@ import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.rest.api.catalog.resolver.DataDeserializer;
 import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
-import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
-import io.evitadb.externalApi.rest.exception.RESTApiQueryResolvingInternalError;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
+import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.io.SchemaUtils;
 import io.evitadb.externalApi.rest.io.handler.CollectionRestHandlingContext;
 import io.evitadb.utils.Assert;
@@ -141,7 +141,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 				}
 				return objects;
 			}
-			throw new RESTApiQueryResolvingInternalError("Error when getting values from query",
+			throw new RestQueryResolvingInternalError("Error when getting values from query",
 				"Can't get array  if JsonNode is not instance of ArrayNode. Class: " + argument.getClass().getSimpleName());
 
 		} else {
@@ -209,14 +209,14 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 	@Override
 	protected <T extends ExternalApiInternalError> T createQueryResolvingInternalError(@Nonnull String message) {
 		//noinspection unchecked
-		return (T) new RESTApiQueryResolvingInternalError(message);
+		return (T) new RestQueryResolvingInternalError(message);
 	}
 
 	@Nonnull
 	@Override
 	protected <T extends ExternalApiInvalidUsageException> T createInvalidArgumentException(@Nonnull String message) {
 		//noinspection unchecked
-		return (T) new RESTApiInvalidArgumentException(message);
+		return (T) new RestInvalidArgumentException(message);
 	}
 
 	@Override

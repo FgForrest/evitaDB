@@ -28,6 +28,7 @@ import io.evitadb.externalApi.rest.api.OpenApiWriter;
 import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
  * Returns OpenAPI schema for whole collection.
@@ -40,9 +41,12 @@ public class OpenApiSpecificationHandler extends RestHandler<RestHandlingContext
 		super(restHandlingContext);
 	}
 
+	@Nonnull
 	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		setSuccessResponse(exchange, OpenApiWriter.toYaml(restApiHandlingContext.getOpenApi()));
+	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+		return Optional.of(
+			OpenApiWriter.toYaml(restApiHandlingContext.getOpenApi())
+		);
 	}
 
 	@Nonnull

@@ -301,7 +301,7 @@ class CatalogRESTGetEntityQueryFunctionalTest extends CatalogRESTEndpointFunctio
 				.build())
 			.executeAndThen()
 			.statusCode(404)
-			.body("message", equalTo("Requested entity wasn't found."));
+			.body("message", equalTo("Requested resource wasn't found."));
 	}
 
 	@Test

@@ -50,7 +50,7 @@ import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -381,7 +381,7 @@ public class FullResponseObjectBuilder {
 			.filter(referenceSchema -> referenceSchema.isReferencedEntityTypeManaged() &&
 				entitySchemaBuildingCtx.getCatalogCtx().getSchema().getEntitySchema(referenceSchema.getReferencedEntityType())
 					.map(EntitySchemaContract::isWithHierarchy)
-					.orElseThrow(() -> new OpenApiSchemaBuildingError("Reference `" + referenceSchema.getName() + "` should have existing entity schema but no schema found.")))
+					.orElseThrow(() -> new OpenApiBuildingError("Reference `" + referenceSchema.getName() + "` should have existing entity schema but no schema found.")))
 			.toList();
 
 		if (referenceSchemas.isEmpty() && !entitySchema.isWithHierarchy()) {

@@ -37,7 +37,7 @@ import io.evitadb.externalApi.rest.api.dto.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.dto.Rest;
-import io.evitadb.externalApi.rest.exception.OpenApiSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.serializer.BigDecimalSerializer;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.Components;
@@ -161,7 +161,7 @@ public class CatalogRestBuildingContext {
 	public OpenApiTypeReference registerType(@Nonnull OpenApiComplexType type) {
 		Assert.isPremiseValid(
 			!registeredTypes.containsKey(type.getName()),
-			() -> new OpenApiSchemaBuildingError("Object with name `" + type.getName() + "` is already registered.")
+			() -> new OpenApiBuildingError("Object with name `" + type.getName() + "` is already registered.")
 		);
 		registeredTypes.put(type.getName(), type);
 
@@ -178,7 +178,7 @@ public class CatalogRestBuildingContext {
 		Assert.isPremiseValid(
 			!registeredEndpoints.containsKey(endpoint.getPath()) ||
 				!registeredEndpoints.get(endpoint.getPath()).containsKey(endpoint.getMethod()),
-			() -> new OpenApiSchemaBuildingError("There is already registered `" + endpoint.getMethod() + "` endpoint at `" + endpoint.getPath() + "`.")
+			() -> new OpenApiBuildingError("There is already registered `" + endpoint.getMethod() + "` endpoint at `" + endpoint.getPath() + "`.")
 		);
 
 		registeredEndpoints.computeIfAbsent(
@@ -240,13 +240,13 @@ public class CatalogRestBuildingContext {
 	}
 
 	private void validateReferences(OpenAPI openApi) {
-		final OpenApiSchemaReferenceValidator referenceValidator = new OpenApiSchemaReferenceValidator(openApi);
+		final OpenApiReferenceValidator referenceValidator = new OpenApiReferenceValidator(openApi);
 		final Set<String> missingSchemas = referenceValidator.validateSchemaReferences();
 
 		if (!missingSchemas.isEmpty()) {
 			final StringBuilder errorMessageBuilder = new StringBuilder("Found missing schema in OpenAPI for catalog `" + getCatalog().getName() + "`:\n");
 			missingSchemas.forEach(it -> errorMessageBuilder.append("- `").append(it).append("`\n"));
-			throw new OpenApiSchemaBuildingError(errorMessageBuilder.toString());
+			throw new OpenApiBuildingError(errorMessageBuilder.toString());
 		}
 	}
 }

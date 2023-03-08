@@ -69,18 +69,18 @@ import java.util.Map.Entry;
  */
 @Slf4j
 public class ExtraResultsJsonSerializer {
-	private final RestHandlingContext restHandlingContext;
 
-	private final Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults;
+	private final RestHandlingContext restHandlingContext;
+	private final EntityJsonSerializer entityJsonSerializer;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
 	private final Map<String, String> referenceNameToFieldName;
 
 	public ExtraResultsJsonSerializer(@Nonnull RestHandlingContext restHandlingContext,
-	                                  @Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults,
+	                                  @Nonnull EntityJsonSerializer entityJsonSerializer,
 	                                  @Nonnull Map<String, String> referenceNameToFieldName) {
 		this.restHandlingContext = restHandlingContext;
-		this.extraResults = extraResults;
+		this.entityJsonSerializer = entityJsonSerializer;
 		this.referenceNameToFieldName = referenceNameToFieldName;
 		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}
@@ -91,7 +91,7 @@ public class ExtraResultsJsonSerializer {
 	 * @return serialized entity or list of entities
 	 */
 	@Nonnull
-	public JsonNode serialize() {
+	public JsonNode serialize(@Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults) {
 		final ObjectNode rootNode = objectJsonSerializer.objectNode();
 		for (EvitaResponseExtraResult extraResult : extraResults.values()) {
 			if (extraResult instanceof QueryTelemetry queryTelemetry) {
@@ -258,7 +258,7 @@ public class ExtraResultsJsonSerializer {
 
 	@Nonnull
 	private JsonNode serializeEntity(@Nonnull EntityClassifier entityDecorator) {
-		return new EntityJsonSerializer(restHandlingContext, entityDecorator).serialize();
+		return entityJsonSerializer.serialize(entityDecorator);
 	}
 
 	@Nonnull

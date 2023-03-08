@@ -23,29 +23,30 @@
 
 package io.evitadb.externalApi.rest.exception;
 
-import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
-
 import javax.annotation.Nonnull;
+import java.io.Serial;
 
 /**
- * This exception is published when invalid argument is detected when processing request to REST API.
+ * Internal REST error that occurs when REST query data is being parsed.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class RESTApiInvalidArgumentException extends ExternalApiInvalidUsageException {
-	public RESTApiInvalidArgumentException(@Nonnull String privateMessage, @Nonnull String publicMessage) {
-		super(privateMessage, publicMessage);
-	}
+public class RestQueryResolvingInternalError extends RestInternalError {
+	@Serial private static final long serialVersionUID = 3600123197360588077L;
 
-	public RESTApiInvalidArgumentException(@Nonnull String publicMessage) {
+	public RestQueryResolvingInternalError(@Nonnull String publicMessage) {
 		super(publicMessage);
 	}
 
-	public RESTApiInvalidArgumentException(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(privateMessage, publicMessage, cause);
+	public RestQueryResolvingInternalError(@Nonnull String publicMessage, @Nonnull Throwable cause) {
+		super(publicMessage, cause);
 	}
 
-	public RESTApiInvalidArgumentException(@Nonnull String publicMessage, @Nonnull Throwable cause) {
-		super(publicMessage, cause);
+	public RestQueryResolvingInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage) {
+		super(privateMessage, publicMessage);
+	}
+
+	public RestQueryResolvingInternalError(@Nonnull String privateMessage, @Nonnull String publicMessage, @Nonnull Throwable cause) {
+		super(privateMessage, publicMessage, cause);
 	}
 }

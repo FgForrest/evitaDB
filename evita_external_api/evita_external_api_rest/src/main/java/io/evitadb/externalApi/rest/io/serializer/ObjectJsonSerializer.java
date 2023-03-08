@@ -37,7 +37,7 @@ import io.evitadb.dataType.Range;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -82,7 +82,7 @@ public class ObjectJsonSerializer {
 	 * Serialize object into JSON {@link ObjectNode}
 	 *
 	 * @return value in form of JSON node
-	 * @throws RESTApiInternalError when Class ob object is not among supported classes for serialization
+	 * @throws RestInternalError when Class ob object is not among supported classes for serialization
 	 */
 	@Nonnull
 	public JsonNode serializeObject(@Nonnull Object value) {
@@ -115,7 +115,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof PriceInnerRecordHandling priceInnerRecordHandling) return serialize(priceInnerRecordHandling);
 		if (value instanceof FacetStatisticsDepth facetStatisticsDepth) return serialize(facetStatisticsDepth);
 
-		throw new RESTApiInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
+		throw new RestInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
 	}
 
 	/**
@@ -123,7 +123,7 @@ public class ObjectJsonSerializer {
 	 *
 	 * @param values list of values
 	 * @return values in form of JsonNode
-	 * @throws RESTApiInternalError when Class ob object is not among supported classes for serialization
+	 * @throws RestInternalError when Class ob object is not among supported classes for serialization
 	 */
 	public JsonNode serializeCollection(@Nonnull Collection<?> values) {
 		final ArrayNode arrayNode = new ArrayNode(jsonNodeFactory, values.size());
@@ -138,7 +138,7 @@ public class ObjectJsonSerializer {
 	 *
 	 * @param values array of values
 	 * @return values in form of JsonNode
-	 * @throws RESTApiInternalError when Class ob object is not among supported classes for serialization
+	 * @throws RestInternalError when Class ob object is not among supported classes for serialization
 	 */
 	public JsonNode serializeArray(@Nonnull Object[] values) {
 		final ArrayNode arrayNode = new ArrayNode(jsonNodeFactory, values.length);

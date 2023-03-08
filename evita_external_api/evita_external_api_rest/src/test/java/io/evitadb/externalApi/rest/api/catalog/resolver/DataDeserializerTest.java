@@ -35,8 +35,8 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
-import io.evitadb.externalApi.rest.exception.RESTApiInternalError;
-import io.evitadb.externalApi.rest.exception.RESTApiInvalidArgumentException;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.ObjectSchema;
@@ -213,13 +213,13 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldFailToDeserializeRangeOfIntegersWhenArrayIsTooShort() {
-		final RESTApiInternalError error = assertThrows(RESTApiInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{"5648"}));
+		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{"5648"}));
 		assertTrue(error.getPublicMessage().startsWith("Array of two values is required"));
 	}
 
 	@Test
 	void shouldFailToDeserializeRangeOfIntegersWhenArrayContainsNullValues() {
-		final RESTApiInternalError error = assertThrows(RESTApiInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{null, null}));
+		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{null, null}));
 		assertTrue(error.getPublicMessage().startsWith("Both values for range data type are null"));
 	}
 
@@ -396,7 +396,7 @@ class DataDeserializerTest {
 	void shouldFailToDeserializeDataWhenUnknownStringFormatUsed() {
 		final Schema<?> stringSchema = scalarFrom(String.class).toSchema();
 		stringSchema.setFormat("UnknownFormat");
-		final RESTApiInternalError exception = assertThrows(RESTApiInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), stringSchema, new TextNode("abc")));
+		final RestInternalError exception = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), stringSchema, new TextNode("abc")));
 		assertTrue(exception.getPublicMessage().startsWith("Unknown schema format"));
 	}
 
@@ -404,7 +404,7 @@ class DataDeserializerTest {
 	void shouldFailToDeserializeDataWhenUnknownIntegerFormatUsed() {
 		final Schema<?> stringSchema = scalarFrom(Integer.class).toSchema();
 		stringSchema.setFormat("UnknownFormat");
-		final RESTApiInternalError exception = assertThrows(RESTApiInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), stringSchema, new TextNode("abc")));
+		final RestInternalError exception = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), stringSchema, new TextNode("abc")));
 		assertTrue(exception.getPublicMessage().startsWith("Unknown schema format"));
 	}
 
@@ -413,19 +413,19 @@ class DataDeserializerTest {
 		final Schema<Object> unknownSchema = new Schema<>();
 		unknownSchema.setType("unknownSchema");
 		unknownSchema.addType("unknownSchema");
-		final RESTApiInternalError exception = assertThrows(RESTApiInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), unknownSchema, new TextNode("abc")));
+		final RestInternalError exception = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), unknownSchema, new TextNode("abc")));
 		assertTrue(exception.getPublicMessage().startsWith("Unknown schema type"));
 	}
 
 	@Test
 	void shouldFailToDeserializeArrayWhenSchemaIsNotArray() {
-		final RESTApiInvalidArgumentException exception = assertThrows(RESTApiInvalidArgumentException.class, () -> DataDeserializer.deserializeArray(new OpenAPI(), scalarFrom(String.class).toSchema(), new ArrayNode(JsonNodeFactory.instance)));
+		final RestInvalidArgumentException exception = assertThrows(RestInvalidArgumentException.class, () -> DataDeserializer.deserializeArray(new OpenAPI(), scalarFrom(String.class).toSchema(), new ArrayNode(JsonNodeFactory.instance)));
 		assertTrue(exception.getPublicMessage().startsWith("Can't deserialize value, schema type is not array."));
 	}
 
 	@Test
 	void shouldFailToDeserializeArrayWhenValueIsNotArray() {
-		final RESTApiInvalidArgumentException exception = assertThrows(RESTApiInvalidArgumentException.class, () -> DataDeserializer.deserializeArray(new OpenAPI(), arrayOf(scalarFrom(String.class)).toSchema(), new TextNode("abc")));
+		final RestInvalidArgumentException exception = assertThrows(RestInvalidArgumentException.class, () -> DataDeserializer.deserializeArray(new OpenAPI(), arrayOf(scalarFrom(String.class)).toSchema(), new TextNode("abc")));
 		assertTrue(exception.getPrivateMessage().startsWith("Can't get array of string if JsonNode is not instance of ArrayNode."));
 	}
 
@@ -461,13 +461,13 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldFailToDeserializeArrayWhenJsonNodeIsNotAnArray() {
-		final RESTApiInternalError error = assertThrows(RESTApiInternalError.class, () -> DataDeserializer.deserialize(String[].class, new TextNode("H")));
+		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(String[].class, new TextNode("H")));
 		assertTrue(error.getPrivateMessage().startsWith("Target class is array"));
 	}
 
 	@Test
 	void shouldFailToDeserializeArrayWhenTryingToDeserializeUnsupportedClass() {
-		final RESTApiInternalError error = assertThrows(RESTApiInternalError.class, () -> DataDeserializer.deserialize(TestClass.class, new TextNode("H")));
+		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(TestClass.class, new TextNode("H")));
 		assertTrue(error.getPrivateMessage().startsWith("Deserialization of field of JavaType"));
 	}
 
@@ -537,7 +537,7 @@ class DataDeserializerTest {
 		dataNode.putIfAbsent("id", nodeFactory.numberNode((short) 54));
 		dataNode.putIfAbsent("description", nodeFactory.textNode("Popis"));
 
-		assertThrows(RESTApiInvalidArgumentException.class, () -> DataDeserializer.deserializeJsonNodeTree(openAPI, dataObject, dataNode), "Invalid property name: description");
+		assertThrows(RestInvalidArgumentException.class, () -> DataDeserializer.deserializeJsonNodeTree(openAPI, dataObject, dataNode), "Invalid property name: description");
 	}
 
 	private static class TestClass implements Serializable {

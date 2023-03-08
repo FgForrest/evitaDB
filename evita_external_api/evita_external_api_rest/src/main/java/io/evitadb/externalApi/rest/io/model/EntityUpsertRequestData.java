@@ -29,36 +29,51 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.externalApi.rest.io.serializer.EntityExistenceDeserializer;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Setter;
 import lombok.extern.jackson.Jacksonized;
+
+import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
  * DTO used for entity upsert.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@Data
 @Builder
 @Jacksonized
 public class EntityUpsertRequestData {
+
+	@Setter
 	private Integer primaryKey;
 	@JsonDeserialize(using = EntityExistenceDeserializer.class)
 	private final EntityExistence entityExistence;
 	private final JsonNode mutations;
 	private final JsonNode require;
 
-	public boolean isPrimaryKeySet() {
-		return primaryKey != null;
+	@Nonnull
+	public Optional<Integer> getPrimaryKey() {
+		return Optional.ofNullable(primaryKey);
 	}
 
-	public boolean isEntityExistenceSet() {
-		return entityExistence != null;
+	@Nonnull
+	public Optional<EntityExistence> getEntityExistence() {
+		return Optional.ofNullable(entityExistence);
 	}
 
-	public boolean isMutationsSet() {
-		return mutations != null && !(mutations instanceof NullNode);
+	@Nonnull
+	public Optional<JsonNode> getMutations() {
+		if (mutations == null || mutations instanceof NullNode) {
+			return Optional.empty();
+		}
+		return Optional.of(mutations);
 	}
-	public boolean isRequireSet() {
-		return require != null && !(require instanceof NullNode);
+
+	@Nonnull
+	public Optional<JsonNode> getRequire() {
+		if (require == null || require instanceof NullNode) {
+			return Optional.empty();
+		}
+		return Optional.of(require);
 	}
 }

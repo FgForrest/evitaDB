@@ -26,11 +26,11 @@ package io.evitadb.externalApi.rest.io.handler;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
-import io.evitadb.externalApi.exception.HttpExchangeException;
+import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.handler.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.io.serializer.EntityJsonSerializer;
+import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -43,33 +43,36 @@ import java.util.Optional;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class EntityDeleteHandler extends RestHandler<CollectionRestHandlingContext> {
+public class DeleteEntityHandler extends RestHandler<CollectionRestHandlingContext> {
 
-	public EntityDeleteHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+	@Nonnull
+	private final EntityJsonSerializer entityJsonSerializer;
+
+	public DeleteEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
 
 	@Override
-	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
-		validateRequest(exchange);
-
+	@Nonnull
+	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
-		if(parametersFromRequest.containsKey(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY.name())) {
-			final EntityContentRequire[] entityContentRequires = RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest);
 
-			restApiHandlingContext.updateCatalog(session -> {
-				final Optional<SealedEntity> entity = session.deleteEntity(restApiHandlingContext.getEntityType(),
-					(Integer) parametersFromRequest.get(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY.name()),
-					entityContentRequires);
+		Assert.isTrue(
+			parametersFromRequest.containsKey(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY.name()),
+			() -> new RestInvalidArgumentException("Primary key wasn't found in URL.")
+		);
 
-				if(entity.isPresent()) {
-					setSuccessResponse(exchange, serializeResult(new EntityJsonSerializer(restApiHandlingContext, entity.get()).serialize()));
-				} else {
-					throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested entity wasn't found and thus wasn't deleted.");
-				}
-			});
-		} else {
-			throw new HttpExchangeException(StatusCodes.BAD_REQUEST, "Primary key wasn't found in URL.");
-		}
+		final EntityContentRequire[] entityContentRequires = RequireConstraintFromRequestQueryBuilder.getEntityContentRequires(parametersFromRequest);
+
+		final Optional<SealedEntity> deletedEntity = restApiHandlingContext.updateCatalog(session ->
+			session.deleteEntity(
+				restApiHandlingContext.getEntityType(),
+				(Integer) parametersFromRequest.get(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY.name()),
+				entityContentRequires
+			)
+		);
+
+		return deletedEntity.map(entityJsonSerializer::serialize);
 	}
 }

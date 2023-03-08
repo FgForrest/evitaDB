@@ -35,6 +35,6 @@ import lombok.Data;
 @Data
 @Builder
 public class QueryResponse  {
-	private final DataChunk recordPage;
+	private final DataChunkDto recordPage;
 	private final JsonNode extraResults;
 }
