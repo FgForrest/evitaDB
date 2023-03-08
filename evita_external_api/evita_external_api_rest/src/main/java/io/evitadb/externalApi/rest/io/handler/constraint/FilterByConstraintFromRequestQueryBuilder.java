@@ -29,6 +29,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.AccessLevel;
@@ -49,7 +50,6 @@ import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuilder.getGloballyUniqueAttributes;
 
 /**
  * Creates {@link io.evitadb.api.query.filter.FilterBy} constraint for Evita query from request parameters.
@@ -61,9 +61,6 @@ public class FilterByConstraintFromRequestQueryBuilder {
 
 	/**
 	 * Creates filter by constraints from request parameters when requesting single known entity.
-	 * @param parameters query parameters
-	 * @param entitySchema
-	 * @return filter by
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
@@ -114,9 +111,6 @@ public class FilterByConstraintFromRequestQueryBuilder {
 
 	/**
 	 * Creates filter by constraints from request parameters when requesting single unknown entity.
-	 * @param parameters query parameters
-	 * @param catalogSchema
-	 * @return filter by
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
@@ -149,9 +143,6 @@ public class FilterByConstraintFromRequestQueryBuilder {
 
 	/**
 	 * Creates filter by constraints from request parameters when requesting unknown entity list.
-	 * @param parameters query parameters
-	 * @param catalog
-	 * @return filter by
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
@@ -185,6 +176,16 @@ public class FilterByConstraintFromRequestQueryBuilder {
 				filterConstraints.toArray(FilterConstraint[]::new)
 			)
 		);
+	}
+
+	@Nonnull
+	private static List<GlobalAttributeSchemaContract> getGloballyUniqueAttributes(CatalogSchemaContract catalogSchema) {
+		return catalogSchema
+			.getAttributes()
+			.values()
+			.stream()
+			.filter(GlobalAttributeSchemaContract::isUniqueGlobally)
+			.toList();
 	}
 
 	@SuppressWarnings("unchecked")

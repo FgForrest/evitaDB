@@ -29,7 +29,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.builder.OpenApiEntitySchemaBuildingContext;
+import io.evitadb.externalApi.rest.api.catalog.builder.CollectionRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.builder.UrlPathCreator;
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.OpenApiConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.rest.testSuite.TestDataGenerator;
@@ -68,7 +68,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Slf4j
 class SchemaUtilsTest {
 	private static OpenAPI openAPI;
-	private static OpenApiEntitySchemaBuildingContext entitySchemaBuildingContext;
+	private static CollectionRestBuildingContext entitySchemaBuildingContext;
 	private static String urlPathToProductList;
 
 	@DataSet(REST_THOUSAND_PRODUCTS)
@@ -80,13 +80,13 @@ class SchemaUtilsTest {
 		openAPI = new CatalogRestBuilder(evita, catalog).build().openApi();
 
 		final CatalogRestBuildingContext catalogCtx = new CatalogRestBuildingContext(evita, catalog);
-		entitySchemaBuildingContext = new OpenApiEntitySchemaBuildingContext(
+		entitySchemaBuildingContext = new CollectionRestBuildingContext(
 			catalogCtx,
 			new OpenApiConstraintSchemaBuildingContext(catalogCtx),
 			catalog.getEntitySchema(ENTITY_TYPE_PRODUCT).orElseThrow()
 		);
 
-		urlPathToProductList = UrlPathCreator.createBaseUrlPathToCatalog(catalog) + UrlPathCreator.createUrlPathToEntity(entitySchemaBuildingContext, CatalogDataApiRootDescriptor.ENTITY_LIST, false);
+		urlPathToProductList = UrlPathCreator.createBaseUrlPathToCatalog(catalog) + UrlPathCreator.createUrlPathToEntity(entitySchemaBuildingContext, CatalogDataApiRootDescriptor.LIST_ENTITY, false);
 
 		return sealedEntities;
 	}

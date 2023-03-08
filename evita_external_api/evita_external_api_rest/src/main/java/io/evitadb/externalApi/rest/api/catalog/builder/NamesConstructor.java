@@ -41,7 +41,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyPar
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.DataChunkAggregateDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.FetchRequestDescriptor;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -51,8 +51,9 @@ import javax.annotation.Nullable;
 /**
  * Used to construct names of entities and attributes and other objects. These names will be used as schema objects
  * in OpenAPI.<br/>
- * Attribute <strong>distinguishLocalizedData</strong> generally means that localized attributes (attributes with locale)
- * will be separated from non-localized attributes in output. This leads to different data structure and thus different
+ * Suffix <strong>localized</strong> generally means that entity will contain only global attributes and attributes of
+ * single locale merged into single structure. Otherwise, attribute are split into global and by locale.
+ * This leads to different data structure and thus different
  * schemas. So schema with separated localized attributes will have special {@link #LOCALIZED_ENTITY_NAME_SUFFIX} suffix
  * in its name.
  *
@@ -61,128 +62,124 @@ import javax.annotation.Nullable;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class NamesConstructor {
 
-	// todo lho remove symbol
-	public static final String LOCALIZED_ENTITY_NAME_SUFFIX = "_Localized";
+	private static final String LOCALIZED_ENTITY_NAME_SUFFIX = "Localized";
 
 	@Nonnull
-	public static String constructEntityObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return EntityDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructEntityObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return EntityDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
-	public static String constructEntityListRequestBodyObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return QueryRequestBodyDescriptor.THIS_LIST.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructEntityListRequestBodyObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return FetchRequestDescriptor.THIS_LIST.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
-	public static String constructEntityQueryRequestBodyObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return QueryRequestBodyDescriptor.THIS_QUERY.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructEntityQueryRequestBodyObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return FetchRequestDescriptor.THIS_QUERY.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
 	public static String constructReferenceObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                  boolean distinguishLocalizedData) {
-		return ReferenceDescriptor.THIS.name(
-			getLocalizedSuffix(distinguishLocalizedData),
-			entitySchema,
-			referenceSchema
-		);
+	                                                  boolean localized) {
+		return ReferenceDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nonnull
 	public static String constructReferenceAttributesObjectName(@Nonnull EntitySchemaContract entitySchema,
-	                                                            @Nonnull ReferenceSchemaContract referenceSchema) {
-		return AttributesDescriptor.THIS.name(entitySchema, referenceSchema);
+	                                                            @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                            boolean localized) {
+		return AttributesDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nonnull
-	public static String constructEntityFullResponseObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return ResponseDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructEntityFullResponseObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return ResponseDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
-	public static String constructEntityDataChunkAggregateObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return DataChunkAggregateDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructEntityDataChunkAggregateObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return DataChunkAggregateDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
-	public static String constructRecordPageObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return RecordPageDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructRecordPageObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return RecordPageDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
-	public static String constructRecordStripObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return RecordStripDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructRecordStripObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return RecordStripDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
-	public static String constructExtraResultsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return ExtraResultsDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructExtraResultsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return ExtraResultsDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
 	public static String constructFacetGroupStatisticsObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                             @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                             boolean distinguishLocalizedData) {
-		return FacetGroupStatisticsDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema, referenceSchema);
+	                                                             boolean localized) {
+		return FacetGroupStatisticsDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nonnull
 	public static String constructFacetStatisticsObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                        @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                        boolean distinguishLocalizedData) {
-		return FacetStatisticsDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema, referenceSchema);
+	                                                        boolean localized) {
+		return FacetStatisticsDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nonnull
-	public static String constructFacetSummaryObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return FacetSummaryDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructFacetSummaryObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return FacetSummaryDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
-	public static String constructParentsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return HierarchyParentsDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructParentsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return HierarchyParentsDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
-	public static String constructSelfParentsOfEntityObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return ParentsOfEntityDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema, entitySchema);
+	public static String constructSelfParentsOfEntityObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return ParentsOfEntityDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, entitySchema);
 	}
 
 	@Nonnull
 	public static String constructParentsOfEntityObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                        @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                        boolean distinguishLocalizedData) {
-		return ParentsOfEntityDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema, referenceSchema);
+	                                                        boolean localized) {
+		return ParentsOfEntityDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nonnull
 	public static String constructParentsOfEntityReferencesObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                                  @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                                  boolean distinguishLocalizedData) {
-		return ParentsOfReferenceDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema, referenceSchema);
+	                                                                  boolean localized) {
+		return ParentsOfReferenceDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nonnull
-	public static String constructHierarchyStatisticsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return HierarchyStatisticsDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema);
+	public static String constructHierarchyStatisticsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return HierarchyStatisticsDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
-	public static String constructSelfLevelInfoObjectName(@Nonnull EntitySchemaContract entitySchema, boolean distinguishLocalizedData) {
-		return HierarchyStatisticsLevelInfoDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema, entitySchema);
+	public static String constructSelfLevelInfoObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return HierarchyStatisticsLevelInfoDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, entitySchema);
 	}
 
 	@Nonnull
 	public static String constructLevelInfoObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                  boolean distinguishLocalizedData) {
-		return HierarchyStatisticsLevelInfoDescriptor.THIS.name(getLocalizedSuffix(distinguishLocalizedData), entitySchema, referenceSchema);
+	                                                  boolean localized) {
+		return HierarchyStatisticsLevelInfoDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nullable
-	private static String getLocalizedSuffix(boolean distinguishLocalizedData) {
-		return distinguishLocalizedData ? LOCALIZED_ENTITY_NAME_SUFFIX : null;
+	private static String getLocalizedSuffix(boolean localized) {
+		return localized ? LOCALIZED_ENTITY_NAME_SUFFIX : null;
 	}
 }

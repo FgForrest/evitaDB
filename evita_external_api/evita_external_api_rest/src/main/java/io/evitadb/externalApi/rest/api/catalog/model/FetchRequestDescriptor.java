@@ -31,7 +31,7 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
  *
  * @author Lukáš Hornych, 2023
  */
-public interface QueryRequestBodyDescriptor {
+public interface FetchRequestDescriptor {
 
 	PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
 		.name("filterBy")

@@ -143,6 +143,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 
+			this.localized = localized;
 			this.path = pathBuilder.getPath();
 			this.parameters.addAll(pathBuilder.getPathParameters());
 			return this;

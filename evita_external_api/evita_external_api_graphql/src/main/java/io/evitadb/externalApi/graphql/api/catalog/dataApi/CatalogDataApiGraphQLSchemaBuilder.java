@@ -88,6 +88,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDe
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.QueryTelemetryFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramsDataFetcher;
@@ -296,7 +297,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 	@Nullable
 	private BuiltFieldDescriptor buildUnknownSingleEntityField() {
-		final GraphQLFieldDefinition.Builder unknownSingleEntityFieldBuilder = CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_GET
+		final GraphQLFieldDefinition.Builder unknownSingleEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY
 			.to(staticEndpointBuilderTransformer)
  			.type(typeRef(EntityDescriptor.THIS_INTERFACE.name()));
 
@@ -330,7 +331,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 	@Nullable
 	private BuiltFieldDescriptor buildUnknownEntityListField() {
-		final GraphQLFieldDefinition.Builder unknownEntityListFieldBuilder = CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_LIST
+		final GraphQLFieldDefinition.Builder unknownEntityListFieldBuilder = CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY
 			.to(staticEndpointBuilderTransformer)
 			.type(list(nonNull(typeRef(EntityDescriptor.THIS_INTERFACE.name()))))
 			.argument(ListUnknownEntitiesQueryHeaderDescriptor.LIMIT.to(argumentBuilderTransformer));
@@ -367,7 +368,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildSingleEntityField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
-		final GraphQLFieldDefinition.Builder singleEntityFieldBuilder = CatalogDataApiRootDescriptor.ENTITY_GET
+		final GraphQLFieldDefinition.Builder singleEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 			.type(typeRef(EntityDescriptor.THIS.name(entitySchema)))
 			.argument(GetEntityQueryHeaderDescriptor.PRIMARY_KEY.to(argumentBuilderTransformer));
@@ -416,7 +417,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildEntityListField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
-		final GraphQLFieldDefinition.Builder entityListFieldBuilder = CatalogDataApiRootDescriptor.ENTITY_LIST
+		final GraphQLFieldDefinition.Builder entityListFieldBuilder = CatalogDataApiRootDescriptor.LIST_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema))))))
 			.argument(ListEntitiesQueryHeaderDescriptor.FILTER_BY
@@ -440,7 +441,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		final GraphQLObjectType entityFullResponseObject = buildFullResponseObject(entitySchemaBuildingCtx);
 
-		final GraphQLFieldDefinition.Builder entityQueryFieldBuilder = CatalogDataApiRootDescriptor.ENTITY_QUERY
+		final GraphQLFieldDefinition.Builder entityQueryFieldBuilder = CatalogDataApiRootDescriptor.QUERY_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 			.type(nonNull(entityFullResponseObject))
 			.argument(QueryEntitiesQueryHeaderDescriptor.FILTER_BY
@@ -474,7 +475,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildCollectionSizeField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 		return new BuiltFieldDescriptor(
-			CatalogDataApiRootDescriptor.COLLECTION_SIZE
+			CatalogDataApiRootDescriptor.COUNT_COLLECTION
 				.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 				.build(),
 			new CollectionSizeDataFetcher(entitySchema)
@@ -1579,7 +1580,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildUpsertEntityField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
-		final GraphQLFieldDefinition.Builder upsertEntityFieldBuilder = CatalogDataApiRootDescriptor.ENTITY_UPSERT
+		final GraphQLFieldDefinition.Builder upsertEntityFieldBuilder = CatalogDataApiRootDescriptor.UPSERT_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 			.type(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema))))
 			.argument(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY
@@ -1605,7 +1606,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildDeleteEntitiesField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
-		final GraphQLFieldDefinition deleteEntityByQueryField = CatalogDataApiRootDescriptor.ENTITY_DELETE
+		final GraphQLFieldDefinition deleteEntityByQueryField = CatalogDataApiRootDescriptor.DELETE_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema))))))
 			.argument(DeleteEntitiesMutationHeaderDescriptor.FILTER_BY

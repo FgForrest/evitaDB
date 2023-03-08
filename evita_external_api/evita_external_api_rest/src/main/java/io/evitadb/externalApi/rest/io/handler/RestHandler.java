@@ -185,22 +185,22 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     @Nonnull
     protected Map<String, Object> getParametersFromRequest(@Nonnull HttpServerExchange exchange, @Nonnull Operation operation) {
         //create copy of parameters
-        final Map<String, Deque<String>> queryParameters = new HashMap<>(exchange.getQueryParameters());
+        final Map<String, Deque<String>> parameters = new HashMap<>(exchange.getQueryParameters());
 
         final HashMap<String, Object> parameterData = createHashMap(operation.getParameters().size());
         if(operation.getParameters() != null) {
             for (Parameter parameter : operation.getParameters()) {
-                getParameterFromRequest(queryParameters, parameter).ifPresent(data -> {
+                getParameterFromRequest(parameters, parameter).ifPresent(data -> {
                         parameterData.put(parameter.getName(), data);
-                        queryParameters.remove(parameter.getName());
+                        parameters.remove(parameter.getName());
                     }
                 );
             }
         }
 
-        if(!queryParameters.isEmpty()) {
+        if(!parameters.isEmpty()) {
             throw new RestInvalidArgumentException("Following parameters are not supported in this particular request, " +
-                "please look into OpenAPI schema for more information. Parameters: " + String.join(", ", queryParameters.keySet()));
+                "please look into OpenAPI schema for more information. Parameters: " + String.join(", ", parameters.keySet()));
         }
         return parameterData;
     }

@@ -33,7 +33,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.FetchRequestDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
@@ -66,7 +66,7 @@ import static java.util.Optional.ofNullable;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class ListEntityHandler extends RestHandler<CollectionRestHandlingContext> {
+public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingContext> {
 
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderByConstraintResolver orderByConstraintResolver;
@@ -74,7 +74,7 @@ public class ListEntityHandler extends RestHandler<CollectionRestHandlingContext
 
 	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
 
-	public ListEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+	public ListEntitiesHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 
 		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
@@ -102,13 +102,13 @@ public class ListEntityHandler extends RestHandler<CollectionRestHandlingContext
 		final EntityQueryRequestData requestData = getRequestData(exchange);
 
 		final FilterBy filterBy = requestData.getFilterBy()
-			.map(container -> (FilterBy) filterConstraintResolver.resolve(QueryRequestBodyDescriptor.FILTER_BY.name(), container))
+			.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchRequestDescriptor.FILTER_BY.name(), container))
 			.orElse(null);
 		final OrderBy orderBy = requestData.getOrderBy()
-			.map(container -> (OrderBy) orderByConstraintResolver.resolve(QueryRequestBodyDescriptor.ORDER_BY.name(), container))
+			.map(container -> (OrderBy) orderByConstraintResolver.resolve(FetchRequestDescriptor.ORDER_BY.name(), container))
 			.orElse(null);
 		final Require require = requestData.getRequire()
-			.map(container -> (Require) requireConstraintResolver.resolve(QueryRequestBodyDescriptor.REQUIRE.name(), container))
+			.map(container -> (Require) requireConstraintResolver.resolve(FetchRequestDescriptor.REQUIRE.name(), container))
 			.orElse(null);
 
 		return query(

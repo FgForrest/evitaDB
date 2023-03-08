@@ -31,17 +31,15 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.DeleteEntitiesMutationHe
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiOperationQueryParameterTransformer;
-import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.catalog.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.EntityUnion;
-import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.EntityUpsertRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.FetchRequestDescriptor;
 import io.evitadb.externalApi.rest.api.dto.OpenApiCatalogEndpoint;
 import io.evitadb.externalApi.rest.api.dto.OpenApiCollectionEndpoint;
 import io.evitadb.externalApi.rest.api.dto.OpenApiEndpointParameter;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.io.handler.*;
@@ -59,6 +57,7 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_N
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
+import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityFullResponseObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityListRequestBodyObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityQueryRequestBodyObjectName;
@@ -78,82 +77,65 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo
 @RequiredArgsConstructor
 public class EndpointBuilder {
 
-	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
-	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToOpenApiOperationQueryParameterTransformer operationQueryParameterBuilderTransformer;
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildEntityGetEndpoint(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
+	public OpenApiCollectionEndpoint buildGetEntityEndpoint(@Nonnull CollectionRestBuildingContext collectionBuildingContext,
 	                                                        boolean localized,
 	                                                        boolean withPkInPath) {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
-		//this is correct as for localized URL (i.e. one locale) is non-localized entity sufficient
-		// todo lho the localizedUrl logic is confusing
-		final OpenApiTypeReference entityObject = typeRefTo(constructEntityObjectName(entitySchemaBuildingCtx.getSchema(), !localized));
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final List<OpenApiEndpointParameter> queryParameters = buildSingleEntityParameters(entitySchemaBuildingCtx, localized, withPkInPath);
-
-		return newCollectionEndpoint(entitySchemaBuildingCtx.getCatalogCtx().getSchema(), entitySchema)
+		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
 			.path(localized, p -> p
-				.staticItem(CatalogDataApiRootDescriptor.ENTITY_GET.operation(URL_NAME_NAMING_CONVENTION))
+				.staticItem(CatalogDataApiRootDescriptor.GET_ENTITY.operation(URL_NAME_NAMING_CONVENTION))
 				.paramItem(withPkInPath ? ParamDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer) : null))
 			.method(HttpMethod.GET)
-			.description(CatalogDataApiRootDescriptor.ENTITY_GET.description(entitySchema.getName()))
+			.description(CatalogDataApiRootDescriptor.GET_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.queryParameters(queryParameters)
-			.successResponse(entityObject)
+			.queryParameters(buildGetEntityQueryParameters(collectionBuildingContext, localized, withPkInPath))
+			.successResponse(typeRefTo(constructEntityObjectName(entitySchema, localized)))
 			.handler(GetEntityHandler::new)
 			.build();
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildEntityListEndpoint(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
-	                                                         boolean localeInPath) {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
-		//this is correct as for localized URL (i.e. one locale) is non-localized entity sufficient
-		// todo lho the localizedUrl logic is confusing
-		final OpenApiTypeReference entityObject = typeRefTo(constructEntityObjectName(entitySchemaBuildingCtx.getSchema(), !localeInPath));
+	public OpenApiCollectionEndpoint buildListEntityEndpoint(@Nonnull CollectionRestBuildingContext collectionBuildingContext,
+	                                                         boolean localized) {
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		return newCollectionEndpoint(entitySchemaBuildingCtx.getCatalogCtx().getSchema(), entitySchema)
-			.path(localeInPath, p -> p
-				.staticItem(CatalogDataApiRootDescriptor.ENTITY_LIST.operation(URL_NAME_NAMING_CONVENTION)))
+		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
+			.path(localized, p -> p
+				.staticItem(CatalogDataApiRootDescriptor.LIST_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
 			.method(HttpMethod.POST)
-			.description(CatalogDataApiRootDescriptor.ENTITY_LIST.description(entitySchema.getName()))
+			.description(CatalogDataApiRootDescriptor.LIST_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.requestBody(typeRefTo(constructEntityListRequestBodyObjectName(entitySchema, !localeInPath)))
-			.successResponse(nonNull(entityObject))
-			.handler(ListEntityHandler::new)
+			.requestBody(typeRefTo(constructEntityListRequestBodyObjectName(entitySchema, localized)))
+			.successResponse(nonNull(typeRefTo(constructEntityObjectName(collectionBuildingContext.getSchema(), localized))))
+			.handler(ListEntitiesHandler::new)
 			.build();
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildEntityQueryEndpoint(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
-	                                                          boolean localeInPath) {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
+	public OpenApiCollectionEndpoint buildQueryEntityEndpoint(@Nonnull CollectionRestBuildingContext collectionBuildingContext,
+	                                                          boolean localized) {
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final var responseObject = new FullResponseObjectBuilder(
-			entitySchemaBuildingCtx,
-			propertyBuilderTransformer,
-			objectBuilderTransformer,
-			localeInPath
-		).buildFullResponseObject();
-
-		return newCollectionEndpoint(entitySchemaBuildingCtx.getCatalogCtx().getSchema(), entitySchema)
-			.path(localeInPath, p -> p
-				.staticItem(CatalogDataApiRootDescriptor.ENTITY_QUERY.operation(URL_NAME_NAMING_CONVENTION)))
+		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
+			.path(localized, p -> p
+				.staticItem(CatalogDataApiRootDescriptor.QUERY_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
 			.method(HttpMethod.POST)
-			.description(CatalogDataApiRootDescriptor.ENTITY_QUERY.description(entitySchema.getName()))
+			.description(CatalogDataApiRootDescriptor.QUERY_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.requestBody(typeRefTo(constructEntityQueryRequestBodyObjectName(entitySchema, !localeInPath)))
-			.successResponse(nonNull(responseObject))
-			.handler(QueryEntityHandler::new)
+			.requestBody(typeRefTo(constructEntityQueryRequestBodyObjectName(entitySchema, localized)))
+			.successResponse(nonNull(typeRefTo(constructEntityFullResponseObjectName(entitySchema, localized))))
+			.handler(QueryEntitiesHandler::new)
 			.build();
 	}
 
 	@Nonnull
-	public OpenApiCatalogEndpoint buildOpenApiSpecificationEndpoint(@Nonnull CatalogRestBuildingContext catalogCtx) {
-		return newCatalogEndpoint(catalogCtx.getSchema())
+	public OpenApiCatalogEndpoint buildOpenApiSpecificationEndpoint(@Nonnull CatalogRestBuildingContext buildingContext) {
+		return newCatalogEndpoint(buildingContext.getSchema())
 			.path(p -> p) // directly at the catalog root
 			.method(HttpMethod.GET)
 			.description("OpenAPI Specification in YAML format.")
@@ -163,10 +145,8 @@ public class EndpointBuilder {
 	}
 
 	@Nonnull
-	public OpenApiCatalogEndpoint buildCollectionsEndpoint(@Nonnull CatalogRestBuildingContext catalogCtx) {
-		final OpenApiSimpleType collectionsObject = createCollectionsObject(catalogCtx);
-
-		return newCatalogEndpoint(catalogCtx.getSchema())
+	public OpenApiCatalogEndpoint buildCollectionsEndpoint(@Nonnull CatalogRestBuildingContext buildingContext) {
+		return newCatalogEndpoint(buildingContext.getSchema())
 			.path(p -> p
 				.staticItem(CatalogDataApiRootDescriptor.COLLECTIONS.operation(URL_NAME_NAMING_CONVENTION)))
 			.method(HttpMethod.GET)
@@ -175,20 +155,15 @@ public class EndpointBuilder {
 				.to(operationQueryParameterBuilderTransformer)
 				.type(DataTypesConverter.getOpenApiScalar(Boolean.class))
 				.build())
-			.successResponse(nonNull(collectionsObject))
+			.successResponse(nonNull(arrayOf(typeRefTo(CollectionDescriptor.THIS.name()))))
 			.handler(CollectionsHandler::new)
 			.build();
 	}
 
 	@Nonnull
-	public Optional<OpenApiCatalogEndpoint> buildUnknownEntityGetEndpoint(@Nonnull CatalogRestBuildingContext catalogCtx,
-	                                                                      @Nonnull List<OpenApiTypeReference> entityObjects,
+	public Optional<OpenApiCatalogEndpoint> buildGetUnknownEntityEndpoint(@Nonnull CatalogRestBuildingContext buildingContext,
 	                                                                      @Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
 	                                                                      boolean localized) {
-		if (entityObjects.isEmpty()) {
-			return Optional.empty();
-		}
-
 		final List<OpenApiEndpointParameter> queryParameters = new LinkedList<>();
 		queryParameters.addAll(
 			globallyUniqueAttributes.stream()
@@ -203,12 +178,12 @@ public class EndpointBuilder {
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(localized));
 
 		return Optional.of(
-			newCatalogEndpoint(catalogCtx.getSchema())
+			newCatalogEndpoint(buildingContext.getSchema())
 				.path(localized, p -> p
-					.staticItem(CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_GET.classifier(URL_NAME_NAMING_CONVENTION))
-					.staticItem(CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_GET.operation(URL_NAME_NAMING_CONVENTION)))
+					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION))
+					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
 				.method(HttpMethod.GET)
-				.description(CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_GET.description())
+				.description(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.description())
 				.queryParameters(queryParameters)
 				.successResponse(nonNull(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name())))
 				.handler(UnknownEntityHandler::new)
@@ -217,14 +192,9 @@ public class EndpointBuilder {
 	}
 
 	@Nonnull
-	public Optional<OpenApiCatalogEndpoint> buildUnknownEntityListEndpoint(@Nonnull CatalogRestBuildingContext catalogCtx,
-	                                                                       @Nonnull List<OpenApiTypeReference> entityObjects,
+	public Optional<OpenApiCatalogEndpoint> buildListUnknownEntityEndpoint(@Nonnull CatalogRestBuildingContext buildingContext,
 	                                                                       @Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
 	                                                                       boolean localized) {
-		if (entityObjects.isEmpty()) {
-			return Optional.empty();
-		}
-
 		final List<OpenApiEndpointParameter> queryParameters = new LinkedList<>();
 		queryParameters.add(ParamDescriptor.LIMIT
 			.to(operationQueryParameterBuilderTransformer)
@@ -242,12 +212,12 @@ public class EndpointBuilder {
 		queryParameters.addAll(buildFetchQueryParametersForUnknownEntity(localized));
 
 		return Optional.of(
-			newCatalogEndpoint(catalogCtx.getSchema())
+			newCatalogEndpoint(buildingContext.getSchema())
 				.path(localized, p -> p
-					.staticItem(CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_LIST.classifier(URL_NAME_NAMING_CONVENTION))
-					.staticItem(CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_LIST.operation(URL_NAME_NAMING_CONVENTION)))
+					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION))
+					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
 				.method(HttpMethod.GET)
-				.description(CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_LIST.description())
+				.description(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.description())
 				.queryParameters(queryParameters)
 				.successResponse(nonNull(arrayOf(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name()))))
 				.handler(UnknownEntityListHandler::new)
@@ -256,69 +226,61 @@ public class EndpointBuilder {
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildEntityUpsertEndpoint(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
-	                                                           @Nonnull OpenApiTypeReference requestObject,
+	public OpenApiCollectionEndpoint buildUpsertEntityEndpoint(@Nonnull CollectionRestBuildingContext collectionBuildingContext,
 	                                                           boolean withPrimaryKeyInPath) {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final OpenApiTypeReference entityObject = typeRefTo(constructEntityObjectName(entitySchema, false));
-
-		return newCollectionEndpoint(entitySchemaBuildingCtx.getCatalogCtx().getSchema(), entitySchema)
+		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
 			.path(p -> p // directly at the collection root
 				.paramItem(withPrimaryKeyInPath ? ParamDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer) : null))
 			.method(withPrimaryKeyInPath ? HttpMethod.PUT : HttpMethod.POST)
-			.description(CatalogDataApiRootDescriptor.ENTITY_UPSERT.description(entitySchema.getName()))
+			.description(CatalogDataApiRootDescriptor.UPSERT_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.requestBody(requestObject)
-			.successResponse(nonNull(entityObject))
+			.requestBody(typeRefTo(EntityUpsertRequestDescriptor.THIS.name(entitySchema)))
+			.successResponse(nonNull(typeRefTo(constructEntityObjectName(entitySchema, false))))
 			.handler(ctx -> new UpsertEntityHandler(ctx, withPrimaryKeyInPath))
 			.build();
 	}
 
 	@Nonnull
-	protected OpenApiCollectionEndpoint buildEntitiesDeleteByQueryEndpoint(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx) {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
+	public OpenApiCollectionEndpoint buildDeleteEntityEndpoint(@Nonnull CollectionRestBuildingContext collectionBuildingContext) {
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final OpenApiTypeReference entityObject = typeRefTo(constructEntityObjectName(entitySchema, false));
-
-		return newCollectionEndpoint(entitySchemaBuildingCtx.getCatalogCtx().getSchema(), entitySchema)
-			.path(p -> p) // directly at the collection root
-			.method(HttpMethod.DELETE)
-			.description(CatalogDataApiRootDescriptor.ENTITY_DELETE.description(entitySchema.getName()))
-			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.requestBody(typeRefTo(QueryRequestBodyDescriptor.THIS_DELETE.name(entitySchema)))
-			.successResponse(nonNull(entityObject))
-			.handler(DeleteEntityByQueryHandler::new)
-			.build();
-	}
-
-	@Nonnull
-	public OpenApiCollectionEndpoint buildEntityDeleteEndpoint(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx) {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
-
-		final OpenApiTypeReference entityObject = typeRefTo(constructEntityObjectName(entitySchema, false));
-		final List<OpenApiEndpointParameter> queryParameters = buildSingleEntityFetchParameters(entitySchema);
-
-		return newCollectionEndpoint(entitySchemaBuildingCtx.getCatalogCtx().getSchema(), entitySchema)
+		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
 			.path(p -> p // directly at the collection root
 				.paramItem(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY
 					.to(operationPathParameterBuilderTransformer)
 					.type(DataTypesConverter.getOpenApiScalar(Integer.class, true))))
 			.method(HttpMethod.DELETE)
-			.description(CatalogDataApiRootDescriptor.ENTITY_DELETE.description(entitySchema.getName()))
+			.description(CatalogDataApiRootDescriptor.DELETE_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.queryParameters(queryParameters)
-			.successResponse(nonNull(entityObject))
+			.queryParameters(buildEntityFetchQueryParameters(entitySchema))
+			.successResponse(nonNull(typeRefTo(constructEntityObjectName(entitySchema, false))))
 			.handler(DeleteEntityHandler::new)
 			.build();
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildEntitySchemaGetEndpoint(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx) {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
+	protected OpenApiCollectionEndpoint buildDeleteEntitiesByQueryEndpoint(@Nonnull CollectionRestBuildingContext collectionBuildingContext) {
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
+
+		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
+			.path(p -> p) // directly at the collection root
+			.method(HttpMethod.DELETE)
+			.description(CatalogDataApiRootDescriptor.DELETE_ENTITY.description(entitySchema.getName()))
+			.deprecationNotice(entitySchema.getDeprecationNotice())
+			.requestBody(typeRefTo(FetchRequestDescriptor.THIS_DELETE.name(entitySchema)))
+			.successResponse(nonNull(typeRefTo(constructEntityObjectName(entitySchema, false))))
+			.handler(DeleteEntitiesByQueryHandler::new)
+			.build();
+	}
+
+	@Nonnull
+	public OpenApiCollectionEndpoint buildGetEntitySchemaEndpoint(@Nonnull CollectionRestBuildingContext collectionBuildingContext) {
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 		final OpenApiTypeReference entitySchemaObject = typeRefTo(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema));
 
-		return newCollectionEndpoint(entitySchemaBuildingCtx.getCatalogCtx().getSchema(), entitySchema)
+		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
 			.path(p -> p
 				.staticItem(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
 			.method(HttpMethod.GET)
@@ -349,10 +311,10 @@ public class EndpointBuilder {
 	}
 
 	@Nonnull
-	private List<OpenApiEndpointParameter> buildSingleEntityParameters(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx,
-	                                                                   boolean localeInPath,
-	                                                                   boolean withPkInPath) {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
+	private List<OpenApiEndpointParameter> buildGetEntityQueryParameters(@Nonnull CollectionRestBuildingContext collectionBuildingContext,
+	                                                                     boolean localized,
+	                                                                     boolean withPkInPath) {
+		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final List<OpenApiEndpointParameter> parameters = new LinkedList<>();
 
@@ -362,9 +324,9 @@ public class EndpointBuilder {
 
 		// build locale argument
 		if (!entitySchema.getLocales().isEmpty()) {
-			final OpenApiTypeReference localeEnum = typeRefTo(ENTITY_LOCALE_ENUM.name(entitySchemaBuildingCtx.getSchema()));
+			final OpenApiTypeReference localeEnum = typeRefTo(ENTITY_LOCALE_ENUM.name(collectionBuildingContext.getSchema()));
 
-			if (!localeInPath) {
+			if (!localized) {
 				final OpenApiEndpointParameter dataInLocalesParameter = ParamDescriptor.DATA_IN_LOCALES
 					.to(operationQueryParameterBuilderTransformer)
 					.type(arrayOf(localeEnum))
@@ -383,7 +345,7 @@ public class EndpointBuilder {
 		if (!entitySchema.getCurrencies().isEmpty()) {
 			parameters.add(ParamDescriptor.PRICE_IN_CURRENCY
 				.to(operationQueryParameterBuilderTransformer)
-				.type(typeRefTo(ENTITY_CURRENCY_ENUM.name(entitySchemaBuildingCtx.getSchema())))
+				.type(typeRefTo(ENTITY_CURRENCY_ENUM.name(collectionBuildingContext.getSchema())))
 				.build());
 			parameters.add(ParamDescriptor.PRICE_IN_PRICE_LISTS.to(operationQueryParameterBuilderTransformer).build());
 			parameters.add(ParamDescriptor.PRICE_VALID_IN.to(operationQueryParameterBuilderTransformer).build());
@@ -405,13 +367,15 @@ public class EndpointBuilder {
 
 
 		//build fetch params
-		parameters.addAll(buildSingleEntityFetchParameters(entitySchema));
+		parameters.addAll(buildEntityFetchQueryParameters(entitySchema));
 
 		return parameters;
 	}
 
-	private List<OpenApiEndpointParameter> buildSingleEntityFetchParameters(@Nonnull EntitySchemaContract entitySchema) {
+	@Nonnull
+	private List<OpenApiEndpointParameter> buildEntityFetchQueryParameters(@Nonnull EntitySchemaContract entitySchema) {
 		final List<OpenApiEndpointParameter> parameters = new LinkedList<>();
+
 		parameters.add(ParamDescriptor.FETCH_ALL.to(operationQueryParameterBuilderTransformer).build());
 		parameters.add(ParamDescriptor.BODY_FETCH.to(operationQueryParameterBuilderTransformer).build());
 		if (!entitySchema.getAssociatedData().isEmpty()) {
@@ -431,11 +395,5 @@ public class EndpointBuilder {
 		}
 
 		return parameters;
-	}
-
-	@Nonnull
-	private OpenApiSimpleType createCollectionsObject(@Nonnull CatalogRestBuildingContext catalogCtx) {
-		final OpenApiTypeReference collectionObject = catalogCtx.registerType(CollectionDescriptor.THIS.to(objectBuilderTransformer).build());
-		return arrayOf(collectionObject);
 	}
 }

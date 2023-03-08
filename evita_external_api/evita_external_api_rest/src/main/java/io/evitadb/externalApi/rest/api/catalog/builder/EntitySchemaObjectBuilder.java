@@ -59,7 +59,7 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo
 @RequiredArgsConstructor
 public class EntitySchemaObjectBuilder {
 
-	@Nonnull private final OpenApiEntitySchemaBuildingContext entitySchemaBuildingCtx;
+	@Nonnull private final CollectionRestBuildingContext entitySchemaBuildingCtx;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 

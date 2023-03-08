@@ -144,11 +144,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	@DisplayName("Should update product with no mutations")
 	void shouldUpdateProductWithNoMutations(Evita evita) {
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/100")
 			.requestBody("""
                     {
-                        "primaryKey": 100,
                         "entityExistence": "MUST_EXIST",
                         "mutations": []
                     }
@@ -177,8 +176,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.urlPathSuffix("/product")
 			.requestBody("""
-                    {
-                    }
+                    {}
                     """)
 			.executeAndThen()
 			.statusCode(400)
@@ -190,11 +188,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	@DisplayName("Should return error when missing mutations for product update")
 	void shouldReturnErrorWhenMissingMutationsForProductUpdate(Evita evita) {
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/100")
 			.requestBody("""
                     {
-                        "primaryKey": 100,
                         "entityExistence": "MUST_EXIST"
                     }
                     """)
@@ -231,11 +228,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.build();
 
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
-                    "primaryKey": %d,
                     "entityExistence": "MUST_EXIST",
                     "mutations": [
                         {
@@ -266,8 +262,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 					  }
 					}
                 }
-                """,
-				entity.getPrimaryKey())
+                """)
 			.executeAndThen()
 			.statusCode(200)
 			.body("",equalTo(expectedBody));
@@ -325,11 +320,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.build();
 
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
-                    "primaryKey": %d,
                     "entityExistence": "MUST_EXIST",
                     "mutations": [
                         {
@@ -359,8 +353,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 					  }
 					}
                 }
-                """,
-				entity.getPrimaryKey())
+                """)
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(expectedBody));
@@ -369,8 +362,9 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{"filterBy": {
-					"entity_primaryKey_inSet": [%d]
+				{
+					"filterBy": {
+						"entity_primaryKey_inSet": [%d]
 					},
 					"require": {
 						"entity_fetch": {
@@ -535,11 +529,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.build();
 
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
-                    "primaryKey": %d,
                     "entityExistence": "MUST_EXIST",
                     "mutations": [
                         {
@@ -561,9 +554,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 					  }
 					}
                 }
-                """,
-				entity.getPrimaryKey()
-			)
+                """)
 			.executeAndThen()
 			.statusCode(200);
 			//.body("", equalTo(expectedBodyWithNewPrice));
@@ -573,17 +564,17 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-						{
-							"filterBy": {
-								"entity_primaryKey_inSet": [%d],
-											"price_inPriceLists":["other"]
-							},
-							"require": {
-								"entity_fetch": {
-									"price_content": "RESPECTING_FILTER"
-								}
-						    }
-						}
+					{
+						"filterBy": {
+							"entity_primaryKey_inSet": [%d],
+							"price_inPriceLists":["other"]
+						},
+						"require": {
+							"entity_fetch": {
+								"price_content": "RESPECTING_FILTER"
+							}
+					    }
+					}
 					""",
 				entity.getPrimaryKey())
 			.executeAndThen()
@@ -599,11 +590,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.build();
 
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
-                    "primaryKey": %d,
                     "entityExistence": "MUST_EXIST",
                     "mutations": [
                         {
@@ -621,8 +611,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 					  }
 					}
                 }
-                """,
-				entity.getPrimaryKey())
+                """)
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(expectedBodyWithoutNewPrice));
@@ -631,9 +620,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{"filterBy": {
-					"entity_primaryKey_inSet": [%d],
-					"price_inPriceLists": ["other"]
+				{
+					"filterBy": {
+						"entity_primaryKey_inSet": [%d],
+						"price_inPriceLists": ["other"]
 					},
 					"require": {
 						"entity_fetch": {
@@ -679,11 +669,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.build();
 
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
-                    "primaryKey": %d,
                     "entityExistence": "MUST_EXIST",
                     "mutations": [
                         {
@@ -699,8 +688,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 					  }
 					}
                 }
-                """,
-				entity.getPrimaryKey())
+                """)
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(expectedBody));
@@ -709,9 +697,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{"filterBy": {
-					"entity_primaryKey_inSet": [%d],
-					"price_inPriceLists": ["basic"]
+				{
+					"filterBy": {
+						"entity_primaryKey_inSet": [%d],
+						"price_inPriceLists": ["basic"]
 					},
 					"require": {
 						"entity_fetch": {
@@ -766,31 +755,30 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.build());
 
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
-	           {
-	               "primaryKey": %d,
-	               "entityExistence": "MUST_EXIST",
-	               "mutations": [
-	                   {
-                          "insertReferenceMutation": {
-                            "name": "STORE",
-                            "primaryKey": 1000000000
-                          },
-                          "referenceAttributeMutation": {
-							"name": "STORE",
-							"primaryKey": 1000000000,
-							"attributeMutation": {
-							  "upsertAttributeMutation": {
-							    "name": "storeVisibleForB2C",
-							    "value": true,
-							    "valueType": "Boolean"
+				{
+				   "entityExistence": "MUST_EXIST",
+				   "mutations": [
+				       {
+				          "insertReferenceMutation": {
+			                  "name": "STORE",
+			                  "primaryKey": 1000000000
+				          },
+				          "referenceAttributeMutation": {
+							  "name": "STORE",
+							  "primaryKey": 1000000000,
+							  "attributeMutation": {
+							      "upsertAttributeMutation": {
+							          "name": "storeVisibleForB2C",
+							          "value": true,
+							          "valueType": "Boolean"
+							      }
 							  }
-							}
-                          }
-                       }
-	               ],
+				          }
+				       }
+				   ],
 					"require": {
 					    "entity_fetch": {
 					        "attribute_contentAll": true,
@@ -800,9 +788,8 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 					        }
 					    }
 					}
-					           }
-					           """,
-				entity.getPrimaryKey())
+				}
+				""")
 			.executeAndThen()
 			.statusCode(200)
 			.body("store", containsInAnyOrder(expectedBody.toArray()));
@@ -833,28 +820,26 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 
 
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
 	            {
-	               "primaryKey": %d,
-	               "entityExistence": "MUST_EXIST",
-	               "mutations": [
-	                   {
-							"removeReferenceMutation": {
+	                "entityExistence": "MUST_EXIST",
+	                "mutations": [
+	                    {
+				 			"removeReferenceMutation": {
 	                            "name": "STORE",
 	                            "primaryKey": 1000000000
 	                        }
-	                   }
-	               ],
+	                    }
+	                ],
 					"require": {
 					    "entity_fetch": {
 					        "attribute_contentAll": true
 					    }
 					}
 				}
-	           """,
-				entity.getPrimaryKey())
+	            """)
 			.executeAndThen()
 			.statusCode(200)
 			.body("store.referencedEntity." + EntityDescriptor.PRIMARY_KEY.name(), not(containsInRelativeOrder(1_000_000_000)));
@@ -899,11 +884,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 		);
 
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
 	            {
-	               "primaryKey": %d,
 	               "entityExistence": "MUST_EXIST",
 	               "mutations": [
 	                   {
@@ -915,8 +899,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	                    }
 	               ]
 				}
-	           """,
-				entity.getPrimaryKey())
+	           """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(EntityDescriptor.PRIMARY_KEY.name(), equalTo(entity.getPrimaryKey()));
@@ -925,11 +908,10 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 
 
 		testRESTCall()
-			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.httpMethod(Request.METHOD_PUT)
+			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
 	            {
-					"primaryKey": %d,
 					"entityExistence": "MUST_EXIST",
 					"mutations": [
 						{
@@ -940,8 +922,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 						}
 					]
 				}
-	        """,
-			entity.getPrimaryKey())
+	            """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(EntityDescriptor.PRIMARY_KEY.name(), equalTo(entity.getPrimaryKey()));

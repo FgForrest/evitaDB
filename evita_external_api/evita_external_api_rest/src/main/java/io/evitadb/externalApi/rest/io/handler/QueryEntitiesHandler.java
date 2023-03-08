@@ -56,12 +56,12 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class QueryEntityHandler extends ListEntityHandler {
+public class QueryEntitiesHandler extends ListEntitiesHandler {
 
 	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
 	@Nonnull private final ExtraResultsJsonSerializer extraResultsJsonSerializer;
 
-	public QueryEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+	public QueryEntitiesHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 

@@ -30,8 +30,8 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.QueryRequestBodyDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.model.FetchRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.data.mutation.RestEntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RESTMutationObjectParser;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
@@ -60,9 +60,9 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
 
-	private final boolean withPrimaryKeyInUrl;
+	private final boolean withPrimaryKeyInPath;
 
-	public UpsertEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext, boolean withPrimaryKeyInUrl) {
+	public UpsertEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext, boolean withPrimaryKeyInPath) {
 		super(restApiHandlingContext);
 		this.mutationResolver = new RestEntityUpsertMutationConverter(
 			restApiHandlingContext,
@@ -70,7 +70,7 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 		);
 		this.requireConstraintResolver = new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
-		this.withPrimaryKeyInUrl = withPrimaryKeyInUrl;
+		this.withPrimaryKeyInPath = withPrimaryKeyInPath;
 	}
 
 	@Override
@@ -78,13 +78,13 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final EntityUpsertRequestData requestData = getRequestData(exchange);
 
-		if (withPrimaryKeyInUrl) {
+		if (withPrimaryKeyInPath) {
 			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 			Assert.isTrue(
-				parametersFromRequest.containsKey(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY.name()),
+				parametersFromRequest.containsKey(ParamDescriptor.PRIMARY_KEY.name()),
 				() -> new RestInvalidArgumentException("Primary key is not present in request's URL path.")
 			);
-			requestData.setPrimaryKey((Integer) parametersFromRequest.get(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY.name()));
+			requestData.setPrimaryKey((Integer) parametersFromRequest.get(ParamDescriptor.PRIMARY_KEY.name()));
 		}
 
 		final EntityMutation entityMutation = mutationResolver.resolve(
@@ -107,7 +107,7 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 	@Nonnull
 	private Optional<EntityContentRequire[]> getEntityContentRequires(@Nonnull EntityUpsertRequestData requestData) {
 		return requestData.getRequire()
-			.map(it -> (Require) requireConstraintResolver.resolve(QueryRequestBodyDescriptor.REQUIRE.name(), it))
+			.map(it -> (Require) requireConstraintResolver.resolve(FetchRequestDescriptor.REQUIRE.name(), it))
 			.flatMap(require -> Arrays.stream(require.getChildren())
 				.filter(EntityFetch.class::isInstance)
 				.findFirst()

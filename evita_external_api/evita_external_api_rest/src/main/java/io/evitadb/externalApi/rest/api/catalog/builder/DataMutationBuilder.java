@@ -25,13 +25,11 @@ package io.evitadb.externalApi.rest.api.catalog.builder;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.externalApi.api.ExternalApiNamingConventions;
-import io.evitadb.externalApi.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationAggregateDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.constraint.RequireSchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
-import io.evitadb.externalApi.rest.api.dto.OpenApiCollectionEndpoint;
+import io.evitadb.externalApi.rest.api.catalog.model.EntityUpsertRequestDescriptor;
 import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
@@ -42,7 +40,6 @@ import java.util.Optional;
 
 import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
 
 /**
  * Build OpenAPI schemas for entity mutations - upsert and delete. It also registers appropriate handlers for processing
@@ -53,52 +50,29 @@ import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
 @RequiredArgsConstructor
 public class DataMutationBuilder {
 
-	@Nonnull private final OpenApiEntitySchemaBuildingContext collectionBuildingContext;
+	@Nonnull private final CollectionRestBuildingContext collectionBuildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
-	@Nonnull private final EndpointBuilder endpointBuilder;
-
-	public void buildAndAddEntitiesAndPathItems() {
-		// Delete and upsert mutations use same URL but different HTTP method. In this case one PathItem must be used.
-		final OpenApiCollectionEndpoint entityDeleteEndpoint = endpointBuilder.buildEntityDeleteEndpoint(collectionBuildingContext);
-		collectionBuildingContext.getCatalogCtx().registerEndpoint(entityDeleteEndpoint);
-		final OpenApiCollectionEndpoint entityUpsertEndpoint = endpointBuilder.buildEntityUpsertEndpoint(collectionBuildingContext, buildUpsertEntityObject(false), true);
-		collectionBuildingContext.getCatalogCtx().registerEndpoint(entityUpsertEndpoint);
-
-		final OpenApiCollectionEndpoint entitiesDeleteByQueryEndpoint = endpointBuilder.buildEntitiesDeleteByQueryEndpoint(collectionBuildingContext);
-		collectionBuildingContext.getCatalogCtx().registerEndpoint(entitiesDeleteByQueryEndpoint);
-		if (collectionBuildingContext.getSchema().isWithGeneratedPrimaryKey()) {
-			final OpenApiCollectionEndpoint entityUpsertWithPkEndpoint = endpointBuilder.buildEntityUpsertEndpoint(collectionBuildingContext, buildUpsertEntityObject(true), false);
-			collectionBuildingContext.getCatalogCtx().registerEndpoint(entityUpsertWithPkEndpoint);
-		}
-	}
 
 	@Nonnull
-	private OpenApiTypeReference buildUpsertEntityObject(boolean withPrimaryKey) {
-		final OpenApiObject.Builder upsertEntityObjectBuilder = newObject()
-			.name(collectionBuildingContext.getSchema().getNameVariant(ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION) + withPrimaryKey + "_UpsertEntity");//todo lho descriptor
-
-		if (withPrimaryKey) {
-			upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.PRIMARY_KEY
-				.to(propertyBuilderTransformer)
-				.type(DataTypesConverter.getOpenApiScalar(Integer.class, true)));
-		}
-
-		upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.ENTITY_EXISTENCE.to(propertyBuilderTransformer));
+	public OpenApiTypeReference buildEntityUpsertRequestObject() {
+		final OpenApiObject.Builder upsertEntityObjectBuilder = EntityUpsertRequestDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(EntityUpsertRequestDescriptor.THIS.name(collectionBuildingContext.getSchema()));
 
 		final Optional<OpenApiTypeReference> localMutationSchema = buildLocalMutationSchema();
 
 		localMutationSchema.ifPresent(objectSchema ->
-			upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.MUTATIONS
+			upsertEntityObjectBuilder.property(EntityUpsertRequestDescriptor.MUTATIONS
 				.to(propertyBuilderTransformer)
 				.type(nonNull(arrayOf(localMutationSchema.get())))));
 
 		final RequireSchemaBuilder requireSchemaBuilder = new RequireSchemaBuilder(
-			collectionBuildingContext.getConstraintSchemaBuildingCtx(),
+			collectionBuildingContext.getConstraintBuildingContext(),
 			collectionBuildingContext.getSchema().getName(),
 			RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_UPSERT
 		);
-		upsertEntityObjectBuilder.property(UpsertEntityMutationHeaderDescriptor.REQUIRE
+		upsertEntityObjectBuilder.property(EntityUpsertRequestDescriptor.REQUIRE
 			.to(propertyBuilderTransformer)
 			.type(nonNull(requireSchemaBuilder.build())));
 
@@ -110,10 +84,6 @@ public class DataMutationBuilder {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final String schemaName = LocalMutationAggregateDescriptor.THIS.name(entitySchema);
-		final Optional<OpenApiTypeReference> existingSchema = collectionBuildingContext.getCatalogCtx().getRegisteredType(schemaName);
-		if (existingSchema.isPresent()) {
-			return existingSchema;
-		}
 
 		final OpenApiObject.Builder localMutationObjectBuilder = LocalMutationAggregateDescriptor.THIS
 			.to(objectBuilderTransformer)

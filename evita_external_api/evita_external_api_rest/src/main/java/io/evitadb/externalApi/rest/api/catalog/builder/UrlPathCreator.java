@@ -51,7 +51,7 @@ public class UrlPathCreator {
 	 * @param urlWithLocale when <code>true</code> then locale will be part of URL path
 	 * @return
 	 */
-	public static String createUrlPathToEntity(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingContext, boolean urlWithLocale) {
+	public static String createUrlPathToEntity(@Nonnull CollectionRestBuildingContext entitySchemaBuildingContext, boolean urlWithLocale) {
 		return (urlWithLocale ? URL_PATH_SEPARATOR + URL_LOCALE_PATH_VARIABLE :"") + URL_PATH_SEPARATOR + entitySchemaBuildingContext.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION);
 	}
 
@@ -61,7 +61,7 @@ public class UrlPathCreator {
 	 * @param withPrimaryKeyInPath when <code>true</code> then <strong>primary key</strong> will be part of URL
 	 * @return
 	 */
-	public static String createUrlPathToEntityMutation(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingContext, boolean withPrimaryKeyInPath) {
+	public static String createUrlPathToEntityMutation(@Nonnull CollectionRestBuildingContext entitySchemaBuildingContext, boolean withPrimaryKeyInPath) {
 		return URL_PATH_SEPARATOR + entitySchemaBuildingContext.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION) +
 			(withPrimaryKeyInPath?UrlPathCreator.URL_PATH_SEPARATOR + UrlPathCreator.URL_PRIMARY_KEY_PATH_VARIABLE:"");
 	}
@@ -73,7 +73,7 @@ public class UrlPathCreator {
 	 * @param urlWithLocale when <code>true</code> than locale will be part of URL path
 	 * @return
 	 */
-	public static String createUrlPathToEntity(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingContext,
+	public static String createUrlPathToEntity(@Nonnull CollectionRestBuildingContext entitySchemaBuildingContext,
 	                                           @Nonnull EndpointDescriptor endpointDescriptor, boolean urlWithLocale) {
 		return createUrlPathToEntity(entitySchemaBuildingContext, urlWithLocale) + URL_PATH_SEPARATOR + endpointDescriptor.operation(URL_NAME_NAMING_CONVENTION);
 	}
@@ -85,8 +85,8 @@ public class UrlPathCreator {
 	 */
 	public static String createUrlPathToUnknownEntity(boolean urlWithLocale) {
 		return (urlWithLocale?URL_PATH_SEPARATOR + URL_LOCALE_PATH_VARIABLE :"") + URL_PATH_SEPARATOR +
-			CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_GET.classifier(URL_NAME_NAMING_CONVENTION) + URL_PATH_SEPARATOR +
-			CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_GET.operation(URL_NAME_NAMING_CONVENTION);
+			CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION) + URL_PATH_SEPARATOR +
+			CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.operation(URL_NAME_NAMING_CONVENTION);
 	}
 
 	/**
@@ -96,14 +96,14 @@ public class UrlPathCreator {
 	 */
 	public static String createUrlPathToUnknownEntityList(boolean urlWithLocale) {
 		return (urlWithLocale?URL_PATH_SEPARATOR + URL_LOCALE_PATH_VARIABLE :"") + URL_PATH_SEPARATOR +
-			CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_LIST.classifier(URL_NAME_NAMING_CONVENTION) + URL_PATH_SEPARATOR +
-			CatalogDataApiRootDescriptor.UNKNOWN_ENTITY_LIST.operation(URL_NAME_NAMING_CONVENTION);
+			CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION) + URL_PATH_SEPARATOR +
+			CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.operation(URL_NAME_NAMING_CONVENTION);
 	}
 
 	/**
 	 * Creates URL path based on entity name and endpoint descriptor. Name of endpoint descriptor is used as path suffix.
 	 */
-	public static String createUrlPathToEntitySchema(@Nonnull OpenApiEntitySchemaBuildingContext entitySchemaBuildingContext,
+	public static String createUrlPathToEntitySchema(@Nonnull CollectionRestBuildingContext entitySchemaBuildingContext,
 	                                                 @Nonnull EndpointDescriptor endpointDescriptor) {
 		return URL_PATH_SEPARATOR +
 			entitySchemaBuildingContext.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION) +

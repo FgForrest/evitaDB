@@ -21,28 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.rest.api.catalog.model;
 
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#ENTITY_UPSERT}
- * mutation.
+ * Descriptor for request body of {@link CatalogDataApiRootDescriptor#UPSERT_ENTITY} endpoint.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface UpsertEntityMutationHeaderDescriptor {
+public interface EntityUpsertRequestDescriptor {
 
-	PropertyDescriptor PRIMARY_KEY = PropertyDescriptor.builder()
-		.name("primaryKey")
-		.description("""
-			Identification of upserted entity. If null or entity with passed primary key doesn't exist, new one is created.
-			""")
-		// type is expected to be an integer
-		.build();
 	PropertyDescriptor ENTITY_EXISTENCE = PropertyDescriptor.builder()
 		.name("entityExistence")
 		.description("""
@@ -63,5 +59,13 @@ public interface UpsertEntityMutationHeaderDescriptor {
 			Limited require query to specify content of mutated entity
 			""")
 		// type is expected to be tree of require constraints
+		.build();
+
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("*UpsertRequest")
+		.description("""
+			Inserts/updates single entity with passed mutations and returns the entities.
+			""")
+		.staticFields(List.of(ENTITY_EXISTENCE))
 		.build();
 }
