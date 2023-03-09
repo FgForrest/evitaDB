@@ -230,7 +230,7 @@ public class CatalogRestBuildingContext {
 		registeredEndpoints.forEach((path, endpoints) ->
 			endpoints.forEach((method, endpoint) ->
 				builtEndpoints.add(new Rest.Endpoint(
-					path.subpath(1, path.getNameCount()).toString(), // strip "/rest" prefix
+					path.subpath(1, path.getNameCount()), // strip "/rest" prefix
 					endpoint.getMethod(),
 					endpoint.toHandler(objectMapper, evita, openApi)
 				))

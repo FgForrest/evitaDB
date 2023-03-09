@@ -21,38 +21,36 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
 import graphql.language.StringValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.exception.InconvertibleDataTypeException;
-import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 
 import javax.annotation.Nonnull;
 import java.time.DateTimeException;
-import java.util.Locale;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 /**
- * {@link Coercing} for converting between Java's side {@link Locale} and client string.
- * This is used mainly as type in data (attribute values, a. data values,...) where we don't know all possible values.
- *
- * It uses standardized {@link Locale#toLanguageTag()} as string representation.
+ * {@link Coercing} for converting between Java's side {@link LocalDate} and client string.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class LocaleCoercing implements Coercing<Locale, String> {
+public class LocalDateCoercing implements Coercing<LocalDate, String> {
+
+    public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Locale)) {
-            throw new CoercingSerializeException("Locale data fetcher result is not a Locale.");
+        if (!(dataFetcherResult instanceof LocalDate)) {
+            throw new CoercingSerializeException("Local date data fetcher result is not a local date.");
         }
         try {
-            return ((Locale) dataFetcherResult).toLanguageTag();
+            return ((LocalDate) dataFetcherResult).format(FORMATTER);
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
@@ -60,26 +58,26 @@ public class LocaleCoercing implements Coercing<Locale, String> {
 
     @Nonnull
     @Override
-    public Locale parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public LocalDate parseValue(@Nonnull Object input) throws CoercingParseValueException {
         if (!(input instanceof String)) {
-            throw new CoercingParseValueException("Locale input is not a string.");
+            throw new CoercingParseValueException("Local date input is not a string.");
         }
         try {
-            return EvitaDataTypes.toTargetType((String) input, Locale.class);
-        } catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
+            return LocalDate.parse((String) input, FORMATTER);
+        } catch (DateTimeParseException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
     }
 
     @Nonnull
     @Override
-    public Locale parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public LocalDate parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue)) {
-            throw new CoercingParseValueException("Locale input is not a StringValue.");
+            throw new CoercingParseValueException("Local date input is not a StringValue.");
         }
         try {
-            return EvitaDataTypes.toTargetType(((StringValue) input).getValue(), Locale.class);
-        } catch (UnsupportedDataTypeException | InconvertibleDataTypeException ex) {
+            return LocalDate.parse(((StringValue) input).getValue(), FORMATTER);
+        } catch (DateTimeParseException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }
     }

@@ -21,63 +21,60 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
 import graphql.language.StringValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.FormattableBigDecimal;
 
 import javax.annotation.Nonnull;
-import java.time.DateTimeException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
+import java.math.BigDecimal;
 
 /**
- * {@link Coercing} for converting between Java's side {@link LocalDateTime} and client string.
+ * {@link Coercing} for converting between Java's side {@link BigDecimal} and client string.
+ * On top of basic {@link BigDecimal} conversion, it supports {@link FormattableBigDecimal} and its derivatives for
+ * customized formatting.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class LocalDateTimeCoercing implements Coercing<LocalDateTime, String> {
-
-    public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+public class BigDecimalCoercing implements Coercing<BigDecimal, String> {
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof LocalDateTime)) {
-            throw new CoercingSerializeException("Local date time data fetcher result is not a local date time.");
+        if (dataFetcherResult instanceof BigDecimal) {
+            return dataFetcherResult.toString();
         }
-        try {
-            return ((LocalDateTime) dataFetcherResult).format(FORMATTER);
-        } catch (DateTimeException ex) {
-            throw new CoercingSerializeException(ex.getMessage(), ex);
+        if (dataFetcherResult instanceof final FormattableBigDecimal formattableBigDecimal) {
+            return formattableBigDecimal.toFormattedString();
         }
+        throw new CoercingSerializeException("Big decimal data fetcher result is not a form of big decimal value.");
     }
 
     @Nonnull
     @Override
-    public LocalDateTime parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public BigDecimal parseValue(@Nonnull Object input) throws CoercingParseValueException {
         if (!(input instanceof String)) {
-            throw new CoercingParseValueException("Local date time input is not a string.");
+            throw new CoercingParseValueException("Big decimal input is not a string.");
         }
         try {
-            return LocalDateTime.parse((String) input, FORMATTER);
-        } catch (DateTimeParseException ex) {
+            return new BigDecimal((String) input);
+        } catch (NumberFormatException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
     }
 
     @Nonnull
     @Override
-    public LocalDateTime parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public BigDecimal parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue)) {
-            throw new CoercingParseValueException("Local date time input is not a StringValue.");
+            throw new CoercingParseLiteralException("Big decimal input is not a StringValue.");
         }
         try {
-            return LocalDateTime.parse(((StringValue) input).getValue(), FORMATTER);
-        } catch (DateTimeParseException ex) {
+            return new BigDecimal(((StringValue) input).getValue());
+        } catch (NumberFormatException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }
     }

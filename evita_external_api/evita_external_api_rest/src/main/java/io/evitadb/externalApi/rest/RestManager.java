@@ -28,8 +28,8 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuilder;
-import io.evitadb.externalApi.rest.api.catalog.builder.UrlPathCreator;
 import io.evitadb.externalApi.rest.api.dto.Rest;
+import io.evitadb.externalApi.rest.api.dto.Rest.Endpoint;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.io.handler.RestExceptionHandler;
 import io.evitadb.utils.Assert;
@@ -37,13 +37,17 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.undertow.Handlers;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
+import io.undertow.util.HttpString;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Creates REST endpoints for particular Evita catalogs according generated OpenAPI schema.
@@ -61,12 +65,14 @@ public class RestManager {
 	private final EvitaSystemDataProvider evitaSystemDataProvider;
 
 	/**
+	 * All registered endpoint paths for each catalog
+	 */
+	private final Map<String, Set<Endpoint>> registeredEndpoints = createConcurrentHashMap(20);
+	/**
 	 * REST specific endpoint router.
 	 */
 	@Getter
 	private final RoutingHandler restRouter = Handlers.routing();
-
-	@Getter private final Map<String, String> registeredCatalogBasePath = createConcurrentHashMap(20);
 
 	public RestManager(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider) {
 		this.evitaSystemDataProvider = evitaSystemDataProvider;
@@ -89,27 +95,24 @@ public class RestManager {
 	public void registerCatalog(@Nonnull String catalogName) {
 		final CatalogContract catalog = evitaSystemDataProvider.getCatalog(catalogName);
 		Assert.isPremiseValid(
-			!registeredCatalogBasePath.containsKey(catalogName),
+			!registeredEndpoints.containsKey(catalogName),
 			() -> new OpenApiInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
 
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(evitaSystemDataProvider.getEvita(), catalog);
 		final Rest builtRest = catalogRestBuilder.build();
 
-		final String basePath = UrlPathCreator.getCatalogUrlPathName(catalog);
-		registeredCatalogBasePath.put(catalog.getName(), basePath);
-
-		builtRest.endpoints().forEach(this::registerRestEndpoint);
+		builtRest.endpoints().forEach(endpoint -> registerRestEndpoint(catalogName, endpoint));
 	}
 
 	/**
 	 * Unregister all REST endpoints of catalog.
 	 */
 	public void unregisterCatalog(@Nonnull String catalogName) {
-		final String basePath = registeredCatalogBasePath.get(catalogName);
-		if (basePath != null) {
-			restRouter.remove(basePath + "/**");
-			registeredCatalogBasePath.remove(catalogName);
+		final Set<Endpoint> endpointsForCatalog = registeredEndpoints.remove(catalogName);
+		if (endpointsForCatalog != null) {
+			endpointsForCatalog.forEach(endpoint ->
+				restRouter.remove(new HttpString(endpoint.method().toString()), endpoint.path().toString()));
 		}
 	}
 
@@ -118,7 +121,7 @@ public class RestManager {
 	 */
 	public void refreshCatalog(@Nonnull String catalogName) {
 		Assert.isPremiseValid(
-			registeredCatalogBasePath.containsKey(catalogName),
+			registeredEndpoints.containsKey(catalogName),
 			() -> new OpenApiInternalError("Cannot refresh catalog `" + catalogName + "`. Such catalog has not been registered yet.")
 		);
 
@@ -126,20 +129,20 @@ public class RestManager {
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(evitaSystemDataProvider.getEvita(), catalog);
 		final Rest builtRest = catalogRestBuilder.build();
 
-		final String basePath = UrlPathCreator.getCatalogUrlPathName(catalog);
-		registeredCatalogBasePath.put(catalog.getName(), basePath);
-
 		unregisterCatalog(catalogName);
-		builtRest.endpoints().forEach(this::registerRestEndpoint);
+		builtRest.endpoints().forEach(endpoint -> registerRestEndpoint(catalogName, endpoint));
 	}
 
 	/**
 	 * Creates new REST endpoint on specified path with specified {@link OpenAPI} instance.
 	 */
-	private void registerRestEndpoint(@Nonnull Rest.Endpoint endpoint) {
+	private void registerRestEndpoint(@Nonnull String catalogName, @Nonnull Rest.Endpoint endpoint) {
+		final Set<Endpoint> endpointsForCatalog = registeredEndpoints.computeIfAbsent(catalogName, key -> createHashSet(100));
+		endpointsForCatalog.add(endpoint);
+
 		restRouter.add(
 			endpoint.method().toString(),
-			endpoint.path(),
+			endpoint.path().toString(),
 			new BlockingHandler(
 				new RestExceptionHandler(
 					objectMapper,

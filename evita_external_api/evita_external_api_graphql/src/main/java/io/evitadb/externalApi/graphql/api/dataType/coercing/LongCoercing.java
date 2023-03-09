@@ -21,55 +21,55 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
-import graphql.language.IntValue;
+import graphql.language.StringValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 
 import javax.annotation.Nonnull;
-import java.math.BigInteger;
 
 /**
- * {@link Coercing} for converting between Java's side {@link Short} and client int.
+ * {@link Coercing} for converting between Java's side {@link Long} and client string.
+ * String on client side is used because JavaScript does not support 64-bit long numbers.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class ShortCoercing implements Coercing<Short, Integer> {
+public class LongCoercing implements Coercing<Long, String> {
 
     @Nonnull
     @Override
-    public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Short)) {
-            throw new CoercingSerializeException("Short data fetcher result is not a short.");
+    public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+        if (!(dataFetcherResult instanceof Long)) {
+            throw new CoercingSerializeException("Long data fetcher result is not a long.");
         }
-        return (int) dataFetcherResult;
+        return String.valueOf(dataFetcherResult);
     }
 
     @Nonnull
     @Override
-    public Short parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof Integer)) {
-            throw new CoercingParseValueException("Short input value is not a integer.");
+    public Long parseValue(@Nonnull Object input) throws CoercingParseValueException {
+        if (!(input instanceof String)) {
+            throw new CoercingParseValueException("Long input value is not a string.");
         }
         try {
-            return new BigInteger(input.toString()).shortValueExact();
-        } catch (NumberFormatException | ArithmeticException ex) {
+            return Long.parseLong((String) input);
+        } catch (NumberFormatException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
     }
 
     @Nonnull
     @Override
-    public Short parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof IntValue)) {
-            throw new CoercingParseValueException("Short input value is not a integer.");
+    public Long parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+        if (!(input instanceof StringValue)) {
+            throw new CoercingParseValueException("Long input value is not a string.");
         }
         try {
-            return ((IntValue) input).getValue().shortValueExact();
-        } catch (NumberFormatException | ArithmeticException ex) {
+            return Long.parseLong(((StringValue) input).getValue());
+        } catch (NumberFormatException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }
     }

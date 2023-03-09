@@ -38,8 +38,8 @@ import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
 import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
-import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
-import io.evitadb.externalApi.rest.dataType.DataTypesConverter.ConvertedEnum;
+import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter.ConvertedEnum;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 

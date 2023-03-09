@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
 import graphql.language.StringValue;
 import graphql.schema.Coercing;
@@ -30,46 +30,54 @@ import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 
 import javax.annotation.Nonnull;
+import java.time.DateTimeException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 /**
- * {@link Coercing} for converting between Java's side {@link Long} and client string.
- * String on client side is used because JavaScript does not support 64-bit long numbers.
+ * {@link Coercing} for converting between Java's side {@link LocalDateTime} and client string.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class LongCoercing implements Coercing<Long, String> {
+public class LocalDateTimeCoercing implements Coercing<LocalDateTime, String> {
 
-    @Nonnull
+    public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Long)) {
-            throw new CoercingSerializeException("Long data fetcher result is not a long.");
+        if (!(dataFetcherResult instanceof LocalDateTime)) {
+            throw new CoercingSerializeException("Local date time data fetcher result is not a local date time.");
         }
-        return String.valueOf(dataFetcherResult);
+        try {
+            return ((LocalDateTime) dataFetcherResult).format(FORMATTER);
+        } catch (DateTimeException ex) {
+            throw new CoercingSerializeException(ex.getMessage(), ex);
+        }
     }
 
     @Nonnull
     @Override
-    public Long parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public LocalDateTime parseValue(@Nonnull Object input) throws CoercingParseValueException {
         if (!(input instanceof String)) {
-            throw new CoercingParseValueException("Long input value is not a string.");
+            throw new CoercingParseValueException("Local date time input is not a string.");
         }
         try {
-            return Long.parseLong((String) input);
-        } catch (NumberFormatException ex) {
+            return LocalDateTime.parse((String) input, FORMATTER);
+        } catch (DateTimeParseException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
     }
 
     @Nonnull
     @Override
-    public Long parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public LocalDateTime parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue)) {
-            throw new CoercingParseValueException("Long input value is not a string.");
+            throw new CoercingParseValueException("Local date time input is not a StringValue.");
         }
         try {
-            return Long.parseLong(((StringValue) input).getValue());
-        } catch (NumberFormatException ex) {
+            return LocalDateTime.parse(((StringValue) input).getValue(), FORMATTER);
+        } catch (DateTimeParseException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }
     }

@@ -21,54 +21,55 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
-import graphql.language.StringValue;
+import graphql.language.IntValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 
 import javax.annotation.Nonnull;
-import java.util.Currency;
+import java.math.BigInteger;
 
 /**
- * {@link Coercing} for converting between Java's side {@link Currency} and client string.
+ * {@link Coercing} for converting between Java's side {@link Short} and client int.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class CurrencyCoercing implements Coercing<Currency, String> {
+public class ShortCoercing implements Coercing<Short, Integer> {
 
+    @Nonnull
     @Override
-    public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof Currency)) {
-            throw new CoercingSerializeException("Currency data fetcher result is not a currency.");
+    public Integer serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
+        if (!(dataFetcherResult instanceof Short)) {
+            throw new CoercingSerializeException("Short data fetcher result is not a short.");
         }
-        return dataFetcherResult.toString();
+        return (int) dataFetcherResult;
     }
 
     @Nonnull
     @Override
-    public Currency parseValue(@Nonnull Object input) throws CoercingParseValueException {
-        if (!(input instanceof String)) {
-            throw new CoercingParseValueException("Currency input value is not a string.");
+    public Short parseValue(@Nonnull Object input) throws CoercingParseValueException {
+        if (!(input instanceof Integer)) {
+            throw new CoercingParseValueException("Short input value is not a integer.");
         }
         try {
-            return Currency.getInstance((String) input);
-        } catch (IllegalArgumentException ex) {
+            return new BigInteger(input.toString()).shortValueExact();
+        } catch (NumberFormatException | ArithmeticException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
     }
 
     @Nonnull
     @Override
-    public Currency parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
-        if (!(input instanceof StringValue)) {
-            throw new CoercingParseValueException("Currency input value is not a string.");
+    public Short parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+        if (!(input instanceof IntValue)) {
+            throw new CoercingParseValueException("Short input value is not a integer.");
         }
         try {
-            return Currency.getInstance(((StringValue) input).getValue());
-        } catch (IllegalArgumentException ex) {
+            return ((IntValue) input).getValue().shortValueExact();
+        } catch (NumberFormatException | ArithmeticException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }
     }

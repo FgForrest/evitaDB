@@ -37,9 +37,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintS
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKey;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
-import io.evitadb.externalApi.graphql.dataType.DataTypesConverter;
-import io.evitadb.externalApi.graphql.dataType.DataTypesConverter.ConvertedEnum;
-import io.evitadb.externalApi.graphql.dataType.GraphQLScalars;
+import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter.ConvertedEnum;
+import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 

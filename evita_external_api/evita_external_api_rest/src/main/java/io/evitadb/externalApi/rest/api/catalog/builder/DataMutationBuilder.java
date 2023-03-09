@@ -32,7 +32,7 @@ import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescr
 import io.evitadb.externalApi.rest.api.catalog.model.EntityUpsertRequestDescriptor;
 import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
-import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;

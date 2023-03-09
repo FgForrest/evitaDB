@@ -28,6 +28,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
 
 import javax.annotation.Nonnull;
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -37,7 +38,7 @@ import java.util.List;
  */
 public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) {
 
-	public record Endpoint(@Nonnull String path,
+	public record Endpoint(@Nonnull Path path,
 	                       @Nonnull PathItem.HttpMethod method,
 	                       @Nonnull RestHandler<?> handler) {}
 }

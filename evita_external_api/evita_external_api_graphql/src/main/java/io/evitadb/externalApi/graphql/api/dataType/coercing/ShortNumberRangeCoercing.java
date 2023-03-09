@@ -21,28 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
 import graphql.language.IntValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import io.evitadb.dataType.ByteNumberRange;
-import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigInteger;
+import java.util.Optional;
 
 /**
  * {@link Coercing} for converting between Java's side {@link ByteNumberRange} and client tuple (array).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class IntegerNumberRangeCoercing extends RangeCoercing<Integer, IntegerNumberRange, Integer> {
+public class ShortNumberRangeCoercing extends RangeCoercing<Short, ShortNumberRange, Integer> {
 
     @Override
-    protected Class<IntegerNumberRange> getRangeClass() {
-        return IntegerNumberRange.class;
+    protected Class<ShortNumberRange> getRangeClass() {
+        return ShortNumberRange.class;
     }
 
     @Override
@@ -58,13 +60,13 @@ public class IntegerNumberRangeCoercing extends RangeCoercing<Integer, IntegerNu
 
     @Nonnull
     @Override
-    protected IntegerNumberRange createRange(@Nullable Integer left, @Nullable Integer right) {
+    protected ShortNumberRange createRange(@Nullable Short left, @Nullable Short right) {
         if (left != null && right != null) {
-            return IntegerNumberRange.between(left, right);
+            return ShortNumberRange.between(left, right);
         } else if (left != null) {
-            return IntegerNumberRange.from(left);
+            return ShortNumberRange.from(left);
         } else if (right != null) {
-            return IntegerNumberRange.to(right);
+            return ShortNumberRange.to(right);
         } else {
             throw new GraphQLInvalidArgumentException("Both left and right arguments cannot be null!");
         }
@@ -81,14 +83,18 @@ public class IntegerNumberRangeCoercing extends RangeCoercing<Integer, IntegerNu
 
     @Nullable
     @Override
-    protected Integer formatRangeEnd(@Nullable Integer end) {
-        return end;
+    protected Integer formatRangeEnd(@Nullable Short end) {
+        return Optional.ofNullable(end)
+            .map(e -> (Integer) (int) e)
+            .orElse(null);
     }
 
     @Nullable
     @Override
-    protected Integer parseRangeEnd(@Nullable Integer end) {
-        return end;
+    protected Short parseRangeEnd(@Nullable Integer end) {
+        return Optional.ofNullable(end)
+            .map(e -> new BigInteger(end.toString()).shortValueExact())
+            .orElse(null);
     }
 
 }

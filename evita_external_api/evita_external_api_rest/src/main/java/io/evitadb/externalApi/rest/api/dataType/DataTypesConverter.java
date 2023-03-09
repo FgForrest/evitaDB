@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.dataType;
+package io.evitadb.externalApi.rest.api.dataType;
 
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.externalApi.rest.api.dto.OpenApiArray;

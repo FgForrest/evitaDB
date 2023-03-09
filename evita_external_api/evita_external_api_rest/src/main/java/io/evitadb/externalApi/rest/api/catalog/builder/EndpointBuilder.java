@@ -41,7 +41,7 @@ import io.evitadb.externalApi.rest.api.dto.OpenApiCatalogEndpoint;
 import io.evitadb.externalApi.rest.api.dto.OpenApiCollectionEndpoint;
 import io.evitadb.externalApi.rest.api.dto.OpenApiEndpointParameter;
 import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
-import io.evitadb.externalApi.rest.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.io.handler.*;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;

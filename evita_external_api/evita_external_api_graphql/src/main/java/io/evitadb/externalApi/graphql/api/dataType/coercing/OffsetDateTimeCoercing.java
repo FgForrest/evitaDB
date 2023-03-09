@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
 import graphql.language.StringValue;
 import graphql.schema.Coercing;
@@ -31,26 +31,26 @@ import graphql.schema.CoercingSerializeException;
 
 import javax.annotation.Nonnull;
 import java.time.DateTimeException;
-import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 
 /**
- * {@link Coercing} for converting between Java's side {@link LocalDate} and client string.
+ * {@link Coercing} for converting between Java's side {@link OffsetDateTime} and client string.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class LocalDateCoercing implements Coercing<LocalDate, String> {
+public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> {
 
-    public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
+    public static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (!(dataFetcherResult instanceof LocalDate)) {
-            throw new CoercingSerializeException("Local date data fetcher result is not a local date.");
+        if (!(dataFetcherResult instanceof OffsetDateTime)) {
+            throw new CoercingSerializeException("Offset date time data fetcher result is not a offset date time.");
         }
         try {
-            return ((LocalDate) dataFetcherResult).format(FORMATTER);
+            return ((OffsetDateTime) dataFetcherResult).format(FORMATTER);
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
@@ -58,12 +58,12 @@ public class LocalDateCoercing implements Coercing<LocalDate, String> {
 
     @Nonnull
     @Override
-    public LocalDate parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public OffsetDateTime parseValue(@Nonnull Object input) throws CoercingParseValueException {
         if (!(input instanceof String)) {
-            throw new CoercingParseValueException("Local date input is not a string.");
+            throw new CoercingParseValueException("Offset date time input is not a string.");
         }
         try {
-            return LocalDate.parse((String) input, FORMATTER);
+            return OffsetDateTime.parse((String) input, FORMATTER);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -71,12 +71,12 @@ public class LocalDateCoercing implements Coercing<LocalDate, String> {
 
     @Nonnull
     @Override
-    public LocalDate parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public OffsetDateTime parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue)) {
-            throw new CoercingParseValueException("Local date input is not a StringValue.");
+            throw new CoercingParseValueException("Offset date time input is not a StringValue.");
         }
         try {
-            return LocalDate.parse(((StringValue) input).getValue(), FORMATTER);
+            return OffsetDateTime.parse(((StringValue) input).getValue(), FORMATTER);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

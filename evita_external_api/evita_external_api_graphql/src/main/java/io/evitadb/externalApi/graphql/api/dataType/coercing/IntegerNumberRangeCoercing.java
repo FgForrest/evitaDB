@@ -21,52 +21,50 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
-import graphql.language.StringValue;
+import graphql.language.IntValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
-import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.ByteNumberRange;
+import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
-import java.util.Objects;
-import java.util.Optional;
 
 /**
- * {@link Coercing} for converting between Java's side {@link BigDecimalNumberRange} and client tuple (array).
+ * {@link Coercing} for converting between Java's side {@link ByteNumberRange} and client tuple (array).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class BigDecimalNumberRangeCoercing extends RangeCoercing<BigDecimal, BigDecimalNumberRange, String> {
+public class IntegerNumberRangeCoercing extends RangeCoercing<Integer, IntegerNumberRange, Integer> {
 
     @Override
-    protected Class<BigDecimalNumberRange> getRangeClass() {
-        return BigDecimalNumberRange.class;
+    protected Class<IntegerNumberRange> getRangeClass() {
+        return IntegerNumberRange.class;
     }
 
     @Override
-    protected Class<String> getTupleComponentClass() {
-        return String.class;
-    }
-
-    @Nonnull
-    @Override
-    protected String[] createTuple(@Nullable String from, @Nullable String to) {
-        return new String[] { from, to };
+    protected Class<Integer> getTupleComponentClass() {
+        return Integer.class;
     }
 
     @Nonnull
     @Override
-    protected BigDecimalNumberRange createRange(@Nullable BigDecimal left, @Nullable BigDecimal right) {
+    protected Integer[] createTuple(@Nullable Integer from, @Nullable Integer to) {
+        return new Integer[] { from, to };
+    }
+
+    @Nonnull
+    @Override
+    protected IntegerNumberRange createRange(@Nullable Integer left, @Nullable Integer right) {
         if (left != null && right != null) {
-            return BigDecimalNumberRange.between(left, right);
+            return IntegerNumberRange.between(left, right);
         } else if (left != null) {
-            return BigDecimalNumberRange.from(left);
+            return IntegerNumberRange.from(left);
         } else if (right != null) {
-            return BigDecimalNumberRange.to(right);
+            return IntegerNumberRange.to(right);
         } else {
             throw new GraphQLInvalidArgumentException("Both left and right arguments cannot be null!");
         }
@@ -74,27 +72,23 @@ public class BigDecimalNumberRangeCoercing extends RangeCoercing<BigDecimal, Big
 
     @Nonnull
     @Override
-    protected String extractRangeEndFromNode(@Nonnull Object node) {
-        if (!(node instanceof StringValue)) {
-            throw new CoercingParseLiteralException("Item of range input value is not a string.");
+    protected Integer extractRangeEndFromNode(@Nonnull Object node) {
+        if (!(node instanceof IntValue)) {
+            throw new CoercingParseLiteralException("Item of range input value is not a integer.");
         }
-        return ((StringValue) node).getValue();
+        return ((IntValue) node).getValue().intValueExact();
     }
 
     @Nullable
     @Override
-    protected String formatRangeEnd(@Nullable BigDecimal end) {
-        return Optional.ofNullable(end)
-            .map(Objects::toString)
-            .orElse(null);
+    protected Integer formatRangeEnd(@Nullable Integer end) {
+        return end;
     }
 
     @Nullable
     @Override
-    protected BigDecimal parseRangeEnd(@Nullable String end) {
-        return Optional.ofNullable(end)
-            .map(BigDecimal::new)
-            .orElse(null);
+    protected Integer parseRangeEnd(@Nullable Integer end) {
+        return end;
     }
 
 }

@@ -21,50 +21,51 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
-import graphql.language.StringValue;
+import graphql.language.IntValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
-import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigInteger;
 import java.util.Optional;
 
 /**
- * {@link Coercing} for converting between Java's side {@link LongNumberRange} and client tuple (array).
+ * {@link Coercing} for converting between Java's side {@link io.evitadb.api.dataType.ByteNumberRange} and client tuple (array).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class LongNumberRangeCoercing extends RangeCoercing<Long, LongNumberRange, String> {
+public class ByteNumberRangeCoercing extends RangeCoercing<Byte, ByteNumberRange, Integer> {
 
     @Override
-    protected Class<LongNumberRange> getRangeClass() {
-        return LongNumberRange.class;
+    protected Class<ByteNumberRange> getRangeClass() {
+        return ByteNumberRange.class;
     }
 
     @Override
-    protected Class<String> getTupleComponentClass() {
-        return String.class;
-    }
-
-    @Nonnull
-    @Override
-    protected String[] createTuple(@Nullable String from, @Nullable String to) {
-        return new String[] { from, to };
+    protected Class<Integer> getTupleComponentClass() {
+        return Integer.class;
     }
 
     @Nonnull
     @Override
-    protected LongNumberRange createRange(@Nullable Long left, @Nullable Long right) {
+    protected Integer[] createTuple(@Nullable Integer from, @Nullable Integer to) {
+        return new Integer[] { from, to };
+    }
+
+    @Nonnull
+    @Override
+    protected ByteNumberRange createRange(@Nullable Byte left, @Nullable Byte right) {
         if (left != null && right != null) {
-            return LongNumberRange.between(left, right);
+            return ByteNumberRange.between(left, right);
         } else if (left != null) {
-            return LongNumberRange.from(left);
+            return ByteNumberRange.from(left);
         } else if (right != null) {
-            return LongNumberRange.to(right);
+            return ByteNumberRange.to(right);
         } else {
             throw new GraphQLInvalidArgumentException("Both left and right arguments cannot be null!");
         }
@@ -72,26 +73,26 @@ public class LongNumberRangeCoercing extends RangeCoercing<Long, LongNumberRange
 
     @Nonnull
     @Override
-    protected String extractRangeEndFromNode(@Nonnull Object node) {
-        if (!(node instanceof StringValue)) {
-            throw new CoercingParseLiteralException("Item of range input value is not a string.");
+    protected Integer extractRangeEndFromNode(@Nonnull Object node) {
+        if (!(node instanceof IntValue)) {
+            throw new CoercingParseLiteralException("Item of range input value is not a integer.");
         }
-        return ((StringValue) node).getValue();
+        return ((IntValue) node).getValue().intValueExact();
     }
 
     @Nullable
     @Override
-    protected String formatRangeEnd(@Nullable Long end) {
+    protected Integer formatRangeEnd(@Nullable Byte end) {
         return Optional.ofNullable(end)
-            .map(Object::toString)
+            .map(e -> (Integer) (int) e)
             .orElse(null);
     }
 
     @Nullable
     @Override
-    protected Long parseRangeEnd(@Nullable String end) {
+    protected Byte parseRangeEnd(@Nullable Integer end) {
         return Optional.ofNullable(end)
-            .map(Long::parseLong)
+            .map(e -> new BigInteger(end.toString()).byteValueExact())
             .orElse(null);
     }
 

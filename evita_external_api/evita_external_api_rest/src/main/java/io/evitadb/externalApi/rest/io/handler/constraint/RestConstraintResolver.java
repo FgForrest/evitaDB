@@ -80,7 +80,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 		}
 
 		final String argumentName = parameterDescriptor.name();
-		return DataDeserializer.deserialize(parameterDescriptor.type(), ((JsonNode) value).get(argumentName));
+		return DataDeserializer.deserializeValue(parameterDescriptor.type(), ((JsonNode) value).get(argumentName));
 	}
 
 	@Nullable
@@ -112,9 +112,9 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 				return convertArrayArgument(valueParameterDescriptor.type(), argumentSchema, jsonNode);
 			} else if(type.equals(Serializable.class)) {
 				final Schema<?> argumentSchema = getSchemaFromOperationProperty(parsedKey.originalKey());
-				return DataDeserializer.deserialize(restHandlingContext.getOpenApi(), argumentSchema, (jsonNode));
+				return DataDeserializer.deserializeValue(restHandlingContext.getOpenApi(), argumentSchema, (jsonNode));
 			} else {
-				return DataDeserializer.deserialize(type, jsonNode);
+				return DataDeserializer.deserializeValue(type, jsonNode);
 			}
 		} else {
 			return argument;
@@ -145,7 +145,7 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 				"Can't get array  if JsonNode is not instance of ArrayNode. Class: " + argument.getClass().getSimpleName());
 
 		} else {
-			return DataDeserializer.deserialize(restHandlingContext.getOpenApi(), argumentSchema, argument);
+			return DataDeserializer.deserializeValue(restHandlingContext.getOpenApi(), argumentSchema, argument);
 		}
 	}
 

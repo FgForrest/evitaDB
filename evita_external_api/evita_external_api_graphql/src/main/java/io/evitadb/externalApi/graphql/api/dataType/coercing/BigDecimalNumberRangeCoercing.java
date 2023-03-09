@@ -21,52 +21,52 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
-import graphql.language.IntValue;
+import graphql.language.StringValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
-import io.evitadb.dataType.ByteNumberRange;
-import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigInteger;
+import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
- * {@link Coercing} for converting between Java's side {@link ByteNumberRange} and client tuple (array).
+ * {@link Coercing} for converting between Java's side {@link BigDecimalNumberRange} and client tuple (array).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class ShortNumberRangeCoercing extends RangeCoercing<Short, ShortNumberRange, Integer> {
+public class BigDecimalNumberRangeCoercing extends RangeCoercing<BigDecimal, BigDecimalNumberRange, String> {
 
     @Override
-    protected Class<ShortNumberRange> getRangeClass() {
-        return ShortNumberRange.class;
+    protected Class<BigDecimalNumberRange> getRangeClass() {
+        return BigDecimalNumberRange.class;
     }
 
     @Override
-    protected Class<Integer> getTupleComponentClass() {
-        return Integer.class;
-    }
-
-    @Nonnull
-    @Override
-    protected Integer[] createTuple(@Nullable Integer from, @Nullable Integer to) {
-        return new Integer[] { from, to };
+    protected Class<String> getTupleComponentClass() {
+        return String.class;
     }
 
     @Nonnull
     @Override
-    protected ShortNumberRange createRange(@Nullable Short left, @Nullable Short right) {
+    protected String[] createTuple(@Nullable String from, @Nullable String to) {
+        return new String[] { from, to };
+    }
+
+    @Nonnull
+    @Override
+    protected BigDecimalNumberRange createRange(@Nullable BigDecimal left, @Nullable BigDecimal right) {
         if (left != null && right != null) {
-            return ShortNumberRange.between(left, right);
+            return BigDecimalNumberRange.between(left, right);
         } else if (left != null) {
-            return ShortNumberRange.from(left);
+            return BigDecimalNumberRange.from(left);
         } else if (right != null) {
-            return ShortNumberRange.to(right);
+            return BigDecimalNumberRange.to(right);
         } else {
             throw new GraphQLInvalidArgumentException("Both left and right arguments cannot be null!");
         }
@@ -74,26 +74,26 @@ public class ShortNumberRangeCoercing extends RangeCoercing<Short, ShortNumberRa
 
     @Nonnull
     @Override
-    protected Integer extractRangeEndFromNode(@Nonnull Object node) {
-        if (!(node instanceof IntValue)) {
-            throw new CoercingParseLiteralException("Item of range input value is not a integer.");
+    protected String extractRangeEndFromNode(@Nonnull Object node) {
+        if (!(node instanceof StringValue)) {
+            throw new CoercingParseLiteralException("Item of range input value is not a string.");
         }
-        return ((IntValue) node).getValue().intValueExact();
+        return ((StringValue) node).getValue();
     }
 
     @Nullable
     @Override
-    protected Integer formatRangeEnd(@Nullable Short end) {
+    protected String formatRangeEnd(@Nullable BigDecimal end) {
         return Optional.ofNullable(end)
-            .map(e -> (Integer) (int) e)
+            .map(Objects::toString)
             .orElse(null);
     }
 
     @Nullable
     @Override
-    protected Short parseRangeEnd(@Nullable Integer end) {
+    protected BigDecimal parseRangeEnd(@Nullable String end) {
         return Optional.ofNullable(end)
-            .map(e -> new BigInteger(end.toString()).shortValueExact())
+            .map(BigDecimal::new)
             .orElse(null);
     }
 

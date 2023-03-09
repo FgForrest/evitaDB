@@ -72,35 +72,35 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public class DataDeserializer {
 
 	/**
-	 * Deserializes data from string array. It can return single object, array or range object.
+	 * Deserializes value from string array. It can return single object, array or range object.
 	 *
 	 * @throws RestTooManyValuesPresentException is thrown when single object is required by schema but data array
 	 * contains more than one value.
 	 */
 	@SuppressWarnings({"rawtypes"})
 	@Nullable
-	public static Object deserialize(@Nonnull OpenAPI openAPI,  @Nonnull Schema schema, @Nonnull String[] data) {
-		if(data.length == 0) {
+	public static Object deserializeValue(@Nonnull OpenAPI openAPI, @Nonnull Schema schema, @Nonnull String[] data) {
+		if (data.length == 0) {
 			final Class schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI));
 			return Array.newInstance(schemaClass, 0);
 		}
-		if(OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
+		if (OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
 			if(OpenApiScalar.FORMAT_RANGE.equals(schema.getFormat())) {
 				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI)), data, schema.getName());
 			}
 			return deserializeArray(openAPI, schema, data);
 		} else {
-			if(data.length > 1) {
+			if (data.length > 1) {
 				throw new RestTooManyValuesPresentException("Expected one value of parameter " + schema.getName() + " but found: " + data.length);
 			}
-			return deserialize(schema, data[0]);
+			return deserializeValue(schema, data[0]);
 		}
 	}
 
 	/**
-	 * Deserializes data from {@link JsonNode}. It can return single object, array or range object.
+	 * Deserializes value from {@link JsonNode}. It can return single value, array or range object.
 	 */
-	public static Object deserialize(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
+	public static Object deserializeValue(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
 		if((jsonNode.isArray() && jsonNode.isEmpty()) || jsonNode.asText() == null) {
 			final Class<?> schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI));
 			return Array.newInstance(schemaClass, 0);
@@ -111,69 +111,8 @@ public class DataDeserializer {
 			}
 			return deserializeArray(openAPI, schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
 		} else {
-			return deserialize(schema, jsonNode.asText());
+			return deserializeValue(schema, jsonNode.asText());
 		}
-	}
-
-	/**
-	 * Deserializes {@link JsonNode} and its content according provided OpenAPI {@link Schema}.
-	 *
-	 * @return single object or map of objects when as keys are used property names
-	 */
-	@Nullable
-	public static Object deserializeJsonNodeTree(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
-		if(jsonNode instanceof NullNode) {
-			return null;
-		}
-		if(jsonNode instanceof ArrayNode arrayNode) {
-			if(schema instanceof ArraySchema arraySchema) {
-				final ArrayList<Object> objects = new ArrayList<>(arrayNode.size());
-				for (JsonNode node : arrayNode) {
-					objects.add(deserializeJsonNodeTree(openAPI, SchemaUtils.getTargetSchemaFromRefOrOneOf(arraySchema.getItems(), openAPI), node));
-				}
-				return objects;
-			}
-			else {
-				throw new RestInvalidArgumentException("Can't parse data form an ArrayNode when schema is not an ArraySchema. " +
-					"Schema: " + schema.getName(), "Error when parsing data.");
-			}
-		} else {
-			if(schema instanceof ArraySchema) {
-				throw new RestInvalidArgumentException("Can't parse data form an JsonNode when schema is an ArraySchema but JsonNode " +
-					"is not an ArrayNode. Schema: " + schema.getName(), "Error when parsing data.");
-			}
-
-			if(schema.getType() == null || OpenApiScalar.TYPE_OBJECT.equals(schema.getType())) {
-				final Map<String, Object> dataMap = createHashMap(20);
-				final Iterator<String> namesIterator = jsonNode.fieldNames();
-				while (namesIterator.hasNext()) {
-					final String fieldName = namesIterator.next();
-					final Schema<?> propertySchema = schema.getProperties().get(fieldName);
-					if (propertySchema != null) {
-						final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, openAPI);
-						dataMap.put(fieldName, deserializeJsonNodeTree(openAPI, targetPropertySchema, jsonNode.get(fieldName)));
-					} else {
-						throw new RestInvalidArgumentException("Invalid property name: " + fieldName);
-					}
-				}
-				return dataMap;
-			} else {
-				return DataDeserializer.deserialize(openAPI, schema, jsonNode);
-			}
-		}
-	}
-
-	/**
-	 * Deserializes objects in array represented by {@link ArrayNode}
-	 * @throws RestInvalidArgumentException is thrown when JsonNode is not instance of ArrayNode or when schema type
-	 * is not {@link OpenApiScalar#TYPE_ARRAY}.
-	 */
-	public static Object[] deserializeArray(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
-		if(!OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
-			throw new RestInvalidArgumentException("Can't deserialize value, schema type is not array. Name: " + schema.getName());
-		}
-
-		return deserializeArray(openAPI, schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
 	}
 
 	/**
@@ -183,7 +122,7 @@ public class DataDeserializer {
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
-	public static <T extends Serializable> T deserialize(@Nonnull Class<T> targetClass, @Nullable JsonNode value) {
+	public static <T extends Serializable> T deserializeValue(@Nonnull Class<T> targetClass, @Nullable JsonNode value) {
 		if (value == null || value.isNull()) {
 			return null;
 		}
@@ -223,120 +162,118 @@ public class DataDeserializer {
 		throw new RestInternalError("Deserialization of field of JavaType: " + targetClass.getSimpleName() + " is not implemented yet.");
 	}
 
+	/**
+	 * Deserializes objects in array represented by {@link ArrayNode}
+	 * @throws RestInvalidArgumentException is thrown when JsonNode is not instance of ArrayNode or when schema type
+	 * is not {@link OpenApiScalar#TYPE_ARRAY}.
+	 */
+	@Nonnull
+	public static Object[] deserializeArray(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
+		if(!OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
+			throw new RestInvalidArgumentException("Can't deserialize value, schema type is not array. Name: " + schema.getName());
+		}
 
+		return deserializeArray(openAPI, schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
+	}
+
+	/**
+	 * Deserializes {@link JsonNode} and its content according provided OpenAPI {@link Schema}.
+	 *
+	 * @return single object or map of objects when as keys are used property names
+	 */
+	@Nullable
+	public static Object deserializeTree(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
+		if(jsonNode instanceof NullNode) {
+			return null;
+		}
+		if(jsonNode instanceof ArrayNode arrayNode) {
+			if(schema instanceof ArraySchema arraySchema) {
+				final ArrayList<Object> objects = new ArrayList<>(arrayNode.size());
+				for (JsonNode node : arrayNode) {
+					objects.add(deserializeTree(openAPI, SchemaUtils.getTargetSchemaFromRefOrOneOf(arraySchema.getItems(), openAPI), node));
+				}
+				return objects;
+			}
+			else {
+				throw new RestInvalidArgumentException("Can't parse data form an ArrayNode when schema is not an ArraySchema. " +
+					"Schema: " + schema.getName(), "Error when parsing data.");
+			}
+		} else {
+			if(schema instanceof ArraySchema) {
+				throw new RestInvalidArgumentException("Can't parse data form an JsonNode when schema is an ArraySchema but JsonNode " +
+					"is not an ArrayNode. Schema: " + schema.getName(), "Error when parsing data.");
+			}
+
+			if(schema.getType() == null || OpenApiScalar.TYPE_OBJECT.equals(schema.getType())) {
+				final Map<String, Object> dataMap = createHashMap(20);
+				final Iterator<String> namesIterator = jsonNode.fieldNames();
+				while (namesIterator.hasNext()) {
+					final String fieldName = namesIterator.next();
+					final Schema<?> propertySchema = schema.getProperties().get(fieldName);
+					if (propertySchema != null) {
+						final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, openAPI);
+						dataMap.put(fieldName, deserializeTree(openAPI, targetPropertySchema, jsonNode.get(fieldName)));
+					} else {
+						throw new RestInvalidArgumentException("Invalid property name: " + fieldName);
+					}
+				}
+				return dataMap;
+			} else {
+				return DataDeserializer.deserializeValue(openAPI, schema, jsonNode);
+			}
+		}
+	}
+
+
+
+	@Nullable
+	@SuppressWarnings({"rawtypes"})
+	private static Object deserializeValue(@Nonnull Schema schema, @Nonnull String data) {
+		return deserializeValue(resolveDataClass(schema), data);
+	}
+
+	@Nullable
+	private static <T extends Serializable> T deserializeValue(@Nonnull Class<T> requestedType, @Nonnull String data) {
+		return EvitaDataTypes.toTargetType(data, requestedType);
+	}
+
+
+	@Nonnull
 	private static Object[] deserializeArray(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull String[] data) {
 		final Class<?> arrayClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI));
 		final Object[] dataArray = (Object[]) Array.newInstance(arrayClass, data.length);
 		for (int i = 0; i < data.length; i++) {
-			dataArray[i] = deserialize(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI), data[i]);
+			dataArray[i] = deserializeValue(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI), data[i]);
 		}
 		return dataArray;
 	}
 
-	@SuppressWarnings({"rawtypes"})
-	private static Object deserialize(@Nonnull Schema schema, @Nonnull String data) {
-		return deserialize(resolveDataClass(schema), data);
-	}
-
-	private static <T extends Serializable> T deserialize(@Nonnull Class<T> requestedType, @Nonnull String data) {
-		return EvitaDataTypes.toTargetType(data, requestedType);
-	}
-
-	private static String[] getNodeValuesAsStringArray(@Nonnull JsonNode jsonNode, @Nonnull String attributeName) {
-		if(jsonNode instanceof ArrayNode arrayNode) {
-			final String[] strings = new String[arrayNode.size()];
-			for (int i = 0; i < arrayNode.size(); i++) {
-				strings[i] = arrayNode.get(i).asText();
-			}
-			return strings;
-		}
-		throw new RestInvalidArgumentException("Can't get array of string if JsonNode is not instance of ArrayNode. Class: " + jsonNode.getClass().getSimpleName(),
-			"Expecting array but getting single value. Attribute name: " + attributeName);
-	}
-
-	@SuppressWarnings("rawtypes")
-	private static Class<? extends Serializable> resolveDataClass(@Nonnull Schema schema) {
-		if(OpenApiScalar.TYPE_STRING.equals(schema.getType())) {
-			if(schema.getFormat() == null) {
-				return String.class;
-			}
-			return switch (schema.getFormat()) {
-				case OpenApiScalar.FORMAT_DATE -> LocalDate.class;
-				case OpenApiScalar.FORMAT_DATE_TIME -> OffsetDateTime.class;
-				case OpenApiScalar.FORMAT_LOCAL_TIME -> LocalTime.class;
-				case OpenApiScalar.FORMAT_LOCAL_DATE_TIME -> LocalDateTime.class;
-				case OpenApiScalar.FORMAT_CURRENCY -> Currency.class;
-				case OpenApiScalar.FORMAT_LOCALE -> Locale.class;
-				case OpenApiScalar.FORMAT_CHAR -> Character.class;
-				case OpenApiScalar.FORMAT_DECIMAL -> BigDecimal.class;
-				case OpenApiScalar.FORMAT_INT_64 -> Long.class;
-				default -> throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for String type.");
-			};
-		}
-		if(OpenApiScalar.TYPE_INTEGER.equals(schema.getType())) {
-			if(schema.getFormat().equals(OpenApiScalar.FORMAT_INT_32)) {
-				return Integer.class;
-			} else if(schema.getFormat().equals(OpenApiScalar.FORMAT_INT_16)) {
-				return Short.class;
-			} else if(schema.getFormat().equals(OpenApiScalar.FORMAT_BYTE)) {
-				return Byte.class;
-			} else {
-				throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for Integer type.");
-			}
-		}
-		if(OpenApiScalar.TYPE_BOOLEAN.equals(schema.getType())) {
-			return Boolean.class;
-		}
-		throw new RestInternalError("Unknown schema type " + schema.getType());
-	}
-
+	@Nonnull
 	@SuppressWarnings("unchecked")
 	private static <T extends Serializable> T[] deserializeArray(@Nonnull Class<T> targetClass, @Nonnull ArrayNode arrayNode) {
 		final Object deserialized = Array.newInstance(targetClass, arrayNode.size());
 		for (int i = 0; i < arrayNode.size(); i++) {
-			 Array.set(deserialized, i, deserialize(targetClass, arrayNode.get(i)));
+			 Array.set(deserialized, i, deserializeValue(targetClass, arrayNode.get(i)));
 		}
 		return (T[]) deserialized;
 	}
 
-	@Nonnull
-	private static <T extends Serializable, E extends Enum<E>> T deserializeEnum(@Nonnull Class<T> targetClass, @Nonnull JsonNode value) {
-		//noinspection unchecked
-		return (T) Enum.valueOf((Class<E>) targetClass, value.asText());
-	}
-
-	@Nullable
-	private static Byte deserializeByteNumber(@Nonnull JsonNode value) {
-		return deserializeByteNumber(value.asText());
-	}
-
-	@Nullable
-	private static Byte deserializeByteNumber(@Nonnull String value) {
-		final byte[] decoded = Base64.getDecoder().decode(value);
-		if(decoded.length == 1) {
-			return decoded[0];
-		} else if(decoded.length == 0) {
-			return null;
-		} else {
-			throw new RestQueryResolvingInternalError("Byte value must be always single byte not array of bytes.");
-		}
-	}
 
 	@Nonnull
 	private static <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull JsonNode value, @Nonnull String attributeName) {
 		if (value instanceof ArrayNode values && values.size() == 2) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(OffsetDateTime.class, values.get(0)), deserialize(OffsetDateTime.class, values.get(1)), attributeName);
+				return deserializeRange(targetClass, deserializeValue(OffsetDateTime.class, values.get(0)), deserializeValue(OffsetDateTime.class, values.get(1)), attributeName);
 			} else if (BigDecimal.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(BigDecimal.class, values.get(0)), deserialize(BigDecimal.class, values.get(1)), attributeName);
+				return deserializeRange(targetClass, deserializeValue(BigDecimal.class, values.get(0)), deserializeValue(BigDecimal.class, values.get(1)), attributeName);
 			} else if (Byte.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(Byte.class, values.get(0)), deserialize(Byte.class, values.get(1)), attributeName);
+				return deserializeRange(targetClass, deserializeValue(Byte.class, values.get(0)), deserializeValue(Byte.class, values.get(1)), attributeName);
 			} else if (Short.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(Short.class, values.get(0)), deserialize(Short.class, values.get(1)), attributeName);
+				return deserializeRange(targetClass, deserializeValue(Short.class, values.get(0)), deserializeValue(Short.class, values.get(1)), attributeName);
 			} else if (Integer.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(Integer.class, values.get(0)), deserialize(Integer.class, values.get(1)), attributeName);
+				return deserializeRange(targetClass, deserializeValue(Integer.class, values.get(0)), deserializeValue(Integer.class, values.get(1)), attributeName);
 			} else if (Long.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(Long.class, values.get(0)), deserialize(Long.class, values.get(1)), attributeName);
+				return deserializeRange(targetClass, deserializeValue(Long.class, values.get(0)), deserializeValue(Long.class, values.get(1)), attributeName);
 			}
 			throw new RestInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() + " is not implemented yet. Attribute: " + attributeName);
 		}
@@ -347,17 +284,17 @@ public class DataDeserializer {
 	private static <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull String[] values, @Nonnull String attributeName) {
 		if (values.length == 2) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(OffsetDateTime.class, values[0]), deserialize(OffsetDateTime.class, values[1]), attributeName);
+				return deserializeRange(targetClass, deserializeValue(OffsetDateTime.class, values[0]), deserializeValue(OffsetDateTime.class, values[1]), attributeName);
 			} else if (BigDecimal.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(BigDecimal.class, values[0]), deserialize(BigDecimal.class, values[1]), attributeName);
+				return deserializeRange(targetClass, deserializeValue(BigDecimal.class, values[0]), deserializeValue(BigDecimal.class, values[1]), attributeName);
 			} else if (Byte.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(Byte.class, values[0]), deserialize(Byte.class, values[1]), attributeName);
+				return deserializeRange(targetClass, deserializeValue(Byte.class, values[0]), deserializeValue(Byte.class, values[1]), attributeName);
 			} else if (Short.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(Short.class, values[0]), deserialize(Short.class, values[1]), attributeName);
+				return deserializeRange(targetClass, deserializeValue(Short.class, values[0]), deserializeValue(Short.class, values[1]), attributeName);
 			} else if (Integer.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(Integer.class, values[0]), deserialize(Integer.class, values[1]), attributeName);
+				return deserializeRange(targetClass, deserializeValue(Integer.class, values[0]), deserializeValue(Integer.class, values[1]), attributeName);
 			} else if (Long.class.isAssignableFrom(targetClass)) {
-				return deserializeRange(targetClass, deserialize(Long.class, values[0]), deserialize(Long.class, values[1]), attributeName);
+				return deserializeRange(targetClass, deserializeValue(Long.class, values[0]), deserializeValue(Long.class, values[1]), attributeName);
 			}
 			throw new RestInternalError("Deserialization of range JavaType: " + targetClass.getSimpleName() +
 				" is not implemented yet. Attribute: " + attributeName);
@@ -418,6 +355,82 @@ public class DataDeserializer {
 				" is not implemented yet. Attribute: " + attributeName);
 		}
 		throw new RestInternalError("Both values for range data type are null which is not allowed. Attribute: " + attributeName);
+	}
+
+
+	@Nullable
+	private static Byte deserializeByteNumber(@Nonnull JsonNode value) {
+		return deserializeByteNumber(value.asText());
+	}
+
+	@Nullable
+	private static Byte deserializeByteNumber(@Nonnull String value) {
+		final byte[] decoded = Base64.getDecoder().decode(value);
+		if(decoded.length == 1) {
+			return decoded[0];
+		} else if(decoded.length == 0) {
+			return null;
+		} else {
+			throw new RestQueryResolvingInternalError("Byte value must be always single byte not array of bytes.");
+		}
+	}
+
+
+	@Nonnull
+	private static <T extends Serializable, E extends Enum<E>> T deserializeEnum(@Nonnull Class<T> targetClass, @Nonnull JsonNode value) {
+		//noinspection unchecked
+		return (T) Enum.valueOf((Class<E>) targetClass, value.asText());
+	}
+
+
+	@Nonnull
+	@SuppressWarnings("rawtypes")
+	private static Class<? extends Serializable> resolveDataClass(@Nonnull Schema schema) {
+		if(OpenApiScalar.TYPE_STRING.equals(schema.getType())) {
+			if(schema.getFormat() == null) {
+				return String.class;
+			}
+			return switch (schema.getFormat()) {
+				case OpenApiScalar.FORMAT_DATE -> LocalDate.class;
+				case OpenApiScalar.FORMAT_DATE_TIME -> OffsetDateTime.class;
+				case OpenApiScalar.FORMAT_LOCAL_TIME -> LocalTime.class;
+				case OpenApiScalar.FORMAT_LOCAL_DATE_TIME -> LocalDateTime.class;
+				case OpenApiScalar.FORMAT_CURRENCY -> Currency.class;
+				case OpenApiScalar.FORMAT_LOCALE -> Locale.class;
+				case OpenApiScalar.FORMAT_CHAR -> Character.class;
+				case OpenApiScalar.FORMAT_DECIMAL -> BigDecimal.class;
+				case OpenApiScalar.FORMAT_INT_64 -> Long.class;
+				default -> throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for String type.");
+			};
+		}
+		if(OpenApiScalar.TYPE_INTEGER.equals(schema.getType())) {
+			if(schema.getFormat().equals(OpenApiScalar.FORMAT_INT_32)) {
+				return Integer.class;
+			} else if(schema.getFormat().equals(OpenApiScalar.FORMAT_INT_16)) {
+				return Short.class;
+			} else if(schema.getFormat().equals(OpenApiScalar.FORMAT_BYTE)) {
+				return Byte.class;
+			} else {
+				throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for Integer type.");
+			}
+		}
+		if(OpenApiScalar.TYPE_BOOLEAN.equals(schema.getType())) {
+			return Boolean.class;
+		}
+		throw new RestInternalError("Unknown schema type " + schema.getType());
+	}
+
+	@Nonnull
+	private static String[] getNodeValuesAsStringArray(@Nonnull JsonNode jsonNode, @Nonnull String attributeName) {
+		if(jsonNode instanceof ArrayNode arrayNode) {
+			final String[] strings = new String[arrayNode.size()];
+			for (int i = 0; i < arrayNode.size(); i++) {
+				strings[i] = arrayNode.get(i).asText();
+			}
+			return strings;
+		}
+		throw new RestInvalidArgumentException("Can't get array of string if JsonNode is not instance of ArrayNode. Class: " + jsonNode.getClass().getSimpleName(),
+			"Expecting array but getting single value. Attribute name: " + attributeName);
 	}
 
 }

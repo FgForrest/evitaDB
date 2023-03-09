@@ -209,7 +209,7 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     protected Optional<Object> getParameterFromRequest(@Nonnull Map<String, Deque<String>> queryParameters, @Nonnull Parameter parameter) {
         final Deque<String> queryParam = queryParameters.get(parameter.getName());
         if(queryParam != null) {
-            return Optional.ofNullable(DataDeserializer.deserialize(restApiHandlingContext.getOpenApi(), getParameterSchema(parameter), queryParam.toArray(new String[]{})));
+            return Optional.ofNullable(DataDeserializer.deserializeValue(restApiHandlingContext.getOpenApi(), getParameterSchema(parameter), queryParam.toArray(new String[]{})));
         } else if(Boolean.TRUE.equals(parameter.getRequired())) {
             throw new RestRequiredParameterMissingException("Required parameter " + parameter.getName() +
                 " is missing in query data (" + parameter.getIn() + ")");

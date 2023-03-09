@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
 import graphql.schema.Coercing;
 import graphql.schema.CoercingSerializeException;
@@ -33,6 +33,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.dataType.Any;
+import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -44,7 +45,6 @@ import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.externalApi.graphql.dataType.GraphQLScalars.*;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -64,26 +64,26 @@ public class AnyCoercing extends ObjectCoercing {
 	private static final Map<Class<?>, Coercing<?, ?>> SERIALIZATION_COERCING_MAPPINGS;
 	static {
 		SERIALIZATION_COERCING_MAPPINGS = createHashMap(32);
-		SERIALIZATION_COERCING_MAPPINGS.put(String.class, STRING_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(Byte.class, BYTE_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(Short.class, SHORT_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(Integer.class, INT_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(Long.class, LONG_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(Boolean.class, BOOLEAN_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(Character.class, STRING_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(BigDecimal.class, BIG_DECIMAL_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(OffsetDateTime.class, OFFSET_DATE_TIME_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(LocalDateTime.class, LOCAL_DATE_TIME_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(LocalDate.class, LOCAL_DATE_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(LocalTime.class, LOCAL_TIME_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(DateTimeRange.class, DATE_TIME_RANGE_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(BigDecimalNumberRange.class, BIG_DECIMAL_NUMBER_RANGE_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(ByteNumberRange.class, BYTE_NUMBER_RANGE_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(ShortNumberRange.class, SHORT_NUMBER_RANGE_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(IntegerNumberRange.class, INTEGER_NUMBER_RANGE_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(LongNumberRange.class, LONG_NUMBER_RANGE_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(Locale.class, LOCALE_COERCING);
-		SERIALIZATION_COERCING_MAPPINGS.put(Currency.class, CURRENCY_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(String.class, GraphQLScalars.STRING_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(Byte.class, GraphQLScalars.BYTE_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(Short.class, GraphQLScalars.SHORT_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(Integer.class, GraphQLScalars.INT_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(Long.class, GraphQLScalars.LONG_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(Boolean.class, GraphQLScalars.BOOLEAN_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(Character.class, GraphQLScalars.STRING_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(BigDecimal.class, GraphQLScalars.BIG_DECIMAL_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(OffsetDateTime.class, GraphQLScalars.OFFSET_DATE_TIME_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(LocalDateTime.class, GraphQLScalars.LOCAL_DATE_TIME_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(LocalDate.class, GraphQLScalars.LOCAL_DATE_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(LocalTime.class, GraphQLScalars.LOCAL_TIME_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(DateTimeRange.class, GraphQLScalars.DATE_TIME_RANGE_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(BigDecimalNumberRange.class, GraphQLScalars.BIG_DECIMAL_NUMBER_RANGE_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(ByteNumberRange.class, GraphQLScalars.BYTE_NUMBER_RANGE_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(ShortNumberRange.class, GraphQLScalars.SHORT_NUMBER_RANGE_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(IntegerNumberRange.class, GraphQLScalars.INTEGER_NUMBER_RANGE_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(LongNumberRange.class, GraphQLScalars.LONG_NUMBER_RANGE_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(Locale.class, GraphQLScalars.LOCALE_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(Currency.class, GraphQLScalars.CURRENCY_COERCING);
 	}
 
 	@Override

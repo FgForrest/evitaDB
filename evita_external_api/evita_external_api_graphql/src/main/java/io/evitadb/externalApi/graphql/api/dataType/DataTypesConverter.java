@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType;
+package io.evitadb.externalApi.graphql.api.dataType;
 
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLInputType;
@@ -55,7 +55,7 @@ import java.util.Map;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
-import static io.evitadb.externalApi.graphql.dataType.GraphQLScalars.*;
+import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.*;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**

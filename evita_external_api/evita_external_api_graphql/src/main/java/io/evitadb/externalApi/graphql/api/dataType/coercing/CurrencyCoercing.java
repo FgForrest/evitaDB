@@ -21,60 +21,54 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType.coercing;
+package io.evitadb.externalApi.graphql.api.dataType.coercing;
 
 import graphql.language.StringValue;
 import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.FormattableBigDecimal;
 
 import javax.annotation.Nonnull;
-import java.math.BigDecimal;
+import java.util.Currency;
 
 /**
- * {@link Coercing} for converting between Java's side {@link BigDecimal} and client string.
- * On top of basic {@link BigDecimal} conversion, it supports {@link FormattableBigDecimal} and its derivatives for
- * customized formatting.
+ * {@link Coercing} for converting between Java's side {@link Currency} and client string.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class BigDecimalCoercing implements Coercing<BigDecimal, String> {
+public class CurrencyCoercing implements Coercing<Currency, String> {
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (dataFetcherResult instanceof BigDecimal) {
-            return dataFetcherResult.toString();
+        if (!(dataFetcherResult instanceof Currency)) {
+            throw new CoercingSerializeException("Currency data fetcher result is not a currency.");
         }
-        if (dataFetcherResult instanceof final FormattableBigDecimal formattableBigDecimal) {
-            return formattableBigDecimal.toFormattedString();
-        }
-        throw new CoercingSerializeException("Big decimal data fetcher result is not a form of big decimal value.");
+        return dataFetcherResult.toString();
     }
 
     @Nonnull
     @Override
-    public BigDecimal parseValue(@Nonnull Object input) throws CoercingParseValueException {
+    public Currency parseValue(@Nonnull Object input) throws CoercingParseValueException {
         if (!(input instanceof String)) {
-            throw new CoercingParseValueException("Big decimal input is not a string.");
+            throw new CoercingParseValueException("Currency input value is not a string.");
         }
         try {
-            return new BigDecimal((String) input);
-        } catch (NumberFormatException ex) {
+            return Currency.getInstance((String) input);
+        } catch (IllegalArgumentException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
     }
 
     @Nonnull
     @Override
-    public BigDecimal parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
+    public Currency parseLiteral(@Nonnull Object input) throws CoercingParseLiteralException {
         if (!(input instanceof StringValue)) {
-            throw new CoercingParseLiteralException("Big decimal input is not a StringValue.");
+            throw new CoercingParseValueException("Currency input value is not a string.");
         }
         try {
-            return new BigDecimal(((StringValue) input).getValue());
-        } catch (NumberFormatException ex) {
+            return Currency.getInstance(((StringValue) input).getValue());
+        } catch (IllegalArgumentException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }
     }

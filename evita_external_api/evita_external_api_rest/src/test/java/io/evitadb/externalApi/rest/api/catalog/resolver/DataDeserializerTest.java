@@ -69,7 +69,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeString() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(String.class).toSchema(), new String[]{"abc"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(String.class).toSchema(), new String[]{"abc"});
 		if (deserialized instanceof String val) {
 			assertEquals("abc", val);
 		} else {
@@ -79,7 +79,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeArrayOfStrings() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), arrayOf(scalarFrom(String.class)).toSchema(), new String[]{"abc", "def"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), arrayOf(scalarFrom(String.class)).toSchema(), new String[]{"abc", "def"});
 		if (deserialized instanceof String[] val) {
 			assertEquals("abc", val[0]);
 			assertEquals("def", val[1]);
@@ -90,7 +90,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeEmptyStringArray() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), arrayOf(scalarFrom(String.class)).toSchema(), new String[]{});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), arrayOf(scalarFrom(String.class)).toSchema(), new String[]{});
 		if (deserialized instanceof String[] val) {
 			assertEquals(0, val.length);
 		} else {
@@ -100,7 +100,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeEmptyArrayNode() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), arrayOf(scalarFrom(String.class)).toSchema(), new ArrayNode(JsonNodeFactory.instance));
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), arrayOf(scalarFrom(String.class)).toSchema(), new ArrayNode(JsonNodeFactory.instance));
 		if (deserialized instanceof String[] val) {
 			assertEquals(0, val.length);
 		} else {
@@ -110,7 +110,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeChar() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(Character.class).toSchema(), new String[]{"D"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(Character.class).toSchema(), new String[]{"D"});
 		if (deserialized instanceof Character val) {
 			assertEquals(Character.valueOf('D'), val);
 		} else {
@@ -120,7 +120,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeByteNumber() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(Byte.class).toSchema(), new String[]{"6"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(Byte.class).toSchema(), new String[]{"6"});
 		if (deserialized instanceof Byte val) {
 			assertEquals(6, ((Byte) deserialized).intValue());
 		} else {
@@ -130,7 +130,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeLocale() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(Locale.class).toSchema(), new String[]{"cs-CZ"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(Locale.class).toSchema(), new String[]{"cs-CZ"});
 		if (deserialized instanceof Locale val) {
 			assertEquals(new Locale("cs", "CZ"), val);
 		} else {
@@ -140,7 +140,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeCurrency() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(Currency.class).toSchema(), new String[]{"CZK"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(Currency.class).toSchema(), new String[]{"CZK"});
 		if (deserialized instanceof Currency val) {
 			assertEquals(Currency.getInstance("CZK"), val);
 		} else {
@@ -150,7 +150,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeInteger() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(Integer.class).toSchema(), new String[]{"28"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(Integer.class).toSchema(), new String[]{"28"});
 		if (deserialized instanceof Integer val) {
 			assertEquals(Integer.valueOf(28), val);
 		} else {
@@ -160,7 +160,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeShort() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(Short.class).toSchema(), new String[]{"28"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(Short.class).toSchema(), new String[]{"28"});
 		if (deserialized instanceof Short val) {
 			assertEquals(Short.valueOf((short) 28), val);
 		} else {
@@ -170,7 +170,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeLong() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(Long.class).toSchema(), new String[]{"568794"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(Long.class).toSchema(), new String[]{"568794"});
 		if (deserialized instanceof Long val) {
 			assertEquals(Long.valueOf(568794), val);
 		} else {
@@ -180,7 +180,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeRangeOfIntegers() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{"755", "5648"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{"755", "5648"});
 		if (deserialized instanceof IntegerNumberRange val) {
 			assertEquals(755, val.getPreciseFrom());
 			assertEquals(5648, val.getPreciseTo());
@@ -191,7 +191,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeRangeOfIntegersWithFromOnly() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{"755", null});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{"755", null});
 		if (deserialized instanceof IntegerNumberRange val) {
 			assertEquals(755, val.getPreciseFrom());
 			assertNull(val.getPreciseTo());
@@ -202,7 +202,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeRangeOfIntegersWithToOnly() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{null, "5648"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{null, "5648"});
 		if (deserialized instanceof IntegerNumberRange val) {
 			assertNull(val.getPreciseFrom());
 			assertEquals(5648, val.getPreciseTo());
@@ -213,13 +213,13 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldFailToDeserializeRangeOfIntegersWhenArrayIsTooShort() {
-		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{"5648"}));
+		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{"5648"}));
 		assertTrue(error.getPublicMessage().startsWith("Array of two values is required"));
 	}
 
 	@Test
 	void shouldFailToDeserializeRangeOfIntegersWhenArrayContainsNullValues() {
-		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{null, null}));
+		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), new String[]{null, null}));
 		assertTrue(error.getPublicMessage().startsWith("Both values for range data type are null"));
 	}
 
@@ -228,7 +228,7 @@ class DataDeserializerTest {
 		final ArrayNode arrayNode = new ArrayNode(JsonNodeFactory.instance, 2);
 		arrayNode.add(new IntNode(755));
 		arrayNode.add(new IntNode(5648));
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), arrayNode);
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(IntegerNumberRange.class).toSchema(), arrayNode);
 		if (deserialized instanceof IntegerNumberRange val) {
 			assertEquals(755, val.getPreciseFrom());
 			assertEquals(5648, val.getPreciseTo());
@@ -239,7 +239,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeRangeOfBigDecimals() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(BigDecimalNumberRange.class).toSchema(), new String[]{"755", "5648"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(BigDecimalNumberRange.class).toSchema(), new String[]{"755", "5648"});
 		if (deserialized instanceof BigDecimalNumberRange val) {
 			assertEquals(new BigDecimal("755"), val.getPreciseFrom());
 			assertEquals(new BigDecimal("5648"), val.getPreciseTo());
@@ -250,7 +250,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeRangeOfBigDecimalsWithScale() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(BigDecimalNumberRange.class).toSchema(), new String[]{"755.54", "5648.63"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(BigDecimalNumberRange.class).toSchema(), new String[]{"755.54", "5648.63"});
 		if (deserialized instanceof BigDecimalNumberRange val) {
 			assertEquals(new BigDecimal("755.54"), val.getPreciseFrom());
 			assertEquals(new BigDecimal("5648.63"), val.getPreciseTo());
@@ -261,7 +261,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeRangeOfDateTimes() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(DateTimeRange.class).toSchema(), new String[]{"2022-09-27T13:28:27.357442951+02:00", "2022-10-27T13:28:27.357442951+02:00"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(DateTimeRange.class).toSchema(), new String[]{"2022-09-27T13:28:27.357442951+02:00", "2022-10-27T13:28:27.357442951+02:00"});
 		if (deserialized instanceof DateTimeRange val) {
 			assertEquals(OffsetDateTime.parse("2022-09-27T13:28:27.357442951+02:00"), val.getPreciseFrom());
 			assertEquals(OffsetDateTime.parse("2022-10-27T13:28:27.357442951+02:00"), val.getPreciseTo());
@@ -272,7 +272,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeRangeOfLongs() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(LongNumberRange.class).toSchema(), new String[]{"75587", "564865"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(LongNumberRange.class).toSchema(), new String[]{"75587", "564865"});
 		if (deserialized instanceof LongNumberRange val) {
 			assertEquals(75587L, val.getPreciseFrom());
 			assertEquals(564865L, val.getPreciseTo());
@@ -283,7 +283,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeRangeOfShorts() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(ShortNumberRange.class).toSchema(), new String[]{"75", "564"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(ShortNumberRange.class).toSchema(), new String[]{"75", "564"});
 		if (deserialized instanceof ShortNumberRange val) {
 			assertEquals((short) 75, val.getPreciseFrom());
 			assertEquals((short) 564, val.getPreciseTo());
@@ -294,7 +294,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeRangeOfBytes() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(ByteNumberRange.class).toSchema(), new String[]{"6", "8"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(ByteNumberRange.class).toSchema(), new String[]{"6", "8"});
 		if (deserialized instanceof ByteNumberRange val) {
 			assertEquals(6, val.getPreciseFrom().intValue());
 			assertEquals(8, val.getPreciseTo().intValue());
@@ -305,7 +305,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeArrayOfIntegers() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), arrayOf(scalarFrom(Integer.class)).toSchema(), new String[]{"54", "63"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), arrayOf(scalarFrom(Integer.class)).toSchema(), new String[]{"54", "63"});
 		if (deserialized instanceof Integer[] val) {
 			assertEquals(Integer.valueOf(54), val[0]);
 			assertEquals(Integer.valueOf("63"), val[1]);
@@ -316,7 +316,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeBigDecimal() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(BigDecimal.class).toSchema(), new String[]{"56.23"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(BigDecimal.class).toSchema(), new String[]{"56.23"});
 		if (deserialized instanceof BigDecimal val) {
 			assertEquals(0, new BigDecimal("56.23").compareTo(val));
 		} else {
@@ -326,7 +326,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeBoolean() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(Boolean.class).toSchema(), new String[]{"true"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(Boolean.class).toSchema(), new String[]{"true"});
 		if (deserialized instanceof Boolean val) {
 			assertEquals(Boolean.TRUE, val);
 		} else {
@@ -336,7 +336,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeOffsetDateTime() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(OffsetDateTime.class).toSchema(), new String[]{"2022-09-27T13:28:27.357442951+02:00"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(OffsetDateTime.class).toSchema(), new String[]{"2022-09-27T13:28:27.357442951+02:00"});
 		if (deserialized instanceof OffsetDateTime val) {
 			assertEquals(OffsetDateTime.parse("2022-09-27T13:28:27.357442951+02:00"), val);
 		} else {
@@ -364,7 +364,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeLocalDateTime() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(LocalDateTime.class).toSchema(), new String[]{"2022-09-27T13:28:27.357442951"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(LocalDateTime.class).toSchema(), new String[]{"2022-09-27T13:28:27.357442951"});
 		if (deserialized instanceof LocalDateTime val) {
 			assertEquals(LocalDateTime.parse("2022-09-27T13:28:27.357442951"), val);
 		} else {
@@ -374,7 +374,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeLocalDate() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(LocalDate.class).toSchema(), new String[]{"2022-09-27"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(LocalDate.class).toSchema(), new String[]{"2022-09-27"});
 		if (deserialized instanceof LocalDate val) {
 			assertEquals(LocalDate.parse("2022-09-27"), val);
 		} else {
@@ -384,7 +384,7 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeLocalTime() {
-		final Object deserialized = DataDeserializer.deserialize(new OpenAPI(), scalarFrom(LocalTime.class).toSchema(), new String[]{"13:28:27.357442951"});
+		final Object deserialized = DataDeserializer.deserializeValue(new OpenAPI(), scalarFrom(LocalTime.class).toSchema(), new String[]{"13:28:27.357442951"});
 		if (deserialized instanceof LocalTime val) {
 			assertEquals(LocalTime.parse("13:28:27.357442951"), val);
 		} else {
@@ -396,7 +396,7 @@ class DataDeserializerTest {
 	void shouldFailToDeserializeDataWhenUnknownStringFormatUsed() {
 		final Schema<?> stringSchema = scalarFrom(String.class).toSchema();
 		stringSchema.setFormat("UnknownFormat");
-		final RestInternalError exception = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), stringSchema, new TextNode("abc")));
+		final RestInternalError exception = assertThrows(RestInternalError.class, () -> DataDeserializer.deserializeValue(new OpenAPI(), stringSchema, new TextNode("abc")));
 		assertTrue(exception.getPublicMessage().startsWith("Unknown schema format"));
 	}
 
@@ -404,7 +404,7 @@ class DataDeserializerTest {
 	void shouldFailToDeserializeDataWhenUnknownIntegerFormatUsed() {
 		final Schema<?> stringSchema = scalarFrom(Integer.class).toSchema();
 		stringSchema.setFormat("UnknownFormat");
-		final RestInternalError exception = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), stringSchema, new TextNode("abc")));
+		final RestInternalError exception = assertThrows(RestInternalError.class, () -> DataDeserializer.deserializeValue(new OpenAPI(), stringSchema, new TextNode("abc")));
 		assertTrue(exception.getPublicMessage().startsWith("Unknown schema format"));
 	}
 
@@ -413,7 +413,7 @@ class DataDeserializerTest {
 		final Schema<Object> unknownSchema = new Schema<>();
 		unknownSchema.setType("unknownSchema");
 		unknownSchema.addType("unknownSchema");
-		final RestInternalError exception = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(new OpenAPI(), unknownSchema, new TextNode("abc")));
+		final RestInternalError exception = assertThrows(RestInternalError.class, () -> DataDeserializer.deserializeValue(new OpenAPI(), unknownSchema, new TextNode("abc")));
 		assertTrue(exception.getPublicMessage().startsWith("Unknown schema type"));
 	}
 
@@ -431,43 +431,43 @@ class DataDeserializerTest {
 
 	@Test
 	void shouldDeserializeShortObject() {
-		assertEquals((short) 10, DataDeserializer.deserialize(Short.class, new IntNode(10)));
+		assertEquals((short) 10, DataDeserializer.deserializeValue(Short.class, new IntNode(10)));
 	}
 
 	@Test
 	void shouldDeserializeLongObject() {
-		assertEquals(6598754L, DataDeserializer.deserialize(Long.class, new TextNode("6598754")));
+		assertEquals(6598754L, DataDeserializer.deserializeValue(Long.class, new TextNode("6598754")));
 	}
 
 	@Test
 	void shouldDeserializeBigDecimalObject() {
-		assertEquals(new BigDecimal("5142.52"), DataDeserializer.deserialize(BigDecimal.class, new TextNode("5142.52")));
+		assertEquals(new BigDecimal("5142.52"), DataDeserializer.deserializeValue(BigDecimal.class, new TextNode("5142.52")));
 	}
 
 	@Test
 	void shouldDeserializeBooleanObject() {
-		assertEquals(true, DataDeserializer.deserialize(Boolean.class, BooleanNode.getTrue()));
+		assertEquals(true, DataDeserializer.deserializeValue(Boolean.class, BooleanNode.getTrue()));
 	}
 
 	@Test
 	void shouldDeserializeCharacterObject() {
-		assertEquals('H', DataDeserializer.deserialize(Character.class, new TextNode("H")));
+		assertEquals('H', DataDeserializer.deserializeValue(Character.class, new TextNode("H")));
 	}
 
 	@Test
 	void shouldDeserializeByteObject() {
-		assertEquals("8", new String(new byte[]{DataDeserializer.deserialize(Byte.class, new TextNode("OA=="))}));
+		assertEquals("8", new String(new byte[]{DataDeserializer.deserializeValue(Byte.class, new TextNode("OA=="))}));
 	}
 
 	@Test
 	void shouldFailToDeserializeArrayWhenJsonNodeIsNotAnArray() {
-		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(String[].class, new TextNode("H")));
+		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserializeValue(String[].class, new TextNode("H")));
 		assertTrue(error.getPrivateMessage().startsWith("Target class is array"));
 	}
 
 	@Test
 	void shouldFailToDeserializeArrayWhenTryingToDeserializeUnsupportedClass() {
-		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserialize(TestClass.class, new TextNode("H")));
+		final RestInternalError error = assertThrows(RestInternalError.class, () -> DataDeserializer.deserializeValue(TestClass.class, new TextNode("H")));
 		assertTrue(error.getPrivateMessage().startsWith("Deserialization of field of JavaType"));
 	}
 
@@ -480,7 +480,7 @@ class DataDeserializerTest {
 		final OpenAPI openAPI = new OpenAPI();
 		openAPI.components(components);
 		final Integer testedNumber = 56;
-		final Object deserialized = DataDeserializer.deserializeJsonNodeTree(openAPI, myNumber, new JsonNodeFactory(false).numberNode(testedNumber));
+		final Object deserialized = DataDeserializer.deserializeTree(openAPI, myNumber, new JsonNodeFactory(false).numberNode(testedNumber));
 		assertTrue(deserialized instanceof Integer);
 		assertEquals(testedNumber, (Integer) deserialized);
 	}
@@ -510,7 +510,7 @@ class DataDeserializerTest {
 		propertyNode.add("val2");
 		dataNode.putIfAbsent("properties", propertyNode);
 
-		final Object deserialized = DataDeserializer.deserializeJsonNodeTree(openAPI, dataObject, dataNode);
+		final Object deserialized = DataDeserializer.deserializeTree(openAPI, dataObject, dataNode);
 		assertTrue(deserialized instanceof Map<?, ?>);
 		final Map<String, Object> data = (Map<String, Object>) deserialized;
 		assertEquals((short) 54, data.get("id"));
@@ -537,7 +537,7 @@ class DataDeserializerTest {
 		dataNode.putIfAbsent("id", nodeFactory.numberNode((short) 54));
 		dataNode.putIfAbsent("description", nodeFactory.textNode("Popis"));
 
-		assertThrows(RestInvalidArgumentException.class, () -> DataDeserializer.deserializeJsonNodeTree(openAPI, dataObject, dataNode), "Invalid property name: description");
+		assertThrows(RestInvalidArgumentException.class, () -> DataDeserializer.deserializeTree(openAPI, dataObject, dataNode), "Invalid property name: description");
 	}
 
 	private static class TestClass implements Serializable {

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.dataType;
+package io.evitadb.externalApi.graphql.api.dataType;
 
 import graphql.Scalars;
 import graphql.scalar.GraphqlBooleanCoercing;
@@ -29,7 +29,7 @@ import graphql.scalar.GraphqlIntCoercing;
 import graphql.scalar.GraphqlStringCoercing;
 import graphql.schema.Coercing;
 import graphql.schema.GraphQLScalarType;
-import io.evitadb.externalApi.graphql.dataType.coercing.*;
+import io.evitadb.externalApi.graphql.api.dataType.coercing.*;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 

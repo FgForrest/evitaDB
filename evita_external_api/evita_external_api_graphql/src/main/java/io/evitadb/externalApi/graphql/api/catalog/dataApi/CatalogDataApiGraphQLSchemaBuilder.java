@@ -102,7 +102,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.e
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher.DeleteEntitiesMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataFetcher.UpsertEntityMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
-import io.evitadb.externalApi.graphql.dataType.DataTypesConverter;
+import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 
 import javax.annotation.Nonnull;
@@ -128,10 +128,10 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
-import static io.evitadb.externalApi.graphql.dataType.GraphQLScalars.BOOLEAN;
-import static io.evitadb.externalApi.graphql.dataType.GraphQLScalars.INT;
-import static io.evitadb.externalApi.graphql.dataType.GraphQLScalars.OBJECT;
-import static io.evitadb.externalApi.graphql.dataType.GraphQLScalars.STRING;
+import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.BOOLEAN;
+import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.INT;
+import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.OBJECT;
+import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
 
 /**
  * Implementation of {@link FinalGraphQLSchemaBuilder} for building entity data manipulation schema.
