@@ -61,25 +61,27 @@ import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCA
  * fields are what clients see. Then, for those field backing objects are created. For those objects another fields are created
  * and so on.
  *
+ * @see PartialGraphQLSchemaBuilder
+ * @see FinalGraphQLSchemaBuilder
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContext> {
 
-	protected final PropertyDataTypeDescriptorToGraphQLTypeTransformer propertyDataTypeBuilderTransformer;
-	protected final EndpointDescriptorToGraphQLFieldTransformer staticEndpointBuilderTransformer;
-	protected final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
-	protected final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
-	protected final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
-	protected final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
-	protected final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
-	protected final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
+	@Nonnull protected final PropertyDataTypeDescriptorToGraphQLTypeTransformer propertyDataTypeBuilderTransformer;
+	@Nonnull protected final EndpointDescriptorToGraphQLFieldTransformer staticEndpointBuilderTransformer;
+	@Nonnull protected final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
+	@Nonnull protected final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+	@Nonnull protected final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
 
 	@Nonnull
-	protected final C context;
+	protected final C buildingContext;
 
-	protected GraphQLSchemaBuilder(@Nonnull C context) {
-		this.context = context;
-		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToGraphQLTypeTransformer(context);
+	protected GraphQLSchemaBuilder(@Nonnull C buildingContext) {
+		this.buildingContext = buildingContext;
+		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToGraphQLTypeTransformer(buildingContext);
 		this.staticEndpointBuilderTransformer = new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
 		this.argumentBuilderTransformer = new PropertyDescriptorToGraphQLArgumentTransformer(propertyDataTypeBuilderTransformer);
 		this.fieldBuilderTransformer = new PropertyDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);

@@ -24,7 +24,8 @@
 package io.evitadb.externalApi.rest.io.handler.constraint;
 
 import io.evitadb.api.query.require.Require;
-import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintFromRequestQueryBuilder;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;

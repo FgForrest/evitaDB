@@ -103,8 +103,10 @@ public class OpenApiProperty {
 				schema.deprecated(true); // openapi doesn't support false here
 			}
 
-			schema.type(scalarTypeSchema.getType());
-			schema.addType(scalarTypeSchema.getType());
+			if (schema.getType() != null) {
+				schema.type(scalarTypeSchema.getType());
+				schema.addType(scalarTypeSchema.getType());
+			}
 			if (!scalarType.isRange()) {
 				schema.format(scalarTypeSchema.getFormat());
 				schema.pattern(scalarTypeSchema.getPattern());
@@ -117,6 +119,10 @@ public class OpenApiProperty {
 
 				schema.minLength(scalarTypeSchema.getMinLength());
 				schema.maxLength(scalarTypeSchema.getMaxLength());
+
+				schema.oneOf(scalarTypeSchema.getOneOf());
+				schema.anyOf(scalarTypeSchema.getAnyOf());
+				schema.allOf(scalarTypeSchema.getAllOf());
 			} else {
 				// scalar may be range, which is represented by OpenAPI array
 				schema.items(scalarTypeSchema.getItems());

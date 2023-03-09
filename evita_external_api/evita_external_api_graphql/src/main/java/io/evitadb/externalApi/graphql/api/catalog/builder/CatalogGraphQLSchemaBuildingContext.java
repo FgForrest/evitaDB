@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.builder;
 
+import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -32,8 +33,10 @@ import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Set;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -49,6 +52,9 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	@Getter
 	@Nonnull
 	private final Set<EntitySchemaContract> entitySchemas;
+	@Getter
+	@Nonnull
+	private final Map<String, GraphQLObjectType> entityTypeToEntityObject = createHashMap(50);
 
 	public CatalogGraphQLSchemaBuildingContext(@Nonnull EvitaContract evita,
 	                                           @Nonnull CatalogContract catalog) {
@@ -71,5 +77,10 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	@Nonnull
 	public CatalogSchemaContract getSchema() {
 		return catalog.getSchema();
+	}
+
+	public void registerEntityObject(@Nonnull String entityType, @Nonnull GraphQLObjectType entityObject) {
+		registerType(entityObject);
+		entityTypeToEntityObject.putIfAbsent(entityType, entityObject);
 	}
 }

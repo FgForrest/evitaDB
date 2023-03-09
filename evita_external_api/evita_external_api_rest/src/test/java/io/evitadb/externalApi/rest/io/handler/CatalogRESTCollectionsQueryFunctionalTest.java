@@ -25,8 +25,8 @@ package io.evitadb.externalApi.rest.io.handler;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.model.CollectionDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
 import io.evitadb.externalApi.rest.testSuite.TestDataGenerator;
 import io.evitadb.test.annotation.UseDataSet;

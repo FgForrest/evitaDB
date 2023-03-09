@@ -81,26 +81,26 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	@Override
 	public void build() {
 		// build reusable objects
-		context.registerType(buildEntitySchemaObject());
-		context.registerType(buildCatalogSchemaObject());
+		buildingContext.registerType(buildEntitySchemaObject());
+		buildingContext.registerType(buildCatalogSchemaObject());
 
 		// catalog schema mutations
-		context.registerType(CreateCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(ModifyCatalogSchemaNameMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(RemoveCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(CreateCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ModifyCatalogSchemaNameMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(RemoveCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// global attribute schema mutations
-		context.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// other mutation objects should be already created by EntitySchemaSchemaBuilder
-		context.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// build catalog field
-		context.registerQueryField(buildCatalogSchemaField());
-		context.registerMutationField(buildUpdateCatalogSchemaField());
+		buildingContext.registerQueryField(buildCatalogSchemaField());
+		buildingContext.registerMutationField(buildUpdateCatalogSchemaField());
 	}
 
 	/*
@@ -117,31 +117,31 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 	@Nonnull
 	private GraphQLObjectType buildCatalogSchemaObject() {
-		final CatalogSchemaContract catalogSchema = context.getSchema();
+		final CatalogSchemaContract catalogSchema = buildingContext.getSchema();
 
 		final GraphQLObjectType.Builder schemaObjectBuilder = CatalogSchemaDescriptor.THIS.to(objectBuilderTransformer);
 
 		if (!catalogSchema.getAttributes().isEmpty()) {
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				CatalogSchemaDescriptor.THIS,
 				schemaObjectBuilder,
 				buildGlobalAttributeSchemasField()
 			);
 		}
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			CatalogSchemaDescriptor.THIS,
 			CatalogSchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
 		);
 
-		if (!context.getEntitySchemas().isEmpty()) {
-			context.registerFieldToObject(
+		if (!buildingContext.getEntitySchemas().isEmpty()) {
+			buildingContext.registerFieldToObject(
 				CatalogSchemaDescriptor.THIS,
 				schemaObjectBuilder,
 				buildEntitySchemasField()
 			);
 		}
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			CatalogSchemaDescriptor.THIS,
 			CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS,
 			new AllEntitySchemasDataFetcher()
@@ -174,10 +174,10 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		final GraphQLObjectType.Builder attributeSchemasObjectBuilder = GlobalAttributeSchemasDescriptor.THIS
 			.to(objectBuilderTransformer);
 
-		context.getSchema().getAttributes()
+		buildingContext.getSchema().getAttributes()
 			.values()
 			.forEach(attributeSchema ->
-				context.registerFieldToObject(
+				buildingContext.registerFieldToObject(
 					GlobalAttributeSchemasDescriptor.THIS,
 					attributeSchemasObjectBuilder,
 					buildGlobalAttributeSchemaField(attributeSchema)
@@ -226,7 +226,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		final GraphQLObjectType.Builder entitySchemasObjectBuilder = EntitySchemasDescriptor.THIS
 			.to(objectBuilderTransformer);
 
-		context.getEntitySchemas().forEach(entitySchema -> {
+		buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			final GraphQLFieldDefinition entitySchemaField = newFieldDefinition()
 				.name(entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
 				.description(entitySchema.getDescription())
@@ -236,7 +236,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 			final CatalogEntitySchemaDataFetcher dataFetcher = new CatalogEntitySchemaDataFetcher(entitySchema.getName());
 			final BuiltFieldDescriptor fieldDescriptor = new BuiltFieldDescriptor(entitySchemaField, dataFetcher);
 
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				EntitySchemasDescriptor.THIS,
 				entitySchemasObjectBuilder,
 				fieldDescriptor
@@ -254,21 +254,21 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_ATTRIBUTES
 			.to(fieldBuilderTransformer)
 			.type(nonNull(list(nonNull(typeRef(ATTRIBUTE_SCHEMA_UNION_NAME))))));
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
 		);
 
 		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.to(fieldBuilderTransformer));
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ASSOCIATED_DATA,
 			new AllAssociatedDataSchemasDataFetcher()
 		);
 
 		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_REFERENCES.to(fieldBuilderTransformer));
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_REFERENCES,
 			new AllReferenceSchemasDataFetcher()

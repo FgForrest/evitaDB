@@ -65,20 +65,11 @@ public class GraphQLSchemaBuildingContext {
     private final Builder schemaBuilder = GraphQLSchema.newSchema();
     @Nonnull
     private final GraphQLCodeRegistry.Builder registryBuilder = GraphQLCodeRegistry.newCodeRegistry();
-    @Getter
-    @Nonnull
-    private final Map<String, GraphQLObjectType> entityTypeToEntityObject = createHashMap(50);
     /**
      * Holds all globally registered custom enums that will be inserted into GraphQL schema.
      */
     @Nonnull
     private final Set<String> registeredCustomEnums = createHashSet(32);
-
-
-    public void registerEntityObject(@Nonnull String entityType, @Nonnull GraphQLObjectType entityObject) {
-        registerType(entityObject);
-        entityTypeToEntityObject.putIfAbsent(entityType, entityObject);
-    }
 
     /**
      * Registers new custom enum if there is not enum with same name.

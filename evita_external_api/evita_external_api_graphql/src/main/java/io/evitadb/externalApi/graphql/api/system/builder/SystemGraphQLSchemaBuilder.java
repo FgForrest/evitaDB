@@ -68,24 +68,24 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Override
     @Nonnull
 	public GraphQLSchema build() {
-		context.registerType(buildCatalogObject());
+		buildingContext.registerType(buildCatalogObject());
 
-		context.registerQueryField(buildLivenessField());
-		context.registerQueryField(buildCatalogField());
-		context.registerQueryField(buildCatalogsField());
+		buildingContext.registerQueryField(buildLivenessField());
+		buildingContext.registerQueryField(buildCatalogField());
+		buildingContext.registerQueryField(buildCatalogsField());
 
-		context.registerMutationField(buildCreateCatalogField());
-		context.registerMutationField(buildRenameCatalogField());
-		context.registerMutationField(buildReplaceCatalogField());
-		context.registerMutationField(buildDeleteCatalogIfExistsField());
+		buildingContext.registerMutationField(buildCreateCatalogField());
+		buildingContext.registerMutationField(buildRenameCatalogField());
+		buildingContext.registerMutationField(buildReplaceCatalogField());
+		buildingContext.registerMutationField(buildDeleteCatalogIfExistsField());
 
-		return context.buildGraphQLSchema();
+		return buildingContext.buildGraphQLSchema();
 	}
 
 
 	@Nonnull
 	private GraphQLObjectType buildCatalogObject() {
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
 			CatalogDescriptor.SUPPORTS_TRANSACTION,
 			PropertyDataFetcher.fetching(CatalogContract::supportsTransaction)

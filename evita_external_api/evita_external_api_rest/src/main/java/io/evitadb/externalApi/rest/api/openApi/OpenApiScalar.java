@@ -334,9 +334,10 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		anySchema.addAnyOfItem(new NumberSchema());
 		anySchema.addAnyOfItem(new IntegerSchema());
 		anySchema.addAnyOfItem(new BooleanSchema());
-		anySchema.addAnyOfItem(new ArraySchema());
+		final ArraySchema arraySchema = new ArraySchema();
+		arraySchema.setItems(new Schema<>());
+		anySchema.addAnyOfItem(arraySchema);
 		anySchema.addAnyOfItem(new ObjectSchema());
-		anySchema.items(new Schema<>());
 		return anySchema;
 	}
 }

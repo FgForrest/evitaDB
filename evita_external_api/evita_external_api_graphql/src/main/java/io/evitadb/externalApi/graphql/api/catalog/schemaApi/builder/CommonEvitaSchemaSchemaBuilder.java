@@ -48,34 +48,34 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 	@Override
 	public void build() {
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
-		context.registerType(scalarEnum);
-		context.registerType(buildAssociatedDataScalarEnum(scalarEnum));
-		context.registerType(buildSchemaNameVariantsObject());
+		buildingContext.registerType(scalarEnum);
+		buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
+		buildingContext.registerType(buildSchemaNameVariantsObject());
 	}
 
 	@Nonnull
 	private GraphQLObjectType buildSchemaNameVariantsObject() {
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			SchemaNameVariantsDescriptor.THIS,
 			SchemaNameVariantsDescriptor.CAMEL_CASE,
 			new SchemaNameVariantDataFetcher(NamingConvention.CAMEL_CASE)
 		);
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			SchemaNameVariantsDescriptor.THIS,
 			SchemaNameVariantsDescriptor.PASCAL_CASE,
 			new SchemaNameVariantDataFetcher(NamingConvention.PASCAL_CASE)
 		);
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			SchemaNameVariantsDescriptor.THIS,
 			SchemaNameVariantsDescriptor.SNAKE_CASE,
 			new SchemaNameVariantDataFetcher(NamingConvention.SNAKE_CASE)
 		);
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			SchemaNameVariantsDescriptor.THIS,
 			SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE,
 			new SchemaNameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE)
 		);
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			SchemaNameVariantsDescriptor.THIS,
 			SchemaNameVariantsDescriptor.KEBAB_CASE,
 			new SchemaNameVariantDataFetcher(NamingConvention.KEBAB_CASE)

@@ -67,7 +67,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetRe
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntitySchemaGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.NonNullBigDecimalFieldDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.NullableBigDecimalFieldDecorator;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.PriceBigDecimalFieldDecorator;
@@ -150,7 +150,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull EvitaContract evita, @Nonnull CatalogContract catalog) {
 		super(new CatalogGraphQLSchemaBuildingContext(evita, catalog));
-		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(context);
+		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(buildingContext);
 	}
 
 	@Override
@@ -158,84 +158,84 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	public GraphQLSchema build() {
 		buildCommonTypes();
 		buildFields();
-		return context.buildGraphQLSchema();
+		return buildingContext.buildGraphQLSchema();
 	}
 
 	private void buildCommonTypes() {
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
-		context.registerType(scalarEnum);
-		context.registerType(buildAssociatedDataScalarEnum(scalarEnum));
+		buildingContext.registerType(scalarEnum);
+		buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
 
-		context.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
+		buildingContext.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
 
 		// query objects
 		final GraphQLInterfaceType entityClassifierInterface = EntityDescriptor.THIS_INTERFACE.to(interfaceBuilderTransformer).build();
-		context.registerType(entityClassifierInterface);
-		context.registerTypeResolver(
+		buildingContext.registerType(entityClassifierInterface);
+		buildingContext.registerTypeResolver(
 			entityClassifierInterface,
-			new EntityDtoTypeResolver(context.getEntityTypeToEntityObject())
+			new EntityDtoTypeResolver(buildingContext.getEntityTypeToEntityObject())
 		);
-		context.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
-		context.registerType(buildPriceObject());
-		context.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
-		context.registerType(buildHistogramObject());
+		buildingContext.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(buildPriceObject());
+		buildingContext.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(buildHistogramObject());
 		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
-		context.registerType(buildAttributeNamedHistogramObject());
-		context.registerType(buildFacetRequestImpactObject());
+		buildingContext.registerType(buildAttributeNamedHistogramObject());
+		buildingContext.registerType(buildFacetRequestImpactObject());
 
 		// upsert objects
-		context.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(RemoveAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(UpsertAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(SetHierarchicalPlacementMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(RemovePriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(UpsertPriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(InsertReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(RemoveReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(SetReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(ReferenceAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		context.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(RemoveAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(UpsertAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(SetHierarchicalPlacementMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(RemovePriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(UpsertPriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(InsertReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(RemoveReferenceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(SetReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ReferenceAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 	}
 
 	private void buildFields() {
 		// "collections" field
-		context.registerQueryField(buildCollectionsField());
+		buildingContext.registerQueryField(buildCollectionsField());
 
 		// "get_entity" field
-		context.registerQueryField(buildUnknownSingleEntityField());
+		buildingContext.registerQueryField(buildUnknownSingleEntityField());
 
 		// "list_entity" field
-		context.registerQueryField(buildUnknownEntityListField());
+		buildingContext.registerQueryField(buildUnknownEntityListField());
 
 		// collection-specific fields
-		context.getEntitySchemas().forEach(entitySchema -> {
-			final EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx = setupForCollection(entitySchema);
+		buildingContext.getEntitySchemas().forEach(entitySchema -> {
+			final CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx = setupForCollection(entitySchema);
 
 			// collection specific "get_entity" field
-			context.registerQueryField(buildSingleEntityField(entitySchemaBuildingCtx));
+			buildingContext.registerQueryField(buildSingleEntityField(entitySchemaBuildingCtx));
 
 			// collection specific "list_entity" field
-			context.registerQueryField(buildEntityListField(entitySchemaBuildingCtx));
+			buildingContext.registerQueryField(buildEntityListField(entitySchemaBuildingCtx));
 
 			// collection specific "query_entity" field
-			context.registerQueryField(buildEntityQueryField(entitySchemaBuildingCtx));
+			buildingContext.registerQueryField(buildEntityQueryField(entitySchemaBuildingCtx));
 
 			// collection specific "count_entity" field
-			context.registerQueryField(buildCollectionSizeField(entitySchemaBuildingCtx));
+			buildingContext.registerQueryField(buildCollectionSizeField(entitySchemaBuildingCtx));
 
 			// collection specific "upsert_entity" field
-			context.registerMutationField(buildUpsertEntityField(entitySchemaBuildingCtx));
+			buildingContext.registerMutationField(buildUpsertEntityField(entitySchemaBuildingCtx));
 
 			// collection specific "delete_entity" field
-			context.registerMutationField(buildDeleteEntitiesField(entitySchemaBuildingCtx));
+			buildingContext.registerMutationField(buildDeleteEntitiesField(entitySchemaBuildingCtx));
 		});
 
 		// register gathered custom constraint types
-		context.registerTypes(new HashSet<>(constraintContext.getBuiltTypes()));
+		buildingContext.registerTypes(new HashSet<>(constraintContext.getBuiltTypes()));
 	}
 
 
@@ -243,14 +243,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	 * Prepare common data for specific collection schema building.
 	 */
 	@Nonnull
-	private EntitySchemaGraphQLSchemaBuildingContext setupForCollection(@Nonnull EntitySchemaContract entitySchema) {
+	private CollectionGraphQLSchemaBuildingContext setupForCollection(@Nonnull EntitySchemaContract entitySchema) {
 		if (!entitySchema.getLocales().isEmpty()) {
 			final String localeEnumName = ENTITY_LOCALE_ENUM.name(entitySchema);
 			final GraphQLEnumType.Builder localeEnumBuilder = newEnum()
 				.name(localeEnumName)
 				.description(CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM.description());
 			entitySchema.getLocales().forEach(l -> localeEnumBuilder.value(l.toLanguageTag().replace("-", "_"), l));
-			context.registerCustomEnumIfAbsent(localeEnumBuilder.build());
+			buildingContext.registerCustomEnumIfAbsent(localeEnumBuilder.build());
 		}
 
 		if (!entitySchema.getCurrencies().isEmpty()) {
@@ -259,11 +259,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.name(currencyEnumName)
 				.description(CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM.description());
 			entitySchema.getCurrencies().forEach(c -> currencyEnumBuilder.value(c.toString(), c));
-			context.registerCustomEnumIfAbsent(currencyEnumBuilder.build());
+			buildingContext.registerCustomEnumIfAbsent(currencyEnumBuilder.build());
 		}
 
-		final EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx = new EntitySchemaGraphQLSchemaBuildingContext(
-			context,
+		final CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx = new CollectionGraphQLSchemaBuildingContext(
+			buildingContext,
 			entitySchema
 		);
 
@@ -302,7 +302,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
  			.type(typeRef(EntityDescriptor.THIS_INTERFACE.name()));
 
 		// build globally unique attribute filters
-		final List<GlobalAttributeSchemaContract> globalAttributes = context.getCatalog()
+		final List<GlobalAttributeSchemaContract> globalAttributes = buildingContext.getCatalog()
 			.getSchema()
 			.getAttributes()
 			.values()
@@ -325,7 +325,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownSingleEntityFieldBuilder.build(),
-			new GetUnknownEntityDataFetcher(context.getSchema(), context.getEntitySchemas())
+			new GetUnknownEntityDataFetcher(buildingContext.getSchema(), buildingContext.getEntitySchemas())
 		);
 	}
 
@@ -337,7 +337,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.argument(ListUnknownEntitiesQueryHeaderDescriptor.LIMIT.to(argumentBuilderTransformer));
 
 		// build globally unique attribute filters
-		final List<GlobalAttributeSchemaContract> globalAttributes = context.getCatalog()
+		final List<GlobalAttributeSchemaContract> globalAttributes = buildingContext.getCatalog()
 			.getSchema()
 			.getAttributes()
 			.values()
@@ -360,12 +360,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownEntityListFieldBuilder.build(),
-			new ListUnknownEntitiesDataFetcher(context.getSchema(), context.getEntitySchemas())
+			new ListUnknownEntitiesDataFetcher(buildingContext.getSchema(), buildingContext.getEntitySchemas())
 		);
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSingleEntityField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildSingleEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final GraphQLFieldDefinition.Builder singleEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_ENTITY
@@ -409,12 +409,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			singleEntityFieldBuilder.build(),
-			new GetEntityDataFetcher(context.getSchema(), entitySchema)
+			new GetEntityDataFetcher(buildingContext.getSchema(), entitySchema)
 		);
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityListField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildEntityListField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final GraphQLFieldDefinition.Builder entityListFieldBuilder = CatalogDataApiRootDescriptor.LIST_ENTITY
@@ -431,12 +431,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityListFieldBuilder.build(),
-			new ListEntitiesDataFetcher(context.getSchema(), entitySchema)
+			new ListEntitiesDataFetcher(buildingContext.getSchema(), entitySchema)
 		);
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityQueryField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildEntityQueryField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final GraphQLObjectType entityFullResponseObject = buildFullResponseObject(entitySchemaBuildingCtx);
@@ -467,12 +467,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityQueryFieldBuilder.build(),
-			new QueryEntitiesDataFetcher(context.getSchema(), entitySchema)
+			new QueryEntitiesDataFetcher(buildingContext.getSchema(), entitySchema)
 		);
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildCollectionSizeField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildCollectionSizeField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 		return new BuiltFieldDescriptor(
 			CatalogDataApiRootDescriptor.COUNT_COLLECTION
@@ -484,7 +484,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 
 	@Nonnull
-	private GraphQLObjectType buildEntityObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private GraphQLObjectType buildEntityObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		// build specific entity object
@@ -554,7 +554,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityPriceForSaleField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildEntityPriceForSaleField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final GraphQLFieldDefinition field = EntityDescriptor.PRICE_FOR_SALE
@@ -577,7 +577,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityPriceField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildEntityPriceField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final GraphQLFieldDefinition field = EntityDescriptor.PRICE
@@ -596,7 +596,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityPricesField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildEntityPricesField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final GraphQLFieldDefinition field = EntityDescriptor.PRICES
@@ -615,7 +615,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityAttributesField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildEntityAttributesField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 		final GraphQLObjectType attributesObject = buildAttributesObject(
 			entitySchema.getAttributes().values(),
@@ -646,7 +646,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.name(objectName);
 
 		attributeSchemas.forEach(attributeSchema ->
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				objectName,
 				attributesBuilder,
 				buildAttributeField(attributeSchema)
@@ -687,7 +687,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildEntityAssociatedDataField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildEntityAssociatedDataField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 		final GraphQLObjectType associatedDataObject = buildAssociatedDataObject(entitySchemaBuildingCtx);
 
@@ -708,14 +708,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildAssociatedDataObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private GraphQLObjectType buildAssociatedDataObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final String objectName = AssociatedDataDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema());
 		final GraphQLObjectType.Builder associatedDataBuilder = AssociatedDataDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(objectName);
 
 		entitySchemaBuildingCtx.getSchema().getAssociatedData().values().forEach(associatedDataSchema ->
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				objectName,
 				associatedDataBuilder,
 				buildSingleAssociatedDataField(associatedDataSchema)
@@ -758,7 +758,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private List<BuiltFieldDescriptor> buildEntityReferenceFields(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private List<BuiltFieldDescriptor> buildEntityReferenceFields(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final Collection<ReferenceSchemaContract> referenceSchemas = entitySchemaBuildingCtx.getSchema().getReferences().values();
 
 		return referenceSchemas.stream()
@@ -790,7 +790,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildReferenceObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private GraphQLObjectType buildReferenceObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                               @Nonnull ReferenceSchemaContract referenceSchema) {
 		final String referenceObjectName = ReferenceDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema(), referenceSchema);
 
@@ -799,14 +799,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.name(referenceObjectName)
 			.description(referenceSchema.getDescription());
 
-		context.registerFieldToObject(
+		buildingContext.registerFieldToObject(
 			referenceObjectName,
 			referenceObjectBuilder,
 			buildReferenceReferencedEntityField(referenceSchema)
 		);
 
 		if (referenceSchema.getReferencedGroupType() != null) {
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				referenceObjectName,
 				referenceObjectBuilder,
 				buildReferenceGroupEntityField(referenceSchema)
@@ -814,7 +814,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		}
 
 		if (!referenceSchema.getAttributes().isEmpty()) {
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				referenceObjectName,
 				referenceObjectBuilder,
 				buildReferenceAttributesField(entitySchemaBuildingCtx, referenceSchema)
@@ -825,7 +825,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildReferenceAttributesField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private BuiltFieldDescriptor buildReferenceAttributesField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                           @Nonnull ReferenceSchemaContract referenceSchema) {
 		final String referenceAttributesObjectName = AttributesDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema(), referenceSchema);
 
@@ -849,7 +849,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildReferenceReferencedEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract referencedEntitySchema;
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			referencedEntitySchema = context
+			referencedEntitySchema = buildingContext
 				.getSchema()
 				.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
 		} else {
@@ -872,7 +872,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildReferenceGroupEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract referencedEntitySchema;
 		if (referenceSchema.isReferencedGroupTypeManaged()) {
-			referencedEntitySchema = context
+			referencedEntitySchema = buildingContext
 				.getSchema()
 				.getEntitySchemaOrThrowException(referenceSchema.getReferencedGroupType());
 		} else {
@@ -892,7 +892,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildFullResponseObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private GraphQLObjectType buildFullResponseObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 		final String objectName = ResponseDescriptor.THIS.name(entitySchema);
 
@@ -907,7 +907,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		buildExtraResultsField(entitySchemaBuildingCtx).ifPresent(responseFields::add);
 
 		responseFields.forEach(responseField ->
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				objectName,
 				responseObjectBuilder,
 				responseField
@@ -918,7 +918,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildRecordPageField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildRecordPageField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final GraphQLObjectType recordPageObject = buildRecordPageObject(entitySchemaBuildingCtx);
 
 		final GraphQLFieldDefinition recordPageField = ResponseDescriptor.RECORD_PAGE
@@ -935,7 +935,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildRecordPageObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private GraphQLObjectType buildRecordPageObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final String objectName = RecordPageDescriptor.THIS.name(entitySchema);
@@ -950,7 +950,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildRecordStripField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildRecordStripField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final GraphQLObjectType recordStripObject = buildRecordStripObject(entitySchemaBuildingCtx);
 
 		final GraphQLFieldDefinition recordStripField = ResponseDescriptor.RECORD_STRIP
@@ -967,7 +967,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildRecordStripObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private GraphQLObjectType buildRecordStripObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final String objectName = RecordStripDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema());
 
 		return RecordStripDescriptor.THIS
@@ -980,7 +980,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private Optional<BuiltFieldDescriptor> buildExtraResultsField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private Optional<BuiltFieldDescriptor> buildExtraResultsField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final Optional<GraphQLObjectType> extraResultsObject = buildExtraResultsObject(entitySchemaBuildingCtx);
 		if (extraResultsObject.isEmpty()) {
 			return Optional.empty();
@@ -998,7 +998,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private Optional<GraphQLObjectType> buildExtraResultsObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private Optional<GraphQLObjectType> buildExtraResultsObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final String objectName = ExtraResultsDescriptor.THIS.name(entitySchema);
@@ -1022,7 +1022,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		}
 
 		extraResultFields.forEach(extraResultField ->
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				objectName,
 				extraResultsObjectBuilder,
 				extraResultField
@@ -1032,7 +1032,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private Optional<BuiltFieldDescriptor> buildAttributeHistogramField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private Optional<BuiltFieldDescriptor> buildAttributeHistogramField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final Optional<GraphQLObjectType> attributeHistogramObject = buildAttributeHistogramObject(entitySchemaBuildingCtx);
 		if (attributeHistogramObject.isEmpty()) {
 			return Optional.empty();
@@ -1050,7 +1050,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private Optional<GraphQLObjectType> buildAttributeHistogramObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private Optional<GraphQLObjectType> buildAttributeHistogramObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final List<AttributeSchemaContract> attributeSchemas = entitySchema
@@ -1079,7 +1079,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 	// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
 	@Nonnull
-	private static Optional<BuiltFieldDescriptor> buildAttributeHistogramsField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private static Optional<BuiltFieldDescriptor> buildAttributeHistogramsField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final GraphQLFieldDefinition attributeHistogramField = newFieldDefinition()
 			.name("attributeHistograms")
 			.type(list(nonNull(typeRef("AttributeNamedHistogram"))))
@@ -1095,7 +1095,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private Optional<BuiltFieldDescriptor> buildPriceHistogramField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private Optional<BuiltFieldDescriptor> buildPriceHistogramField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		if (entitySchemaBuildingCtx.getSchema().getCurrencies().isEmpty()) {
 			return Optional.empty();
 		}
@@ -1107,7 +1107,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private Optional<BuiltFieldDescriptor> buildFacetSummaryField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private Optional<BuiltFieldDescriptor> buildFacetSummaryField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final Optional<GraphQLObjectType> facetSummaryObject = buildFacetSummaryObject(entitySchemaBuildingCtx);
 		if (facetSummaryObject.isEmpty()) {
 			return Optional.empty();
@@ -1125,7 +1125,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private Optional<GraphQLObjectType> buildFacetSummaryObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private Optional<GraphQLObjectType> buildFacetSummaryObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
 			.getReferences()
@@ -1151,7 +1151,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				referenceSchema
 			);
 
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				objectName,
 				facetSummaryObjectBuilder,
 				facetGroupStatisticsField
@@ -1162,7 +1162,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildFacetGroupStatisticsField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private BuiltFieldDescriptor buildFacetGroupStatisticsField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                            @Nonnull ReferenceSchemaContract referenceSchema) {
 		final GraphQLObjectType facetGroupStatisticsObject = buildFacetGroupStatisticsObject(
 			entitySchemaBuildingCtx,
@@ -1181,11 +1181,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildFacetGroupStatisticsObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private GraphQLObjectType buildFacetGroupStatisticsObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
 			Optional.ofNullable(referenceSchema.getReferencedGroupType())
-				.map(groupType -> context
+				.map(groupType -> buildingContext
 					.getSchema()
 					.getEntitySchemaOrThrowException(groupType))
 				.orElse(null) :
@@ -1207,10 +1207,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildFacetStatisticsObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private GraphQLObjectType buildFacetStatisticsObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract facetEntitySchema = referenceSchema.isReferencedEntityTypeManaged() ?
-			context
+			buildingContext
 				.getSchema()
 				.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType()) :
 			null;
@@ -1226,7 +1226,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private List<BuiltFieldDescriptor> buildHierarchyExtraResultFields(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private List<BuiltFieldDescriptor> buildHierarchyExtraResultFields(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
@@ -1234,7 +1234,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.values()
 			.stream()
 			.filter(referenceSchema -> referenceSchema.isReferencedEntityTypeManaged() &&
-				context.getSchema().getEntitySchema(referenceSchema.getReferencedEntityType())
+				buildingContext.getSchema().getEntitySchema(referenceSchema.getReferencedEntityType())
 					.map(EntitySchemaContract::isWithHierarchy)
 					.orElseThrow(() -> new GraphQLSchemaBuildingError("Reference `" + referenceSchema.getName() + "` should have existing entity schema but no schema found.")))
 			.toList();
@@ -1269,7 +1269,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildParentsObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private GraphQLObjectType buildParentsObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                             @Nonnull List<ReferenceSchemaContract> referenceSchemas) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
@@ -1280,14 +1280,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.name(objectName);
 
 		if (entitySchema.isWithHierarchy()) {
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				objectName,
 				parentsObjectBuilder,
 				buildSelfParentsOfEntityField(entitySchemaBuildingCtx)
 			);
 		}
 		referenceSchemas.forEach(referenceSchema ->
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				objectName,
 				parentsObjectBuilder,
 				buildParentsOfEntityField(entitySchemaBuildingCtx, referenceSchema)
@@ -1298,7 +1298,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSelfParentsOfEntityField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildSelfParentsOfEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final GraphQLObjectType parentsOfEntityObject = buildSelfParentsOfEntityObject(entitySchemaBuildingCtx);
 
 		final GraphQLFieldDefinition parentsField = HierarchyParentsDescriptor.SELF
@@ -1310,7 +1310,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildSelfParentsOfEntityObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private GraphQLObjectType buildSelfParentsOfEntityObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final String objectName = ParentsOfEntityDescriptor.THIS.name(entitySchema, entitySchema);
@@ -1319,7 +1319,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.to(objectBuilderTransformer)
 			.name(objectName);
 
-		context.registerFieldToObject(
+		buildingContext.registerFieldToObject(
 			objectName,
 			parentsOfEntityObjectBuilder,
 			buildSelfParentsOfEntityParentEntitiesField(entitySchemaBuildingCtx)
@@ -1329,7 +1329,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSelfParentsOfEntityParentEntitiesField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildSelfParentsOfEntityParentEntitiesField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final GraphQLFieldDefinition parentEntitiesField = ParentsOfEntityDescriptor.PARENT_ENTITIES
 			.to(fieldBuilderTransformer)
 			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema()))))))
@@ -1342,7 +1342,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private BuiltFieldDescriptor buildParentsOfEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                       @Nonnull ReferenceSchemaContract referenceSchema) {
 		final GraphQLObjectType parentsOfEntityObject = buildParentsOfEntityObject(entitySchemaBuildingCtx, referenceSchema);
 
@@ -1355,7 +1355,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildParentsOfEntityObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private GraphQLObjectType buildParentsOfEntityObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
@@ -1365,13 +1365,13 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.to(objectBuilderTransformer)
 			.name(objectName);
 
-		context.registerFieldToObject(
+		buildingContext.registerFieldToObject(
 			objectName,
 			parentsOfEntityObjectBuilder,
 			buildParentsOfEntityParentEntitiesField(referenceSchema)
 		);
 
-		context.registerFieldToObject(
+		buildingContext.registerFieldToObject(
 			objectName,
 			parentsOfEntityObjectBuilder,
 			buildParentsOfEntityReferencesField(entitySchemaBuildingCtx, referenceSchema)
@@ -1381,7 +1381,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityReferencesField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private BuiltFieldDescriptor buildParentsOfEntityReferencesField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                                 @Nonnull ReferenceSchemaContract referenceSchema) {
 		final GraphQLObjectType object = buildParentsOfEntityReferencesObject(entitySchemaBuildingCtx, referenceSchema);
 
@@ -1394,9 +1394,9 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildParentsOfEntityReferencesObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private GraphQLObjectType buildParentsOfEntityReferencesObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                               @Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = context
+		final EntitySchemaContract referencedEntitySchema = buildingContext
 			.getSchema()
 			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
 		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
@@ -1412,7 +1412,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 	@Nonnull
 	private BuiltFieldDescriptor buildParentsOfEntityParentEntitiesField(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = context
+		final EntitySchemaContract referencedEntitySchema = buildingContext
 			.getSchema()
 			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
 		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
@@ -1429,7 +1429,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildHierarchyStatisticsObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private GraphQLObjectType buildHierarchyStatisticsObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                         @Nonnull List<ReferenceSchemaContract> referenceSchemas) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
@@ -1439,14 +1439,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			.name(objectName);
 
 		if (entitySchema.isWithHierarchy()) {
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				objectName,
 				hierarchyStatisticsObjectBuilder,
 				buildSelfLevelInfoField(entitySchemaBuildingCtx)
 			);
 		}
 		referenceSchemas.forEach(referenceSchema ->
-			context.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				objectName,
 				hierarchyStatisticsObjectBuilder,
 				buildLevelInfoField(entitySchemaBuildingCtx, referenceSchema)
@@ -1457,7 +1457,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSelfLevelInfoField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildSelfLevelInfoField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final GraphQLObjectType selfLevelInfoObject = buildSelfLevelInfoObject(entitySchemaBuildingCtx);
 		final GraphQLFieldDefinition selfLevelInfoField = HierarchyStatisticsDescriptor.SELF
 			.to(fieldBuilderTransformer)
@@ -1467,7 +1467,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildSelfLevelInfoObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private GraphQLObjectType buildSelfLevelInfoObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final String objectName = HierarchyStatisticsLevelInfoDescriptor.THIS.name(entitySchema, entitySchema);
@@ -1479,7 +1479,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.to(fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(objectName))))));
 
-		context.registerFieldToObject(
+		buildingContext.registerFieldToObject(
 			objectName,
 			selfLevelInfoObjectBuilder,
 			buildSelfLevelInfoEntityField(entitySchemaBuildingCtx)
@@ -1489,7 +1489,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSelfLevelInfoEntityField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildSelfLevelInfoEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 		final String referencedEntityObjectName = entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
 
@@ -1505,7 +1505,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildLevelInfoField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private BuiltFieldDescriptor buildLevelInfoField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                                 @Nonnull ReferenceSchemaContract referenceSchema) {
 		final GraphQLObjectType levelInfoObject = buildLevelInfoObject(entitySchemaBuildingCtx, referenceSchema);
 		final GraphQLFieldDefinition levelInfoField = newFieldDefinition()
@@ -1516,7 +1516,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildLevelInfoObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
+	private GraphQLObjectType buildLevelInfoObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx,
 	                                               @Nonnull ReferenceSchemaContract referenceSchema) {
 		final String objectName = HierarchyStatisticsLevelInfoDescriptor.THIS.name(entitySchemaBuildingCtx.getSchema(), referenceSchema);
 
@@ -1527,7 +1527,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.to(fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(objectName))))));
 
-		context.registerFieldToObject(
+		buildingContext.registerFieldToObject(
 			objectName,
 			levelInfoObjectBuilder,
 			buildLevelInfoEntityField(referenceSchema)
@@ -1538,7 +1538,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 	@Nonnull
 	private BuiltFieldDescriptor buildLevelInfoEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = context
+		final EntitySchemaContract referencedEntitySchema = buildingContext
 			.getSchema()
 			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
 		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
@@ -1577,7 +1577,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 
 	@Nonnull
-	private BuiltFieldDescriptor buildUpsertEntityField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildUpsertEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final GraphQLFieldDefinition.Builder upsertEntityFieldBuilder = CatalogDataApiRootDescriptor.UPSERT_ENTITY
@@ -1598,12 +1598,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			upsertEntityFieldBuilder.build(),
-			new UpsertEntityMutatingDataFetcher(CDO_OBJECT_MAPPER, context.getSchema(), entitySchema)
+			new UpsertEntityMutatingDataFetcher(CDO_OBJECT_MAPPER, buildingContext.getSchema(), entitySchema)
 		);
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildDeleteEntitiesField(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private BuiltFieldDescriptor buildDeleteEntitiesField(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final GraphQLFieldDefinition deleteEntityByQueryField = CatalogDataApiRootDescriptor.DELETE_ENTITY
@@ -1623,24 +1623,24 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			deleteEntityByQueryField,
-			new DeleteEntitiesMutatingDataFetcher(context.getSchema(), entitySchema)
+			new DeleteEntitiesMutatingDataFetcher(buildingContext.getSchema(), entitySchema)
 		);
 	}
 
 
 	@Nonnull
 	private GraphQLObjectType buildPriceObject() {
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.PRICE_WITH_TAX,
 			new PriceBigDecimalDataFetcher(PriceDescriptor.PRICE_WITH_TAX.name())
 		);
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.PRICE_WITHOUT_TAX,
 			new PriceBigDecimalDataFetcher(PriceDescriptor.PRICE_WITHOUT_TAX.name())
 		);
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			PriceDescriptor.THIS,
 			PriceDescriptor.TAX_RATE,
 			new PriceBigDecimalDataFetcher(PriceDescriptor.TAX_RATE.name())
@@ -1680,17 +1680,17 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull
 	private GraphQLObjectType buildFacetRequestImpactObject() {
 		// register custom data fetcher because of the request impact being java record
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.DIFFERENCE,
 			PropertyDataFetcher.fetching(RequestImpact::difference)
 		);
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.MATCH_COUNT,
 			PropertyDataFetcher.fetching(RequestImpact::matchCount)
 		);
-		context.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			FacetRequestImpactDescriptor.THIS,
 			FacetRequestImpactDescriptor.HAS_SENSE,
 			PropertyDataFetcher.fetching(RequestImpact::hasSense)
@@ -1702,7 +1702,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	}
 
 	@Nullable
-	private GraphQLInputObjectType buildLocalMutationAggregateObject(@Nonnull EntitySchemaGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
+	private GraphQLInputObjectType buildLocalMutationAggregateObject(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
 		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
 
 		final GraphQLInputObjectType.Builder localMutationAggregateObjectBuilder = newInputObject()

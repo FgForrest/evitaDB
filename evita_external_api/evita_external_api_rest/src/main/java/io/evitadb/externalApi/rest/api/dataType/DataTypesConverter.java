@@ -70,13 +70,7 @@ public class DataTypesConverter {
                                                      boolean nonNull) {
         final Class<?> componentType = javaDataType.isArray() ? javaDataType.getComponentType() : javaDataType;
 
-        final OpenApiScalar openApiComponentType;
-        if (componentType.isPrimitive()) {
-            openApiComponentType = scalarFrom(componentType);
-        } else {
-            openApiComponentType = scalarFrom(componentType);
-        }
-
+        final OpenApiScalar openApiComponentType = scalarFrom(componentType);
         return wrapOpenApiComponentType(openApiComponentType, javaDataType, nonNull);
     }
 
@@ -93,13 +87,7 @@ public class DataTypesConverter {
     public static OpenApiSimpleType getOpenApiScalar(@Nonnull Class<?> javaDataType,
                                                      @Nonnull Class<?> replacementComponentType,
                                                      boolean nonNull) {
-        final OpenApiScalar openApiComponentType;
-        if (replacementComponentType.isPrimitive()) {
-            openApiComponentType = scalarFrom(replacementComponentType);
-        } else {
-            openApiComponentType = scalarFrom(replacementComponentType);
-        }
-
+        final OpenApiScalar openApiComponentType = scalarFrom(replacementComponentType);
         return wrapOpenApiComponentType(openApiComponentType, javaDataType, nonNull);
     }
 

@@ -34,6 +34,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.DataItemValue;
+import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
