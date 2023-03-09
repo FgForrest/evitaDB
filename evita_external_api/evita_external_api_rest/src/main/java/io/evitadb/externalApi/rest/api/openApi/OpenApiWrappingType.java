@@ -21,38 +21,20 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
-
-import io.swagger.v3.oas.models.media.Schema;
-import lombok.AccessLevel;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.ToString;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Wrapping type enriches wrapped {@link OpenApiSimpleType} with some additional information (like that the value cannot be null).
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-@EqualsAndHashCode
-@ToString
-public class OpenApiNonNull implements OpenApiWrappingType {
+public interface OpenApiWrappingType extends OpenApiSimpleType {
 
+	/**
+	 * Returns inner wrapped actual type by this wrapping type.
+	 */
 	@Nonnull
-	@Getter
-	private final OpenApiSimpleType wrappedType;
-
-	public static OpenApiNonNull nonNull(@Nonnull OpenApiSimpleType wrappedType) {
-		return new OpenApiNonNull(wrappedType);
-	}
-
-	@Nonnull
-	@Override
-	public Schema<?> toSchema() {
-		return wrappedType.toSchema();
-	}
+	OpenApiSimpleType getWrappedType();
 }

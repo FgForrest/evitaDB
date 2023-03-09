@@ -46,9 +46,9 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
 
-import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.enumFrom;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.scalarFrom;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**

@@ -44,8 +44,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 
-import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.scalarFrom;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;

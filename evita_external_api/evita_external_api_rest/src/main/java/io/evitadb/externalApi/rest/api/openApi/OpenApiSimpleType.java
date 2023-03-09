@@ -21,22 +21,17 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
-
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+package io.evitadb.externalApi.rest.api.openApi;
 
 /**
- * TODO lho docs
+ * Simple type is {@link OpenApiType} that is not object, and thus can be safely placed as inner schema into property and so on.
  *
- * @author Lukáš Hornych, 2023
+ * @see OpenApiScalar
+ * @see OpenApiWrappingType
+ * @see OpenApiTypeReference
+ * @see OpenApiArray
+ * @see OpenApiNonNull
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
-public enum OpenApiOperationParameterLocation {
-
-	PATH("path"),
-	QUERY("query");
-
-	@Getter
-	private final String location;
+public interface OpenApiSimpleType extends OpenApiType {
 }

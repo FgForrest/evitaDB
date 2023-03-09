@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
@@ -50,9 +50,12 @@ import java.util.stream.Collectors;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * TODO lho docs
+ * Represents complex object built from {@link OpenApiProperty} or other referenced types (as union) and must be globally registered in OpenAPI
+ * so that there are no duplicates and client can generate prettier client libraries.
  *
- * @author Lukáš Hornych, 2023
+ * It translates into {@link ObjectSchema} with properties or into generic {@link Schema} with oneOf, anyOf or allOf keywords.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
@@ -171,35 +174,54 @@ public class OpenApiObject implements OpenApiComplexType {
 			);
 		}
 
+		/**
+		 * Sets name of the object.
+		 */
 		@Nonnull
 		public Builder name(@Nonnull String name) {
 			this.name = name;
 			return this;
 		}
 
+		/**
+		 * Sets description of the object.
+		 */
 		@Nonnull
 		public Builder description(@Nullable String description) {
 			this.description = description;
 			return this;
 		}
 
+		/**
+		 * Sets deprecation notice of the object to indicate that the object is deprecated. If null, object is not set
+		 * as deprecated.
+		 */
 		@Nonnull
 		public Builder deprecationNotice(@Nullable String deprecationNotice) {
 			this.deprecationNotice = deprecationNotice;
 			return this;
 		}
 
+		/**
+		 * Adds property to the object.
+		 */
 		@Nonnull
 		public Builder property(@Nonnull OpenApiProperty property) {
 			properties.put(property.getName(), property);
 			return this;
 		}
 
+		/**
+		 * Adds property to the object.
+		 */
 		@Nonnull
 		public Builder property(@Nonnull OpenApiProperty.Builder propertyBuilder) {
 			return property(propertyBuilder.build());
 		}
 
+		/**
+		 * Adds property to the object.
+		 */
 		@Nonnull
 		public Builder property(@Nonnull UnaryOperator<OpenApiProperty.Builder> propertyBuilderFunction) {
 			OpenApiProperty.Builder propertyBuilder = OpenApiProperty.newProperty();
@@ -207,24 +229,36 @@ public class OpenApiObject implements OpenApiComplexType {
 			return property(propertyBuilder.build());
 		}
 
+		/**
+		 * Sets type of union (used only if {@link #unionObject(OpenApiTypeReference)} is used as well). Default is {@link OpenApiObjectUnionType#ONE_OF}.
+		 */
 		@Nonnull
 		public Builder unionType(@Nonnull OpenApiObjectUnionType unionType) {
 			this.unionType = unionType;
 			return this;
 		}
 
+		/**
+		 * Sets name of union discriminator (used only if {@link #unionObject(OpenApiTypeReference)} is used as well).
+		 */
 		@Nonnull
 		public Builder unionDiscriminator(@Nonnull String unionDiscriminator) {
 			this.unionDiscriminator = unionDiscriminator;
 			return this;
 		}
 
+		/**
+		 * Adds union object. Make sure to set correct {@link #unionType(OpenApiObjectUnionType)} and {@link #unionDiscriminator(String)}.
+		 */
 		@Nonnull
 		public Builder unionObject(@Nonnull OpenApiTypeReference unionObject) {
 			this.unionObjects.add(unionObject);
 			return this;
 		}
 
+		/**
+		 * Checks existence of property by name.
+		 */
 		public boolean hasProperty(@Nonnull String name) {
 			return this.properties.containsKey(name);
 		}

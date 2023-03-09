@@ -29,15 +29,15 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDes
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
-import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.enumFrom;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.scalarFrom;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;

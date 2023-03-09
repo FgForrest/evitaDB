@@ -25,8 +25,8 @@ package io.evitadb.externalApi.rest.api.catalog.builder.constraint;
 
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;

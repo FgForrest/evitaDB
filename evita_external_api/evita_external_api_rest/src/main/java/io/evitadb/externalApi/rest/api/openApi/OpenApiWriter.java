@@ -21,20 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
+
+import io.swagger.v3.core.util.Yaml31;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Writes object representation of OpenAPI schema as YAML string.
  *
- * @author Lukáš Hornych, 2023
+ * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface OpenApiWrappingType extends OpenApiSimpleType {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class OpenApiWriter {
 
-	/**
-	 * Returns inner wrapped actual type by this wrapping type.
-	 */
-	@Nonnull
-	OpenApiSimpleType getWrappedType();
+	public static String toYaml(@Nonnull Object openAPI) {
+		return Yaml31.pretty(openAPI);
+	}
 }

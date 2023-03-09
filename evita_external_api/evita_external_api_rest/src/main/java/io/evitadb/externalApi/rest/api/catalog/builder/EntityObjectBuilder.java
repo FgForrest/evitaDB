@@ -43,11 +43,11 @@ import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAttributesDescript
 import io.evitadb.externalApi.rest.api.catalog.model.LocalizedAttributesForLocaleDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.SectionedAttributesDescriptor;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
-import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
-import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import lombok.RequiredArgsConstructor;
 
@@ -59,10 +59,10 @@ import java.util.List;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructReferenceObjectName;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiProperty.newProperty;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
 /**
  * Builds OpenAPI entity object (schema) based on information provided in building context

@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.rest.io.handler;
 
 import io.evitadb.externalApi.http.MimeTypes;
-import io.evitadb.externalApi.rest.api.OpenApiWriter;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
 import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;

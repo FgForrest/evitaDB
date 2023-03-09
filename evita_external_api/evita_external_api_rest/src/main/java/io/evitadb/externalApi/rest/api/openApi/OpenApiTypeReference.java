@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
@@ -33,9 +33,12 @@ import lombok.ToString;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * References globally registered {@link OpenApiComplexType} (object, enum, ...) so that it can be safely used e.g. in
+ * {@link OpenApiProperty}.
  *
- * @author Lukáš Hornych, 2023
+ * It is translated to {@link Schema#$ref(String)} under the hood.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
@@ -46,11 +49,22 @@ public class OpenApiTypeReference implements OpenApiSimpleType {
 	@Nonnull
 	private final String objectName;
 
+	/**
+	 * Creates reference to registered type by its global name. The name must correspond to some registered global {@link OpenApiComplexType}
+	 * (object, enum, ...).
+	 * The referenced type doesn't have to be registered before creating reference to it, but must be resolved before
+	 * finalizing OpenAPI specs.
+	 */
 	@Nonnull
 	public static OpenApiTypeReference typeRefTo(@Nonnull String typeName) {
 		return new OpenApiTypeReference(typeName);
 	}
 
+	/**
+	 * Creates reference to passed complex type from its name.
+	 * The referenced type doesn't have to be registered before creating reference to it, but must be resolved before
+	 * finalizing OpenAPI specs.
+	 */
 	@Nonnull
 	public static OpenApiTypeReference typeRefTo(@Nonnull OpenApiComplexType type) {
 		return new OpenApiTypeReference(type.getName());

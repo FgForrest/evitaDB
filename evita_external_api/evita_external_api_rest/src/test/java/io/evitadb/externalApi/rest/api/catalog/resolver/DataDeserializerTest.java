@@ -55,9 +55,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.scalarFrom;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**

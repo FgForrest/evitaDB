@@ -33,13 +33,13 @@ import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintS
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKey;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
-import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
-import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
-import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter.ConvertedEnum;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 
@@ -55,11 +55,11 @@ import java.util.Set;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiObject.newObject;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiProperty.newProperty;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiObject.newObject;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
 /**
  * Implementation of {@link ConstraintSchemaBuilder} for REST API.

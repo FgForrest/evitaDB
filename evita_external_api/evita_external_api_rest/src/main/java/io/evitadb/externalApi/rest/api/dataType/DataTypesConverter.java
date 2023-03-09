@@ -24,21 +24,21 @@
 package io.evitadb.externalApi.rest.api.dataType;
 
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.externalApi.rest.api.dto.OpenApiArray;
-import io.evitadb.externalApi.rest.api.dto.OpenApiEnum;
-import io.evitadb.externalApi.rest.api.dto.OpenApiNonNull;
-import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiArray;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.enumFrom;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.scalarFrom;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
 /**
  * Utilities for converting Evita's internal data types ({@link EvitaDataTypes}) to

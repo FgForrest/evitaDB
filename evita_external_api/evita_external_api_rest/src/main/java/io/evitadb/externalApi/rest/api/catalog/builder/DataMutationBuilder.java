@@ -30,16 +30,16 @@ import io.evitadb.externalApi.rest.api.catalog.builder.constraint.RequireSchemaB
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.catalog.model.EntityUpsertRequestDescriptor;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
-import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
 
-import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 
 /**
  * Build OpenAPI schemas for entity mutations - upsert and delete. It also registers appropriate handlers for processing

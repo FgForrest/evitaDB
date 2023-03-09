@@ -21,13 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.catalog.model.ErrorDescriptor;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.handler.RestHandler;
 import io.evitadb.externalApi.rest.io.handler.RestHandlingContext;
@@ -55,12 +56,17 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
 
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
 /**
- * TODO lho docs
+ * Single REST endpoint with schema description and handler builder. It combines {@link io.swagger.v3.oas.models.PathItem},
+ * {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults. To further simplify
+ * building endpoints, the {@link OpenApiCollectionEndpoint} and {@link OpenApiCatalogEndpoint} have been created with
+ * built-in specific path builders and custom properties for each type of endpoint.
  *
- * @author Lukáš Hornych, 2023
+ * @see OpenApiCollectionEndpoint
+ * @see OpenApiCatalogEndpoint
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode
@@ -79,9 +85,16 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 
 	@Nonnull @Getter protected final HttpMethod method;
 	@Nonnull @Getter protected final Path path;
+	/**
+	 * Whether the endpoint contains locale parameter in path, and thus defines default locale for entire endpoint.
+	 */
+	protected final boolean localized;
 
 	@Nonnull protected final String description;
 	@Nullable protected final String deprecationNotice;
+	/**
+	 * List of all parameters, both path and query parameters.
+	 */
 	@Nonnull protected final List<OpenApiEndpointParameter> parameters;
 
 	@Nullable protected final OpenApiSimpleType requestBody;
@@ -89,12 +102,22 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 
 	@Nonnull protected final Function<HC, RestHandler<HC>> handlerBuilder;
 
-	// todo lho should these params be moved to builder?
+	/**
+	 * Instantiate a new handler for this particular endpoint with passed data.
+	 *
+	 * @param objectMapper for parsing request bodies and serializing responses
+	 * @param evita to query and update data
+	 * @param openApi final OpenAPI specs for parsing and validation
+	 * @return ready-to-handle endpoint handler
+	 */
 	@Nonnull
 	public abstract RestHandler<HC> toHandler(@Nonnull ObjectMapper objectMapper,
 						                      @Nonnull Evita evita,
                                               @Nonnull OpenAPI openApi);
 
+	/**
+	 * Build {@link Operation} describing this endpoint in OpenAPI.
+	 */
 	@Nonnull
 	public Operation toOperation() {
 		final Operation operation = new Operation();
@@ -149,7 +172,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	}
 
 	@Nonnull
-	private RequestBody createRequestBody(@Nonnull OpenApiSimpleType type) {
+	protected RequestBody createRequestBody(@Nonnull OpenApiSimpleType type) {
 		return new RequestBody()
 			.content(
 				new Content()
@@ -162,7 +185,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	}
 
 	@Nonnull
-	private ApiResponse createResponse(@Nonnull String description, @Nonnull OpenApiSimpleType type) {
+	protected ApiResponse createResponse(@Nonnull String description, @Nonnull OpenApiSimpleType type) {
 		return new ApiResponse()
 			.description(description)
 			.content(
@@ -176,7 +199,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	}
 
 	@Nonnull
-	private ApiResponse createErrorResponse(@Nonnull String description) {
+	protected ApiResponse createErrorResponse(@Nonnull String description) {
 		return createResponse(description, typeRefTo(ErrorDescriptor.THIS.name()));
 	}
 
@@ -208,7 +231,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 		public PathBuilder paramItem(@Nullable OpenApiEndpointParameter paramItem) {
 			if (paramItem != null) {
 				Assert.isPremiseValid(
-					paramItem.getLocation().equals(OpenApiOperationParameterLocation.PATH),
+					paramItem.getLocation().equals(ParameterLocation.PATH),
 					() -> new OpenApiBuildingError("Path only supports path parameters.")
 				);
 				this.path = this.path.resolve("{" + paramItem.getName() + "}");

@@ -74,12 +74,12 @@ import io.evitadb.externalApi.rest.api.catalog.model.EntityUnion;
 import io.evitadb.externalApi.rest.api.catalog.model.ErrorDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.FetchRequestDescriptor;
 import io.evitadb.externalApi.rest.api.dto.DataChunkType;
-import io.evitadb.externalApi.rest.api.dto.OpenApiEnum;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObjectUnionType;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
-import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.dto.Rest;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -101,10 +101,10 @@ import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCA
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityListRequestBodyObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityQueryRequestBodyObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.builder.constraint.RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_LIST;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.enumFrom;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiEnum.newEnum;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.FORMAT_CURRENCY;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiScalar.FORMAT_LOCALE;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.newEnum;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.FORMAT_CURRENCY;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.FORMAT_LOCALE;
 
 /**
  * Creates OpenAPI specification for Evita's catalog.

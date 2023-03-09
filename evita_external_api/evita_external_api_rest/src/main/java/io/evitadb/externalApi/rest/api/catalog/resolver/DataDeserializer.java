@@ -33,7 +33,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
-import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;

@@ -38,18 +38,18 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescrip
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemasDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.catalog.builder.transformer.PropertyDescriptorToOpenApiPropertyTransformer;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
-import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
-import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiProperty.newProperty;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
 /**
  * Builds OpenAPI entity schema object (schema) based on information provided in building context

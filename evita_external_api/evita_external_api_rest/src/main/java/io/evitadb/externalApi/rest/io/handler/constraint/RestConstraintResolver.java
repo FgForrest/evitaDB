@@ -36,7 +36,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.Constraint
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.rest.api.catalog.resolver.DataDeserializer;
-import io.evitadb.externalApi.rest.api.dto.OpenApiScalar;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.io.SchemaUtils;

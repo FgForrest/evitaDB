@@ -21,14 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
+
+import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Complex type is {@link OpenApiComplexType} that is usually some kind of object and should be registered as component and referenced in
+ * properties. Should not be used as inline schema.
  *
- * @author Lukáš Hornych, 2023
+ * @see OpenApiObject
+ * @see OpenApiEnum
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public enum OpenApiObjectUnionType {
+public interface OpenApiComplexType extends OpenApiType {
 
-	ONE_OF, ANY_OF, ALL_OF
+	/**
+	 * Returns global name of complex type so that it can be globally registered and referenced. Must be unique in context
+	 * of single OpenAPI specs.
+	 */
+	@Nonnull
+	String getName();
 }

@@ -21,18 +21,20 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.externalApi.rest.io.handler.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.io.handler.RestHandler;
+import io.evitadb.externalApi.rest.io.handler.RestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 
 import javax.annotation.Nonnull;
@@ -45,54 +47,51 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiEndpoint.PathBuilder.newPath;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiEndpointParameter.newPathParameter;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
-import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint.PathBuilder.newPath;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.newPathParameter;
+import static io.swagger.v3.oas.models.PathItem.HttpMethod.DELETE;
+import static io.swagger.v3.oas.models.PathItem.HttpMethod.POST;
+import static io.swagger.v3.oas.models.PathItem.HttpMethod.PUT;
 
 /**
- * TODO lho docs
+ * Single REST endpoint with schema description and handler builder for building catalog-specific endpoints
+ * (for specific catalog and entity type). It combines {@link io.swagger.v3.oas.models.PathItem},
+ * {@link Operation} and {@link io.undertow.server.HttpHandler} into one place with useful defaults.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHandlingContext> {
+public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext> {
 
-	@Nonnull private final EntitySchemaContract entitySchema;
-	protected final boolean localized;
-
-	private OpenApiCollectionEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
-									  @Nonnull EntitySchemaContract entitySchema,
-	                                  @Nonnull PathItem.HttpMethod method,
-	                                  @Nonnull Path path,
-									  boolean localized,
-	                                  @Nonnull String description,
-	                                  @Nullable String deprecationNotice,
-	                                  @Nonnull List<OpenApiEndpointParameter> parameters,
-	                                  @Nullable OpenApiSimpleType requestBody,
-	                                  @Nonnull OpenApiSimpleType successResponse,
-	                                  @Nonnull Function<CollectionRestHandlingContext, RestHandler<CollectionRestHandlingContext>> handlerBuilder) {
-		super(catalogSchema, method, path, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
-		this.entitySchema = entitySchema;
-		this.localized = localized;
+	private OpenApiCatalogEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
+	                               @Nonnull PathItem.HttpMethod method,
+	                               @Nonnull Path path,
+								   boolean localized,
+	                               @Nonnull String description,
+	                               @Nullable String deprecationNotice,
+	                               @Nonnull List<OpenApiEndpointParameter> parameters,
+	                               @Nullable OpenApiSimpleType requestBody,
+	                               @Nonnull OpenApiSimpleType successResponse,
+	                               @Nonnull Function<RestHandlingContext, RestHandler<RestHandlingContext>> handlerBuilder) {
+		super(catalogSchema, method, path, localized, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 	}
 
+	/**
+	 * Creates builder for new catalog endpoint.
+	 */
 	@Nonnull
-	public static Builder newCollectionEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
-	                                            @Nonnull EntitySchemaContract entitySchema) {
-		return new Builder(catalogSchema, entitySchema);
+	public static Builder newCatalogEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
+		return new Builder(catalogSchema);
 	}
 
 	@Nonnull
 	@Override
-	public RestHandler<CollectionRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-	                                                            @Nonnull Evita evita,
-	                                                            @Nonnull OpenAPI openApi) {
-		final CollectionRestHandlingContext context = new CollectionRestHandlingContext(
+	public RestHandler<RestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+                                                      @Nonnull Evita evita,
+                                                      @Nonnull OpenAPI openApi) {
+		final RestHandlingContext context = new RestHandlingContext(
 			objectMapper,
 			evita,
 			catalogSchema,
-			entitySchema,
 			openApi,
 			toOperation(), // todo lho i dont like that this will be created twice, once to register to openapi, second here
 			localized
@@ -100,11 +99,9 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		return handlerBuilder.apply(context);
 	}
 
-
 	public static class Builder {
 
 		@Nonnull private final CatalogSchemaContract catalogSchema;
-		@Nonnull private final EntitySchemaContract entitySchema;
 
 		@Nullable private PathItem.HttpMethod method;
 		@Nullable private Path path;
@@ -117,25 +114,35 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<CollectionRestHandlingContext, RestHandler<CollectionRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<RestHandlingContext, RestHandler<RestHandlingContext>> handlerBuilder;
 
-		private Builder(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
+		private Builder(@Nonnull CatalogSchemaContract catalogSchema) {
 			this.catalogSchema = catalogSchema;
-			this.entitySchema = entitySchema;
 			this.parameters = new LinkedList<>();
 		}
 
+		/**
+		 * Set HTTP method of this endpoint.
+		 */
 		@Nonnull
 		public Builder method(@Nonnull PathItem.HttpMethod method) {
 			this.method = method;
 			return this;
 		}
 
+		/**
+		 * Set non-localized path of this endpoint. Provided builder is already configured with collection-specific prefix
+		 * `/rest/catalog`.
+		 */
 		@Nonnull
 		public Builder path(@Nonnull UnaryOperator<PathBuilder> pathBuilderFunction) {
 			return path(false, pathBuilderFunction);
 		}
 
+		/**
+		 * Set path of this endpoint. Provided builder is already configured with collection-specific prefix
+		 * `/rest/catalog` or `/rest/catalog/{locale}`.
+		 */
 		@Nonnull
 		public Builder path(boolean localized, @Nonnull UnaryOperator<PathBuilder> pathBuilderFunction) {
 			// prepare new catalog path
@@ -145,10 +152,9 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 				pathBuilder.paramItem(newPathParameter()
 					.name(ParamDescriptor.REQUIRED_LOCALE.name())
 					.description(ParamDescriptor.REQUIRED_LOCALE.description())
-					.type(typeRefTo(ENTITY_LOCALE_ENUM.name(entitySchema)))
+					.type(DataTypesConverter.getOpenApiScalar(ParamDescriptor.REQUIRED_LOCALE.primitiveType().javaType()))
 					.build());
 			}
-			pathBuilder.staticItem(entitySchema.getNameVariant(URL_NAME_NAMING_CONVENTION));
 
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 
@@ -158,33 +164,46 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 			return this;
 		}
 
+		/**
+		 * Sets endpoint description.
+		 */
 		@Nonnull
 		public Builder description(@Nonnull String description) {
 			this.description = description;
 			return this;
 		}
 
+		/**
+		 * Sets endpoint deprecation notice to indicate that the endpoint is deprecated. If null, endpoint is not set
+		 * as deprecated.
+		 */
 		@Nonnull
 		public Builder deprecationNotice(@Nullable String deprecationNotice) {
 			this.deprecationNotice = deprecationNotice;
 			return this;
 		}
 
+		/**
+		 * Adds single query parameter.
+		 */
 		@Nonnull
 		public Builder queryParameter(@Nonnull OpenApiEndpointParameter queryParameter) {
 			Assert.isPremiseValid(
-				queryParameter.getLocation().equals(OpenApiOperationParameterLocation.QUERY),
+				queryParameter.getLocation().equals(ParameterLocation.QUERY),
 				() -> new OpenApiBuildingError("Only query parameters are supported here.")
 			);
 			this.parameters.add(queryParameter);
 			return this;
 		}
 
+		/**
+		 * Adds list of query parameters to existing query parameters.
+		 */
 		@Nonnull
 		public Builder queryParameters(@Nonnull List<OpenApiEndpointParameter> queryParameters) {
 			queryParameters.forEach(queryParameter ->
 				Assert.isPremiseValid(
-					queryParameter.getLocation().equals(OpenApiOperationParameterLocation.QUERY),
+					queryParameter.getLocation().equals(ParameterLocation.QUERY),
 					() -> new OpenApiBuildingError("Only query parameters are supported here.")
 				)
 			);
@@ -192,26 +211,35 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 			return this;
 		}
 
+		/**
+		 * Sets type of request body if any.
+		 */
 		@Nonnull
 		public Builder requestBody(@Nonnull OpenApiSimpleType requestBodyType) {
 			this.requestBody = requestBodyType;
 			return this;
 		}
 
+		/**
+		 * Sets type of response body for successful response.
+		 */
 		@Nonnull
 		public Builder successResponse(@Nonnull OpenApiSimpleType successResponseType) {
 			this.successResponse = successResponseType;
 			return this;
 		}
 
+		/**
+		 * Sets handler builder.
+		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<CollectionRestHandlingContext, RestHandler<CollectionRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<RestHandlingContext, RestHandler<RestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}
 
 		@Nonnull
-		public OpenApiCollectionEndpoint build() {
+		public OpenApiCatalogEndpoint build() {
 			Assert.isPremiseValid(
 				path != null,
 				() -> new OpenApiBuildingError("Missing endpoint path.")
@@ -224,34 +252,28 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 				description != null && !description.isEmpty(),
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing description.")
 			);
-
-			if (Set.of(POST, PUT, PATCH).contains(method)) {
+			if (Set.of(POST, PUT, DELETE).contains(method)) {
 				Assert.isPremiseValid(
 					requestBody != null,
 					() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing request body.")
 				);
-			} else if (Set.of(GET, HEAD, TRACE, OPTIONS).contains(method)) {
+			} else {
 				Assert.isPremiseValid(
 					requestBody == null,
 					() -> new OpenApiBuildingError("Endpoint `" + path + "` doesn't support request body.")
 				);
 			}
-
-			if (Set.of(GET, POST, PUT, PATCH).contains(method)) {
-				Assert.isPremiseValid(
-					successResponse != null,
-					() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing success response.")
-				);
-			}
-
+			Assert.isPremiseValid(
+				successResponse != null,
+				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing success response.")
+			);
 			Assert.isPremiseValid(
 				handlerBuilder != null,
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing handler.")
 			);
 
-			return new OpenApiCollectionEndpoint(
+			return new OpenApiCatalogEndpoint(
 				catalogSchema,
-				entitySchema,
 				method,
 				path,
 				localized,

@@ -21,23 +21,39 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api;
+package io.evitadb.externalApi.rest.api.openApi;
 
-import io.swagger.v3.core.util.Yaml31;
+import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
 
 /**
- * Writes object representation of OpenAPI schema as YAML string.
+ * Specifies that underlying {@link OpenApiSimpleType} cannot be null. Because OpenAPI usually doesn't support non-null
+ * flags directly, this wrapper, when translated, returns wrapped type and this class should be used only as marker.
  *
- * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class OpenApiWriter {
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode
+@ToString
+public class OpenApiNonNull implements OpenApiWrappingType {
 
-	public static String toYaml(@Nonnull Object openAPI) {
-		return Yaml31.pretty(openAPI);
+	@Nonnull
+	@Getter
+	private final OpenApiSimpleType wrappedType;
+
+	public static OpenApiNonNull nonNull(@Nonnull OpenApiSimpleType wrappedType) {
+		return new OpenApiNonNull(wrappedType);
+	}
+
+	@Nonnull
+	@Override
+	public Schema<?> toSchema() {
+		return wrappedType.toSchema();
 	}
 }

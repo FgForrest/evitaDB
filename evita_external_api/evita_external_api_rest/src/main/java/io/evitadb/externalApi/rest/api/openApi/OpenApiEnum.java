@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
@@ -40,9 +40,11 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * TODO lho docs
+ * Similarly to {@link OpenApiObject} an enum is a complex type which should be globally registered so that
+ * there are no duplicate inline enums. Enum can be created either manually by supplying custom items or can be created
+ * automatically from class
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
@@ -135,30 +137,46 @@ public class OpenApiEnum implements OpenApiComplexType {
 			);
 		}
 
+		/**
+		 * Sets name of the enum.
+		 */
 		@Nonnull
 		public Builder name(@Nonnull String name) {
 			this.name = name;
 			return this;
 		}
 
+		/**
+		 * Sets description of the enum.
+		 */
 		@Nonnull
 		public Builder description(@Nullable String description) {
 			this.description = description;
 			return this;
 		}
 
+		/**
+		 * Sets deprecation notice of the enum to indicate that the enum is deprecated. If null, the enum is not set
+		 * as deprecated.
+		 */
 		@Nonnull
 		public Builder deprecationNotice(@Nullable String deprecationNotice) {
 			this.deprecationNotice = deprecationNotice;
 			return this;
 		}
 
+		/**
+		 * Sets custom format of item names.
+		 */
 		@Nonnull
 		public Builder format(@Nullable String format) {
 			this.format = format;
 			return this;
 		}
 
+		/**
+		 * Adds new enum item.
+		 */
 		@Nonnull
 		public Builder item(@Nonnull String item) {
 			items.add(item);

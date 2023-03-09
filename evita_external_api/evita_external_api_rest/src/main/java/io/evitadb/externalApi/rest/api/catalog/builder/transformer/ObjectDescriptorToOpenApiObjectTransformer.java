@@ -26,8 +26,8 @@ package io.evitadb.externalApi.rest.api.catalog.builder.transformer;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
 import io.evitadb.externalApi.api.model.PropertyDescriptorTransformer;
-import io.evitadb.externalApi.rest.api.dto.OpenApiObject;
-import io.evitadb.externalApi.rest.api.dto.OpenApiProperty;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;

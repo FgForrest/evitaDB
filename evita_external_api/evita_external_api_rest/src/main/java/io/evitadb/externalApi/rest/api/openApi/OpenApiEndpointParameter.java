@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
@@ -36,9 +36,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO lho docs
+ * Single parameter of {@link OpenApiEndpoint}. Support both path parameter and query parameter as those are basically
+ * same, just have different locations.
  *
- * @author Lukáš Hornych, 2023
+ * It translates to {@link Parameter}.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @EqualsAndHashCode
@@ -47,7 +50,7 @@ public class OpenApiEndpointParameter {
 
 	@Nonnull
 	@Getter
-	private final OpenApiOperationParameterLocation location;
+	private final ParameterLocation location;
 	@Nonnull
 	@Getter
 	private final String name;
@@ -60,12 +63,12 @@ public class OpenApiEndpointParameter {
 
 	@Nonnull
 	public static OpenApiEndpointParameter.Builder newPathParameter() {
-		return new Builder(OpenApiOperationParameterLocation.PATH);
+		return new Builder(ParameterLocation.PATH);
 	}
 
 	@Nonnull
 	public static OpenApiEndpointParameter.Builder newQueryParameter() {
-		return new Builder(OpenApiOperationParameterLocation.QUERY);
+		return new Builder(ParameterLocation.QUERY);
 	}
 
 	@Nonnull
@@ -87,7 +90,7 @@ public class OpenApiEndpointParameter {
 	public static class Builder {
 
 		@Nonnull
-		private final OpenApiOperationParameterLocation location;
+		private final ParameterLocation location;
 		@Nullable
 		private String name;
 		@Nullable
@@ -97,28 +100,41 @@ public class OpenApiEndpointParameter {
 		@Nullable
 		private OpenApiSimpleType type;
 
-		public Builder(@Nonnull OpenApiOperationParameterLocation location) {
+		public Builder(@Nonnull ParameterLocation location) {
 			this.location = location;
 		}
 
+		/**
+		 * Sets name of the parameter.
+		 */
 		@Nonnull
 		public Builder name(@Nonnull String name) {
 			this.name = name;
 			return this;
 		}
 
+		/**
+		 * Sets description of the parameter.
+		 */
 		@Nonnull
 		public Builder description(@Nullable String description) {
 			this.description = description;
 			return this;
 		}
 
+		/**
+		 * Sets deprecation notice of the parameter to indicate that the parameter is deprecated. If null, parameter is
+		 * not set as deprecated.
+		 */
 		@Nonnull
 		public Builder deprecationNotice(@Nonnull String deprecationNotice) {
 			this.deprecationNotice = deprecationNotice;
 			return this;
 		}
 
+		/**
+		 * Sets type of the parameter.
+		 */
 		@Nonnull
 		public Builder type(@Nonnull OpenApiSimpleType type) {
 			this.type = type;
@@ -137,5 +153,18 @@ public class OpenApiEndpointParameter {
 			);
 			return new OpenApiEndpointParameter(location, name, description, deprecationNotice, type);
 		}
+	}
+
+	/**
+	 * Where a {@link OpenApiEndpointParameter} will be used in an {@link OpenApiEndpoint}.
+	 */
+	@RequiredArgsConstructor
+	public enum ParameterLocation {
+
+		PATH("path"),
+		QUERY("query");
+
+		@Getter
+		private final String location;
 	}
 }

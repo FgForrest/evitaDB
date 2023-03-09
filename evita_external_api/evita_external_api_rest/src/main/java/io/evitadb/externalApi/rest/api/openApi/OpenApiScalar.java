@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
@@ -60,9 +60,13 @@ import java.util.function.Supplier;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * TODO lho docs
+ * Represents basic primitive type of OpenAPI (string, integer, ...). It include support for all {@link EvitaDataTypes}-supported
+ * Java types.
  *
- * @author Lukáš Hornych, 2023
+ * It translates to corresponding {@link Schema} with appropriate type and format and because these data are system-wide,
+ * they are not registered globally like objects.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @EqualsAndHashCode
 @ToString
@@ -143,11 +147,17 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		}
 	}
 
+	/**
+	 * Creates OpenAPI scalar representing {@link EvitaDataTypes} Java type.
+	 */
 	@Nonnull
 	public static OpenApiScalar scalarFrom(@Nonnull Class<?> javaType) {
 		return new OpenApiScalar(javaType);
 	}
 
+	/**
+	 * Whether this scalar is range type.
+	 */
 	public boolean isRange() {
 		return Range.class.isAssignableFrom(javaType);
 	}

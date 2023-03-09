@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
@@ -38,9 +38,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO lho docs
+ * Single named property of {@link OpenApiObject}. Because of limitations of OpenAPI, a property is represented by
+ * {@link Schema} with copied data from {@link OpenApiProperty#type}, and thus the type needs to be a {@link OpenApiSimpleType}
+ * to not rewrite any global data of the referenced object.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
@@ -165,24 +167,37 @@ public class OpenApiProperty {
 			this(existingProperty.name, existingProperty.description, existingProperty.deprecationNotice, existingProperty.type);
 		}
 
+		/**
+		 * Sets name of the property.
+		 */
 		@Nonnull
 		public Builder name(@Nonnull String name) {
 			this.name = name;
 			return this;
 		}
 
+		/**
+		 * Sets description of the property.
+		 */
 		@Nonnull
 		public Builder description(@Nullable String description) {
 			this.description = description;
 			return this;
 		}
 
+		/**
+		 * Sets deprecation notice of the property to indicate that the property is deprecated. If null, property is not
+		 * set as deprecated.
+		 */
 		@Nonnull
 		public Builder deprecationNotice(@Nonnull String deprecationNotice) {
 			this.deprecationNotice = deprecationNotice;
 			return this;
 		}
 
+		/**
+		 * Sets type of the property.
+		 */
 		@Nonnull
 		public Builder type(@Nonnull OpenApiSimpleType type) {
 			this.type = type;

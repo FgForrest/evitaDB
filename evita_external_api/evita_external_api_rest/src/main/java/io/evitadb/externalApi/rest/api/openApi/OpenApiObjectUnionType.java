@@ -21,23 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
-import io.swagger.v3.oas.models.media.Schema;
-
-import javax.annotation.Nonnull;
+import java.util.List;
 
 /**
- * TODO lho docs
+ * In case an {@link OpenApiObject} is a union of other {@link OpenApiSimpleType}s, this enum specifies the relationship
+ * between these types.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface OpenApiType {
+public enum OpenApiObjectUnionType {
 
 	/**
-	 * Returns OpenAPI equivalent of this type. Should be used only when constructing final OpenAPI schema, not as
-	 * intermediate DTO.
+	 * States there will be only one type of defined list. Corresponds to {@link io.swagger.v3.oas.models.media.Schema#oneOf(List)}.
 	 */
-	@Nonnull
-	Schema<?> toSchema();
+	ONE_OF,
+	/**
+	 * States there will be any number of types from defined list. Corresponds to {@link io.swagger.v3.oas.models.media.Schema#anyOf(List)}.
+	 */
+	ANY_OF,
+	/**
+	 * States there will be all types merged from defined list. Corresponds to {@link io.swagger.v3.oas.models.media.Schema#allOf(List)}.
+	 */
+	ALL_OF
 }

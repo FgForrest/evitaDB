@@ -37,11 +37,11 @@ import io.evitadb.externalApi.rest.api.catalog.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.EntityUnion;
 import io.evitadb.externalApi.rest.api.catalog.model.EntityUpsertRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.model.FetchRequestDescriptor;
-import io.evitadb.externalApi.rest.api.dto.OpenApiCatalogEndpoint;
-import io.evitadb.externalApi.rest.api.dto.OpenApiCollectionEndpoint;
-import io.evitadb.externalApi.rest.api.dto.OpenApiEndpointParameter;
-import io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiCollectionEndpoint;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.io.handler.*;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
@@ -61,12 +61,12 @@ import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.c
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityListRequestBodyObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.builder.NamesConstructor.constructEntityQueryRequestBodyObjectName;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiCatalogEndpoint.newCatalogEndpoint;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiCollectionEndpoint.newCollectionEndpoint;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiEndpointParameter.newQueryParameter;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint.newCatalogEndpoint;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiCollectionEndpoint.newCollectionEndpoint;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.newQueryParameter;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
 /**
  * Creates OpenAPI {@link PathItem} for each endpoint and register path item into OpenAPI schema. Also register HTTP handlers

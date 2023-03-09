@@ -28,18 +28,18 @@ import io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDataTypeDescriptorTransformer;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.dto.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter.ConvertedEnum;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.rest.api.dto.OpenApiArray.arrayOf;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiNonNull.nonNull;
-import static io.evitadb.externalApi.rest.api.dto.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
 /**
  * Transforms {@link PropertyDataTypeDescriptor} to concrete {@link Schema<Object>}.

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.Schema;
@@ -34,14 +34,17 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO lho docs
+ * Represents array of any {@link OpenApiSimpleType}. Array is basically just wrapper, and thus it also can be used safely
+ * as simple type.
  *
- * @author Lukáš Hornych, 2023
+ * It is translated to {@link ArraySchema} under the hood.
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @EqualsAndHashCode
 @ToString
-public class OpenApiArray implements OpenApiSimpleType {
+public class OpenApiArray implements OpenApiWrappingType {
 
 	@Nonnull
 	private final OpenApiSimpleType itemType;
@@ -62,9 +65,14 @@ public class OpenApiArray implements OpenApiSimpleType {
 
 	@Nonnull
 	@Override
+	public OpenApiSimpleType getWrappedType() {
+		return itemType;
+	}
+
+	@Nonnull
+	@Override
 	public Schema<?> toSchema() {
 		final Schema<Object> schema = new ArraySchema();
-		schema.type("array");
 		schema.setItems(itemType.toSchema());
 		schema.minItems(this.minItems);
 		schema.maxItems(this.maxItems);

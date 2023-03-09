@@ -39,7 +39,7 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 /**
  * Specific {@link GraphQLSchemaBuildingContext} for catalog-based GraphQL schemas.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingContext {
 

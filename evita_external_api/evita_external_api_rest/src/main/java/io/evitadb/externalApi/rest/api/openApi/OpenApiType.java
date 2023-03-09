@@ -21,12 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.dto;
+package io.evitadb.externalApi.rest.api.openApi;
+
+import io.swagger.v3.oas.models.media.Schema;
+
+import javax.annotation.Nonnull;
 
 /**
- * Simple type is type that is not object, and thus can be safely placed as inner schema into property and so on.
+ * Represents any OpenAPI type (primitive, object, array, ...) which corresponds to {@link Schema} object in OpenAPI.
+ * This is just building facade for the {@link Schema} and should be immutable.
+ *
+ * There 2 types of basic types:
+ * <ul>
+ *   <li>{@link OpenApiSimpleType}</li>
+ *   <li>{@link OpenApiComplexType}</li>
+ * </ul>
+ *
+ * Each specific type must implement one of these types.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface OpenApiSimpleType extends OpenApiType {
+public interface OpenApiType {
+
+	/**
+	 * Returns OpenAPI equivalent of this type. Should be used only when constructing final OpenAPI schema, not as
+	 * intermediate DTO.
+	 */
+	@Nonnull
+	Schema<?> toSchema();
 }
