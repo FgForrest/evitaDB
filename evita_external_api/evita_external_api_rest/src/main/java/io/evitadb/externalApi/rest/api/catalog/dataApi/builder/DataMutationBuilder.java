@@ -26,6 +26,22 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.builder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetHierarchicalPlacementMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.InsertReferenceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceGroupMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.OpenApiConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireSchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUpsertRequestDescriptor;
@@ -51,18 +67,36 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 @RequiredArgsConstructor
 public class DataMutationBuilder {
 
+	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingContext;
-	@Nonnull private final CollectionDataApiRestBuildingContext collectionBuildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 
+	public void buildCommonTypes() {
+		buildingContext.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(UpsertAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetHierarchicalPlacementMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemovePriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(UpsertPriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(InsertReferenceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveReferenceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetReferenceGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ReferenceAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+	}
+
 	@Nonnull
-	public OpenApiTypeReference buildEntityUpsertRequestObject() {
+	public OpenApiTypeReference buildEntityUpsertRequestObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
 		final OpenApiObject.Builder upsertEntityObjectBuilder = EntityUpsertRequestDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(EntityUpsertRequestDescriptor.THIS.name(collectionBuildingContext.getSchema()));
 
-		final Optional<OpenApiTypeReference> localMutationSchema = buildLocalMutationSchema();
+		final Optional<OpenApiTypeReference> localMutationSchema = buildLocalMutationSchema(collectionBuildingContext);
 
 		localMutationSchema.ifPresent(objectSchema ->
 			upsertEntityObjectBuilder.property(EntityUpsertRequestDescriptor.MUTATIONS
@@ -82,7 +116,7 @@ public class DataMutationBuilder {
 	}
 
 	@Nonnull
-	private Optional<OpenApiTypeReference> buildLocalMutationSchema() {
+	private Optional<OpenApiTypeReference> buildLocalMutationSchema(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final String schemaName = LocalMutationAggregateDescriptor.THIS.name(entitySchema);

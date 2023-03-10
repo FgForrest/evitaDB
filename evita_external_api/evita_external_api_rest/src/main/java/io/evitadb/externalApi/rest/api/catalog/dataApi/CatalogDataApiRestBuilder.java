@@ -27,27 +27,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetHierarchicalPlacementMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.InsertReferenceMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.ReferenceAttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceGroupMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.rest.api.builder.PartialRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.CollectionDataApiRestBuildingContext;
@@ -93,11 +72,34 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 
 	@Nonnull private final OpenApiConstraintSchemaBuildingContext constraintBuildingContext;
 	@Nonnull private final DataApiEndpointBuilder endpointBuilder;
+	@Nonnull private final EntityObjectBuilder entityObjectBuilder;
+	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
+	@Nonnull private final DataMutationBuilder dataMutationBuilder;
 
-	public CatalogDataApiRestBuilder(@Nonnull CatalogRestBuildingContext context) {
-		super(context);
-		this.constraintBuildingContext = new OpenApiConstraintSchemaBuildingContext(context);
-		this.endpointBuilder = new DataApiEndpointBuilder(operationPathParameterBuilderTransformer, operationQueryParameterBuilderTransformer);
+	public CatalogDataApiRestBuilder(@Nonnull CatalogRestBuildingContext buildingContext) {
+		super(buildingContext);
+		this.constraintBuildingContext = new OpenApiConstraintSchemaBuildingContext(buildingContext);
+
+		this.endpointBuilder = new DataApiEndpointBuilder(
+			operationPathParameterBuilderTransformer,
+			operationQueryParameterBuilderTransformer
+		);
+		this.entityObjectBuilder = new EntityObjectBuilder(
+			buildingContext,
+			propertyBuilderTransformer,
+			objectBuilderTransformer
+		);
+		this.fullResponseObjectBuilder = new FullResponseObjectBuilder(
+			buildingContext,
+			propertyBuilderTransformer,
+			objectBuilderTransformer
+		);
+		this.dataMutationBuilder = new DataMutationBuilder(
+			buildingContext,
+			constraintBuildingContext,
+			propertyBuilderTransformer,
+			objectBuilderTransformer
+		);
 	}
 
 	@Override
@@ -114,30 +116,10 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		buildingContext.registerType(enumFrom(DataChunkType.class));
 
 		buildingContext.registerType(CollectionDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(PriceDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(HistogramDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(QueryTelemetryDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(FacetRequestImpactDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
 
-		// upsert mutations
-		buildingContext.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UpsertAssociatedDataMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UpsertAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetHierarchicalPlacementMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemovePriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(UpsertPriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(InsertReferenceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveReferenceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(SetReferenceGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(RemoveReferenceGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceAttributeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceAttributeMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+		entityObjectBuilder.buildCommonTypes();
+		fullResponseObjectBuilder.buildCommonTypes();
+		dataMutationBuilder.buildCommonTypes();
 	}
 
 	private void buildEndpoints() {
@@ -235,44 +217,29 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		collectionBuildingContext.setRequiredForQueryObject(buildRequireSchemaForQuery(collectionBuildingContext));
 		collectionBuildingContext.setRequiredForDeleteObject(buildRequireSchemaForDelete(collectionBuildingContext));
 
-		final EntityObjectBuilder entityObjectBuilder = new EntityObjectBuilder(
-			collectionBuildingContext,
-			propertyBuilderTransformer,
-			objectBuilderTransformer
-		);
-		buildingContext.registerLocalizedEntityObject(entityObjectBuilder.buildEntityObject(false));
+		buildingContext.registerLocalizedEntityObject(entityObjectBuilder.buildEntityObject(collectionBuildingContext, false));
 
 		buildListRequestBodyObject(collectionBuildingContext, false);
 		buildQueryRequestBodyObject(collectionBuildingContext, false);
 		buildDeleteRequestBodyObject(collectionBuildingContext);
 
-		final FullResponseObjectBuilder fullResponseObjectBuilder = new FullResponseObjectBuilder(
-			collectionBuildingContext,
-			propertyBuilderTransformer,
-			objectBuilderTransformer
-		);
-		buildingContext.registerType(fullResponseObjectBuilder.buildFullResponseObject(false));
+		buildingContext.registerType(fullResponseObjectBuilder.buildFullResponseObject(collectionBuildingContext, false));
 
 		if(collectionBuildingContext.isLocalizedEntity()) {
-			buildingContext.registerEntityObject(entityObjectBuilder.buildEntityObject(true));
+			buildingContext.registerEntityObject(entityObjectBuilder.buildEntityObject(collectionBuildingContext, true));
 
 			buildListRequestBodyObject(collectionBuildingContext, true);
 			buildQueryRequestBodyObject(collectionBuildingContext, true);
 
-			buildingContext.registerType(fullResponseObjectBuilder.buildFullResponseObject(true));
+			buildingContext.registerType(fullResponseObjectBuilder.buildFullResponseObject(collectionBuildingContext, true));
 		} else {
 			/* When entity has no localized data than it makes no sense to create endpoints for this entity with Locale
 			 * in URL. But this entity may be referenced by other entities when localized URL is used. For such cases
 			 * is also appropriate entity schema created.*/
-			collectionBuildingContext.getCatalogCtx().registerType(entityObjectBuilder.buildEntityObject(true));
+			collectionBuildingContext.getCatalogCtx().registerType(entityObjectBuilder.buildEntityObject(collectionBuildingContext, true));
 		}
 
-		new DataMutationBuilder(
-			constraintBuildingContext,
-			collectionBuildingContext,
-			propertyBuilderTransformer,
-			objectBuilderTransformer
-		).buildEntityUpsertRequestObject();
+		dataMutationBuilder.buildEntityUpsertRequestObject(collectionBuildingContext);
 
 		return collectionBuildingContext;
 	}

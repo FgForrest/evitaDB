@@ -32,7 +32,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.GlobalAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.GlobalAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.LocalizedAssociatedDataDescriptor;
@@ -72,9 +75,15 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 @RequiredArgsConstructor
 public class EntityObjectBuilder {
 
-	@Nonnull private final CollectionDataApiRestBuildingContext collectionBuildingContext;
+	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
+
+	public void buildCommonTypes() {
+		buildingContext.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(PriceDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
+	}
 
 	/**
 	 * Builds entity object.<br/>
@@ -93,7 +102,8 @@ public class EntityObjectBuilder {
 	 * @return schema for entity object
 	 */
 	@Nonnull
-	public OpenApiObject buildEntityObject(boolean localized) {
+	public OpenApiObject buildEntityObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                       boolean localized) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		// build specific entity object
@@ -121,25 +131,26 @@ public class EntityObjectBuilder {
 
 		// build attributes
 		if (!entitySchema.getAttributes().isEmpty()) {
-			entityObject.property(buildEntityAttributesProperty(localized));
+			entityObject.property(buildEntityAttributesProperty(collectionBuildingContext, localized));
 		}
 
 		// build associated data fields
 		if (!entitySchema.getAssociatedData().isEmpty()) {
-			entityObject.property(buildEntityAssociatedDataProperty(localized));
+			entityObject.property(buildEntityAssociatedDataProperty(collectionBuildingContext, localized));
 		}
 
 		// build reference fields
 		if (!entitySchema.getReferences().isEmpty()) {
-			buildEntityReferenceProperties(localized).forEach(entityObject::property);
+			buildEntityReferenceProperties(collectionBuildingContext, localized).forEach(entityObject::property);
 		}
 
 		return entityObject.build();
 	}
 
 	@Nonnull
-	private OpenApiProperty buildEntityAttributesProperty(boolean localized) {
-		final OpenApiTypeReference attributesObject = buildEntityAttributesObject(localized);
+	private OpenApiProperty buildEntityAttributesProperty(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                                      boolean localized) {
+		final OpenApiTypeReference attributesObject = buildEntityAttributesObject(collectionBuildingContext, localized);
 		return EntityDescriptor.ATTRIBUTES
 			.to(propertyBuilderTransformer)
 			.type(nonNull(attributesObject))
@@ -147,17 +158,22 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildEntityAttributesObject(boolean localized) {
+	private OpenApiTypeReference buildEntityAttributesObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                                         boolean localized) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final OpenApiObject attributesObject;
 		if (localized) {
 			attributesObject = buildLocalizedAttributesObject(entitySchema.getAttributes().values(), entitySchema);
 		} else {
-			attributesObject = buildNonLocalizedAttributesObject(entitySchema.getAttributes().values(), entitySchema);
+			attributesObject = buildNonLocalizedAttributesObject(
+				collectionBuildingContext,
+				entitySchema.getAttributes().values(),
+				entitySchema
+			);
 		}
 
-		return collectionBuildingContext.getCatalogCtx().registerType(attributesObject);
+		return buildingContext.registerType(attributesObject);
 	}
 
 	/**
@@ -181,7 +197,8 @@ public class EntityObjectBuilder {
 	 * separate object is created for each locale and locale tag is used as attribute name of this object.
 	 */
 	@Nonnull
-	private OpenApiObject buildNonLocalizedAttributesObject(@Nonnull Collection<AttributeSchemaContract> attributeSchemas,
+	private OpenApiObject buildNonLocalizedAttributesObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                                        @Nonnull Collection<AttributeSchemaContract> attributeSchemas,
 	                                                        @Nonnull NamedSchemaContract... objectNameSchemas) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
@@ -205,8 +222,8 @@ public class EntityObjectBuilder {
 			}
 		});
 
-		final OpenApiTypeReference globalAttributesObject = collectionBuildingContext.getCatalogCtx().registerType(globalAttributesObjectBuilder.build());
-		final OpenApiTypeReference localizedAttributesForLocaleObject = collectionBuildingContext.getCatalogCtx().registerType(localizedAttributesForLocaleObjectBuilder.build());
+		final OpenApiTypeReference globalAttributesObject = buildingContext.registerType(globalAttributesObjectBuilder.build());
+		final OpenApiTypeReference localizedAttributesForLocaleObject = buildingContext.registerType(localizedAttributesForLocaleObjectBuilder.build());
 
 		final OpenApiProperty globalAttributesProperty = SectionedAttributesDescriptor.GLOBAL
 			.to(propertyBuilderTransformer)
@@ -223,7 +240,7 @@ public class EntityObjectBuilder {
 					.name(locale.toLanguageTag())
 					.type(nonNull(localizedAttributesForLocaleObject)))
 			);
-			final OpenApiTypeReference localizedAttributesObject = collectionBuildingContext.getCatalogCtx().registerType(localizedAttributesObjectBuilder.build());
+			final OpenApiTypeReference localizedAttributesObject = buildingContext.registerType(localizedAttributesObjectBuilder.build());
 
 			attributesObject.property(SectionedAttributesDescriptor.LOCALIZED
 				.to(propertyBuilderTransformer)
@@ -245,8 +262,13 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiProperty buildEntityAssociatedDataProperty(boolean distinguishLocalizedData) {
-		final OpenApiTypeReference associatedDataObject = buildEntityAssociatedDataObject(distinguishLocalizedData);
+	private OpenApiProperty buildEntityAssociatedDataProperty(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                                          boolean distinguishLocalizedData) {
+		final OpenApiTypeReference associatedDataObject = buildEntityAssociatedDataObject(
+			collectionBuildingContext,
+			distinguishLocalizedData
+		);
+
 		return EntityDescriptor.ASSOCIATED_DATA
 			.to(propertyBuilderTransformer)
 			.type(nonNull(associatedDataObject))
@@ -254,16 +276,17 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildEntityAssociatedDataObject(boolean localized) {
+	private OpenApiTypeReference buildEntityAssociatedDataObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                                             boolean localized) {
 		final OpenApiObject associatedDataObject;
 
 		if (localized) {
-			associatedDataObject = buildLocalizedAssociatedDataObject();
+			associatedDataObject = buildLocalizedAssociatedDataObject(collectionBuildingContext);
 		} else {
-			associatedDataObject = buildNonLocalizedAssociatedDataObject();
+			associatedDataObject = buildNonLocalizedAssociatedDataObject(collectionBuildingContext);
 		}
 
-		return collectionBuildingContext.getCatalogCtx().registerType(associatedDataObject);
+		return buildingContext.registerType(associatedDataObject);
 	}
 
 	/**
@@ -271,7 +294,7 @@ public class EntityObjectBuilder {
 	 * requested. Localized attributes are not distinguished from non-localized ones.
 	 */
 	@Nonnull
-	private OpenApiObject buildLocalizedAssociatedDataObject() {
+	private OpenApiObject buildLocalizedAssociatedDataObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final OpenApiObject.Builder associatedDataObjectBuilder = AssociatedDataDescriptor.THIS
@@ -291,7 +314,7 @@ public class EntityObjectBuilder {
 	 * separate object is created for each locale and locale tag is used as attribute name of this object.
 	 */
 	@Nonnull
-	private OpenApiObject buildNonLocalizedAssociatedDataObject() {
+	private OpenApiObject buildNonLocalizedAssociatedDataObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
 		final var associatedDataObject = SectionedAssociatedDataDescriptor.THIS
@@ -314,14 +337,14 @@ public class EntityObjectBuilder {
 			}
 		});
 
-		final OpenApiTypeReference globalDataObject = collectionBuildingContext.getCatalogCtx().registerType(globalDataObjectBuilder.build());
+		final OpenApiTypeReference globalDataObject = buildingContext.registerType(globalDataObjectBuilder.build());
 		final OpenApiProperty globalDataProperty = SectionedAssociatedDataDescriptor.GLOBAL
 			.to(propertyBuilderTransformer)
 			.type(nonNull(globalDataObject))
 			.build();
 		associatedDataObject.property(globalDataProperty);
 
-		final OpenApiTypeReference localizedDataForLocaleObject = collectionBuildingContext.getCatalogCtx().registerType(localizedDataForLocaleObjectBuilder.build());
+		final OpenApiTypeReference localizedDataForLocaleObject = buildingContext.registerType(localizedDataForLocaleObjectBuilder.build());
 
 
 		if (!entitySchema.getLocales().isEmpty()) {
@@ -333,7 +356,7 @@ public class EntityObjectBuilder {
 					.name(locale.toLanguageTag())
 					.type(nonNull(localizedDataForLocaleObject)))
 			);
-			final OpenApiTypeReference localizedDataObject = collectionBuildingContext.getCatalogCtx().registerType(localizedDataObjectBuilder.build());
+			final OpenApiTypeReference localizedDataObject = buildingContext.registerType(localizedDataObjectBuilder.build());
 
 			associatedDataObject.property(SectionedAssociatedDataDescriptor.LOCALIZED
 				.to(propertyBuilderTransformer)
@@ -358,13 +381,14 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private List<OpenApiProperty> buildEntityReferenceProperties(boolean localized) {
+	private List<OpenApiProperty> buildEntityReferenceProperties(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                                             boolean localized) {
 		return collectionBuildingContext.getSchema()
 			.getReferences()
 			.values()
 			.stream()
 			.map(referenceSchema -> {
-				final OpenApiTypeReference referenceObject = buildReferenceObject(referenceSchema, localized);
+				final OpenApiTypeReference referenceObject = buildReferenceObject(collectionBuildingContext, referenceSchema, localized);
 
 				final OpenApiProperty.Builder referencePropertyBuilder = newProperty()
 					.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
@@ -383,7 +407,9 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildReferenceObject(@Nonnull ReferenceSchemaContract referenceSchema, boolean localized) {
+	private OpenApiTypeReference buildReferenceObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                  boolean localized) {
 		final OpenApiObject.Builder referenceObject = ReferenceDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(constructReferenceObjectName(collectionBuildingContext.getSchema(), referenceSchema, localized))
@@ -394,10 +420,10 @@ public class EntityObjectBuilder {
 			referenceObject.property(buildReferenceGroupEntityProperty(referenceSchema, localized));
 		}
 		if (!referenceSchema.getAttributes().isEmpty()) {
-			referenceObject.property(buildReferenceAttributesProperty(referenceSchema, localized));
+			referenceObject.property(buildReferenceAttributesProperty(collectionBuildingContext, referenceSchema, localized));
 		}
 
-		return collectionBuildingContext.getCatalogCtx().registerType(referenceObject.build());
+		return buildingContext.registerType(referenceObject.build());
 	}
 
 	@Nonnull
@@ -415,7 +441,7 @@ public class EntityObjectBuilder {
 	                                                                  boolean localized) {
 		final OpenApiTypeReference referencedEntityObject;
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			final EntitySchemaContract referencedEntitySchema = collectionBuildingContext.getCatalogCtx()
+			final EntitySchemaContract referencedEntitySchema = buildingContext
 				.getSchema()
 				.getEntitySchema(referenceSchema.getReferencedEntityType())
 				.orElseThrow(() -> new OpenApiBuildingError("Could not find entity schema for referenced schema `" + referenceSchema.getReferencedEntityType() + "`."));
@@ -451,7 +477,7 @@ public class EntityObjectBuilder {
 
 		final OpenApiTypeReference groupEntityObject;
 		if (referenceSchema.isReferencedGroupTypeManaged()) {
-			final EntitySchemaContract referencedGroupSchema = collectionBuildingContext.getCatalogCtx()
+			final EntitySchemaContract referencedGroupSchema = buildingContext
 				.getSchema()
 				.getEntitySchema(referenceSchema.getReferencedGroupType())
 				.orElseThrow(() -> new OpenApiBuildingError("Could not find entity schema for referenced schema `" + referenceSchema.getReferencedGroupType() + "`."));
@@ -466,9 +492,14 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiProperty buildReferenceAttributesProperty(@Nonnull ReferenceSchemaContract referenceSchema,
+	private OpenApiProperty buildReferenceAttributesProperty(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                                         @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                         boolean localized) {
-		final OpenApiTypeReference referenceAttributesObject = buildReferenceAttributesObject(referenceSchema, localized);
+		final OpenApiTypeReference referenceAttributesObject = buildReferenceAttributesObject(
+			collectionBuildingContext,
+			referenceSchema,
+			localized
+		);
 		return ReferenceDescriptor.ATTRIBUTES
 			.to(propertyBuilderTransformer)
 			.type(nonNull(referenceAttributesObject))
@@ -476,7 +507,8 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildReferenceAttributesObject(@Nonnull ReferenceSchemaContract referenceSchema,
+	private OpenApiTypeReference buildReferenceAttributesObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	                                                            @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                            boolean localized) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
@@ -488,11 +520,12 @@ public class EntityObjectBuilder {
 			);
 		} else {
 			attributesObject = buildNonLocalizedAttributesObject(
+				collectionBuildingContext,
 				entitySchema.getAttributes().values(),
 				entitySchema, referenceSchema
 			);
 		}
 
-		return collectionBuildingContext.getCatalogCtx().registerType(attributesObject);
+		return buildingContext.registerType(attributesObject);
 	}
 }

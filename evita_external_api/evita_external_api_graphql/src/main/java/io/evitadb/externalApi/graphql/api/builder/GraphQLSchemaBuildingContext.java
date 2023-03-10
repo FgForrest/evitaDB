@@ -37,12 +37,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static graphql.schema.FieldCoordinates.coordinates;
 import static graphql.schema.GraphQLObjectType.newObject;
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
