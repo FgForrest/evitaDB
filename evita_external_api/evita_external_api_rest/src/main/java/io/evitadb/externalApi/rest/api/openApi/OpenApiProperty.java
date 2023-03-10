@@ -103,7 +103,7 @@ public class OpenApiProperty {
 				schema.deprecated(true); // openapi doesn't support false here
 			}
 
-			if (schema.getType() != null) {
+			if (scalarTypeSchema.getType() != null) {
 				schema.type(scalarTypeSchema.getType());
 				schema.addType(scalarTypeSchema.getType());
 			}
