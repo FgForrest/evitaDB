@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.builder;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import io.evitadb.core.Evita;
@@ -86,9 +85,10 @@ public abstract class RestBuildingContext {
 	}
 
 	@Nonnull
-	private static ObjectMapper setupObjectMapper() {
+	protected ObjectMapper setupObjectMapper() {
 		final ObjectMapper objectMapper = new ObjectMapper();
-		objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+		// todo lho i dont think we want this in schema api, do we want it in data api?
+//		objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
 		final SimpleModule module = new SimpleModule();
 		module.addSerializer(new BigDecimalSerializer());

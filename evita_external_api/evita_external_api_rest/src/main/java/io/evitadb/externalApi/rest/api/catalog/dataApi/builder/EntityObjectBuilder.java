@@ -102,10 +102,8 @@ public class EntityObjectBuilder {
 	 * @return schema for entity object
 	 */
 	@Nonnull
-	public OpenApiObject buildEntityObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	public OpenApiObject buildEntityObject(@Nonnull EntitySchemaContract entitySchema,
 	                                       boolean localized) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
 		// build specific entity object
 		final OpenApiObject.Builder entityObject = EntityDescriptor.THIS
 			.to(objectBuilderTransformer)
@@ -131,26 +129,26 @@ public class EntityObjectBuilder {
 
 		// build attributes
 		if (!entitySchema.getAttributes().isEmpty()) {
-			entityObject.property(buildEntityAttributesProperty(collectionBuildingContext, localized));
+			entityObject.property(buildEntityAttributesProperty(entitySchema, localized));
 		}
 
 		// build associated data fields
 		if (!entitySchema.getAssociatedData().isEmpty()) {
-			entityObject.property(buildEntityAssociatedDataProperty(collectionBuildingContext, localized));
+			entityObject.property(buildEntityAssociatedDataProperty(entitySchema, localized));
 		}
 
 		// build reference fields
 		if (!entitySchema.getReferences().isEmpty()) {
-			buildEntityReferenceProperties(collectionBuildingContext, localized).forEach(entityObject::property);
+			buildEntityReferenceProperties(entitySchema, localized).forEach(entityObject::property);
 		}
 
 		return entityObject.build();
 	}
 
 	@Nonnull
-	private OpenApiProperty buildEntityAttributesProperty(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private OpenApiProperty buildEntityAttributesProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                      boolean localized) {
-		final OpenApiTypeReference attributesObject = buildEntityAttributesObject(collectionBuildingContext, localized);
+		final OpenApiTypeReference attributesObject = buildEntityAttributesObject(entitySchema, localized);
 		return EntityDescriptor.ATTRIBUTES
 			.to(propertyBuilderTransformer)
 			.type(nonNull(attributesObject))
@@ -158,16 +156,14 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildEntityAttributesObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private OpenApiTypeReference buildEntityAttributesObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                         boolean localized) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
 		final OpenApiObject attributesObject;
 		if (localized) {
 			attributesObject = buildLocalizedAttributesObject(entitySchema.getAttributes().values(), entitySchema);
 		} else {
 			attributesObject = buildNonLocalizedAttributesObject(
-				collectionBuildingContext,
+				entitySchema,
 				entitySchema.getAttributes().values(),
 				entitySchema
 			);
@@ -197,11 +193,9 @@ public class EntityObjectBuilder {
 	 * separate object is created for each locale and locale tag is used as attribute name of this object.
 	 */
 	@Nonnull
-	private OpenApiObject buildNonLocalizedAttributesObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private OpenApiObject buildNonLocalizedAttributesObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                        @Nonnull Collection<AttributeSchemaContract> attributeSchemas,
 	                                                        @Nonnull NamedSchemaContract... objectNameSchemas) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
 		final OpenApiObject.Builder attributesObject = SectionedAttributesDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(SectionedAttributesDescriptor.THIS.name(objectNameSchemas));
@@ -262,10 +256,10 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiProperty buildEntityAssociatedDataProperty(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private OpenApiProperty buildEntityAssociatedDataProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                          boolean distinguishLocalizedData) {
 		final OpenApiTypeReference associatedDataObject = buildEntityAssociatedDataObject(
-			collectionBuildingContext,
+			entitySchema,
 			distinguishLocalizedData
 		);
 
@@ -276,14 +270,14 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildEntityAssociatedDataObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private OpenApiTypeReference buildEntityAssociatedDataObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                             boolean localized) {
 		final OpenApiObject associatedDataObject;
 
 		if (localized) {
-			associatedDataObject = buildLocalizedAssociatedDataObject(collectionBuildingContext);
+			associatedDataObject = buildLocalizedAssociatedDataObject(entitySchema);
 		} else {
-			associatedDataObject = buildNonLocalizedAssociatedDataObject(collectionBuildingContext);
+			associatedDataObject = buildNonLocalizedAssociatedDataObject(entitySchema);
 		}
 
 		return buildingContext.registerType(associatedDataObject);
@@ -294,9 +288,7 @@ public class EntityObjectBuilder {
 	 * requested. Localized attributes are not distinguished from non-localized ones.
 	 */
 	@Nonnull
-	private OpenApiObject buildLocalizedAssociatedDataObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private OpenApiObject buildLocalizedAssociatedDataObject(@Nonnull EntitySchemaContract entitySchema) {
 		final OpenApiObject.Builder associatedDataObjectBuilder = AssociatedDataDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(AssociatedDataDescriptor.THIS.name(entitySchema));
@@ -314,9 +306,7 @@ public class EntityObjectBuilder {
 	 * separate object is created for each locale and locale tag is used as attribute name of this object.
 	 */
 	@Nonnull
-	private OpenApiObject buildNonLocalizedAssociatedDataObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private OpenApiObject buildNonLocalizedAssociatedDataObject(@Nonnull EntitySchemaContract entitySchema) {
 		final var associatedDataObject = SectionedAssociatedDataDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(SectionedAssociatedDataDescriptor.THIS.name(entitySchema));
@@ -381,14 +371,14 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private List<OpenApiProperty> buildEntityReferenceProperties(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private List<OpenApiProperty> buildEntityReferenceProperties(@Nonnull EntitySchemaContract entitySchema,
 	                                                             boolean localized) {
-		return collectionBuildingContext.getSchema()
+		return entitySchema
 			.getReferences()
 			.values()
 			.stream()
 			.map(referenceSchema -> {
-				final OpenApiTypeReference referenceObject = buildReferenceObject(collectionBuildingContext, referenceSchema, localized);
+				final OpenApiTypeReference referenceObject = buildReferenceObject(entitySchema, referenceSchema, localized);
 
 				final OpenApiProperty.Builder referencePropertyBuilder = newProperty()
 					.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
@@ -407,12 +397,12 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildReferenceObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private OpenApiTypeReference buildReferenceObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                  boolean localized) {
 		final OpenApiObject.Builder referenceObject = ReferenceDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(constructReferenceObjectName(collectionBuildingContext.getSchema(), referenceSchema, localized))
+			.name(constructReferenceObjectName(entitySchema, referenceSchema, localized))
 			.description(referenceSchema.getDescription());
 
 		referenceObject.property(buildReferenceReferencedEntityObjectProperty(referenceSchema, localized));
@@ -420,7 +410,7 @@ public class EntityObjectBuilder {
 			referenceObject.property(buildReferenceGroupEntityProperty(referenceSchema, localized));
 		}
 		if (!referenceSchema.getAttributes().isEmpty()) {
-			referenceObject.property(buildReferenceAttributesProperty(collectionBuildingContext, referenceSchema, localized));
+			referenceObject.property(buildReferenceAttributesProperty(entitySchema, referenceSchema, localized));
 		}
 
 		return buildingContext.registerType(referenceObject.build());
@@ -492,11 +482,11 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiProperty buildReferenceAttributesProperty(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private OpenApiProperty buildReferenceAttributesProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                         @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                         boolean localized) {
 		final OpenApiTypeReference referenceAttributesObject = buildReferenceAttributesObject(
-			collectionBuildingContext,
+			entitySchema,
 			referenceSchema,
 			localized
 		);
@@ -507,11 +497,9 @@ public class EntityObjectBuilder {
 	}
 
 	@Nonnull
-	private OpenApiTypeReference buildReferenceAttributesObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private OpenApiTypeReference buildReferenceAttributesObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                            @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                            boolean localized) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
 		final OpenApiObject attributesObject;
 		if (localized) {
 			attributesObject = buildLocalizedAttributesObject(
@@ -520,7 +508,7 @@ public class EntityObjectBuilder {
 			);
 		} else {
 			attributesObject = buildNonLocalizedAttributesObject(
-				collectionBuildingContext,
+				entitySchema,
 				entitySchema.getAttributes().values(),
 				entitySchema, referenceSchema
 			);

@@ -23,13 +23,17 @@
 
 package io.evitadb.externalApi.rest.api.testSuite;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Range;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.RestProviderRegistrar;
+import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.test.annotation.DataSet;
@@ -42,7 +46,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -61,10 +67,13 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 @Slf4j
 public abstract class RestEndpointFunctionalTest {
 
+	protected static final ObjectJsonSerializer jsonSerializer = new ObjectJsonSerializer(new ObjectMapper());
+
 	public static final String TYPENAME_FIELD = "__typename";
 
 	private static ExternalApiServer server;
 	private static RestTester tester;
+
 
 	@SneakyThrows
 	@BeforeEach
@@ -101,7 +110,47 @@ public abstract class RestEndpointFunctionalTest {
 	/**
 	 * Test single request to REST API.
 	 */
-	protected Request testRESTCall() {
+	protected Request testRestCall() {
 		return tester.test();
+	}
+
+	@Nonnull
+	protected static EntitySchema createEmptyEntitySchema(@Nonnull String entityType) {
+		return EntitySchema._internalBuild(entityType);
+	}
+
+	@Nullable
+	protected Object serializeToJsonValue(@Nullable Object value) {
+		if (value == null) {
+			return null;
+		}
+		if (value instanceof Object[] array) {
+			final ArrayList<Object> objects = new ArrayList<>(array.length);
+			for (Object item : array) {
+				objects.add(serializeToJsonValue(item));
+			}
+			return objects;
+		}
+		if (value instanceof Boolean bool) {
+			return bool;
+		}
+		if (value instanceof Integer integer) {
+			return integer;
+		}
+		if (value instanceof Range<?> range) {
+			final List<Object> serializedRange = new ArrayList<>(2);
+			if (range.getPreciseFrom() != null) {
+				serializedRange.add(serializeToJsonValue(range.getPreciseFrom()));
+			} else {
+				serializedRange.add(null);
+			}
+			if (range.getPreciseTo() != null) {
+				serializedRange.add(serializeToJsonValue(range.getPreciseTo()));
+			} else {
+				serializedRange.add(null);
+			}
+			return serializedRange;
+		}
+		return jsonSerializer.serializeObject(value).asText();
 	}
 }

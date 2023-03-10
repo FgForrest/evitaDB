@@ -91,12 +91,12 @@ public class DataMutationBuilder {
 	}
 
 	@Nonnull
-	public OpenApiTypeReference buildEntityUpsertRequestObject(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
+	public OpenApiTypeReference buildEntityUpsertRequestObject(@Nonnull EntitySchemaContract entitySchema) {
 		final OpenApiObject.Builder upsertEntityObjectBuilder = EntityUpsertRequestDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(EntityUpsertRequestDescriptor.THIS.name(collectionBuildingContext.getSchema()));
+			.name(EntityUpsertRequestDescriptor.THIS.name(entitySchema));
 
-		final Optional<OpenApiTypeReference> localMutationSchema = buildLocalMutationSchema(collectionBuildingContext);
+		final Optional<OpenApiTypeReference> localMutationSchema = buildLocalMutationSchema(entitySchema);
 
 		localMutationSchema.ifPresent(objectSchema ->
 			upsertEntityObjectBuilder.property(EntityUpsertRequestDescriptor.MUTATIONS
@@ -105,20 +105,18 @@ public class DataMutationBuilder {
 
 		final RequireSchemaBuilder requireSchemaBuilder = new RequireSchemaBuilder(
 			constraintSchemaBuildingContext,
-			collectionBuildingContext.getSchema().getName(),
+			entitySchema.getName(),
 			RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_UPSERT
 		);
 		upsertEntityObjectBuilder.property(EntityUpsertRequestDescriptor.REQUIRE
 			.to(propertyBuilderTransformer)
 			.type(nonNull(requireSchemaBuilder.build())));
 
-		return collectionBuildingContext.getCatalogCtx().registerType(upsertEntityObjectBuilder.build());
+		return buildingContext.registerType(upsertEntityObjectBuilder.build());
 	}
 
 	@Nonnull
-	private Optional<OpenApiTypeReference> buildLocalMutationSchema(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private Optional<OpenApiTypeReference> buildLocalMutationSchema(@Nonnull EntitySchemaContract entitySchema) {
 		final String schemaName = LocalMutationAggregateDescriptor.THIS.name(entitySchema);
 
 		final OpenApiObject.Builder localMutationObjectBuilder = LocalMutationAggregateDescriptor.THIS
@@ -167,6 +165,6 @@ public class DataMutationBuilder {
 		if (!hasAnyMutations) {
 			return Optional.empty();
 		}
-		return Optional.of(collectionBuildingContext.getCatalogCtx().registerType(localMutationObjectBuilder.build()));
+		return Optional.of(buildingContext.registerType(localMutationObjectBuilder.build()));
 	}
 }

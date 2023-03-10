@@ -114,8 +114,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	public GraphQLObjectType build(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
+	public GraphQLObjectType build(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = ResponseDescriptor.THIS.name(entitySchema);
 
 		final GraphQLObjectType.Builder responseObjectBuilder = ResponseDescriptor.THIS
@@ -124,9 +123,9 @@ public class FullResponseObjectBuilder {
 
 		final List<BuiltFieldDescriptor> responseFields = new LinkedList<>();
 
-		responseFields.add(buildRecordPageField(collectionBuildingContext));
-		responseFields.add(buildRecordStripField(collectionBuildingContext));
-		buildExtraResultsField(collectionBuildingContext).ifPresent(responseFields::add);
+		responseFields.add(buildRecordPageField(entitySchema));
+		responseFields.add(buildRecordStripField(entitySchema));
+		buildExtraResultsField(entitySchema).ifPresent(responseFields::add);
 
 		responseFields.forEach(responseField ->
 			buildingContext.registerFieldToObject(
@@ -140,8 +139,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildRecordPageField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final GraphQLObjectType recordPageObject = buildRecordPageObject(collectionBuildingContext);
+	private BuiltFieldDescriptor buildRecordPageField(@Nonnull EntitySchemaContract entitySchema) {
+		final GraphQLObjectType recordPageObject = buildRecordPageObject(entitySchema);
 
 		final GraphQLFieldDefinition recordPageField = ResponseDescriptor.RECORD_PAGE
 			.to(fieldBuilderTransformer)
@@ -157,9 +156,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildRecordPageObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private GraphQLObjectType buildRecordPageObject(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = RecordPageDescriptor.THIS.name(entitySchema);
 
 		return RecordPageDescriptor.THIS
@@ -172,8 +169,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildRecordStripField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final GraphQLObjectType recordStripObject = buildRecordStripObject(collectionBuildingContext);
+	private BuiltFieldDescriptor buildRecordStripField(@Nonnull EntitySchemaContract entitySchema) {
+		final GraphQLObjectType recordStripObject = buildRecordStripObject(entitySchema);
 
 		final GraphQLFieldDefinition recordStripField = ResponseDescriptor.RECORD_STRIP
 			.to(fieldBuilderTransformer)
@@ -189,21 +186,21 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildRecordStripObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final String objectName = RecordStripDescriptor.THIS.name(collectionBuildingContext.getSchema());
+	private GraphQLObjectType buildRecordStripObject(@Nonnull EntitySchemaContract entitySchema) {
+		final String objectName = RecordStripDescriptor.THIS.name(entitySchema);
 
 		return RecordStripDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(objectName)
 			.field(DataChunkDescriptor.DATA
 				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(collectionBuildingContext.getSchema())))))))
+				.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema)))))))
 			.build();
 	}
 
 	@Nonnull
-	private Optional<BuiltFieldDescriptor> buildExtraResultsField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final Optional<GraphQLObjectType> extraResultsObject = buildExtraResultsObject(collectionBuildingContext);
+	private Optional<BuiltFieldDescriptor> buildExtraResultsField(@Nonnull EntitySchemaContract entitySchema) {
+		final Optional<GraphQLObjectType> extraResultsObject = buildExtraResultsObject(entitySchema);
 		if (extraResultsObject.isEmpty()) {
 			return Optional.empty();
 		}
@@ -220,9 +217,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private Optional<GraphQLObjectType> buildExtraResultsObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private Optional<GraphQLObjectType> buildExtraResultsObject(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = ExtraResultsDescriptor.THIS.name(entitySchema);
 
 		final GraphQLObjectType.Builder extraResultsObjectBuilder = ExtraResultsDescriptor.THIS
@@ -231,12 +226,12 @@ public class FullResponseObjectBuilder {
 
 		final List<BuiltFieldDescriptor> extraResultFields = new ArrayList<>(10);
 
-		buildAttributeHistogramField(collectionBuildingContext).ifPresent(extraResultFields::add);
+		buildAttributeHistogramField(entitySchema).ifPresent(extraResultFields::add);
 		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
-		buildAttributeHistogramsField(collectionBuildingContext).ifPresent(extraResultFields::add);
-		buildPriceHistogramField(collectionBuildingContext).ifPresent(extraResultFields::add);
-		buildFacetSummaryField(collectionBuildingContext).ifPresent(extraResultFields::add);
-		extraResultFields.addAll(buildHierarchyExtraResultFields(collectionBuildingContext));
+		buildAttributeHistogramsField(entitySchema).ifPresent(extraResultFields::add);
+		buildPriceHistogramField(entitySchema).ifPresent(extraResultFields::add);
+		buildFacetSummaryField(entitySchema).ifPresent(extraResultFields::add);
+		extraResultFields.addAll(buildHierarchyExtraResultFields(entitySchema));
 		extraResultFields.add(buildQueryTelemetryField());
 
 		if (extraResultFields.isEmpty()) {
@@ -254,8 +249,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private Optional<BuiltFieldDescriptor> buildAttributeHistogramField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final Optional<GraphQLObjectType> attributeHistogramObject = buildAttributeHistogramObject(collectionBuildingContext);
+	private Optional<BuiltFieldDescriptor> buildAttributeHistogramField(@Nonnull EntitySchemaContract entitySchema) {
+		final Optional<GraphQLObjectType> attributeHistogramObject = buildAttributeHistogramObject(entitySchema);
 		if (attributeHistogramObject.isEmpty()) {
 			return Optional.empty();
 		}
@@ -272,9 +267,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private Optional<GraphQLObjectType> buildAttributeHistogramObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private Optional<GraphQLObjectType> buildAttributeHistogramObject(@Nonnull EntitySchemaContract entitySchema) {
 		final List<AttributeSchemaContract> attributeSchemas = entitySchema
 			.getAttributes()
 			.values()
@@ -301,7 +294,7 @@ public class FullResponseObjectBuilder {
 
 	// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
 	@Nonnull
-	private static Optional<BuiltFieldDescriptor> buildAttributeHistogramsField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+	private static Optional<BuiltFieldDescriptor> buildAttributeHistogramsField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLFieldDefinition attributeHistogramField = newFieldDefinition()
 			.name("attributeHistograms")
 			.type(list(nonNull(typeRef("AttributeNamedHistogram"))))
@@ -312,13 +305,13 @@ public class FullResponseObjectBuilder {
 
 		return Optional.of(new BuiltFieldDescriptor(
 			attributeHistogramField,
-			new AttributeHistogramsDataFetcher(collectionBuildingContext.getSchema())
+			new AttributeHistogramsDataFetcher(entitySchema)
 		));
 	}
 
 	@Nonnull
-	private Optional<BuiltFieldDescriptor> buildPriceHistogramField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		if (collectionBuildingContext.getSchema().getCurrencies().isEmpty()) {
+	private Optional<BuiltFieldDescriptor> buildPriceHistogramField(@Nonnull EntitySchemaContract entitySchema) {
+		if (entitySchema.getCurrencies().isEmpty()) {
 			return Optional.empty();
 		}
 
@@ -329,8 +322,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private Optional<BuiltFieldDescriptor> buildFacetSummaryField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final Optional<GraphQLObjectType> facetSummaryObject = buildFacetSummaryObject(collectionBuildingContext);
+	private Optional<BuiltFieldDescriptor> buildFacetSummaryField(@Nonnull EntitySchemaContract entitySchema) {
+		final Optional<GraphQLObjectType> facetSummaryObject = buildFacetSummaryObject(entitySchema);
 		if (facetSummaryObject.isEmpty()) {
 			return Optional.empty();
 		}
@@ -347,8 +340,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private Optional<GraphQLObjectType> buildFacetSummaryObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
+	private Optional<GraphQLObjectType> buildFacetSummaryObject(@Nonnull EntitySchemaContract entitySchema) {
 		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
 			.getReferences()
 			.values()
@@ -369,7 +361,7 @@ public class FullResponseObjectBuilder {
 
 		referenceSchemas.forEach(referenceSchema -> {
 			final BuiltFieldDescriptor facetGroupStatisticsField = buildFacetGroupStatisticsField(
-				collectionBuildingContext,
+				entitySchema,
 				referenceSchema
 			);
 
@@ -384,10 +376,10 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildFacetGroupStatisticsField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private BuiltFieldDescriptor buildFacetGroupStatisticsField(@Nonnull EntitySchemaContract entitySchema,
 	                                                            @Nonnull ReferenceSchemaContract referenceSchema) {
 		final GraphQLObjectType facetGroupStatisticsObject = buildFacetGroupStatisticsObject(
-			collectionBuildingContext,
+			entitySchema,
 			referenceSchema
 		);
 
@@ -403,7 +395,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildFacetGroupStatisticsObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private GraphQLObjectType buildFacetGroupStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
 			Optional.ofNullable(referenceSchema.getReferencedGroupType())
@@ -414,11 +406,11 @@ public class FullResponseObjectBuilder {
 			null;
 
 		final GraphQLOutputType groupEntityObject = buildReferencedEntityObject(groupEntitySchema);
-		final GraphQLObjectType facetStatisticsObject = buildFacetStatisticsObject(collectionBuildingContext, referenceSchema);
+		final GraphQLObjectType facetStatisticsObject = buildFacetStatisticsObject(entitySchema, referenceSchema);
 
 		return FacetGroupStatisticsDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(FacetGroupStatisticsDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema))
+			.name(FacetGroupStatisticsDescriptor.THIS.name(entitySchema, referenceSchema))
 			.field(FacetGroupStatisticsDescriptor.GROUP_ENTITY
 				.to(fieldBuilderTransformer)
 				.type(groupEntityObject))
@@ -429,7 +421,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildFacetStatisticsObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private GraphQLObjectType buildFacetStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract facetEntitySchema = referenceSchema.isReferencedEntityTypeManaged() ?
 			buildingContext
@@ -440,7 +432,7 @@ public class FullResponseObjectBuilder {
 
 		return FacetStatisticsDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(FacetStatisticsDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema))
+			.name(FacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema))
 			.field(FacetStatisticsDescriptor.FACET_ENTITY
 				.to(fieldBuilderTransformer)
 				.type(facetEntityObject))
@@ -448,9 +440,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private List<BuiltFieldDescriptor> buildHierarchyExtraResultFields(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private List<BuiltFieldDescriptor> buildHierarchyExtraResultFields(@Nonnull EntitySchemaContract entitySchema) {
 		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
 			.getReferences()
 			.values()
@@ -467,7 +457,7 @@ public class FullResponseObjectBuilder {
 
 		final List<BuiltFieldDescriptor> hierarchyExtraResultFields = new ArrayList<>(2);
 
-		final GraphQLObjectType parentsObject = buildParentsObject(collectionBuildingContext, referenceSchemas);
+		final GraphQLObjectType parentsObject = buildParentsObject(entitySchema, referenceSchemas);
 		final GraphQLFieldDefinition parentsField = ExtraResultsDescriptor.HIERARCHY_PARENTS
 			.to(fieldBuilderTransformer)
 			.type(parentsObject)
@@ -477,7 +467,7 @@ public class FullResponseObjectBuilder {
 			new HierarchyParentsDataFetcher(entitySchema.getReferences().values())
 		));
 
-		final GraphQLObjectType hierarchyStatisticsObject = buildHierarchyStatisticsObject(collectionBuildingContext, referenceSchemas);
+		final GraphQLObjectType hierarchyStatisticsObject = buildHierarchyStatisticsObject(entitySchema, referenceSchemas);
 		final GraphQLFieldDefinition hierarchyStatisticsField = ExtraResultsDescriptor.HIERARCHY_STATISTICS
 			.to(fieldBuilderTransformer)
 			.type(hierarchyStatisticsObject)
@@ -491,10 +481,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildParentsObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private GraphQLObjectType buildParentsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                             @Nonnull List<ReferenceSchemaContract> referenceSchemas) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
 		final String objectName = HierarchyParentsDescriptor.THIS.name(entitySchema);
 
 		final GraphQLObjectType.Builder parentsObjectBuilder = HierarchyParentsDescriptor.THIS
@@ -505,14 +493,14 @@ public class FullResponseObjectBuilder {
 			buildingContext.registerFieldToObject(
 				objectName,
 				parentsObjectBuilder,
-				buildSelfParentsOfEntityField(collectionBuildingContext)
+				buildSelfParentsOfEntityField(entitySchema)
 			);
 		}
 		referenceSchemas.forEach(referenceSchema ->
 			buildingContext.registerFieldToObject(
 				objectName,
 				parentsObjectBuilder,
-				buildParentsOfEntityField(collectionBuildingContext, referenceSchema)
+				buildParentsOfEntityField(entitySchema, referenceSchema)
 			)
 		);
 
@@ -520,8 +508,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSelfParentsOfEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final GraphQLObjectType parentsOfEntityObject = buildSelfParentsOfEntityObject(collectionBuildingContext);
+	private BuiltFieldDescriptor buildSelfParentsOfEntityField(@Nonnull EntitySchemaContract entitySchema) {
+		final GraphQLObjectType parentsOfEntityObject = buildSelfParentsOfEntityObject(entitySchema);
 
 		final GraphQLFieldDefinition parentsField = HierarchyParentsDescriptor.SELF
 			.to(fieldBuilderTransformer)
@@ -532,9 +520,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildSelfParentsOfEntityObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private GraphQLObjectType buildSelfParentsOfEntityObject(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = ParentsOfEntityDescriptor.THIS.name(entitySchema, entitySchema);
 
 		final GraphQLObjectType.Builder parentsOfEntityObjectBuilder = ParentsOfEntityDescriptor.THIS
@@ -544,17 +530,17 @@ public class FullResponseObjectBuilder {
 		buildingContext.registerFieldToObject(
 			objectName,
 			parentsOfEntityObjectBuilder,
-			buildSelfParentsOfEntityParentEntitiesField(collectionBuildingContext)
+			buildSelfParentsOfEntityParentEntitiesField(entitySchema)
 		);
 
 		return parentsOfEntityObjectBuilder.build();
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSelfParentsOfEntityParentEntitiesField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
+	private BuiltFieldDescriptor buildSelfParentsOfEntityParentEntitiesField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLFieldDefinition parentEntitiesField = ParentsOfEntityDescriptor.PARENT_ENTITIES
 			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(collectionBuildingContext.getSchema()))))))
+			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema))))))
 			.build();
 
 		return new BuiltFieldDescriptor(
@@ -564,9 +550,9 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private BuiltFieldDescriptor buildParentsOfEntityField(@Nonnull EntitySchemaContract entitySchema,
 	                                                       @Nonnull ReferenceSchemaContract referenceSchema) {
-		final GraphQLObjectType parentsOfEntityObject = buildParentsOfEntityObject(collectionBuildingContext, referenceSchema);
+		final GraphQLObjectType parentsOfEntityObject = buildParentsOfEntityObject(entitySchema, referenceSchema);
 
 		final GraphQLFieldDefinition singleParentsField = newFieldDefinition()
 			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
@@ -577,10 +563,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildParentsOfEntityObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private GraphQLObjectType buildParentsOfEntityObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
 		final String objectName = ParentsOfEntityDescriptor.THIS.name(entitySchema, referenceSchema);
 
 		final GraphQLObjectType.Builder parentsOfEntityObjectBuilder = ParentsOfEntityDescriptor.THIS
@@ -596,16 +580,16 @@ public class FullResponseObjectBuilder {
 		buildingContext.registerFieldToObject(
 			objectName,
 			parentsOfEntityObjectBuilder,
-			buildParentsOfEntityReferencesField(collectionBuildingContext, referenceSchema)
+			buildParentsOfEntityReferencesField(entitySchema, referenceSchema)
 		);
 
 		return parentsOfEntityObjectBuilder.build();
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityReferencesField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private BuiltFieldDescriptor buildParentsOfEntityReferencesField(@Nonnull EntitySchemaContract entitySchema,
 	                                                                 @Nonnull ReferenceSchemaContract referenceSchema) {
-		final GraphQLObjectType object = buildParentsOfEntityReferencesObject(collectionBuildingContext, referenceSchema);
+		final GraphQLObjectType object = buildParentsOfEntityReferencesObject(entitySchema, referenceSchema);
 
 		final GraphQLFieldDefinition referencesField = ParentsOfEntityDescriptor.REFERENCES
 			.to(fieldBuilderTransformer)
@@ -616,7 +600,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildParentsOfEntityReferencesObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private GraphQLObjectType buildParentsOfEntityReferencesObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                               @Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract referencedEntitySchema = buildingContext
 			.getSchema()
@@ -625,7 +609,7 @@ public class FullResponseObjectBuilder {
 
 		return ParentsOfReferenceDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(ParentsOfReferenceDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema))
+			.name(ParentsOfReferenceDescriptor.THIS.name(entitySchema, referenceSchema))
 			.field(ParentsOfReferenceDescriptor.PARENT_ENTITIES
 				.to(fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(typeRef(referencedEntityObjectName))))))
@@ -651,10 +635,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildHierarchyStatisticsObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private GraphQLObjectType buildHierarchyStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                         @Nonnull List<ReferenceSchemaContract> referenceSchemas) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
 		final String objectName = HierarchyStatisticsDescriptor.THIS.name(entitySchema);
 		final GraphQLObjectType.Builder hierarchyStatisticsObjectBuilder = HierarchyStatisticsDescriptor.THIS
 			.to(objectBuilderTransformer)
@@ -664,14 +646,14 @@ public class FullResponseObjectBuilder {
 			buildingContext.registerFieldToObject(
 				objectName,
 				hierarchyStatisticsObjectBuilder,
-				buildSelfLevelInfoField(collectionBuildingContext)
+				buildSelfLevelInfoField(entitySchema)
 			);
 		}
 		referenceSchemas.forEach(referenceSchema ->
 			buildingContext.registerFieldToObject(
 				objectName,
 				hierarchyStatisticsObjectBuilder,
-				buildLevelInfoField(collectionBuildingContext, referenceSchema)
+				buildLevelInfoField(entitySchema, referenceSchema)
 			)
 		);
 
@@ -679,8 +661,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSelfLevelInfoField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final GraphQLObjectType selfLevelInfoObject = buildSelfLevelInfoObject(collectionBuildingContext);
+	private BuiltFieldDescriptor buildSelfLevelInfoField(@Nonnull EntitySchemaContract entitySchema) {
+		final GraphQLObjectType selfLevelInfoObject = buildSelfLevelInfoObject(entitySchema);
 		final GraphQLFieldDefinition selfLevelInfoField = HierarchyStatisticsDescriptor.SELF
 			.to(fieldBuilderTransformer)
 			.type(list(nonNull(selfLevelInfoObject)))
@@ -689,9 +671,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildSelfLevelInfoObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
+	private GraphQLObjectType buildSelfLevelInfoObject(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = HierarchyStatisticsLevelInfoDescriptor.THIS.name(entitySchema, entitySchema);
 
 		final GraphQLObjectType.Builder selfLevelInfoObjectBuilder = HierarchyStatisticsLevelInfoDescriptor.THIS
@@ -704,15 +684,14 @@ public class FullResponseObjectBuilder {
 		buildingContext.registerFieldToObject(
 			objectName,
 			selfLevelInfoObjectBuilder,
-			buildSelfLevelInfoEntityField(collectionBuildingContext)
+			buildSelfLevelInfoEntityField(entitySchema)
 		);
 
 		return selfLevelInfoObjectBuilder.build();
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildSelfLevelInfoEntityField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
+	private BuiltFieldDescriptor buildSelfLevelInfoEntityField(@Nonnull EntitySchemaContract entitySchema) {
 		final String referencedEntityObjectName = entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
 
 		final GraphQLFieldDefinition entityField = HierarchyStatisticsLevelInfoDescriptor.ENTITY
@@ -727,9 +706,9 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private BuiltFieldDescriptor buildLevelInfoField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private BuiltFieldDescriptor buildLevelInfoField(@Nonnull EntitySchemaContract entitySchema,
 	                                                 @Nonnull ReferenceSchemaContract referenceSchema) {
-		final GraphQLObjectType levelInfoObject = buildLevelInfoObject(collectionBuildingContext, referenceSchema);
+		final GraphQLObjectType levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema);
 		final GraphQLFieldDefinition levelInfoField = newFieldDefinition()
 			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
 			.type(list(nonNull(levelInfoObject)))
@@ -738,9 +717,9 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildLevelInfoObject(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext,
+	private GraphQLObjectType buildLevelInfoObject(@Nonnull EntitySchemaContract entitySchema,
 	                                               @Nonnull ReferenceSchemaContract referenceSchema) {
-		final String objectName = HierarchyStatisticsLevelInfoDescriptor.THIS.name(collectionBuildingContext.getSchema(), referenceSchema);
+		final String objectName = HierarchyStatisticsLevelInfoDescriptor.THIS.name(entitySchema, referenceSchema);
 
 		final GraphQLObjectType.Builder levelInfoObjectBuilder = HierarchyStatisticsLevelInfoDescriptor.THIS
 			.to(objectBuilderTransformer)

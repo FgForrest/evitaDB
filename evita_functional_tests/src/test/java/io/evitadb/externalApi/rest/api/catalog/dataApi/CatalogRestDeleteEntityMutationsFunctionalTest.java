@@ -57,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestEndpointFunctionalTest {
+class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 	@Nonnull
 	@Override
@@ -107,7 +107,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestEndpoint
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_DELETE)
 			.urlPathSuffix("/product")
 			.requestBody("""
@@ -156,7 +156,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestEndpoint
 		);
 		assertTrue(entitiesToDelete.isEmpty());
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_DELETE)
 			.urlPathSuffix("/product")
 			.requestBody("""
@@ -178,7 +178,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestEndpoint
 	}
 
 	private void assertProductDeleted(int primaryKey) {
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

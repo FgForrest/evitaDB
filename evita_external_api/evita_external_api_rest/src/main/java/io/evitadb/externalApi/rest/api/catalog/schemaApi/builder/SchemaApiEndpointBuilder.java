@@ -29,13 +29,11 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDe
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.GetEntitySchemaHandler;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCollectionEndpoint;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiCollectionEndpoint.newCollectionEndpoint;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -49,19 +47,41 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 @RequiredArgsConstructor
 public class SchemaApiEndpointBuilder {
 
+	/**
+	 * Default {@link CatalogSchemaApiRootDescriptor#GET_ENTITY_SCHEMA} operation name cannot be used due to
+	 * limitations of REST API to URLs, therefore this one is used instead
+	 */
+	private static final String GET_ENTITY_SCHEMA_OPERATION_NAME = "schema";
+	/**
+	 * Default {@link CatalogSchemaApiRootDescriptor#GET_CATALOG_SCHEMA} operation name cannot be used due to
+	 * limitations of REST API to URLs, therefore this one is used instead
+	 */
+	private static final String GET_CATALOG_SCHEMA_OPERATION_NAME = "schema";
+
 	@Nonnull
 	public OpenApiCollectionEndpoint buildGetEntitySchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
 	                                                              @Nonnull EntitySchemaContract entitySchema) {
-		final OpenApiTypeReference entitySchemaObject = typeRefTo(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema));
 
 		return newCollectionEndpoint(catalogSchema, entitySchema)
 			.path(p -> p
-				.staticItem(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(GET_ENTITY_SCHEMA_OPERATION_NAME))
 			.method(HttpMethod.GET)
 			.description(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.successResponse(nonNull(entitySchemaObject))
+			.successResponse(nonNull(typeRefTo(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema))))
 			.handler(GetEntitySchemaHandler::new)
 			.build();
 	}
+
+//	@Nonnull
+//	public OpenApiCatalogEndpoint buildGetCatalogSchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
+//		return newCatalogEndpoint(catalogSchema)
+//			.path(p -> p
+//				.staticItem(GET_CATALOG_SCHEMA_OPERATION_NAME))
+//			.method(HttpMethod.GET)
+//			.description(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.description())
+//			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))
+//			.handler(GetCatalogSchemaHandler::new)
+//			.build();
+//	}
 }

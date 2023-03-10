@@ -49,6 +49,7 @@ import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
@@ -128,9 +129,12 @@ public class EntitySchemaJsonSerializer {
 		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(attributeSchema.getType()));
-		if (attributeSchema.getDefaultValue() != null) {
-			attributeSchemaNode.set(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), objectJsonSerializer.serializeObject(attributeSchema.getDefaultValue()));
-		}
+		attributeSchemaNode.set(
+			AttributeSchemaDescriptor.DEFAULT_VALUE.name(),
+			Optional.ofNullable(attributeSchema.getDefaultValue())
+				.map(objectJsonSerializer::serializeObject)
+				.orElse(null)
+		);
 		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
 
 		return attributeSchemaNode;

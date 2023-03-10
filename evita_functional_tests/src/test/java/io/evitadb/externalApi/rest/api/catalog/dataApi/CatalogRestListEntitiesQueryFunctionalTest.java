@@ -64,7 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunctionalTest {
+class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 	private static final int SEED = 40;
 
@@ -100,7 +100,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -158,7 +158,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -209,7 +209,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -264,7 +264,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -298,7 +298,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			.map(sealedEntity -> createPriceForSaleDto(sealedEntity, CURRENCY_CZK, "basic"))
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -327,7 +327,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 	void shouldFilterProductsByNonExistentPrice(Evita evita, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -350,7 +350,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 	void shouldReturnErrorForFilteringProductsByUnknownCurrency(Evita evita, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -377,7 +377,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			.map(sealedEntity -> createPriceForSaleDto(sealedEntity, CURRENCY_CZK, "basic"))
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -409,7 +409,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			.map(sealedEntity -> createPricesDto(sealedEntity, CURRENCY_CZK, "basic"))
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -440,7 +440,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			it -> !it.getPrices().isEmpty()
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -476,7 +476,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			.map(entity -> createEntityDtoWithAssociatedData(entity, Locale.ENGLISH, true))
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -511,7 +511,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			.map(entity -> createEntityDtoWithAssociatedData(entity, Locale.ENGLISH, false))
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -562,7 +562,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			})
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -651,7 +651,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 
 		assertTrue(expectedEntities.length > 0);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -726,7 +726,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 			}
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
@@ -776,7 +776,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunc
 		);
 		assertTrue(expectedEntities.size() > 5);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +

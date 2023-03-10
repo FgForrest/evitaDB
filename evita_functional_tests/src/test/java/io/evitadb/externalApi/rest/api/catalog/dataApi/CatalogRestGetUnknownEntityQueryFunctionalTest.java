@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestEndpointFunctionalTest {
+class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 	@Nonnull
 	@Override
@@ -72,7 +72,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestEndpoint
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute)
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -102,7 +102,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestEndpoint
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -136,7 +136,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestEndpoint
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -164,7 +164,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestEndpoint
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when request contains no parameter")
 	void shouldReturnErrorWhenRequestContainsNoParameter(Evita evita) {
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -197,7 +197,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestEndpoint
 	void shouldReturnPriceForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -219,7 +219,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestEndpoint
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

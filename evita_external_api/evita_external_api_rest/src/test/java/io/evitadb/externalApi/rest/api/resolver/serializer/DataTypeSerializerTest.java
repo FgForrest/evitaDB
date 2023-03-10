@@ -21,23 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
+package io.evitadb.externalApi.rest.api.resolver.serializer;
 
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
+import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
+import java.math.BigDecimal;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Ancestor for tests for GraphQL catalog endpoint.
+ * Tests for {@link DataTypeSerializer}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public abstract class CatalogGraphQLSchemaEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
+class DataTypeSerializerTest {
 
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog/schema";
+	@Test
+	void shouldSerializePrimitiveType() {
+		assertEquals("String", DataTypeSerializer.serialize(String.class));
+		assertEquals("BigDecimal", DataTypeSerializer.serialize(BigDecimal.class));
+	}
+
+	@Test
+	void shouldSerializeArrayType() {
+		assertEquals("StringArray", DataTypeSerializer.serialize(String[].class));
+		assertEquals("BigDecimalArray", DataTypeSerializer.serialize(BigDecimal[].class));
 	}
 }

@@ -84,9 +84,7 @@ public class LocalMutationAggregateObjectBuilder {
 	}
 
 	@Nullable
-	public GraphQLInputObjectType build(@Nonnull CollectionGraphQLSchemaBuildingContext entitySchemaBuildingCtx) {
-		final EntitySchemaContract entitySchema = entitySchemaBuildingCtx.getSchema();
-
+	public GraphQLInputObjectType build(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLInputObjectType.Builder localMutationAggregateObjectBuilder = newInputObject()
 			.name(LocalMutationAggregateDescriptor.THIS.name(entitySchema))
 			.description(LocalMutationAggregateDescriptor.THIS.description(entitySchema.getName()));

@@ -73,7 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointFunctionalTest {
+class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 	@Nonnull
 	@Override
@@ -85,7 +85,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should insert single empty entity without PK")
 	void shouldInsertSingleEmptyEntityWithoutPK(Evita evita) {
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_POST)
 			.urlPathSuffix("/empty")
 			.requestBody("""
@@ -114,7 +114,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should insert single empty entity with PK")
 	void shouldInsertSingleEmptyEntityWithPK(Evita evita) {
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/empty-without-pk/110")
 			.requestBody("""
@@ -143,7 +143,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should update product with no mutations")
 	void shouldUpdateProductWithNoMutations(Evita evita) {
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/100")
 			.requestBody("""
@@ -172,7 +172,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when missing arguments for product upsert")
 	void shouldReturnErrorWhenMissingArgumentsForProductUpsert(Evita evita) {
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_POST)
 			.urlPathSuffix("/product")
 			.requestBody("""
@@ -187,7 +187,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when missing mutations for product update")
 	void shouldReturnErrorWhenMissingMutationsForProductUpdate(Evita evita) {
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/100")
 			.requestBody("""
@@ -227,7 +227,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 				.build())
 			.build();
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
@@ -267,7 +267,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.statusCode(200)
 			.body("",equalTo(expectedBody));
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
@@ -319,7 +319,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 				.build())
 			.build();
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
@@ -358,7 +358,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.statusCode(200)
 			.body("", equalTo(expectedBody));
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
@@ -432,7 +432,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.build();
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/category/" + entityInTree.getPrimaryKey())
 			.requestBody("""
@@ -472,7 +472,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.build();
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/category/" + entityInTree.getPrimaryKey())
 			.requestBody("""
@@ -528,7 +528,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			))
 			.build();
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
@@ -560,7 +560,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			//.body("", equalTo(expectedBodyWithNewPrice));
 		//todo result will be without priceForSale
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
@@ -589,7 +589,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
 			.build();
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
@@ -616,7 +616,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.statusCode(200)
 			.body("", equalTo(expectedBodyWithoutNewPrice));
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
@@ -668,7 +668,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			))
 			.build();
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
@@ -693,7 +693,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.statusCode(200)
 			.body("", equalTo(expectedBody));
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
@@ -754,7 +754,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 				.build())
 			.build());
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
@@ -794,7 +794,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.statusCode(200)
 			.body("store", containsInAnyOrder(expectedBody.toArray()));
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
@@ -819,7 +819,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.body("store", equalTo(Collections.singletonList(expectedBody)));
 
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
@@ -844,7 +844,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			.statusCode(200)
 			.body("store.referencedEntity." + EntityDescriptor.PRIMARY_KEY.name(), not(containsInRelativeOrder(1_000_000_000)));
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
@@ -883,7 +883,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 			}
 		);
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
@@ -907,7 +907,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 		assertReferenceGroup(evita, entity.getPrimaryKey(), new GroupEntityReference(TestDataGenerator.ENTITY_BRAND_GROUP, 100, 1, false));
 
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_PUT)
 			.urlPathSuffix("/product/" + entity.getPrimaryKey())
 			.requestBody("""
@@ -957,7 +957,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointF
 
 
 	private void assertHierarchicalPlacement(int primaryKey, @Nonnull Map<String, Object> expectedBodyAfterRemoving) {
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/category/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""

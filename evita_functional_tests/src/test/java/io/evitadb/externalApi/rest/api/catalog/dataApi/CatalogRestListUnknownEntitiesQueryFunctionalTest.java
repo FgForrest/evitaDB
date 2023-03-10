@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestEndpointFunctionalTest {
+class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 	@Nonnull
 	@Override
@@ -79,7 +79,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestEndpo
 			.findFirst()
 			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -121,7 +121,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestEndpo
 			.findFirst()
 			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -224,7 +224,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestEndpo
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -253,7 +253,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestEndpo
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -283,7 +283,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestEndpo
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -312,7 +312,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestEndpo
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

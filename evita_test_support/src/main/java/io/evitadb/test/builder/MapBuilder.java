@@ -48,7 +48,11 @@ public class MapBuilder {
 
 	public static MapBuilder map() {
 		return new MapBuilder();
-	};
+	}
+
+	public Object get(@Nonnull String key) {
+		return map.get(key);
+	}
 
 	public MapBuilder e(@Nonnull String key, @Nullable Object value) {
 		if (value instanceof MapBuilder mapBuilder) {

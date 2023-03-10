@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestEndpointFunctionalTest {
+class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 
 	@Test
@@ -61,7 +61,7 @@ class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestEndpointFunct
 			)
 			.toList();
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(200)
@@ -84,7 +84,7 @@ class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestEndpointFunct
 				.toList();
 		}
 
-		testRESTCall()
+		testRestCall()
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map().e(ParamDescriptor.ENTITY_COUNT.name(), Boolean.TRUE).build())
 			.executeAndThen()

@@ -23,8 +23,11 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 
+import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
 import io.evitadb.externalApi.rest.api.builder.PartialRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.EntitySchemaObjectBuilder;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.SchemaApiEndpointBuilder;
 
 import javax.annotation.Nonnull;
 
@@ -35,19 +38,46 @@ import javax.annotation.Nonnull;
  */
 public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestBuildingContext> {
 
-	public CatalogSchemaApiRestBuilder(@Nonnull CatalogRestBuildingContext context) {
-		super(context);
+	@Nonnull private final SchemaApiEndpointBuilder endpointBuilder;
+	@Nonnull private final EntitySchemaObjectBuilder entitySchemaObjectBuilder;
+//	@Nonnull private final CatalogSchemaObjectBuilder catalogSchemaObjectBuilder;
+
+	public CatalogSchemaApiRestBuilder(@Nonnull CatalogRestBuildingContext buildingContext) {
+		super(buildingContext);
+
+		this.endpointBuilder = new SchemaApiEndpointBuilder();
+		this.entitySchemaObjectBuilder = new EntitySchemaObjectBuilder(
+			buildingContext,
+			objectBuilderTransformer,
+			propertyBuilderTransformer
+		);
+//		this.catalogSchemaObjectBuilder = new CatalogSchemaObjectBuilder(
+//			buildingContext,
+//			objectBuilderTransformer,
+//			propertyBuilderTransformer
+//		);
 	}
 
 	@Override
 	public void build() {
-		// todo lho implement
+		buildCommonTypes();
+		buildEndpoints();
 	}
 
 	private void buildCommonTypes() {
-//		buildingContext.registerType(SchemaNameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
-//		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-//		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-//		buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SchemaNameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		entitySchemaObjectBuilder.buildCommonTypes();
+//		catalogSchemaObjectBuilder.buildCommonTypes();
+	}
+
+	private void buildEndpoints() {
+		buildingContext.getEntitySchemas().forEach(entitySchema -> {
+			entitySchemaObjectBuilder.build(entitySchema);
+			buildingContext.registerEndpoint(endpointBuilder.buildGetEntitySchemaEndpoint(buildingContext.getSchema(), entitySchema));
+		});
+
+//		catalogSchemaObjectBuilder.build();
+//		buildingContext.registerEndpoint(endpointBuilder.buildGetCatalogSchemaEndpoint(buildingContext.getSchema()));
 	}
 }

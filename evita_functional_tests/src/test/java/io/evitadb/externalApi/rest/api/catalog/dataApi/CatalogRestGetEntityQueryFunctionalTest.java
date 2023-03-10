@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctionalTest {
+class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 	@Nonnull
 	@Override
@@ -70,7 +70,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -113,7 +113,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 		);
 
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -164,7 +164,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 		);
 
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/" + CZECH_LOCALE.toLanguageTag() + "/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -203,7 +203,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -249,7 +249,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -288,7 +288,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 	void shouldFilterSingleProductByNonExistentPrice(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -307,7 +307,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 	void shouldReturnErrorForFilteringProductByNonExistentCurrency(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -326,7 +326,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 	void shouldReturnCustomPriceForSaleForSingleProduct(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -347,7 +347,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 	void shouldReturnFilteredPricesForSingleProduct(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -373,7 +373,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -396,7 +396,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -418,7 +418,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestEndpointFunctio
 			it -> it.getReferences(Entities.STORE).size() > 1
 		);
 
-		testRESTCall()
+		testRestCall()
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

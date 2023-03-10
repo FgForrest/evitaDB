@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.testSuite;
 
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -102,5 +103,10 @@ public abstract class GraphQLEndpointFunctionalTest {
 	 */
 	protected Request testGraphQLCall() {
 		return tester.test();
+	}
+
+	@Nonnull
+	protected static EntitySchema createEmptyEntitySchema(@Nonnull String entityType) {
+		return EntitySchema._internalBuild(entityType);
 	}
 }

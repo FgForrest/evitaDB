@@ -82,51 +82,46 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 @RequiredArgsConstructor
 public class DataApiEndpointBuilder {
 
+	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToOpenApiOperationQueryParameterTransformer operationQueryParameterBuilderTransformer;
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildGetEntityEndpoint(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	public OpenApiCollectionEndpoint buildGetEntityEndpoint(@Nonnull EntitySchemaContract entitySchema,
 	                                                        boolean localized,
 	                                                        boolean withPkInPath) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
-		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
+		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
 				.staticItem(CatalogDataApiRootDescriptor.GET_ENTITY.operation(URL_NAME_NAMING_CONVENTION))
 				.paramItem(withPkInPath ? ParamDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer) : null))
 			.method(HttpMethod.GET)
 			.description(CatalogDataApiRootDescriptor.GET_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.queryParameters(buildGetEntityQueryParameters(collectionBuildingContext, localized, withPkInPath))
+			.queryParameters(buildGetEntityQueryParameters(entitySchema, localized, withPkInPath))
 			.successResponse(typeRefTo(constructEntityObjectName(entitySchema, localized)))
 			.handler(GetEntityHandler::new)
 			.build();
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildListEntityEndpoint(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	public OpenApiCollectionEndpoint buildListEntityEndpoint(@Nonnull EntitySchemaContract entitySchema,
 	                                                         boolean localized) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
-		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
+		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
 				.staticItem(CatalogDataApiRootDescriptor.LIST_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
 			.method(HttpMethod.POST)
 			.description(CatalogDataApiRootDescriptor.LIST_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(constructEntityListRequestBodyObjectName(entitySchema, localized)))
-			.successResponse(nonNull(typeRefTo(constructEntityObjectName(collectionBuildingContext.getSchema(), localized))))
+			.successResponse(nonNull(typeRefTo(constructEntityObjectName(entitySchema, localized))))
 			.handler(ListEntitiesHandler::new)
 			.build();
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildQueryEntityEndpoint(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	public OpenApiCollectionEndpoint buildQueryEntityEndpoint(@Nonnull EntitySchemaContract entitySchema,
 	                                                          boolean localized) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
-		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
+		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
 				.staticItem(CatalogDataApiRootDescriptor.QUERY_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
 			.method(HttpMethod.POST)
@@ -220,11 +215,9 @@ public class DataApiEndpointBuilder {
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildUpsertEntityEndpoint(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	public OpenApiCollectionEndpoint buildUpsertEntityEndpoint(@Nonnull EntitySchemaContract entitySchema,
 	                                                           boolean withPrimaryKeyInPath) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
-		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
+		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(p -> p // directly at the collection root
 				.paramItem(withPrimaryKeyInPath ? ParamDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer) : null))
 			.method(withPrimaryKeyInPath ? HttpMethod.PUT : HttpMethod.POST)
@@ -237,10 +230,8 @@ public class DataApiEndpointBuilder {
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildDeleteEntityEndpoint(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
-		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
+	public OpenApiCollectionEndpoint buildDeleteEntityEndpoint(@Nonnull EntitySchemaContract entitySchema) {
+		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(p -> p // directly at the collection root
 				.paramItem(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY
 					.to(operationPathParameterBuilderTransformer)
@@ -255,10 +246,8 @@ public class DataApiEndpointBuilder {
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildDeleteEntitiesByQueryEndpoint(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
-		return newCollectionEndpoint(collectionBuildingContext.getCatalogCtx().getSchema(), entitySchema)
+	public OpenApiCollectionEndpoint buildDeleteEntitiesByQueryEndpoint(@Nonnull EntitySchemaContract entitySchema) {
+		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(p -> p) // directly at the collection root
 			.method(HttpMethod.DELETE)
 			.description(CatalogDataApiRootDescriptor.DELETE_ENTITY.description(entitySchema.getName()))
@@ -289,11 +278,9 @@ public class DataApiEndpointBuilder {
 	}
 
 	@Nonnull
-	private List<OpenApiEndpointParameter> buildGetEntityQueryParameters(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
+	private List<OpenApiEndpointParameter> buildGetEntityQueryParameters(@Nonnull EntitySchemaContract entitySchema,
 	                                                                     boolean localized,
 	                                                                     boolean withPkInPath) {
-		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
-
 		final List<OpenApiEndpointParameter> parameters = new LinkedList<>();
 
 		if (!withPkInPath) {
@@ -302,7 +289,7 @@ public class DataApiEndpointBuilder {
 
 		// build locale argument
 		if (!entitySchema.getLocales().isEmpty()) {
-			final OpenApiTypeReference localeEnum = typeRefTo(ENTITY_LOCALE_ENUM.name(collectionBuildingContext.getSchema()));
+			final OpenApiTypeReference localeEnum = typeRefTo(ENTITY_LOCALE_ENUM.name(entitySchema));
 
 			if (!localized) {
 				final OpenApiEndpointParameter dataInLocalesParameter = ParamDescriptor.DATA_IN_LOCALES
@@ -323,7 +310,7 @@ public class DataApiEndpointBuilder {
 		if (!entitySchema.getCurrencies().isEmpty()) {
 			parameters.add(ParamDescriptor.PRICE_IN_CURRENCY
 				.to(operationQueryParameterBuilderTransformer)
-				.type(typeRefTo(ENTITY_CURRENCY_ENUM.name(collectionBuildingContext.getSchema())))
+				.type(typeRefTo(ENTITY_CURRENCY_ENUM.name(entitySchema)))
 				.build());
 			parameters.add(ParamDescriptor.PRICE_IN_PRICE_LISTS.to(operationQueryParameterBuilderTransformer).build());
 			parameters.add(ParamDescriptor.PRICE_VALID_IN.to(operationQueryParameterBuilderTransformer).build());

@@ -380,7 +380,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildEntityQueryField(@Nonnull CollectionGraphQLSchemaBuildingContext collectionBuildingContext) {
 		final EntitySchemaContract entitySchema = collectionBuildingContext.getSchema();
 
-		final GraphQLObjectType entityFullResponseObject = fullResponseObjectBuilder.build(collectionBuildingContext);
+		final GraphQLObjectType entityFullResponseObject = fullResponseObjectBuilder.build(collectionBuildingContext.getSchema());
 
 		final GraphQLFieldDefinition.Builder entityQueryFieldBuilder = CatalogDataApiRootDescriptor.QUERY_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
@@ -436,7 +436,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.type(entitySchema.isWithGeneratedPrimaryKey() ? INT : nonNull(INT)))
 			.argument(UpsertEntityMutationHeaderDescriptor.ENTITY_EXISTENCE.to(argumentBuilderTransformer));
 
-		final GraphQLInputObjectType localMutationAggregateObject = localMutationAggregateObjectBuilder.build(collectionBuildingContext);
+		final GraphQLInputObjectType localMutationAggregateObject = localMutationAggregateObjectBuilder.build(collectionBuildingContext.getSchema());
 		if (localMutationAggregateObject != null) {
 			upsertEntityFieldBuilder.argument(UpsertEntityMutationHeaderDescriptor.MUTATIONS
 				.to(argumentBuilderTransformer)

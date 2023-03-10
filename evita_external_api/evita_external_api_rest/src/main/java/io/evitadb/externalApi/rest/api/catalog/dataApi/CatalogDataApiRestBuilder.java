@@ -81,6 +81,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		this.constraintBuildingContext = new OpenApiConstraintSchemaBuildingContext(buildingContext);
 
 		this.endpointBuilder = new DataApiEndpointBuilder(
+			buildingContext,
 			operationPathParameterBuilderTransformer,
 			operationQueryParameterBuilderTransformer
 		);
@@ -128,27 +129,27 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			final CollectionDataApiRestBuildingContext collectionBuildingContext = setupForCollection(entitySchema);
 
-			buildingContext.registerEndpoint(endpointBuilder.buildGetEntityEndpoint(collectionBuildingContext, false, false));
-			buildingContext.registerEndpoint(endpointBuilder.buildGetEntityEndpoint(collectionBuildingContext, false, true));
+			buildingContext.registerEndpoint(endpointBuilder.buildGetEntityEndpoint(entitySchema, false, false));
+			buildingContext.registerEndpoint(endpointBuilder.buildGetEntityEndpoint(entitySchema, false, true));
 
-			buildingContext.registerEndpoint(endpointBuilder.buildListEntityEndpoint(collectionBuildingContext, false));
-			buildingContext.registerEndpoint(endpointBuilder.buildQueryEntityEndpoint(collectionBuildingContext, false));
+			buildingContext.registerEndpoint(endpointBuilder.buildListEntityEndpoint(entitySchema, false));
+			buildingContext.registerEndpoint(endpointBuilder.buildQueryEntityEndpoint(entitySchema, false));
 
 			if(collectionBuildingContext.isLocalizedEntity()) {
-				buildingContext.registerEndpoint(endpointBuilder.buildGetEntityEndpoint(collectionBuildingContext, true, false));
-				buildingContext.registerEndpoint(endpointBuilder.buildGetEntityEndpoint(collectionBuildingContext, true, true));
+				buildingContext.registerEndpoint(endpointBuilder.buildGetEntityEndpoint(entitySchema, true, false));
+				buildingContext.registerEndpoint(endpointBuilder.buildGetEntityEndpoint(entitySchema, true, true));
 
-				buildingContext.registerEndpoint(endpointBuilder.buildListEntityEndpoint(collectionBuildingContext, true));
-				buildingContext.registerEndpoint(endpointBuilder.buildQueryEntityEndpoint(collectionBuildingContext, true));
+				buildingContext.registerEndpoint(endpointBuilder.buildListEntityEndpoint(entitySchema, true));
+				buildingContext.registerEndpoint(endpointBuilder.buildQueryEntityEndpoint(entitySchema, true));
 			}
 
-			buildingContext.registerEndpoint(endpointBuilder.buildUpsertEntityEndpoint(collectionBuildingContext, true));
-			if (collectionBuildingContext.getSchema().isWithGeneratedPrimaryKey()) {
-				buildingContext.registerEndpoint(endpointBuilder.buildUpsertEntityEndpoint(collectionBuildingContext, false));
+			buildingContext.registerEndpoint(endpointBuilder.buildUpsertEntityEndpoint(entitySchema, true));
+			if (entitySchema.isWithGeneratedPrimaryKey()) {
+				buildingContext.registerEndpoint(endpointBuilder.buildUpsertEntityEndpoint(entitySchema, false));
 			}
 
-			buildingContext.registerEndpoint(endpointBuilder.buildDeleteEntityEndpoint(collectionBuildingContext));
-			buildingContext.registerEndpoint(endpointBuilder.buildDeleteEntitiesByQueryEndpoint(collectionBuildingContext));
+			buildingContext.registerEndpoint(endpointBuilder.buildDeleteEntityEndpoint(entitySchema));
+			buildingContext.registerEndpoint(endpointBuilder.buildDeleteEntitiesByQueryEndpoint(entitySchema));
 		});
 
 		buildingContext.registerType(buildEntityUnionObject(false));
@@ -217,29 +218,29 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		collectionBuildingContext.setRequiredForQueryObject(buildRequireSchemaForQuery(collectionBuildingContext));
 		collectionBuildingContext.setRequiredForDeleteObject(buildRequireSchemaForDelete(collectionBuildingContext));
 
-		buildingContext.registerLocalizedEntityObject(entityObjectBuilder.buildEntityObject(collectionBuildingContext, false));
+		buildingContext.registerLocalizedEntityObject(entityObjectBuilder.buildEntityObject(entitySchema, false));
 
 		buildListRequestBodyObject(collectionBuildingContext, false);
 		buildQueryRequestBodyObject(collectionBuildingContext, false);
 		buildDeleteRequestBodyObject(collectionBuildingContext);
 
-		buildingContext.registerType(fullResponseObjectBuilder.buildFullResponseObject(collectionBuildingContext, false));
+		buildingContext.registerType(fullResponseObjectBuilder.buildFullResponseObject(entitySchema, false));
 
 		if(collectionBuildingContext.isLocalizedEntity()) {
-			buildingContext.registerEntityObject(entityObjectBuilder.buildEntityObject(collectionBuildingContext, true));
+			buildingContext.registerEntityObject(entityObjectBuilder.buildEntityObject(entitySchema, true));
 
 			buildListRequestBodyObject(collectionBuildingContext, true);
 			buildQueryRequestBodyObject(collectionBuildingContext, true);
 
-			buildingContext.registerType(fullResponseObjectBuilder.buildFullResponseObject(collectionBuildingContext, true));
+			buildingContext.registerType(fullResponseObjectBuilder.buildFullResponseObject(entitySchema, true));
 		} else {
 			/* When entity has no localized data than it makes no sense to create endpoints for this entity with Locale
 			 * in URL. But this entity may be referenced by other entities when localized URL is used. For such cases
 			 * is also appropriate entity schema created.*/
-			collectionBuildingContext.getCatalogCtx().registerType(entityObjectBuilder.buildEntityObject(collectionBuildingContext, true));
+			collectionBuildingContext.getCatalogCtx().registerType(entityObjectBuilder.buildEntityObject(entitySchema, true));
 		}
 
-		dataMutationBuilder.buildEntityUpsertRequestObject(collectionBuildingContext);
+		dataMutationBuilder.buildEntityUpsertRequestObject(entitySchema);
 
 		return collectionBuildingContext;
 	}
