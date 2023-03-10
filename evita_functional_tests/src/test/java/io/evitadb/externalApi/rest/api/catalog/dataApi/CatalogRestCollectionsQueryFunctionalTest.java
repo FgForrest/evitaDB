@@ -21,14 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.handler;
+package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
-import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
-import io.evitadb.externalApi.rest.testSuite.TestDataGenerator;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
+import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-class CatalogRESTCollectionsQueryFunctionalTest extends CatalogRESTEndpointFunctionalTest {
+class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestEndpointFunctionalTest {
 
 
 	@Test

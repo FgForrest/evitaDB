@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.handler;
+package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -30,7 +30,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
-import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
+import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
@@ -48,10 +49,6 @@ import java.util.function.Predicate;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
-import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.ATTRIBUTE_CREATED;
-import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.ATTRIBUTE_MANUFACTURED;
-import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
-import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -67,7 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunctionalTest {
+class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestEndpointFunctionalTest {
 
 	private static final int SEED = 40;
 
@@ -78,7 +75,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key")
 	void shouldReturnProductsByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
@@ -127,7 +124,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by non-localized attribute")
 	void shouldReturnProductsByNonLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
@@ -186,7 +183,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by non-localized attribute with locale in URL")
 	void shouldReturnProductsByNonLocalizedAttributeWithLocaleInUrl(Evita evita, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
@@ -236,7 +233,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by localized attribute")
 	void shouldReturnProductsByLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
@@ -292,7 +289,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
 	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(Evita evita, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
@@ -325,7 +322,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter products by non-existent price")
 	void shouldFilterProductsByNonExistentPrice(Evita evita, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
@@ -348,7 +345,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for filtering products by unknown currency")
 	void shouldReturnErrorForFilteringProductsByUnknownCurrency(Evita evita, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
@@ -371,7 +368,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
 	void shouldReturnCustomPriceForSaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
@@ -403,7 +400,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products")
 	void shouldReturnPriceForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
@@ -435,7 +432,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all prices for products")
 	void shouldReturnAllPricesForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntities(
@@ -466,7 +463,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data for products")
 	void shouldReturnAssociatedDataForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
@@ -501,7 +498,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data for products with locale in URL")
 	void shouldReturnAssociatedDataForProductsWithLocaleInUrl(Evita evita, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
@@ -535,13 +532,13 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single reference for products")
 	void shouldReturnSingleReferenceForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.BRAND).size() == 1 &&
-				it.getReferences(Entities.BRAND).iterator().next().getAttribute(ATTRIBUTE_MARKET_SHARE) != null
+				it.getReferences(Entities.BRAND).iterator().next().getAttribute(TestDataGenerator.ATTRIBUTE_MARKET_SHARE) != null
 		);
 
 		final var expectedBody = entities.stream()
@@ -591,7 +588,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should find product by complex query")
 	void shouldFindProductByComplexQuery(Evita evita, List<SealedEntity> originalProductEntities) {
 		final Random rnd = new Random(SEED);
@@ -700,7 +697,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should order entities by complex query")
 	void shouldOrderEntitiesByComplexQuery(Evita evita) {
 		final Integer[] expectedEntities = evita.queryCatalog(
@@ -713,8 +710,8 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 								attributeLessThan(ATTRIBUTE_PRIORITY, 35000L)
 							),
 							orderBy(
-								attributeNatural(ATTRIBUTE_CREATED, DESC),
-								attributeNatural(ATTRIBUTE_MANUFACTURED)
+								attributeNatural(TestDataGenerator.ATTRIBUTE_CREATED, DESC),
+								attributeNatural(TestDataGenerator.ATTRIBUTE_MANUFACTURED)
 							),
 							require(
 								page(1, 30)
@@ -753,7 +750,7 @@ class CatalogRESTListEntitiesQueryFunctionalTest extends CatalogRESTEndpointFunc
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should limit returned entities")
 	void shouldLimitReturnedEntities(Evita evita) {
 		final List<Integer> expectedEntities = evita.queryCatalog(

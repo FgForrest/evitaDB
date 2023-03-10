@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.handler;
+package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -40,7 +40,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
-import io.evitadb.externalApi.rest.testSuite.RESTEndpointFunctionalTest;
+import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
 import io.evitadb.test.Entities;
 import io.evitadb.test.builder.MapBuilder;
 
@@ -50,7 +50,6 @@ import java.io.Serializable;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAttributeKeysByLocale;
 import static io.evitadb.test.builder.MapBuilder.map;
@@ -65,7 +64,7 @@ import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-abstract class CatalogRESTEndpointFunctionalTest extends RESTEndpointFunctionalTest {
+abstract class CatalogRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 	final ObjectJsonSerializer jsonSerializer = new ObjectJsonSerializer(new ObjectMapper());
 
@@ -305,7 +304,7 @@ abstract class CatalogRESTEndpointFunctionalTest extends RESTEndpointFunctionalT
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 			.e(EntityDescriptor.LOCALES.name(), entityLocales)
-			.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).collect(Collectors.toCollection(ArrayList::new)))
+			.e(EntityDescriptor.ALL_LOCALES.name(), entity.getAllLocales().stream().map(Locale::toLanguageTag).toList())
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), associatedData)
 			.build();

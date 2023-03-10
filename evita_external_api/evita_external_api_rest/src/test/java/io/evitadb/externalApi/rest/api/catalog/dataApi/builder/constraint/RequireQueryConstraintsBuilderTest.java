@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.handler.constraint;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint;
 
 import io.evitadb.api.query.require.Require;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;

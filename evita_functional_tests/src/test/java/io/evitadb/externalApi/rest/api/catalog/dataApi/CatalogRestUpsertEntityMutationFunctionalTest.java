@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.handler;
+package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -35,7 +35,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
-import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
+import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
@@ -54,7 +55,6 @@ import java.util.Map;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
@@ -73,7 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointFunctionalTest {
+class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestEndpointFunctionalTest {
 
 	@Nonnull
 	@Override
@@ -82,7 +82,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should insert single empty entity without PK")
 	void shouldInsertSingleEmptyEntityWithoutPK(Evita evita) {
 		testRESTCall()
@@ -111,7 +111,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should insert single empty entity with PK")
 	void shouldInsertSingleEmptyEntityWithPK(Evita evita) {
 		testRESTCall()
@@ -140,7 +140,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should update product with no mutations")
 	void shouldUpdateProductWithNoMutations(Evita evita) {
 		testRESTCall()
@@ -169,7 +169,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when missing arguments for product upsert")
 	void shouldReturnErrorWhenMissingArgumentsForProductUpsert(Evita evita) {
 		testRESTCall()
@@ -184,7 +184,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when missing mutations for product update")
 	void shouldReturnErrorWhenMissingMutationsForProductUpdate(Evita evita) {
 		testRESTCall()
@@ -201,11 +201,11 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should update product with attribute mutations")
 	void shouldUpdateProductWithAttributeMutations(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
-			.filter(it -> it.getAttribute(ATTRIBUTE_DEPRECATED) != null)
+			.filter(it -> it.getAttribute(TestDataGenerator.ATTRIBUTE_DEPRECATED) != null)
 			.findFirst()
 			.orElseThrow();
 
@@ -294,11 +294,11 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should update product with associated data mutations")
 	void shouldUpdateProductWithAssociatedDataMutations(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
-			.filter(it -> it.getAssociatedData(ASSOCIATED_DATA_LOCALIZATION) != null)
+			.filter(it -> it.getAssociatedData(TestDataGenerator.ASSOCIATED_DATA_LOCALIZATION) != null)
 			.findFirst()
 			.orElseThrow();
 
@@ -384,7 +384,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should update category with hierarchical placement mutations")
 	void shouldUpdateCategoryWithHierarchicalPlacementMutations(Evita evita) {
 		final SealedEntity entityInTree = evita.queryCatalog(
@@ -497,7 +497,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should update product with new price mutation")
 	void shouldUpdateProductWithNewPriceMutation(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
@@ -639,7 +639,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should update product with price inner handling mutation")
 	void shouldUpdateProductWithPriceInnerRecordHandlingMutation(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
@@ -716,7 +716,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should update product with reference mutations")
 	void shouldUpdateProductWithReferenceMutations(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
@@ -738,8 +738,8 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 					.build())
 				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
-					.e(ATTRIBUTE_CAPACITY, String.valueOf(r.getAttributeValue(ATTRIBUTE_CAPACITY).get().getValue()))
+					.e(TestDataGenerator.ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(TestDataGenerator.ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
+					.e(TestDataGenerator.ATTRIBUTE_CAPACITY, String.valueOf(r.getAttributeValue(TestDataGenerator.ATTRIBUTE_CAPACITY).get().getValue()))
 					.build())
 				.build())
 			.toList();
@@ -750,7 +750,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 				.e(EntityDescriptor.TYPE.name(), Entities.STORE)
 				.build())
 			.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)
+				.e(TestDataGenerator.ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)
 				.build())
 			.build());
 
@@ -866,11 +866,11 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should update product with reference group mutations")
 	void shouldUpdateProductWithReferenceGroupMutations(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
-			.filter(it -> it.getReferences(REFERENCE_BRAND_WITH_GROUP).isEmpty())
+			.filter(it -> it.getReferences(TestDataGenerator.REFERENCE_BRAND_WITH_GROUP).isEmpty())
 			.findFirst()
 			.orElseThrow();
 
@@ -878,7 +878,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			TEST_CATALOG,
 			session -> {
 				entity.openForWrite()
-					.setReference(REFERENCE_BRAND_WITH_GROUP, 1)
+					.setReference(TestDataGenerator.REFERENCE_BRAND_WITH_GROUP, 1)
 					.upsertVia(session);
 			}
 		);
@@ -904,7 +904,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 			.statusCode(200)
 			.body(EntityDescriptor.PRIMARY_KEY.name(), equalTo(entity.getPrimaryKey()));
 
-		assertReferenceGroup(evita, entity.getPrimaryKey(), new GroupEntityReference(ENTITY_BRAND_GROUP, 100, 1, false));
+		assertReferenceGroup(evita, entity.getPrimaryKey(), new GroupEntityReference(TestDataGenerator.ENTITY_BRAND_GROUP, 100, 1, false));
 
 
 		testRESTCall()
@@ -935,7 +935,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 				session.getEntity(Entities.PRODUCT, entity.getPrimaryKey(), referenceContent())
 					.orElseThrow()
 					.openForWrite()
-					.removeReference(REFERENCE_BRAND_WITH_GROUP, 1)
+					.removeReference(TestDataGenerator.REFERENCE_BRAND_WITH_GROUP, 1)
 					.upsertVia(session);
 			}
 		);
@@ -949,7 +949,7 @@ class CatalogRESTUpsertEntityMutationFunctionalTest extends CatalogRESTEndpointF
 					.orElseThrow();
 				assertEquals(
 					groupEntityReference,
-					updatedEntity.getReferences(REFERENCE_BRAND_WITH_GROUP).iterator().next().getGroup().orElse(null)
+					updatedEntity.getReferences(TestDataGenerator.REFERENCE_BRAND_WITH_GROUP).iterator().next().getGroup().orElse(null)
 				);
 			}
 		);

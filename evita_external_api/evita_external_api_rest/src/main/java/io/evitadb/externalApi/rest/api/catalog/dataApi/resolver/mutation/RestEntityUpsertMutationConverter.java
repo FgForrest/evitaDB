@@ -24,8 +24,9 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.EntityUpsertMutationConverter;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectParser;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 
@@ -42,14 +43,13 @@ import java.util.List;
  */
 public class RestEntityUpsertMutationConverter extends EntityUpsertMutationConverter<JsonNode> {
 
-	public RestEntityUpsertMutationConverter(@Nonnull CollectionRestHandlingContext restHandlingContext,
-	                                         @Nonnull RestMutationObjectParser restMutationObjectParser) {
-		super(restHandlingContext.getEntitySchema(), restHandlingContext.getObjectMapper(), restMutationObjectParser, new RestMutationResolvingExceptionFactory());
+	public RestEntityUpsertMutationConverter(@Nonnull ObjectMapper objectMapper, @Nonnull EntitySchemaContract entitySchema) {
+		super(entitySchema, objectMapper, new RestMutationObjectParser(objectMapper), new RestMutationResolvingExceptionFactory());
 	}
 
 	@Nonnull
 	@Override
-	protected List<Object> resolveAggregates(@Nonnull JsonNode inputLocalMutationAggregates) {
+	protected List<Object> convertAggregates(@Nonnull JsonNode inputLocalMutationAggregates) {
 		final List<Object> actualAggregates = new LinkedList<>();
 		for (Iterator<JsonNode> elementsIterator = inputLocalMutationAggregates.elements(); elementsIterator.hasNext(); ) {
 			actualAggregates.add(elementsIterator.next());

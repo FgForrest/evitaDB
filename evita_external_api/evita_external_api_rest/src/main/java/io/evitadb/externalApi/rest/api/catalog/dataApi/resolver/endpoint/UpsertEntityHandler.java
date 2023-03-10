@@ -36,7 +36,6 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
-import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectParser;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestHandler;
@@ -66,8 +65,8 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 	public UpsertEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext, boolean withPrimaryKeyInPath) {
 		super(restApiHandlingContext);
 		this.mutationResolver = new RestEntityUpsertMutationConverter(
-			restApiHandlingContext,
-			new RestMutationObjectParser(restApiHandlingContext.getObjectMapper())
+			restApiHandlingContext.getObjectMapper(),
+			restApiHandlingContext.getEntitySchema()
 		);
 		this.requireConstraintResolver = new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
@@ -88,7 +87,7 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 			requestData.setPrimaryKey((Integer) parametersFromRequest.get(ParamDescriptor.PRIMARY_KEY.name()));
 		}
 
-		final EntityMutation entityMutation = mutationResolver.resolve(
+		final EntityMutation entityMutation = mutationResolver.convert(
 			requestData.getPrimaryKey()
 				.orElse(null),
 			requestData.getEntityExistence()

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.serializer;
+package io.evitadb.externalApi.rest.api.resolver.serializer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
@@ -34,7 +34,6 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.data.DataItemMap;
 import io.evitadb.dataType.data.DataItemValue;
-import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

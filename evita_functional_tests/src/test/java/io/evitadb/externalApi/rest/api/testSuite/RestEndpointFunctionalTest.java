@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.testSuite;
+package io.evitadb.externalApi.rest.api.testSuite;
 
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
@@ -30,8 +30,8 @@ import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.RestProviderRegistrar;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
-import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import lombok.SneakyThrows;
@@ -47,7 +47,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 
 /**
@@ -60,23 +59,23 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
-public abstract class RESTEndpointFunctionalTest {
+public abstract class RestEndpointFunctionalTest {
 
 	public static final String TYPENAME_FIELD = "__typename";
 
 	private static ExternalApiServer server;
-	private static RESTTester tester;
+	private static RestTester tester;
 
 	@SneakyThrows
 	@BeforeEach
 	void setUp() {
-		 tester = new RESTTester("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/rest" + getEndpointPath());
+		 tester = new RestTester("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/rest" + getEndpointPath());
 	}
 
 	@Nonnull
 	protected abstract String getEndpointPath();
 
-	@DataSet(REST_THOUSAND_PRODUCTS)
+	@DataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	List<SealedEntity> setUp(Evita evita) {
 		TestDataGenerator.generateMockCatalogs(evita);
 		final List<SealedEntity> entities = TestDataGenerator.generateMainCatalogEntities(evita);

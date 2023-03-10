@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.testSuite;
+package io.evitadb.externalApi.rest.api.testSuite;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;

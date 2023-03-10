@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.testSuite;
+package io.evitadb.externalApi.rest.api.testSuite;
 
 import io.evitadb.externalApi.http.MimeTypes;
 import io.restassured.http.Header;
@@ -49,7 +49,7 @@ import static io.restassured.RestAssured.given;
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class RESTTester {
+public class RestTester {
 
 	private final String url;
 
@@ -115,7 +115,7 @@ public class RESTTester {
 		public static final String METHOD_PUT = "put";
 		public static final String METHOD_GET = "get";
 
-		private final RESTTester tester;
+		private final RestTester tester;
 
 		@Getter(AccessLevel.PUBLIC) private String httpMethod;
 

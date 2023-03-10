@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io.handler;
+package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -30,7 +30,8 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
-import io.evitadb.externalApi.rest.testSuite.RESTTester.Request;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
+import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +43,6 @@ import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -57,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-class CatalogRESTDeleteEntityMutationsFunctionalTest extends CatalogRESTEndpointFunctionalTest {
+class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestEndpointFunctionalTest {
 
 	@Nonnull
 	@Override
@@ -66,7 +66,7 @@ class CatalogRESTDeleteEntityMutationsFunctionalTest extends CatalogRESTEndpoint
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should delete entity by query")
 	void shouldDeleteEntityByQuery(Evita evita) {
 		final List<SealedEntity> entitiesToDelete = evita.queryCatalog(
@@ -135,7 +135,7 @@ class CatalogRESTDeleteEntityMutationsFunctionalTest extends CatalogRESTEndpoint
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should not delete any entity by query")
 	void shouldNotDeleteAnyEntityByQuery(Evita evita) {
 		final List<EntityReference> entitiesToDelete = evita.queryCatalog(

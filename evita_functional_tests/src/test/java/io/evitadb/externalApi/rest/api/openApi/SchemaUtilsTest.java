@@ -21,14 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
-import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
-import io.evitadb.externalApi.rest.testSuite.TestDataGenerator;
+import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
@@ -47,7 +46,7 @@ import java.util.List;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
-import static io.evitadb.externalApi.rest.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
