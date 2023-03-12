@@ -103,9 +103,7 @@ public interface CatalogSchemaDescriptor extends VersionedDescriptor, NamedSchem
 			VERSION,
 			NAME,
 			NAME_VARIANTS,
-			DESCRIPTION,
-			ALL_ATTRIBUTES,
-			ALL_ENTITY_SCHEMAS
+			DESCRIPTION
 		))
 		.build();
 

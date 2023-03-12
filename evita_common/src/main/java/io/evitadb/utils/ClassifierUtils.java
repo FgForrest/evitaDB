@@ -57,7 +57,8 @@ public class ClassifierUtils {
 		ClassifierType.ENTITY,
 		Set.of(
 			"catalog", // catalog queries in GraphQL, would collide with entity types
-			"entity" // unknown single entity query in GraphQL/REST API, would collide with entity types
+			"entity", // unknown single entity query in GraphQL/REST API, would collide with entity types
+			"schema" // would collide with internal schema endpoints in REST API
 		),
 		ClassifierType.ATTRIBUTE,
 		Set.of(

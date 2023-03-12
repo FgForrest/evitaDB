@@ -37,7 +37,7 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -108,7 +108,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 			orderBy,
 			require
 		);
-		log.debug("Generated Evita query for entity deletion of type `{}` is `{}`.", entitySchema.getName(), query);
+		log.debug("Generated evitaDB query for entity deletion of type `{}` is `{}`.", entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		final SealedEntity[] deletedEntities = evitaSession.deleteEntitiesAndReturnBodies(query);

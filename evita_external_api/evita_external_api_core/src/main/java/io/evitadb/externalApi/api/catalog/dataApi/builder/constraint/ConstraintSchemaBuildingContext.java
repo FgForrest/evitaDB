@@ -40,10 +40,12 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * Context holding and caching constraint data during constraint schema building. This context object is supposed to be
  * shared across all constraint schema builders to ensure correct cache usage.
  *
+ * @param <SIMPLE_TYPE> type that references remote object or scalar and can be safely used anywhere
+ * @param <OBJECT_TYPE> type that holds actual full object that others reference to, needs to be registered
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public abstract class ConstraintSchemaBuildingContext<ST> {
+public abstract class ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE> {
 
 	@Nonnull
 	@Getter
@@ -51,22 +53,22 @@ public abstract class ConstraintSchemaBuildingContext<ST> {
 	/**
 	 * Already built containers ready for reuse.
 	 */
-	protected final Map<ContainerKey, ST> cachedContainers = createHashMap(200);
+	protected final Map<ContainerKey, SIMPLE_TYPE> cachedContainers = createHashMap(200);
 	/**
 	 * Already built wrapper objects ready for reuse.
 	 */
-	protected final Map<WrapperObjectKey, ST> cachedWrapperObjects = createHashMap(200);
+	protected final Map<WrapperObjectKey, SIMPLE_TYPE> cachedWrapperObjects = createHashMap(200);
 
 	/**
 	 * Built schema types during build process that have to be registered in the API schema because build process
 	 * works mainly with type references due to the cycling references to types.
 	 */
-	protected final List<ST> builtTypes = new LinkedList<>();
+	protected final List<OBJECT_TYPE> builtTypes = new LinkedList<>();
 
 	/**
 	 * Caches created container under specified key if absent.
 	 */
-	public void cacheContainer(@Nonnull ContainerKey key, @Nonnull ST container) {
+	public void cacheContainer(@Nonnull ContainerKey key, @Nonnull SIMPLE_TYPE container) {
 		cachedContainers.putIfAbsent(key, container);
 	}
 
@@ -74,7 +76,7 @@ public abstract class ConstraintSchemaBuildingContext<ST> {
 	 * Tries to find cached container for specified key.
 	 */
 	@Nullable
-	public ST getCachedContainer(@Nonnull ContainerKey key) {
+	public SIMPLE_TYPE getCachedContainer(@Nonnull ContainerKey key) {
 		return cachedContainers.get(key);
 	}
 
@@ -88,7 +90,7 @@ public abstract class ConstraintSchemaBuildingContext<ST> {
 	/**
 	 * Caches created container under specified key if absent.
 	 */
-	public void cacheWrapperObject(@Nonnull WrapperObjectKey key, @Nonnull ST wrapperObject) {
+	public void cacheWrapperObject(@Nonnull WrapperObjectKey key, @Nonnull SIMPLE_TYPE wrapperObject) {
 		cachedWrapperObjects.putIfAbsent(key, wrapperObject);
 	}
 
@@ -96,14 +98,14 @@ public abstract class ConstraintSchemaBuildingContext<ST> {
 	 * Tries to find cached container for specified key.
 	 */
 	@Nullable
-	public ST getCachedWrapperObject(@Nonnull WrapperObjectKey key) {
+	public SIMPLE_TYPE getCachedWrapperObject(@Nonnull WrapperObjectKey key) {
 		return cachedWrapperObjects.get(key);
 	}
 
 	/**
 	 * Add new built type that will be later registered.
 	 */
-	public void addNewType(@Nonnull ST type) {
+	public void addNewType(@Nonnull OBJECT_TYPE type) {
 		builtTypes.add(type);
 	}
 
@@ -111,7 +113,7 @@ public abstract class ConstraintSchemaBuildingContext<ST> {
 	 * Get all built types that needs registering.
 	 */
 	@Nonnull
-	public List<ST> getBuiltTypes() {
+	public List<OBJECT_TYPE> getBuiltTypes() {
 		return Collections.unmodifiableList(builtTypes);
 	}
 

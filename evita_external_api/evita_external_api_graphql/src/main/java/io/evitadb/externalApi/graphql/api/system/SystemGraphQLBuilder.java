@@ -27,7 +27,7 @@ import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.graphql.GraphQLBuilder;
+import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.system.builder.SystemGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
 import lombok.RequiredArgsConstructor;

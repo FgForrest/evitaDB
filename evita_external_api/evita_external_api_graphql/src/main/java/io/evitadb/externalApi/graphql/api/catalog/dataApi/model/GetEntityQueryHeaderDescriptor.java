@@ -70,7 +70,7 @@ public interface GetEntityQueryHeaderDescriptor {
 		.name("priceValidIn")
 		.description("""
 			Parameter specifying desired validity of price for sale of queried entity. The date time is resolved to
-			`now` by Evita. If both `priceValidInNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
+			`now` by evitaDB. If both `priceValidInNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
 			""")
 		.type(nullable(OffsetDateTime.class))
 		.build();
@@ -78,7 +78,7 @@ public interface GetEntityQueryHeaderDescriptor {
 		.name("priceValidNow")
 		.description("""
 			Parameter specifying desired validity of price for sale of queried entity. The date time is resolved to
-			`now` by Evita. If both `priceValidNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
+			`now` by evitaDB. If both `priceValidNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
 			""")
 		.type(nullable(Boolean.class))
 		.build();

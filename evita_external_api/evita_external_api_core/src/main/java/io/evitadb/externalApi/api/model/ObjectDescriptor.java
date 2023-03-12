@@ -66,7 +66,7 @@ public record ObjectDescriptor(@Nonnull String name,
 	public String name() {
 		Assert.isPremiseValid(
 			isNameStatic(),
-			() -> new ExternalApiInternalError("Object name requires you to provide schema to construct the final name.")
+			() -> new ExternalApiInternalError("Object name `" + name + "` requires you to provide schema to construct the final name.")
 		);
 		return this.name;
 	}
@@ -80,7 +80,7 @@ public record ObjectDescriptor(@Nonnull String name,
 	public String name(@Nullable String suffix, @Nonnull NamedSchemaContract... schema) {
 		Assert.isPremiseValid(
 			!isNameStatic(),
-			() -> new ExternalApiInternalError("Object name is static, thus it doesn't support provided schema.")
+			() -> new ExternalApiInternalError("Object name `" + name + "` is static, thus it doesn't support provided schema.")
 		);
 		Assert.isPremiseValid(
 			schema.length > 0,

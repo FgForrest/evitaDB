@@ -25,7 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
 
 import graphql.schema.GraphQLFieldDefinition.Builder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.PriceBigDecimalDataFetcher;
-import io.evitadb.externalApi.graphql.dataType.GraphQLScalars;
+import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 
 
 /**

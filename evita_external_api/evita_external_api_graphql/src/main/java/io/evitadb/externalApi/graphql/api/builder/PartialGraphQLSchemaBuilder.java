@@ -33,8 +33,8 @@ import javax.annotation.Nonnull;
  */
 public abstract class PartialGraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContext> extends GraphQLSchemaBuilder<C> {
 
-	protected PartialGraphQLSchemaBuilder(@Nonnull C graphQLSchemaBuildingCtx) {
-		super(graphQLSchemaBuildingCtx);
+	protected PartialGraphQLSchemaBuilder(@Nonnull C context) {
+		super(context);
 	}
 
 	/**

@@ -53,8 +53,8 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 			evitaError = (EvitaError) exception;
 		} else {
 			evitaError = new GraphQLInternalError(
-				"Unexpected internal Evita GraphQL API error occurred: " + exception.getMessage(),
-				"Unexpected internal Evita GraphQL API error occurred.",
+				"Unexpected internal evitaDB GraphQL API error occurred: " + exception.getMessage(),
+				"Unexpected internal evitaDB GraphQL API error occurred.",
 				exception
 			);
 		}
@@ -62,7 +62,7 @@ public class EvitaDataFetcherExceptionHandler implements DataFetcherExceptionHan
 		// log any GraphQL internal errors that Evita cannot handle because they are outside of Evita execution
 		if (evitaError instanceof final GraphQLInternalError graphQLInternalError) {
 			log.error(
-				"Internal Evita GraphQL API error occurred in {}: {}",
+				"Internal evitaDB GraphQL API error occurred in {}: {}",
 				graphQLInternalError.getErrorCode(),
 				graphQLInternalError.getPrivateMessage(),
 				graphQLInternalError

@@ -95,7 +95,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String REFERENCE_TAGS = "tags";
 
-	private GraphQLEntityUpsertMutationConverter resolver;
+	private GraphQLEntityUpsertMutationConverter converter;
 
 	@BeforeEach
 	void init() {
@@ -110,7 +110,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 			.withPrice()
 			.withReferenceTo(REFERENCE_TAGS, "tag", Cardinality.ZERO_OR_MORE)
 			.toInstance();
-		resolver = new GraphQLEntityUpsertMutationConverter(new ObjectMapper(), entitySchema);
+		converter = new GraphQLEntityUpsertMutationConverter(new ObjectMapper(), entitySchema);
 	}
 
 	@Test
@@ -118,53 +118,44 @@ class GraphQLEntityUpsertMutationConverterTest {
 		final List<Map<String, Object>> inputLocalMutations = List.of(
 			map()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.name(), map()
-					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
-					.build())
+					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION.name(), map()
 					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), map()
-						.e("s", "String")
-						.build())
-					.build())
+						.e("s", "String")))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
 					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), "0.5")
-					.build())
+					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), "0.5"))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-						.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-						.build())
+					.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), map()
 					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
-					.build())
+					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone"))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.REMOVE_HIERARCHICAL_PLACEMENT_MUTATION.name(), true)
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.SET_HIERARCHICAL_PLACEMENT_MUTATION.name(), map()
-					.e(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS.name(), 10)
-					.build())
+					.e(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS.name(), 10))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), map()
-					.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM")
-					.build())
+					.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM"))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.name(), map()
 					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-					.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK")
-					.build())
+					.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK"))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION.name(), map()
@@ -174,35 +165,30 @@ class GraphQLEntityUpsertMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false)
-					.build())
+					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.name(), map()
 					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), "ONE_OR_MORE")
-					.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag")
-					.build())
+					.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag"))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION.name(), map()
 					.e(RemoveReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(RemoveReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
-					.build())
+					.e(RemoveReferenceMutationDescriptor.PRIMARY_KEY.name(), 1))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION.name(), map()
 					.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
-					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2)
-					.build())
+					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION.name(), map()
 					.e(RemoveReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(RemoveReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
-					.build())
+					.e(RemoveReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION.name(), map()
@@ -210,14 +196,11 @@ class GraphQLEntityUpsertMutationConverterTest {
 					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-							.build())
-						.build())
-					.build())
+							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))))
 				.build()
 		);
 
-		final EntityMutation entityMutation = resolver.resolve(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -247,37 +230,28 @@ class GraphQLEntityUpsertMutationConverterTest {
 		final List<Map<String, Object>> inputLocalMutations = List.of(
 			map()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.name(), map()
-					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
-					.build())
+					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS))
 				.e(LocalMutationAggregateDescriptor.UPSERT_ASSOCIATED_DATA_MUTATION.name(), map()
 					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), map()
-						.e("s", "String")
-						.build())
-					.build())
+						.e("s", "String")))
 				.e(LocalMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION.name(), map()
 					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
-					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), "0.5")
-					.build())
+					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), "0.5"))
 				.e(LocalMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-					.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-					.build())
+					.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))
 				.e(LocalMutationAggregateDescriptor.UPSERT_ATTRIBUTE_MUTATION.name(), map()
 					.e(UpsertAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone")
-					.build())
+					.e(UpsertAttributeMutationDescriptor.VALUE.name(), "phone"))
 				.e(LocalMutationAggregateDescriptor.REMOVE_HIERARCHICAL_PLACEMENT_MUTATION.name(), true)
 				.e(LocalMutationAggregateDescriptor.SET_HIERARCHICAL_PLACEMENT_MUTATION.name(), map()
-					.e(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS.name(), 10)
-					.build())
+					.e(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS.name(), 10))
 				.e(LocalMutationAggregateDescriptor.SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), map()
-					.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM")
-					.build())
+					.e(SetPriceInnerRecordHandlingMutationDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM"))
 				.e(LocalMutationAggregateDescriptor.REMOVE_PRICE_MUTATION.name(), map()
 					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-					.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK")
-					.build())
+					.e(RemovePriceMutationDescriptor.CURRENCY.name(), "CZK"))
 				.e(LocalMutationAggregateDescriptor.UPSERT_PRICE_MUTATION.name(), map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
@@ -285,40 +259,32 @@ class GraphQLEntityUpsertMutationConverterTest {
 					.e(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX.name(), "10")
 					.e(UpsertPriceMutationDescriptor.TAX_RATE.name(), "10")
 					.e(UpsertPriceMutationDescriptor.PRICE_WITH_TAX.name(), "11")
-					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false)
-					.build())
+					.e(UpsertPriceMutationDescriptor.SELLABLE.name(), false))
 				.e(LocalMutationAggregateDescriptor.INSERT_REFERENCE_MUTATION.name(), map()
 					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(InsertReferenceMutationDescriptor.CARDINALITY.name(), "ONE_OR_MORE")
-					.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag")
-					.build())
+					.e(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "Tag"))
 				.e(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_MUTATION.name(), map()
 					.e(RemoveReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(RemoveReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
-					.build())
+					.e(RemoveReferenceMutationDescriptor.PRIMARY_KEY.name(), 1))
 				.e(LocalMutationAggregateDescriptor.SET_REFERENCE_GROUP_MUTATION.name(), map()
 					.e(SetReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(SetReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
-					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2)
-					.build())
+					.e(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY.name(), 2))
 				.e(LocalMutationAggregateDescriptor.REMOVE_REFERENCE_GROUP_MUTATION.name(), map()
 					.e(RemoveReferenceGroupMutationDescriptor.NAME.name(), REFERENCE_TAGS)
-					.e(RemoveReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1)
-					.build())
+					.e(RemoveReferenceGroupMutationDescriptor.PRIMARY_KEY.name(), 1))
 				.e(LocalMutationAggregateDescriptor.REFERENCE_ATTRIBUTE_MUTATION.name(), map()
 					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
 						.e(ReferenceAttributeMutationAggregateDescriptor.REMOVE_ATTRIBUTE_MUTATION.name(), map()
-							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
-							.build())
-						.build())
-					.build())
+							.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE))))
 				.build()
 		);
 
-		final EntityMutation entityMutation = resolver.resolve(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -348,17 +314,15 @@ class GraphQLEntityUpsertMutationConverterTest {
 		final List<Map<String, Object>> inputLocalMutations = List.of(
 			map()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.name(), map()
-					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
-					.build())
+					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS))
 				.build(),
 			map()
 				.e(LocalMutationAggregateDescriptor.REMOVE_ASSOCIATED_DATA_MUTATION.name(), map()
-					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_FILES)
-					.build())
+					.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_FILES))
 				.build()
 		);
 
-		final EntityMutation entityMutation = resolver.resolve(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();

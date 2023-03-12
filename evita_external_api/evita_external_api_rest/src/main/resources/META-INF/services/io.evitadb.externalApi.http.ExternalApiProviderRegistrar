@@ -21,4 +21,4 @@
 #   limitations under the License.
 #
 
-io.evitadb.externalApi.rest.RESTProviderRegistrar
+io.evitadb.externalApi.rest.RestProviderRegistrar

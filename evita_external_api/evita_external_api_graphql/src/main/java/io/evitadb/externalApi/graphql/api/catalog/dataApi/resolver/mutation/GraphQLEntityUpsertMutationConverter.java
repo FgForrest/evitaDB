@@ -47,7 +47,7 @@ public class GraphQLEntityUpsertMutationConverter extends EntityUpsertMutationCo
 
 	@Nonnull
 	@Override
-	protected List<Object> resolveAggregates(@Nonnull List<Map<String, Object>> inputLocalMutationAggregates) {
+	protected List<Object> convertAggregates(@Nonnull List<Map<String, Object>> inputLocalMutationAggregates) {
 		return new ArrayList<>(inputLocalMutationAggregates);
 	}
 }

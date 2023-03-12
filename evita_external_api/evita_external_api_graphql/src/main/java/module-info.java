@@ -38,6 +38,7 @@ module evita.external.api.graphql {
 	opens io.evitadb.externalApi.graphql.configuration to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.graphql.io to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.graphql.api.catalog.dataApi.dto to com.graphqljava;
+	opens io.evitadb.externalApi.graphql.api to com.graphqljava;
 
 	requires static jsr305;
 	requires static lombok;

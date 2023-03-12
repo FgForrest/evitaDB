@@ -33,7 +33,9 @@ import graphql.schema.GraphQLType;
 import graphql.schema.GraphQLTypeReference;
 import io.evitadb.dataType.trie.Trie;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.graphql.dataType.DataTypesConverter.ConvertedEnum;
+import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter.ConvertedEnum;
+import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;

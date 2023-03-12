@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 
 import javax.annotation.Nonnull;
@@ -39,10 +38,5 @@ public abstract class CatalogGraphQLSchemaEndpointFunctionalTest extends GraphQL
 	@Override
 	protected String getEndpointPath() {
 		return "/test-catalog/schema";
-	}
-
-	@Nonnull
-	protected static EntitySchema createEmptyEntitySchema(@Nonnull String entityType) {
-		return EntitySchema._internalBuild(entityType);
 	}
 }

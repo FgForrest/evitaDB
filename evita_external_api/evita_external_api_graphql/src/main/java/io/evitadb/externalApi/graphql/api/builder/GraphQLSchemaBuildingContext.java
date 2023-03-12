@@ -37,12 +37,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static graphql.schema.FieldCoordinates.coordinates;
 import static graphql.schema.GraphQLObjectType.newObject;
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Generic context object for building GraphQL schemas.
@@ -64,34 +63,21 @@ public class GraphQLSchemaBuildingContext {
     private final Builder schemaBuilder = GraphQLSchema.newSchema();
     @Nonnull
     private final GraphQLCodeRegistry.Builder registryBuilder = GraphQLCodeRegistry.newCodeRegistry();
-    @Getter
-    @Nonnull
-    private final Map<String, GraphQLObjectType> entityTypeToEntityObject = createHashMap(50);
     /**
      * Holds all globally registered custom enums that will be inserted into GraphQL schema.
      */
     @Nonnull
-    private final Map<String, GraphQLEnumType> customEnums = createHashMap(32);
-
-
-    public void registerEntityObject(@Nonnull String entityType, @Nonnull GraphQLObjectType entityObject) {
-        registerType(entityObject);
-        entityTypeToEntityObject.putIfAbsent(entityType, entityObject);
-    }
+    private final Set<String> registeredCustomEnums = createHashSet(32);
 
     /**
      * Registers new custom enum if there is not enum with same name.
      */
     public void registerCustomEnumIfAbsent(@Nonnull GraphQLEnumType customEnum) {
-        customEnums.computeIfAbsent(
-            customEnum.getName(),
-            name -> {
-                schemaBuilder.additionalType(customEnum);
-                return customEnum;
-            }
-        );
-
-
+        if (registeredCustomEnums.contains(customEnum.getName())) {
+            return;
+        }
+        registeredCustomEnums.add(customEnum.getName());
+        registerType(customEnum);
     }
 
     /**

@@ -36,7 +36,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class GraphQLConstraintSchemaBuildingContext extends ConstraintSchemaBuildingContext<GraphQLType> {
+public class GraphQLConstraintSchemaBuildingContext extends ConstraintSchemaBuildingContext<GraphQLType, GraphQLType> {
 
 	@Nonnull
 	@Getter

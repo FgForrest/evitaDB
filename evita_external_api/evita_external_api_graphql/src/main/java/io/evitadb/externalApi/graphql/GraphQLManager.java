@@ -124,7 +124,7 @@ public class GraphQLManager {
 			registeredCatalogs.put(catalogName, registeredCatalog);
 		} catch (EvitaInternalError ex) {
 			// log and skip the catalog entirely
-			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.");
+			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.", ex);
 		}
 	}
 

@@ -32,7 +32,7 @@ The idea is to structure building methods to reflect an order of actual schema f
 
 Anyway, to add/remove/modify new field or object simply build and register it using the provided 
 `io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext` or 
-`io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntitySchemaGraphQLSchemaBuildingContext`. Usually, when new
+`io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext`. Usually, when new
 fields/objects are being added, [descriptors in code module](external-apis.md#describing-model-entity) must be added too.
 
 The GraphQL API tries to automate building the schema as much as possible using the descriptor transformers which can 

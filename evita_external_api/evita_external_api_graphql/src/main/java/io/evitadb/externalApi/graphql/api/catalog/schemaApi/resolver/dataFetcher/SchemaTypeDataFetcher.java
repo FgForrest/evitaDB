@@ -30,7 +30,7 @@ import graphql.schema.GraphQLList;
 import graphql.schema.GraphQLNonNull;
 import graphql.schema.GraphQLScalarType;
 import graphql.schema.GraphQLType;
-import io.evitadb.externalApi.graphql.dataType.DataTypesConverter;
+import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 
 import javax.annotation.Nonnull;

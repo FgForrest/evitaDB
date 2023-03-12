@@ -23,9 +23,17 @@
 
 package io.evitadb.test.builder;
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.Currency;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -33,20 +41,29 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class MapBuilder {
 
 	private final Map<String, Object> map = new LinkedHashMap<>();
 
 	public static MapBuilder map() {
 		return new MapBuilder();
-	};
+	}
+
+	public Object get(@Nonnull String key) {
+		return map.get(key);
+	}
 
 	public MapBuilder e(@Nonnull String key, @Nullable Object value) {
-		map.put(key, value);
+		if (value instanceof MapBuilder mapBuilder) {
+			map.put(key, mapBuilder.build());
+		} else {
+			map.put(key, value);
+		}
 		return this;
 	}
 
 	public Map<String, Object> build() {
-		return map;
+		return Collections.unmodifiableMap(map);
 	}
 }
