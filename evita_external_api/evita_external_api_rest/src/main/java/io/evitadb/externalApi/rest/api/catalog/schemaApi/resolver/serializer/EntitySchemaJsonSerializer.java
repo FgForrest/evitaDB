@@ -37,18 +37,15 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescrip
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
-import io.evitadb.utils.NamingConvention;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -60,13 +57,10 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class EntitySchemaJsonSerializer {
-
-	@Nonnull
-	private final ObjectJsonSerializer objectJsonSerializer;
+public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 
 	public EntitySchemaJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
-		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
+		super(new ObjectJsonSerializer(restHandlingContext.getObjectMapper()));
 	}
 
 	/**
@@ -208,15 +202,4 @@ public class EntitySchemaJsonSerializer {
 		return referenceSchemaNode;
 	}
 
-	@Nonnull
-	private ObjectNode serializeNameVariants(@Nonnull Map<NamingConvention, String> nameVariants) {
-		final ObjectNode nameVariantsNode = objectJsonSerializer.objectNode();
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), nameVariants.get(NamingConvention.CAMEL_CASE));
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), nameVariants.get(NamingConvention.PASCAL_CASE));
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), nameVariants.get(NamingConvention.SNAKE_CASE));
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), nameVariants.get(NamingConvention.UPPER_SNAKE_CASE));
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), nameVariants.get(NamingConvention.KEBAB_CASE));
-
-		return nameVariantsNode;
-	}
 }

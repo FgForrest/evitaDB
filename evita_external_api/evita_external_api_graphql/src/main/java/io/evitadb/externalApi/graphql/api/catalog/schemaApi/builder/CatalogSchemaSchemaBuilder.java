@@ -119,7 +119,9 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	private GraphQLObjectType buildCatalogSchemaObject() {
 		final CatalogSchemaContract catalogSchema = buildingContext.getSchema();
 
-		final GraphQLObjectType.Builder schemaObjectBuilder = CatalogSchemaDescriptor.THIS.to(objectBuilderTransformer);
+		final GraphQLObjectType.Builder schemaObjectBuilder = CatalogSchemaDescriptor.THIS.to(objectBuilderTransformer)
+			.field(CatalogSchemaDescriptor.ALL_ATTRIBUTES.to(fieldBuilderTransformer))
+			.field(CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.to(fieldBuilderTransformer));
 
 		if (!catalogSchema.getAttributes().isEmpty()) {
 			buildingContext.registerFieldToObject(

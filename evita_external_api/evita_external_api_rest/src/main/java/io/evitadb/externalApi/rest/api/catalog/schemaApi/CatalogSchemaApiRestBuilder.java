@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
 import io.evitadb.externalApi.rest.api.builder.PartialRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.CatalogSchemaObjectBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.EntitySchemaObjectBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.SchemaApiEndpointBuilder;
 
@@ -40,7 +41,7 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 
 	@Nonnull private final SchemaApiEndpointBuilder endpointBuilder;
 	@Nonnull private final EntitySchemaObjectBuilder entitySchemaObjectBuilder;
-//	@Nonnull private final CatalogSchemaObjectBuilder catalogSchemaObjectBuilder;
+	@Nonnull private final CatalogSchemaObjectBuilder catalogSchemaObjectBuilder;
 
 	public CatalogSchemaApiRestBuilder(@Nonnull CatalogRestBuildingContext buildingContext) {
 		super(buildingContext);
@@ -51,11 +52,11 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 			objectBuilderTransformer,
 			propertyBuilderTransformer
 		);
-//		this.catalogSchemaObjectBuilder = new CatalogSchemaObjectBuilder(
-//			buildingContext,
-//			objectBuilderTransformer,
-//			propertyBuilderTransformer
-//		);
+		this.catalogSchemaObjectBuilder = new CatalogSchemaObjectBuilder(
+			buildingContext,
+			objectBuilderTransformer,
+			propertyBuilderTransformer
+		);
 	}
 
 	@Override
@@ -68,7 +69,7 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 		buildingContext.registerType(SchemaNameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
 
 		entitySchemaObjectBuilder.buildCommonTypes();
-//		catalogSchemaObjectBuilder.buildCommonTypes();
+		catalogSchemaObjectBuilder.buildCommonTypes();
 	}
 
 	private void buildEndpoints() {
@@ -77,7 +78,7 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 			buildingContext.registerEndpoint(endpointBuilder.buildGetEntitySchemaEndpoint(buildingContext.getSchema(), entitySchema));
 		});
 
-//		catalogSchemaObjectBuilder.build();
-//		buildingContext.registerEndpoint(endpointBuilder.buildGetCatalogSchemaEndpoint(buildingContext.getSchema()));
+		catalogSchemaObjectBuilder.build();
+		buildingContext.registerEndpoint(endpointBuilder.buildGetCatalogSchemaEndpoint(buildingContext.getSchema()));
 	}
 }

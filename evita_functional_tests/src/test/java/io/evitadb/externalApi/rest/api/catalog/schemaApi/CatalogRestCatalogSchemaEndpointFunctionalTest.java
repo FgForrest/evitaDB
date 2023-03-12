@@ -23,10 +23,9 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
-import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,7 +43,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
+public class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
 
 	@Nonnull
 	@Override
@@ -56,19 +55,19 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return full product schema")
-	void shouldReturnFullProductSchema(Evita evita) {
-		final EntitySchemaContract productSchema = evita.queryCatalog(
+	@DisplayName("Should return full catalog schema")
+	void shouldReturnFullCatalogSchema(Evita evita) {
+		final CatalogSchemaContract catalogSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				return session.getEntitySchema(Entities.PRODUCT);
+				return session.getCatalogSchema();
 			}
-		).orElseThrow();
+		);
 
-		final Map<String, Object> expectedBody = createEntitySchemaDto(evita, productSchema);
+		final Map<String, Object> expectedBody = createCatalogSchemaDto(evita, catalogSchema);
 
 		testRestCall()
-			.urlPathSuffix("/product/schema")
+			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(200)

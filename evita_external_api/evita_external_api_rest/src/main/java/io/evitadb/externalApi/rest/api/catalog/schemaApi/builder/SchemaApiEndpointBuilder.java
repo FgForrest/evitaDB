@@ -26,14 +26,18 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.builder;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.GetCatalogSchemaHandler;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.GetEntitySchemaHandler;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCollectionEndpoint;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint.newCatalogEndpoint;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiCollectionEndpoint.newCollectionEndpoint;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -73,15 +77,15 @@ public class SchemaApiEndpointBuilder {
 			.build();
 	}
 
-//	@Nonnull
-//	public OpenApiCatalogEndpoint buildGetCatalogSchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
-//		return newCatalogEndpoint(catalogSchema)
-//			.path(p -> p
-//				.staticItem(GET_CATALOG_SCHEMA_OPERATION_NAME))
-//			.method(HttpMethod.GET)
-//			.description(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.description())
-//			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))
-//			.handler(GetCatalogSchemaHandler::new)
-//			.build();
-//	}
+	@Nonnull
+	public OpenApiCatalogEndpoint buildGetCatalogSchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
+		return newCatalogEndpoint(catalogSchema)
+			.path(p -> p
+				.staticItem(GET_CATALOG_SCHEMA_OPERATION_NAME))
+			.method(HttpMethod.GET)
+			.description(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.description())
+			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))
+			.handler(GetCatalogSchemaHandler::new)
+			.build();
+	}
 }
