@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
@@ -43,6 +44,7 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
 
@@ -67,7 +69,9 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	 *
 	 * @return serialized entity or list of entities
 	 */
-	public JsonNode serialize(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull Set<String> entityTypes) {
+	public JsonNode serialize(@Nonnull CatalogSchemaContract catalogSchema,
+							  @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+	                          @Nonnull Set<String> entityTypes) {
 		final ObjectNode rootNode = objectJsonSerializer.objectNode();
 
 		rootNode.put(VersionedDescriptor.VERSION.name(), catalogSchema.getVersion());
@@ -76,7 +80,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription());
 
 		rootNode.set(CatalogSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(catalogSchema));
-		rootNode.set(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name(), serializeEntitySchemas(catalogSchema, entityTypes));
+		rootNode.set(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name(), serializeEntitySchemas(entitySchemaFetcher, entityTypes));
 
 		return rootNode;
 	}
@@ -124,16 +128,16 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serializeEntitySchemas(@Nonnull CatalogSchemaContract catalogSchema,
+	private ObjectNode serializeEntitySchemas(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
 	                                          @Nonnull Set<String> entityTypes) {
 		final ObjectNode entitySchemasMap = objectJsonSerializer.objectNode();
 		if (!entityTypes.isEmpty()) {
 			entityTypes.stream()
-				.map(catalogSchema::getEntitySchemaOrThrowException)
+				.map(entitySchemaFetcher)
 				.forEach(entitySchema -> entitySchemasMap.set(
 					entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
 					entitySchemaJsonSerializer.serialize(
-						catalogSchema::getEntitySchemaOrThrowException,
+						entitySchemaFetcher,
 						entitySchema
 					)
 				));

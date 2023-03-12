@@ -31,7 +31,16 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemasDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaNameMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.CatalogSchemaModificationRequestDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
@@ -59,6 +68,20 @@ public class CatalogSchemaObjectBuilder {
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 
 	public void buildCommonTypes() {
+		// catalog schema mutations
+		buildingContext.registerType(CreateCatalogSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyCatalogSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveCatalogSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// global attribute schema mutations
+		buildingContext.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// other mutation objects should be already created by EntitySchemaSchemaBuilder
+		buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(CatalogSchemaModificationRequestDescriptor.THIS.to(objectBuilderTransformer).build());
 	}
 
 	/**

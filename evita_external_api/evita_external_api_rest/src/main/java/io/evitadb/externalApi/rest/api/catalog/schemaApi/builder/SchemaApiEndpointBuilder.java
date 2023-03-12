@@ -29,11 +29,13 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescripto
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.EntitySchemaCreateOrUpdateRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.CatalogSchemaModificationRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.EntitySchemaModificationRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.CreateEntitySchemaHandler;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.DeleteEntitySchemaHandler;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.GetCatalogSchemaHandler;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.GetEntitySchemaHandler;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.UpdateCatalogSchemaHandler;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.UpdateEntitySchemaHandler;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint;
@@ -85,7 +87,7 @@ public class SchemaApiEndpointBuilder {
 			.method(HttpMethod.PUT)
 			.description(CatalogSchemaApiRootDescriptor.UPDATE_ENTITY_SCHEMA.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.requestBody(typeRefTo(EntitySchemaCreateOrUpdateRequestDescriptor.THIS.name()))
+			.requestBody(typeRefTo(EntitySchemaModificationRequestDescriptor.THIS.name()))
 			.successResponse(nonNull(typeRefTo(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema))))
 			.handler(UpdateEntitySchemaHandler::new)
 			.build();
@@ -114,7 +116,7 @@ public class SchemaApiEndpointBuilder {
 				.staticItem(CatalogSchemaApiRootDescriptor.CREATE_ENTITY_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
 			.method(HttpMethod.PUT)
 			.description(CatalogSchemaApiRootDescriptor.CREATE_ENTITY_SCHEMA.description())
-			.requestBody(typeRefTo(EntitySchemaCreateOrUpdateRequestDescriptor.THIS.name()))
+			.requestBody(typeRefTo(EntitySchemaModificationRequestDescriptor.THIS.name()))
 			.successResponse(nonNull(typeRefTo(EntitySchemaDescriptor.THIS_GENERIC.name())))
 			.handler(CreateEntitySchemaHandler::new)
 			.build();
@@ -129,6 +131,19 @@ public class SchemaApiEndpointBuilder {
 			.description(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.description())
 			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))
 			.handler(GetCatalogSchemaHandler::new)
+			.build();
+	}
+
+	@Nonnull
+	public OpenApiCatalogEndpoint buildUpdateCatalogSchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
+		return newCatalogEndpoint(catalogSchema)
+			.path(p -> p
+				.staticItem(CatalogSchemaApiRootDescriptor.UPDATE_CATALOG_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
+			.method(HttpMethod.PUT)
+			.description(CatalogSchemaApiRootDescriptor.UPDATE_CATALOG_SCHEMA.description())
+			.requestBody(typeRefTo(CatalogSchemaModificationRequestDescriptor.THIS.name()))
+			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))
+			.handler(UpdateCatalogSchemaHandler::new)
 			.build();
 	}
 }

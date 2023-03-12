@@ -63,6 +63,16 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 	@Nonnull
+	protected static CatalogSchemaContract getCatalogSchemaFromTestData(@Nonnull Evita evita) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getCatalogSchema();
+			}
+		);
+	}
+
+	@Nonnull
 	protected static EntitySchemaContract getEntitySchemaFromTestData(@Nonnull Evita evita, @Nonnull String entityType) {
 		return evita.queryCatalog(
 			TEST_CATALOG,

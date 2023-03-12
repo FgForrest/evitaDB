@@ -26,7 +26,6 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.model;
 import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
-import io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 

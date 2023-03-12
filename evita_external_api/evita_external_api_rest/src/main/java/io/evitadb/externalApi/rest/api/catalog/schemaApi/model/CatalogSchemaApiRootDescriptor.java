@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.model;
 
 import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 
@@ -47,7 +46,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
             Returns evitaDB's internal schema for whole catalog.
             Can be used for altering catalog schema.
             """)
-        .type(nonNullRef(CatalogSchemaDescriptor.THIS))
+        // type is expected to be specific `CatalogSchema` object
         .build();
     EndpointDescriptor UPDATE_CATALOG_SCHEMA = EndpointDescriptor.builder()
         .operation("schema")
@@ -55,7 +54,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Updates existing evitaDB's internal schema for whole catalog.
             """)
-        .type(nonNullRef(CatalogSchemaDescriptor.THIS))
+        // type is expected to be specific `CatalogSchema` object
         .build();
     EndpointDescriptor DELETE_CATALOG_SCHEMA = EndpointDescriptor.builder()
         .operation("schema")
@@ -63,7 +62,6 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Delete existing evitaDB's internal schema for whole catalog.
             """)
-        .type(nonNullRef(CatalogSchemaDescriptor.THIS))
         .build();
 
     EndpointDescriptor GET_ENTITY_SCHEMA = EndpointDescriptor.builder()
@@ -86,7 +84,6 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Delete existing evitaDB's internal schema for entities from `%s` collection.
             """)
-        // type is expected to be a collection-specific `EntitySchema` object
         .build();
     EndpointDescriptor CREATE_ENTITY_SCHEMA = EndpointDescriptor.builder()
         .operation("schema")

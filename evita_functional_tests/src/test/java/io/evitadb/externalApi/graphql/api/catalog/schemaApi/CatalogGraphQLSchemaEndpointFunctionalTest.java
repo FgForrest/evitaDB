@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 
 import javax.annotation.Nonnull;

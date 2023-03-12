@@ -53,7 +53,7 @@ public class GetCatalogSchemaHandler extends RestHandler<RestHandlingContext> {
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		return restApiHandlingContext.queryCatalog(session ->
 			Optional.of(session.getCatalogSchema())
-				.map(it -> catalogSchemaJsonSerializer.serialize(it, session.getAllEntityTypes()))
+				.map(it -> catalogSchemaJsonSerializer.serialize(it, session::getEntitySchemaOrThrow, session.getAllEntityTypes()))
 		);
 	}
 }

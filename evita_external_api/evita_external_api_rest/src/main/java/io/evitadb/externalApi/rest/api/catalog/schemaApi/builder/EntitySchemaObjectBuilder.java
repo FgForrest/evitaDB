@@ -53,7 +53,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Remov
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.EntitySchemaCreateOrUpdateRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.EntitySchemaModificationRequestDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
@@ -146,7 +146,7 @@ public class EntitySchemaObjectBuilder {
 		buildingContext.registerType(SetReferenceSchemaFilterableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 
 		buildingContext.registerType(EntitySchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(EntitySchemaCreateOrUpdateRequestDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(EntitySchemaModificationRequestDescriptor.THIS.to(objectBuilderTransformer).build());
 	}
 
 	/**
