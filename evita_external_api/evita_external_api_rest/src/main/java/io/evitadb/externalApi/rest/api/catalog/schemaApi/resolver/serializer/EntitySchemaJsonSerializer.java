@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -59,8 +60,21 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME
 @Slf4j
 public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 
-	public EntitySchemaJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
+	private final boolean generic;
+
+	private EntitySchemaJsonSerializer(@Nonnull RestHandlingContext restHandlingContext, boolean generic) {
 		super(new ObjectJsonSerializer(restHandlingContext.getObjectMapper()));
+		this.generic = generic;
+	}
+
+	@Nonnull
+	public static EntitySchemaJsonSerializer specific(@Nonnull RestHandlingContext restHandlingContext) {
+		return new EntitySchemaJsonSerializer(restHandlingContext, false);
+	}
+
+	@Nonnull
+	public static EntitySchemaJsonSerializer generic(@Nonnull RestHandlingContext restHandlingContext) {
+		return new EntitySchemaJsonSerializer(restHandlingContext, true);
 	}
 
 	/**
@@ -85,9 +99,15 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		rootNode.set(EntitySchemaDescriptor.CURRENCIES.name(), objectJsonSerializer.serializeCollection(entitySchema.getCurrencies().stream().map(Currency::toString).toList()));
 		rootNode.set(EntitySchemaDescriptor.EVOLUTION_MODE.name(), objectJsonSerializer.serializeCollection(entitySchema.getEvolutionMode().stream().map(EvolutionMode::name).toList()));
 
-		rootNode.set(EntitySchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(entitySchema));
-		rootNode.set(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), serializeAssociatedDataSchemas(entitySchema));
-		rootNode.set(EntitySchemaDescriptor.REFERENCES.name(), serializeReferenceSchemas(entitySchemaFetcher, entitySchema));
+		if (generic) {
+			rootNode.set(EntitySchemaDescriptor.ALL_ATTRIBUTES.name(), serializeAllAttributeSchemas(entitySchema));
+			rootNode.set(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.name(), serializeAllAssociatedDataSchemas(entitySchema));
+			rootNode.set(EntitySchemaDescriptor.ALL_REFERENCES.name(), serializeAllReferenceSchemas(entitySchemaFetcher, entitySchema));
+		} else {
+			rootNode.set(EntitySchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(entitySchema));
+			rootNode.set(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), serializeAssociatedDataSchemas(entitySchema));
+			rootNode.set(EntitySchemaDescriptor.REFERENCES.name(), serializeReferenceSchemas(entitySchemaFetcher, entitySchema));
+		}
 
 		return rootNode;
 	}
@@ -105,6 +125,20 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		}
 
 		return attributeSchemasMap;
+	}
+
+	@Nonnull
+	private ArrayNode serializeAllAttributeSchemas(@Nonnull AttributeSchemaProvider<? extends AttributeSchemaContract> attributeSchemaProvider) {
+		final Collection<? extends AttributeSchemaContract> attributeSchemas = attributeSchemaProvider.getAttributes().values();
+
+		final ArrayNode attributeSchemasArray = objectJsonSerializer.arrayNode();
+		if (!attributeSchemas.isEmpty()) {
+			attributeSchemas.forEach(attributeSchema -> attributeSchemasArray.add(
+				serializeAttributeSchema(attributeSchema)
+			));
+		}
+
+		return attributeSchemasArray;
 	}
 
 	@Nonnull
@@ -150,6 +184,20 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	@Nonnull
+	private ArrayNode serializeAllAssociatedDataSchemas(@Nonnull EntitySchemaContract entitySchema) {
+		final Collection<AssociatedDataSchemaContract> associatedDataSchemas = entitySchema.getAssociatedData().values();
+
+		final ArrayNode associatedDataSchemasArray = objectJsonSerializer.arrayNode();
+		if (!associatedDataSchemas.isEmpty()) {
+			associatedDataSchemas.forEach(associatedDataSchema -> associatedDataSchemasArray.add(
+				serializeAssociatedDataSchema(associatedDataSchema))
+			);
+		}
+
+		return associatedDataSchemasArray;
+	}
+
+	@Nonnull
 	private ObjectNode serializeAssociatedDataSchema(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
 		final ObjectNode associatedDataSchemaNode = objectJsonSerializer.objectNode();
 		associatedDataSchemaNode.put(AssociatedDataSchemaDescriptor.NAME.name(), associatedDataSchema.getName());
@@ -180,6 +228,21 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	@Nonnull
+	private ArrayNode serializeAllReferenceSchemas(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+	                                             @Nonnull EntitySchemaContract entitySchema) {
+		final Collection<ReferenceSchemaContract> referenceSchemas = entitySchema.getReferences().values();
+
+		final ArrayNode referenceSchemasArray = objectJsonSerializer.arrayNode();
+		if (!referenceSchemas.isEmpty()) {
+			referenceSchemas.forEach(referenceSchema -> referenceSchemasArray.add(
+				serializeReferenceSchema(entitySchemaFetcher, referenceSchema)
+			));
+		}
+
+		return referenceSchemasArray;
+	}
+
+	@Nonnull
 	private ObjectNode serializeReferenceSchema(@Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
 	                                            @Nonnull ReferenceSchemaContract referenceSchema) {
 		final ObjectNode referenceSchemaNode = objectJsonSerializer.objectNode();
@@ -197,7 +260,11 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.FILTERABLE.name(), referenceSchema.isFilterable());
 		referenceSchemaNode.put(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted());
 
-		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
+		if (generic) {
+			referenceSchemaNode.set(ReferenceSchemaDescriptor.ALL_ATTRIBUTES.name(), serializeAllAttributeSchemas(referenceSchema));
+		} else {
+			referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
+		}
 
 		return referenceSchemaNode;
 	}

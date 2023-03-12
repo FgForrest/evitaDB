@@ -85,7 +85,7 @@ public interface ParamDescriptor {
         .name("priceValidIn")
         .description("""
             Parameter specifying desired validity of price for sale of queried entity. The date time is resolved to
-            `now` by Evita. If both `priceValidInNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
+            `now` by evitaDB. If both `priceValidInNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
             """)
         .type(nullable(OffsetDateTime.class))
         .build();
@@ -94,7 +94,7 @@ public interface ParamDescriptor {
         .name("priceValidNow")
         .description("""
             Parameter specifying desired validity of price for sale of queried entity. The date time is resolved to
-            `now` by Evita. If both `priceValidNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
+            `now` by evitaDB. If both `priceValidNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
             """)
         .type(nullable(Boolean.class))
         .build();
@@ -192,5 +192,13 @@ public interface ParamDescriptor {
            Parameter specifying whether count of entities within single collection should be returned in response.
             """)
         .type(nullable(Boolean.class))
+        .build();
+
+    PropertyDescriptor ENTITY_TYPE = PropertyDescriptor.builder()
+        .name("entityType")
+        .description("""
+            Type of entity collection.
+            """)
+        .type(nonNull(String.class))
         .build();
 }

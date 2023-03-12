@@ -74,6 +74,7 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 
 	private static final String STATUS_CODE_OK = String.valueOf(StatusCodes.OK);
+	private static final String STATUS_CODE_NO_CONTENT = String.valueOf(StatusCodes.NO_CONTENT);
 	private static final String STATUS_CODE_INTERNAL_SERVER_ERROR = String.valueOf(StatusCodes.INTERNAL_SERVER_ERROR);
 	private static final String STATUS_CODE_METHOD_NOT_ALLOWED = String.valueOf(StatusCodes.METHOD_NOT_ALLOWED);
 	private static final String STATUS_CODE_NOT_FOUND = String.valueOf(StatusCodes.NOT_FOUND);
@@ -98,7 +99,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	@Nonnull protected final List<OpenApiEndpointParameter> parameters;
 
 	@Nullable protected final OpenApiSimpleType requestBody;
-	@Nonnull protected final OpenApiSimpleType successResponse;
+	@Nullable protected final OpenApiSimpleType successResponse;
 
 	@Nonnull protected final Function<HC, RestHandler<HC>> handlerBuilder;
 
@@ -133,13 +134,23 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 		}
 
 		final ApiResponses responses = new ApiResponses();
-		responses.addApiResponse(
-			STATUS_CODE_OK,
-			createResponse(
-				"Request was successful.",
-				successResponse
-			)
-		);
+		if (successResponse != null) {
+			responses.addApiResponse(
+				STATUS_CODE_OK,
+				createResponse(
+					"Request was successful.",
+					successResponse
+				)
+			);
+		} else {
+			responses.addApiResponse(
+				STATUS_CODE_NO_CONTENT,
+				createResponse(
+					"Request was successful.",
+					null
+				)
+			);
+		}
 		if (!(this.successResponse instanceof OpenApiNonNull)) {
 			responses.addApiResponse(
 				STATUS_CODE_NOT_FOUND,
@@ -185,17 +196,22 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	}
 
 	@Nonnull
-	protected ApiResponse createResponse(@Nonnull String description, @Nonnull OpenApiSimpleType type) {
-		return new ApiResponse()
-			.description(description)
-			.content(
-				new Content()
-					.addMediaType(
-						MimeTypes.APPLICATION_JSON,
-						new MediaType()
-							.schema(type.toSchema())
-					)
-			);
+	protected ApiResponse createResponse(@Nonnull String description, @Nullable OpenApiSimpleType type) {
+		final ApiResponse response = new ApiResponse()
+			.description(description);
+		if (type != null) {
+			response
+				.content(
+					new Content()
+						.addMediaType(
+							MimeTypes.APPLICATION_JSON,
+							new MediaType()
+								.schema(type.toSchema())
+						)
+				);
+		}
+
+		return response;
 	}
 
 	@Nonnull

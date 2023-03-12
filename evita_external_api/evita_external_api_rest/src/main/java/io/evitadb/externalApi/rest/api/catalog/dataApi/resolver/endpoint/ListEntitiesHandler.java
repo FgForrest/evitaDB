@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.And;
@@ -32,14 +31,13 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.EntityQueryRequestData;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderByConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
 import io.evitadb.externalApi.rest.io.RestHandler;
@@ -90,7 +88,7 @@ public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingConte
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Query query = resolveQuery(exchange);
 
-		log.debug("Generated Evita query for entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
+		log.debug("Generated evitaDB query for entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
 
 		final List<EntityClassifier> entities = restApiHandlingContext.queryCatalog(session ->
 			session.queryList(query, EntityClassifier.class));
@@ -100,7 +98,7 @@ public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingConte
 
 	@Nonnull
 	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) {
-		final EntityQueryRequestData requestData = getRequestData(exchange);
+		final QueryEntityRequestDto requestData = parseRequestBody(exchange, QueryEntityRequestDto.class);
 
 		final FilterBy filterBy = requestData.getFilterBy()
 			.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchRequestDescriptor.FILTER_BY.name(), container))
@@ -175,14 +173,5 @@ public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingConte
 			Array.set(array, constraints.length, constraint);
 		}
 		return (T[]) array;
-	}
-
-	@Nonnull
-	protected EntityQueryRequestData getRequestData(@Nonnull HttpServerExchange exchange) {
-		try {
-			return restApiHandlingContext.getObjectMapper().readValue(readRequestBody(exchange), EntityQueryRequestData.class);
-		} catch (JsonProcessingException e) {
-			throw new RestInternalError("Could not parse request body: ", e);
-		}
 	}
 }

@@ -23,20 +23,18 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.EntityUpsertRequestData;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.UpsertEntityUpsertRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.evitadb.utils.Assert;
@@ -76,7 +74,7 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 	@Override
 	@Nonnull
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		final EntityUpsertRequestData requestData = getRequestData(exchange);
+		final UpsertEntityUpsertRequestDto requestData = parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class);
 
 		if (withPrimaryKeyInPath) {
 			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
@@ -105,7 +103,7 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 	}
 
 	@Nonnull
-	private Optional<EntityContentRequire[]> getEntityContentRequires(@Nonnull EntityUpsertRequestData requestData) {
+	private Optional<EntityContentRequire[]> getEntityContentRequires(@Nonnull UpsertEntityUpsertRequestDto requestData) {
 		return requestData.getRequire()
 			.map(it -> (Require) requireConstraintResolver.resolve(FetchRequestDescriptor.REQUIRE.name(), it))
 			.flatMap(require -> Arrays.stream(require.getChildren())
@@ -120,20 +118,5 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 					return requires;
 				})
 			);
-	}
-
-	@Nonnull
-	protected EntityUpsertRequestData getRequestData(@Nonnull HttpServerExchange exchange) {
-		final String content = readRequestBody(exchange);
-		Assert.isTrue(
-			content.trim().length() > 0,
-			() -> new RestInvalidArgumentException("Request's body contains no data.")
-		);
-
-		try {
-			return restApiHandlingContext.getObjectMapper().readValue(content, EntityUpsertRequestData.class);
-		} catch (JsonProcessingException e) {
-			throw new RestInternalError("Could not parse request body: ", e);
-		}
 	}
 }

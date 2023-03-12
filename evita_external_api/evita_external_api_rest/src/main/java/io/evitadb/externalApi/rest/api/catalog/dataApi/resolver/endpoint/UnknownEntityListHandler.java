@@ -64,7 +64,7 @@ public class UnknownEntityListHandler extends RestHandler<RestHandlingContext> {
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 		);
 
-		log.debug("Generated Evita query for unknown entity list fetch is `" + query + "`.");
+		log.debug("Generated evitaDB query for unknown entity list fetch is `" + query + "`.");
 
 		final List<EntityClassifier> entities = restApiHandlingContext.queryCatalog(session ->
 			session.queryList(query, EntityClassifier.class));

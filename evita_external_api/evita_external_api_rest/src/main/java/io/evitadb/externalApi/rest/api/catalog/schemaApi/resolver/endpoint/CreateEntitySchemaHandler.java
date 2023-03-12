@@ -28,13 +28,14 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySchemaMutationAggregateConverter;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectParser;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.EntitySchemaJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestHandler;
+import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,31 +43,33 @@ import javax.annotation.Nonnull;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
- * Handles update request for entity schema.
+ * Handles create request for entity schema.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class UpdateEntitySchemaHandler extends RestHandler<CollectionRestHandlingContext> {
+public class CreateEntitySchemaHandler extends RestHandler<RestHandlingContext> {
 
 	@Nonnull private final EntitySchemaMutationAggregateConverter mutationAggregateResolver;
 	@Nonnull private final EntitySchemaJsonSerializer entitySchemaJsonSerializer;
 
-	public UpdateEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+	public CreateEntitySchemaHandler(@Nonnull RestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.mutationAggregateResolver = new EntitySchemaMutationAggregateConverter(
 			new RestMutationObjectParser(restApiHandlingContext.getObjectMapper()),
 			new RestMutationResolvingExceptionFactory()
 		);
-		this.entitySchemaJsonSerializer = EntitySchemaJsonSerializer.specific(restApiHandlingContext);
+		this.entitySchemaJsonSerializer = EntitySchemaJsonSerializer.generic(restApiHandlingContext);
 	}
 
 	@Override
 	@Nonnull
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+		final Map<String, Object> parameters = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
 
 		final List<EntitySchemaMutation> schemaMutations = new LinkedList<>();
@@ -76,7 +79,7 @@ public class UpdateEntitySchemaHandler extends RestHandler<CollectionRestHandlin
 			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
 		}
 		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(
-			restApiHandlingContext.getEntityType(),
+			(String) parameters.get(ParamDescriptor.ENTITY_TYPE.name()),
 			schemaMutations.toArray(EntitySchemaMutation[]::new)
 		);
 

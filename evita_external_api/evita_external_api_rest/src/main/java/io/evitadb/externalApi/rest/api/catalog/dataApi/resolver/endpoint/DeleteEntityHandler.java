@@ -25,7 +25,7 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.externalApi.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
@@ -60,7 +60,7 @@ public class DeleteEntityHandler extends RestHandler<CollectionRestHandlingConte
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
 
 		Assert.isTrue(
-			parametersFromRequest.containsKey(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY.name()),
+			parametersFromRequest.containsKey(ParamDescriptor.PRIMARY_KEY.name()),
 			() -> new RestInvalidArgumentException("Primary key wasn't found in URL.")
 		);
 
@@ -69,7 +69,7 @@ public class DeleteEntityHandler extends RestHandler<CollectionRestHandlingConte
 		final Optional<SealedEntity> deletedEntity = restApiHandlingContext.updateCatalog(session ->
 			session.deleteEntity(
 				restApiHandlingContext.getEntityType(),
-				(Integer) parametersFromRequest.get(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY.name()),
+				(Integer) parametersFromRequest.get(ParamDescriptor.PRIMARY_KEY.name()),
 				entityContentRequires
 			)
 		);

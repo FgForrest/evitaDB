@@ -191,8 +191,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			FILTERABLE,
 			FACETED,
 			ENTITY_TYPE_NAME_VARIANTS,
-			GROUP_TYPE_NAME_VARIANTS,
-			ALL_ATTRIBUTES
+			GROUP_TYPE_NAME_VARIANTS
 		))
 		.build();
 

@@ -116,7 +116,9 @@ public class OpenApiObject implements OpenApiComplexType {
 				case ANY_OF -> unionObjects.forEach(it -> schema.addAnyOfItem(it.toSchema()));
 				case ALL_OF -> unionObjects.forEach(it -> schema.addAllOfItem(it.toSchema()));
 			}
-			schema.discriminator(new Discriminator().propertyName(unionDiscriminator));
+			if (unionDiscriminator != null) {
+				schema.discriminator(new Discriminator().propertyName(unionDiscriminator));
+			}
 		} else {
 			schema = new ObjectSchema();
 			schema.setProperties(new LinkedHashMap<>(this.properties.size()));
@@ -269,12 +271,6 @@ public class OpenApiObject implements OpenApiComplexType {
 				name != null && !name.isEmpty(),
 				() -> new OpenApiBuildingError("Missing object name.")
 			);
-			if (!unionObjects.isEmpty()) {
-				Assert.isPremiseValid(
-					unionDiscriminator != null && !unionDiscriminator.isEmpty(),
-					() -> new OpenApiBuildingError("Object `" + name + "` is supposed to be union but no discriminator was specified.")
-				);
-			}
 			return new OpenApiObject(name, description, deprecationNotice, new ArrayList<>(properties.values()), unionType, unionDiscriminator, unionObjects);
 		}
 	}

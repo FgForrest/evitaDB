@@ -32,6 +32,7 @@ import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestRequiredParameterMissingException;
+import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
@@ -82,16 +83,21 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     public void handleRequest(HttpServerExchange exchange) throws Exception {
         validateRequest(exchange);
 
-        final Object resultObject = doHandleRequest(exchange)
+        final Optional<Object> result = doHandleRequest(exchange);
+        if (result == null) {
+            sendSuccessResponse(exchange);
+        }
+
+        final Object resultObject = result
             .orElseThrow(() -> new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found."));
 
-        final String result;
+        final String resultJson;
         if (resultObject instanceof String) {
-            result = (String) resultObject;
+            resultJson = (String) resultObject;
         } else {
-            result = serializeResult(resultObject);
+            resultJson = serializeResult(resultObject);
         }
-        setSuccessResponse(exchange, result);
+        sendSuccessResponse(exchange, resultJson);
     }
 
     @Nonnull
@@ -99,7 +105,11 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
         return MimeTypes.APPLICATION_JSON;
     }
 
-    @Nonnull
+    /**
+     * Handle request and return response. If null returned, no response body is returned. If empty optional
+     * supplied, 404 is returned otherwise passed object is returned.
+     */
+    @Nullable
     protected abstract Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange);
 
     /**
@@ -152,7 +162,7 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
      * Reads request body into string.
      */
     @Nonnull
-    protected String readRequestBody(@Nonnull HttpServerExchange exchange) {
+    private String readRequestBody(@Nonnull HttpServerExchange exchange) {
         final String bodyContentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
         final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
             .map(String::trim)
@@ -180,6 +190,24 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
             return bf.lines().collect(Collectors.joining("\n"));
         } catch (IOException e) {
             throw new RestInternalError("Could not read request body: ", e);
+        }
+    }
+
+    /**
+     * Tries to parse input request body JSON into data class.
+     */
+    @Nonnull
+    protected <T> T parseRequestBody(@Nonnull HttpServerExchange exchange, @Nonnull Class<T> dataClass) {
+        final String content = readRequestBody(exchange);
+        Assert.isTrue(
+            !content.trim().isEmpty(),
+            () -> new RestInvalidArgumentException("Request's body contains no data.")
+        );
+
+        try {
+            return restApiHandlingContext.getObjectMapper().readValue(content, dataClass);
+        } catch (JsonProcessingException e) {
+            throw new RestInternalError("Could not parse request body: ", e);
         }
     }
 
@@ -241,7 +269,12 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
         return json;
     }
 
-    protected void setSuccessResponse(@Nonnull HttpServerExchange exchange, @Nonnull String data) {
+    private void sendSuccessResponse(@Nonnull HttpServerExchange exchange) {
+        exchange.setStatusCode(StatusCodes.NO_CONTENT);
+        exchange.endExchange();
+    }
+
+    private void sendSuccessResponse(@Nonnull HttpServerExchange exchange, @Nonnull String data) {
         exchange.setStatusCode(StatusCodes.OK);
         exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, getContentType() + CONTENT_TYPE_CHARSET);
         exchange.getResponseSender().send(data);

@@ -21,27 +21,36 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model;
+package io.evitadb.externalApi.rest.api.catalog.schemaApi.model;
 
-import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import java.util.List;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 
 /**
- * Descriptor for header arguments of {@link CatalogRootDescriptor#UPDATE_CATALOG_SCHEMA}
- * query.
+ * Descriptor for request body of {@link CatalogSchemaApiRootDescriptor#UPDATE_ENTITY_SCHEMA} endpoint.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface UpdateEntitySchemaQueryHeaderDescriptor {
+public interface EntitySchemaCreateOrUpdateRequestDescriptor {
 
 	PropertyDescriptor MUTATIONS = PropertyDescriptor.builder()
 		.name("mutations")
 		.description("""
-			Individual mutations to apply to entity schema.
+			Individual mutations to apply to entity schema to create new one or update existing.
 			""")
 		.type(nonNullListRef(EntitySchemaMutationAggregateDescriptor.THIS))
+		.build();
+
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("EntitySchemaCreateOrUpdateRequest")
+		.description("""
+			Creates new or updates existing entity schema with passed mutations and returns the updated entity schema.
+			""")
+		.staticFields(List.of(MUTATIONS))
 		.build();
 }

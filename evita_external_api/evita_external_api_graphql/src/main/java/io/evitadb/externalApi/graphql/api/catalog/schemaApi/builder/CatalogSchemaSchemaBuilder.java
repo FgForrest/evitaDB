@@ -27,13 +27,14 @@ import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaUnionDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemasDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
@@ -63,7 +64,6 @@ import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder.EntitySchemaSchemaBuilder.ATTRIBUTE_SCHEMA_UNION_NAME;
 
 /**
  * Implementation of {@link PartialGraphQLSchemaBuilder} for building schema for fetching and updating {@link CatalogSchemaContract}.
@@ -250,33 +250,25 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 	@Nonnull
 	private GraphQLObjectType buildEntitySchemaObject() {
-		final GraphQLObjectType.Builder entitySchemaBuilder = EntitySchemaDescriptor.THIS_GENERIC
-			.to(objectBuilderTransformer);
-
-		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_ATTRIBUTES
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(ATTRIBUTE_SCHEMA_UNION_NAME))))));
 		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
 		);
-
-		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.to(fieldBuilderTransformer));
 		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ASSOCIATED_DATA,
 			new AllAssociatedDataSchemasDataFetcher()
 		);
-
-		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_REFERENCES.to(fieldBuilderTransformer));
 		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_REFERENCES,
 			new AllReferenceSchemasDataFetcher()
 		);
 
-		return entitySchemaBuilder.build();
+		return EntitySchemaDescriptor.THIS_GENERIC
+			.to(objectBuilderTransformer)
+			.build();
 	}
 
 	/*

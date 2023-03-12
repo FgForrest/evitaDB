@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.dataApi.dto;
+package io.evitadb.externalApi.rest.api.catalog.schemaApi.dto;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
@@ -29,42 +29,24 @@ import lombok.Builder;
 import lombok.extern.jackson.Jacksonized;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
- * DTO used to get root query constraints from request to get list of entities.
+ * DTO used for entity schema creation and update.
  *
- * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Builder
 @Jacksonized
-public class EntityQueryRequestData {
+public class CreateOrUpdateEntitySchemaRequestData {
 
-	private final JsonNode filterBy;
-	private final JsonNode orderBy;
-	private final JsonNode require;
+	private final JsonNode mutations;
 
 	@Nonnull
-	public Optional<JsonNode> getFilterBy() {
-		return getContainer(filterBy);
-	}
-
-	@Nonnull
-	public Optional<JsonNode> getOrderBy() {
-		return getContainer(orderBy);
-	}
-
-	@Nonnull
-	public Optional<JsonNode> getRequire() {
-		return getContainer(require);
-	}
-
-	@Nonnull
-	private static Optional<JsonNode> getContainer(@Nullable JsonNode container) {
-		if (container == null || container instanceof NullNode) {
+	public Optional<JsonNode> getMutations() {
+		if (mutations == null || mutations instanceof NullNode) {
 			return Optional.empty();
 		}
-		return Optional.of(container);
+		return Optional.of(mutations);
 	}
 }

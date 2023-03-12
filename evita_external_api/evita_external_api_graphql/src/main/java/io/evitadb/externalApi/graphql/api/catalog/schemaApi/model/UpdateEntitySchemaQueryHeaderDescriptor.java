@@ -21,27 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.schemaApi.model;
+package io.evitadb.externalApi.graphql.api.catalog.schemaApi.model;
 
-import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 
 /**
- * Descriptor for header arguments of {@link CatalogRootDescriptor#UPDATE_CATALOG_SCHEMA}
+ * Descriptor for header arguments of {@link CatalogSchemaApiRootDescriptor#UPDATE_CATALOG_SCHEMA}
  * query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface UpdateCatalogSchemaQueryHeaderDescriptor {
+public interface UpdateEntitySchemaQueryHeaderDescriptor {
 
 	PropertyDescriptor MUTATIONS = PropertyDescriptor.builder()
 		.name("mutations")
 		.description("""
-			Individual mutations to apply to catalog schema.
+			Individual mutations to apply to entity schema.
 			""")
-		.type(nonNullListRef(LocalCatalogSchemaMutationAggregateDescriptor.THIS))
+		.type(nonNullListRef(EntitySchemaMutationAggregateDescriptor.THIS))
 		.build();
 }

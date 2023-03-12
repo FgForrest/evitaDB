@@ -52,6 +52,8 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateEntitySchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateEntitySchemaMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
@@ -72,8 +74,6 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<CatalogGraphQLSchemaBuildingContext> {
-
-	public static final String ATTRIBUTE_SCHEMA_UNION_NAME = "AttributeSchemaUnion";
 
 	public EntitySchemaSchemaBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext catalogGraphQLSchemaBuildingContext) {
 		super(catalogGraphQLSchemaBuildingContext);
@@ -151,6 +151,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			buildingContext.registerType(buildEntitySchemaObject(entitySchema));
 			buildingContext.registerQueryField(buildEntitySchemaField(entitySchema));
+			// todo lho implement entity schema create mutation
 			buildingContext.registerMutationField(buildUpdateEntitySchemaField(entitySchema));
 		});
 	}
@@ -191,7 +192,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		schemaObjectBuilder.field(EntitySchemaDescriptor.ALL_ATTRIBUTES
 			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(ATTRIBUTE_SCHEMA_UNION_NAME))))));
+			.type(nonNull(list(nonNull(typeRef(AttributeSchemaUnionDescriptor.THIS.name()))))));
 		buildingContext.registerDataFetcher(
 			objectName,
 			EntitySchemaDescriptor.ALL_ATTRIBUTES,
@@ -263,9 +264,9 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 	@Nonnull
 	private GraphQLUnionType buildAttributeSchemaUnion(@Nonnull GraphQLObjectType attributeSchemaObject,
-	                                                    @Nonnull GraphQLObjectType globalAttributeSchemaObject) {
-		final GraphQLUnionType attributeSchemaUnion = newUnionType()
-			.name(ATTRIBUTE_SCHEMA_UNION_NAME)
+	                                                   @Nonnull GraphQLObjectType globalAttributeSchemaObject) {
+		final GraphQLUnionType attributeSchemaUnion = AttributeSchemaUnionDescriptor.THIS
+			.to(unionBuilderTransformer)
 			.possibleType(attributeSchemaObject)
 			.possibleType(globalAttributeSchemaObject)
 			.build();
@@ -496,7 +497,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		final GraphQLObjectType.Builder referenceSchemaObjectBuilder = ReferenceSchemaDescriptor.THIS_SPECIFIC
 			.to(objectBuilderTransformer)
-			.name(objectName);
+			.name(objectName)
+			.field(ReferenceSchemaDescriptor.ALL_ATTRIBUTES.to(fieldBuilderTransformer));
 
 		buildingContext.registerDataFetcher(
 			objectName,

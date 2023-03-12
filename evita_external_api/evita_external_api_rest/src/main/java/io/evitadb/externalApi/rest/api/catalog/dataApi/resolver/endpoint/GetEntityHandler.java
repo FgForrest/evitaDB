@@ -65,7 +65,7 @@ public class GetEntityHandler extends RestHandler<CollectionRestHandlingContext>
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 		);
 
-		log.debug("Generated Evita query for single entity fetch of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
+		log.debug("Generated evitaDB query for single entity fetch of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
 
 		final Optional<EntityClassifier> entity = restApiHandlingContext.queryCatalog(session ->
 			session.queryOne(query, EntityClassifier.class));

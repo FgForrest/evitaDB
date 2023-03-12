@@ -28,7 +28,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.EntityQueryRequestData;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderByConstraintResolver;
@@ -68,7 +68,7 @@ public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Query query = resolveQuery(exchange);
 
-		log.debug("Generated Evita query for deletion of entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
+		log.debug("Generated evitaDB query for deletion of entity list of type `" + restApiHandlingContext.getEntitySchema() + "` is `" + query + "`.");
 
 		final SealedEntity[] deletedEntities = restApiHandlingContext.updateCatalog(session ->
 			session.deleteEntitiesAndReturnBodies(query));
@@ -79,7 +79,7 @@ public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
 	@Override
 	@Nonnull
 	protected Query resolveQuery(@Nonnull HttpServerExchange exchange) {
-		final EntityQueryRequestData requestData = getRequestData(exchange);
+		final QueryEntityRequestDto requestData = parseRequestBody(exchange, QueryEntityRequestDto.class);
 
 		final FilterBy filterBy = requestData.getFilterBy()
 			.map(it -> (FilterBy) filterConstraintResolver.resolve(FetchRequestDescriptor.FILTER_BY.name(), it))

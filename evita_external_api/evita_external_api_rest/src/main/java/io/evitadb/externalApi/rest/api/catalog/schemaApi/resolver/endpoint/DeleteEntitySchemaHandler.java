@@ -24,36 +24,30 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.EntitySchemaJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
- * Handles request for fetching entity schema
+ * Handles create and update request for entity schema.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class GetEntitySchemaHandler extends RestHandler<CollectionRestHandlingContext> {
+public class DeleteEntitySchemaHandler extends RestHandler<CollectionRestHandlingContext> {
 
-	@Nonnull
-	private final EntitySchemaJsonSerializer entitySchemaJsonSerializer;
-
-	public GetEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
+	public DeleteEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		entitySchemaJsonSerializer = EntitySchemaJsonSerializer.specific(restApiHandlingContext);
 	}
 
 	@Override
-	@Nonnull
+	@Nullable
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		return restApiHandlingContext.queryCatalog(session ->
-			session.getEntitySchema(restApiHandlingContext.getEntityType())
-				.map(it -> entitySchemaJsonSerializer.serialize(session::getEntitySchemaOrThrow, it))
-		);
+		restApiHandlingContext.updateCatalog(session -> session.deleteCollection(restApiHandlingContext.getEntityType()));
+		return null;
 	}
 }

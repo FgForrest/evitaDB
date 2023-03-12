@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUnion;
@@ -174,7 +173,7 @@ public class DataApiEndpointBuilder {
 				.method(HttpMethod.GET)
 				.description(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.description())
 				.queryParameters(queryParameters)
-				.successResponse(nonNull(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name())))
+				.successResponse(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name()))
 				.handler(UnknownEntityHandler::new)
 				.build()
 		);
@@ -233,14 +232,14 @@ public class DataApiEndpointBuilder {
 	public OpenApiCollectionEndpoint buildDeleteEntityEndpoint(@Nonnull EntitySchemaContract entitySchema) {
 		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(p -> p // directly at the collection root
-				.paramItem(DeleteEntitiesMutationHeaderDescriptor.PRIMARY_KEY
+				.paramItem(ParamDescriptor.PRIMARY_KEY
 					.to(operationPathParameterBuilderTransformer)
 					.type(DataTypesConverter.getOpenApiScalar(Integer.class, true))))
 			.method(HttpMethod.DELETE)
 			.description(CatalogDataApiRootDescriptor.DELETE_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.queryParameters(buildEntityFetchQueryParameters(entitySchema))
-			.successResponse(nonNull(typeRefTo(constructEntityObjectName(entitySchema, false))))
+			.successResponse(typeRefTo(constructEntityObjectName(entitySchema, false)))
 			.handler(DeleteEntityHandler::new)
 			.build();
 	}

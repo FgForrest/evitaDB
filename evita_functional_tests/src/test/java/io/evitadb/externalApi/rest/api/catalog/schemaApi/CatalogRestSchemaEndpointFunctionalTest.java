@@ -40,7 +40,9 @@ import io.evitadb.utils.NamingConvention;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -59,6 +61,16 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
 abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunctionalTest {
+
+	@Nonnull
+	protected static EntitySchemaContract getEntitySchemaFromTestData(@Nonnull Evita evita, @Nonnull String entityType) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntitySchemaOrThrow(entityType);
+			}
+		);
+	}
 
 	@Nonnull
 	protected static Map<String, Object> createCatalogSchemaDto(@Nonnull Evita evita,
@@ -101,7 +113,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				final Map<String, Object> entitySchemas = (Map<String, Object>) catalogSchemaDto.get(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name());
 				entitySchemas.put(
 					entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
-					createEntitySchemaDto(evita, entitySchema)
+					createSpecificEntitySchemaDto(evita, entitySchema)
 				);
 			});
 
@@ -109,31 +121,87 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 	}
 
 	@Nonnull
-	protected static Map<String, Object> createEntitySchemaDto(@Nonnull Evita evita, @Nonnull EntitySchemaContract productSchema) {
+	protected static Map<String, Object> createGenericEntitySchemaDto(@Nonnull Evita evita, @Nonnull EntitySchemaContract entitySchema) {
 		final MapBuilder entitySchemaDto = map()
-			.e(VersionedDescriptor.VERSION.name(), productSchema.getVersion())
-			.e(NamedSchemaDescriptor.NAME.name(), productSchema.getName())
+			.e(VersionedDescriptor.VERSION.name(), entitySchema.getVersion())
+			.e(NamedSchemaDescriptor.NAME.name(), entitySchema.getName())
 			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
-				.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), productSchema.getNameVariant(NamingConvention.CAMEL_CASE))
-				.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), productSchema.getNameVariant(NamingConvention.PASCAL_CASE))
-				.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), productSchema.getNameVariant(NamingConvention.SNAKE_CASE))
-				.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), productSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-				.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), productSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+				.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), entitySchema.getNameVariant(NamingConvention.CAMEL_CASE))
+				.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), entitySchema.getNameVariant(NamingConvention.PASCAL_CASE))
+				.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), entitySchema.getNameVariant(NamingConvention.SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), entitySchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), entitySchema.getNameVariant(NamingConvention.KEBAB_CASE))
 				.build())
-			.e(NamedSchemaDescriptor.DESCRIPTION.name(), productSchema.getDescription())
-			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), productSchema.getDeprecationNotice())
-			.e(EntitySchemaDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), productSchema.isWithGeneratedPrimaryKey())
-			.e(EntitySchemaDescriptor.WITH_HIERARCHY.name(), productSchema.isWithHierarchy())
-			.e(EntitySchemaDescriptor.WITH_PRICE.name(), productSchema.isWithPrice())
-			.e(EntitySchemaDescriptor.INDEXED_PRICE_PLACES.name(), productSchema.getIndexedPricePlaces())
-			.e(EntitySchemaDescriptor.LOCALES.name(), productSchema.getLocales().stream().map(Locale::toLanguageTag).collect(Collectors.toList()))
-			.e(EntitySchemaDescriptor.CURRENCIES.name(), productSchema.getCurrencies().stream().map(Currency::toString).collect(Collectors.toList()))
-			.e(EntitySchemaDescriptor.EVOLUTION_MODE.name(), productSchema.getEvolutionMode().stream().map(Enum::toString).collect(Collectors.toList()))
-			.e(EntitySchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(productSchema.getAttributes().size()))
-			.e(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), createLinkedHashMap(productSchema.getAssociatedData().size()))
-			.e(EntitySchemaDescriptor.REFERENCES.name(), createLinkedHashMap(productSchema.getReferences().size()));
+			.e(NamedSchemaDescriptor.DESCRIPTION.name(), entitySchema.getDescription())
+			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), entitySchema.getDeprecationNotice())
+			.e(EntitySchemaDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), entitySchema.isWithGeneratedPrimaryKey())
+			.e(EntitySchemaDescriptor.WITH_HIERARCHY.name(), entitySchema.isWithHierarchy())
+			.e(EntitySchemaDescriptor.WITH_PRICE.name(), entitySchema.isWithPrice())
+			.e(EntitySchemaDescriptor.INDEXED_PRICE_PLACES.name(), entitySchema.getIndexedPricePlaces())
+			.e(EntitySchemaDescriptor.LOCALES.name(), entitySchema.getLocales().stream().map(Locale::toLanguageTag).collect(Collectors.toList()))
+			.e(EntitySchemaDescriptor.CURRENCIES.name(), entitySchema.getCurrencies().stream().map(Currency::toString).collect(Collectors.toList()))
+			.e(EntitySchemaDescriptor.EVOLUTION_MODE.name(), entitySchema.getEvolutionMode().stream().map(Enum::toString).collect(Collectors.toList()))
+			.e(EntitySchemaDescriptor.ALL_ATTRIBUTES.name(), new ArrayList<>(entitySchema.getAttributes().size()))
+			.e(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.name(), new ArrayList<>(entitySchema.getAssociatedData().size()))
+			.e(EntitySchemaDescriptor.ALL_REFERENCES.name(), new ArrayList<>(entitySchema.getReferences().size()));
 
-		productSchema.getAttributes()
+		entitySchema.getAttributes()
+			.values()
+			.forEach(attributeSchema -> {
+				//noinspection unchecked
+				final List<Object> attributes = (List<Object>) entitySchemaDto.get(EntitySchemaDescriptor.ALL_ATTRIBUTES.name());
+				attributes.add(
+					attributeSchema instanceof GlobalAttributeSchemaContract ? createGlobalAttributeSchemaDto((GlobalAttributeSchemaContract) attributeSchema) : createAttributeSchemaDto(attributeSchema)
+				);
+			});
+		entitySchema.getAssociatedData()
+			.values()
+			.forEach(associatedDataSchema -> {
+				//noinspection unchecked
+				final List<Object> associatedData = (List<Object>) entitySchemaDto.get(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.name());
+				associatedData.add(
+					createAssociatedDataSchemaDto(associatedDataSchema)
+				);
+			});
+		entitySchema.getReferences()
+			.values()
+			.forEach(referenceSchema -> {
+				//noinspection unchecked
+				final List<Object> references = (List<Object>) entitySchemaDto.get(EntitySchemaDescriptor.ALL_REFERENCES.name());
+				references.add(
+					createGenericReferenceSchemaDto(evita, referenceSchema)
+				);
+			});
+
+		return entitySchemaDto.build();
+	}
+
+	@Nonnull
+	protected static Map<String, Object> createSpecificEntitySchemaDto(@Nonnull Evita evita, @Nonnull EntitySchemaContract entitySchema) {
+		final MapBuilder entitySchemaDto = map()
+			.e(VersionedDescriptor.VERSION.name(), entitySchema.getVersion())
+			.e(NamedSchemaDescriptor.NAME.name(), entitySchema.getName())
+			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
+				.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), entitySchema.getNameVariant(NamingConvention.CAMEL_CASE))
+				.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), entitySchema.getNameVariant(NamingConvention.PASCAL_CASE))
+				.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), entitySchema.getNameVariant(NamingConvention.SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), entitySchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), entitySchema.getNameVariant(NamingConvention.KEBAB_CASE))
+				.build())
+			.e(NamedSchemaDescriptor.DESCRIPTION.name(), entitySchema.getDescription())
+			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), entitySchema.getDeprecationNotice())
+			.e(EntitySchemaDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), entitySchema.isWithGeneratedPrimaryKey())
+			.e(EntitySchemaDescriptor.WITH_HIERARCHY.name(), entitySchema.isWithHierarchy())
+			.e(EntitySchemaDescriptor.WITH_PRICE.name(), entitySchema.isWithPrice())
+			.e(EntitySchemaDescriptor.INDEXED_PRICE_PLACES.name(), entitySchema.getIndexedPricePlaces())
+			.e(EntitySchemaDescriptor.LOCALES.name(), entitySchema.getLocales().stream().map(Locale::toLanguageTag).collect(Collectors.toList()))
+			.e(EntitySchemaDescriptor.CURRENCIES.name(), entitySchema.getCurrencies().stream().map(Currency::toString).collect(Collectors.toList()))
+			.e(EntitySchemaDescriptor.EVOLUTION_MODE.name(), entitySchema.getEvolutionMode().stream().map(Enum::toString).collect(Collectors.toList()))
+			.e(EntitySchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(entitySchema.getAttributes().size()))
+			.e(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), createLinkedHashMap(entitySchema.getAssociatedData().size()))
+			.e(EntitySchemaDescriptor.REFERENCES.name(), createLinkedHashMap(entitySchema.getReferences().size()));
+
+		entitySchema.getAttributes()
 			.values()
 			.forEach(attributeSchema -> {
 				//noinspection unchecked
@@ -143,7 +211,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 					attributeSchema instanceof GlobalAttributeSchemaContract ? createGlobalAttributeSchemaDto((GlobalAttributeSchemaContract) attributeSchema) : createAttributeSchemaDto(attributeSchema)
 				);
 			});
-		productSchema.getAssociatedData()
+		entitySchema.getAssociatedData()
 			.values()
 			.forEach(associatedDataSchema -> {
 				//noinspection unchecked
@@ -153,14 +221,14 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 					createAssociatedDataSchemaDto(associatedDataSchema)
 				);
 			});
-		productSchema.getReferences()
+		entitySchema.getReferences()
 			.values()
 			.forEach(referenceSchema -> {
 				//noinspection unchecked
 				final Map<String, Object> references = (Map<String, Object>) entitySchemaDto.get(EntitySchemaDescriptor.REFERENCES.name());
 				references.put(
 					referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
-					createReferenceSchemaDto(evita, referenceSchema)
+					createSpecificReferenceSchemaDto(evita, referenceSchema)
 				);
 			});
 
@@ -236,7 +304,60 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 	}
 
 	@Nonnull
-	protected static Map<String, Object> createReferenceSchemaDto(@Nonnull Evita evita, @Nonnull ReferenceSchemaContract referenceSchema) {
+	protected static Map<String, Object> createGenericReferenceSchemaDto(@Nonnull Evita evita, @Nonnull ReferenceSchemaContract referenceSchema) {
+		final Function<String, EntitySchemaContract> ENTITY_SCHEMA_FETCHER = s -> evita.queryCatalog(TEST_CATALOG, session -> {
+			return session.getEntitySchemaOrThrow(s);
+		});
+
+		final MapBuilder referenceSchemaBuilder = map()
+			.e(NamedSchemaDescriptor.NAME.name(), referenceSchema.getName())
+			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
+				.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), referenceSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+				.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), referenceSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+				.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), referenceSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), referenceSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+				.build())
+			.e(NamedSchemaDescriptor.DESCRIPTION.name(), referenceSchema.getDescription())
+			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), referenceSchema.getDeprecationNotice())
+			.e(ReferenceSchemaDescriptor.CARDINALITY.name(), referenceSchema.getCardinality().toString())
+			.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE.name(), referenceSchema.getReferencedEntityType())
+			.e(ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS.name(), map()
+				.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), referenceSchema.getEntityTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.CAMEL_CASE))
+				.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), referenceSchema.getEntityTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.PASCAL_CASE))
+				.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), referenceSchema.getEntityTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), referenceSchema.getEntityTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.UPPER_SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getEntityTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.KEBAB_CASE))
+				.build())
+			.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), referenceSchema.isReferencedEntityTypeManaged())
+			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), referenceSchema.getReferencedGroupType())
+			.e(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), map()
+				.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.CAMEL_CASE))
+				.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.PASCAL_CASE))
+				.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.UPPER_SNAKE_CASE))
+				.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), referenceSchema.getGroupTypeNameVariants(ENTITY_SCHEMA_FETCHER).get(NamingConvention.KEBAB_CASE))
+				.build())
+			.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), referenceSchema.isReferencedGroupTypeManaged())
+			.e(ReferenceSchemaDescriptor.FILTERABLE.name(), referenceSchema.isFilterable())
+			.e(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted())
+			.e(ReferenceSchemaDescriptor.ALL_ATTRIBUTES.name(), new ArrayList<>(referenceSchema.getAttributes().size()));
+
+		referenceSchema.getAttributes()
+			.values()
+			.forEach(attributeSchema -> {
+				//noinspection unchecked
+				final List<Object> attributes = (List<Object>) referenceSchemaBuilder.get(EntitySchemaDescriptor.ALL_ATTRIBUTES.name());
+				attributes.add(
+					createAttributeSchemaDto(attributeSchema)
+				);
+			});
+
+		return referenceSchemaBuilder.build();
+	}
+
+	@Nonnull
+	protected static Map<String, Object> createSpecificReferenceSchemaDto(@Nonnull Evita evita, @Nonnull ReferenceSchemaContract referenceSchema) {
 		final Function<String, EntitySchemaContract> ENTITY_SCHEMA_FETCHER = s -> evita.queryCatalog(TEST_CATALOG, session -> {
 			return session.getEntitySchemaOrThrow(s);
 		});

@@ -35,6 +35,7 @@ import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLField
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLUnionTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDataTypeDescriptorToGraphQLTypeTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
@@ -72,6 +73,7 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 	@Nonnull protected final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 	@Nonnull protected final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
 	@Nonnull protected final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToGraphQLUnionTransformer unionBuilderTransformer;
 	@Nonnull protected final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
 	@Nonnull protected final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
 	@Nonnull protected final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
@@ -88,6 +90,7 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		this.inputFieldBuilderTransformer = new PropertyDescriptorToGraphQLInputFieldTransformer(propertyDataTypeBuilderTransformer);
 		this.interfaceBuilderTransformer = new ObjectDescriptorToGraphQLInterfaceTransformer(fieldBuilderTransformer);
 		this.objectBuilderTransformer = new ObjectDescriptorToGraphQLObjectTransformer(fieldBuilderTransformer);
+		this.unionBuilderTransformer = new ObjectDescriptorToGraphQLUnionTransformer();
 		this.inputObjectBuilderTransformer = new ObjectDescriptorToGraphQLInputObjectTransformer(inputFieldBuilderTransformer);
 	}
 

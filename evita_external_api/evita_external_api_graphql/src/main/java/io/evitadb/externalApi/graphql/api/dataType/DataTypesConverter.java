@@ -126,7 +126,7 @@ public class DataTypesConverter {
         }
         Assert.isPremiseValid(
             graphQLComponentType != null,
-            () -> new GraphQLInternalError("Unsupported Evita data type in GraphQL API `" + javaDataType.getName() + "`.")
+            () -> new GraphQLInternalError("Unsupported evitaDB data type in GraphQL API `" + javaDataType.getName() + "`.")
         );
 
         return (T) wrapGraphQLComponentType(graphQLComponentType, javaDataType, nonNull);
@@ -154,7 +154,7 @@ public class DataTypesConverter {
         }
         Assert.isPremiseValid(
             graphQLComponentType != null,
-            () -> new GraphQLInternalError("Unsupported Evita data type in GraphQL API `" + javaDataType.getName() + "`.")
+            () -> new GraphQLInternalError("Unsupported evitaDB data type in GraphQL API `" + javaDataType.getName() + "`.")
         );
 
         return (T) wrapGraphQLComponentType(graphQLComponentType, javaDataType, nonNull);
