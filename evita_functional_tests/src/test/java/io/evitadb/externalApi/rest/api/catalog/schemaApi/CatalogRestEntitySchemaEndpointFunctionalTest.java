@@ -69,7 +69,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 	@DisplayName("Should return full product schema")
 	void shouldReturnFullProductSchema(Evita evita) {
 		final EntitySchemaContract productSchema = getEntitySchemaFromTestData(evita, Entities.PRODUCT);
-		final Map<String, Object> expectedBody = createSpecificEntitySchemaDto(evita, productSchema);
+		final Map<String, Object> expectedBody = createEntitySchemaDto(evita, productSchema);
 
 		testRestCall()
 			.urlPathSuffix("/product/schema")
@@ -111,135 +111,9 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
-	}
-
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should create and delete new empty entity schema")
-	void shouldCreateAndDeleteNewEmptyEntitySchema(Evita evita) {
-		// allow new locales
-		testRestCall()
-			.urlPathSuffix("/newSchema/schema")
-			.httpMethod(Request.METHOD_PUT)
-			.requestBody("""
-				{
-					"mutations": []
-				}
-				""")
-			.executeAndThen()
-			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(1))
-			.body(
-				"",
-				equalTo(
-					createGenericEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, "newSchema"))
-				)
-			);
-
-		// verify new schema
-		testRestCall()
-			.urlPathSuffix("/new-schema/schema")
-			.httpMethod(Request.METHOD_GET)
-			.executeAndThen()
-			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, "newSchema"))
-				)
-			);
-
-		// revert
-		testRestCall()
-			.urlPathSuffix("/new-schema/schema")
-			.httpMethod(Request.METHOD_DELETE)
-			.executeAndThen()
-			.statusCode(204);
-	}
-
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should create and delete new empty entity schema with attribute")
-	void shouldCreateAndDeleteNewEmptyEntitySchemaWithAttribute(Evita evita) {
-		// allow new locales
-		testRestCall()
-			.urlPathSuffix("/newSchema/schema")
-			.httpMethod(Request.METHOD_PUT)
-			.requestBody("""
-				{
-					"mutations": [
-						{
-							"createAttributeSchemaMutation": {
-								"name": "mySpecialCode",
-								"unique": true,
-								"filterable": true,
-								"sortable": true,
-								"localized": false,
-								"nullable": false,
-								"type": "String",
-								"indexedDecimalPlaces": 0
-							}
-						}
-					]
-				}
-				""")
-			.executeAndThen()
-			.statusCode(200)
-			.body(EntitySchemaDescriptor.VERSION.name(), equalTo(2))
-			.body(
-				"",
-				equalTo(
-					createGenericEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, "newSchema"))
-				)
-			);
-
-		// verify new schema
-		testRestCall()
-			.urlPathSuffix("/new-schema/schema")
-			.httpMethod(Request.METHOD_GET)
-			.executeAndThen()
-			.statusCode(200)
-			.body(
-				EntitySchemaDescriptor.ATTRIBUTES.name() + ".mySpecialCode",
-				equalTo(
-					map()
-						.e(NamedSchemaDescriptor.NAME.name(), "mySpecialCode")
-						.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
-							.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), "mySpecialCode")
-							.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), "MySpecialCode")
-							.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), "my_special_code")
-							.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), "MY_SPECIAL_CODE")
-							.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), "my-special-code")
-							.build())
-						.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
-						.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
-						.e(AttributeSchemaDescriptor.UNIQUE.name(), true)
-						.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
-						.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
-						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
-						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
-						.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
-						.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
-						.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
-						.build()
-				)
-			)
-			.body(
-				"",
-				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, "newSchema"))
-				)
-			);
-
-		// revert
-		testRestCall()
-			.urlPathSuffix("/new-schema/schema")
-			.httpMethod(Request.METHOD_DELETE)
-			.executeAndThen()
-			.statusCode(204);
 	}
 
 	@Test
@@ -270,7 +144,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);;
 
@@ -296,7 +170,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 	}
@@ -335,7 +209,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 
@@ -373,7 +247,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 
@@ -424,7 +298,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 
@@ -450,7 +324,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 	}
@@ -485,7 +359,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 
@@ -518,7 +392,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 
@@ -564,7 +438,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 
@@ -590,7 +464,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 	}
@@ -627,7 +501,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 
@@ -677,7 +551,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 
@@ -718,7 +592,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 
@@ -744,7 +618,7 @@ public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSc
 			.body(
 				"",
 				equalTo(
-					createSpecificEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
+					createEntitySchemaDto(evita, getEntitySchemaFromTestData(evita, ENTITY_EMPTY))
 				)
 			);
 	}

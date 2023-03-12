@@ -45,7 +45,7 @@ public class GetEntitySchemaHandler extends RestHandler<CollectionRestHandlingCo
 
 	public GetEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		entitySchemaJsonSerializer = EntitySchemaJsonSerializer.specific(restApiHandlingContext);
+		entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restApiHandlingContext);
 	}
 
 	@Override

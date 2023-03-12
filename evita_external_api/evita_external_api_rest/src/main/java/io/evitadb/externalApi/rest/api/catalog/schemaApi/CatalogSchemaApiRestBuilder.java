@@ -79,7 +79,6 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 			buildingContext.registerEndpoint(endpointBuilder.buildUpdateEntitySchemaEndpoint(buildingContext.getSchema(), entitySchema));
 			buildingContext.registerEndpoint(endpointBuilder.buildDeleteEntitySchemaEndpoint(buildingContext.getSchema(), entitySchema));
 		});
-		buildingContext.registerEndpoint(endpointBuilder.buildCreateEntitySchemaEndpoint(buildingContext.getSchema()));
 
 		catalogSchemaObjectBuilder.build();
 		buildingContext.registerEndpoint(endpointBuilder.buildGetCatalogSchemaEndpoint(buildingContext.getSchema()));

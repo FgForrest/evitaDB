@@ -61,7 +61,7 @@ public class UpdateEntitySchemaHandler extends RestHandler<CollectionRestHandlin
 			new RestMutationObjectParser(restApiHandlingContext.getObjectMapper()),
 			new RestMutationResolvingExceptionFactory()
 		);
-		this.entitySchemaJsonSerializer = EntitySchemaJsonSerializer.specific(restApiHandlingContext);
+		this.entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restApiHandlingContext);
 	}
 
 	@Override

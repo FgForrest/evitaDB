@@ -61,7 +61,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 
 	public CatalogSchemaJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
 		super(new ObjectJsonSerializer(restHandlingContext.getObjectMapper()));
-		this.entitySchemaJsonSerializer = EntitySchemaJsonSerializer.specific(restHandlingContext);
+		this.entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restHandlingContext);
 	}
 
 	/**

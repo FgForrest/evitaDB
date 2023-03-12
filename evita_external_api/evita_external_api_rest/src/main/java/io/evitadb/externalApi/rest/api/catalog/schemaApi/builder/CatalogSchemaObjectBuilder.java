@@ -40,7 +40,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.CatalogSchemaModificationRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.UpdateCatalogSchemaRequestDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
@@ -81,7 +81,7 @@ public class CatalogSchemaObjectBuilder {
 
 		// other mutation objects should be already created by EntitySchemaSchemaBuilder
 		buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(CatalogSchemaModificationRequestDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(UpdateCatalogSchemaRequestDescriptor.THIS.to(objectBuilderTransformer).build());
 	}
 
 	/**

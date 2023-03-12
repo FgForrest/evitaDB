@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
@@ -53,11 +52,10 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Remov
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.EntitySchemaModificationRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.UpdateEntitySchemaRequestDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
@@ -85,10 +83,7 @@ public class EntitySchemaObjectBuilder {
 	public void buildCommonTypes() {
 		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(buildAttributeSchemaUnion());
 		buildingContext.registerType(AssociatedDataSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(ReferenceSchemaDescriptor.THIS_GENERIC.to(objectBuilderTransformer).build());
-		buildingContext.registerType(EntitySchemaDescriptor.THIS_GENERIC.to(objectBuilderTransformer).build());
 
 		// entity schema mutations
 		buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
@@ -146,7 +141,7 @@ public class EntitySchemaObjectBuilder {
 		buildingContext.registerType(SetReferenceSchemaFilterableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 
 		buildingContext.registerType(EntitySchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(EntitySchemaModificationRequestDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(UpdateEntitySchemaRequestDescriptor.THIS.to(objectBuilderTransformer).build());
 	}
 
 	/**
@@ -298,15 +293,5 @@ public class EntitySchemaObjectBuilder {
 			attributeSchemasObjectBuilder.property(buildAttributeSchemaProperty(attributeSchema)));
 
 		return buildingContext.registerType(attributeSchemasObjectBuilder.build());
-	}
-
-	@Nonnull
-	private OpenApiObject buildAttributeSchemaUnion() {
-		return AttributeSchemaUnionDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.unionType(OpenApiObjectUnionType.ONE_OF)
-			.unionObject(typeRefTo(AttributeSchemaDescriptor.THIS.name()))
-			.unionObject(typeRefTo(GlobalAttributeSchemaDescriptor.THIS.name()))
-			.build();
 	}
 }

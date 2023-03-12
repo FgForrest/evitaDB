@@ -24,10 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.model;
 
 import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
-
-import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Descriptor of root of schema API for REST API.
@@ -84,12 +81,5 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Delete existing evitaDB's internal schema for entities from `%s` collection.
             """)
-        .build();
-    EndpointDescriptor CREATE_ENTITY_SCHEMA = EndpointDescriptor.builder()
-        .operation("schema")
-        .description("""
-            Creates new evitaDB collection with new internal schema.
-            """)
-        .type(nonNullRef(EntitySchemaDescriptor.THIS_GENERIC))
         .build();
 }

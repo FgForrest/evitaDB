@@ -36,7 +36,7 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface CatalogSchemaModificationRequestDescriptor {
+public interface UpdateEntitySchemaRequestDescriptor {
 
 	PropertyDescriptor MUTATIONS = PropertyDescriptor.builder()
 		.name("mutations")
@@ -47,9 +47,9 @@ public interface CatalogSchemaModificationRequestDescriptor {
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("CatalogSchemaModificationRequest")
+		.name("UpdateEntitySchemaRequest")
 		.description("""
-			Creates new or updates existing entity schema with passed mutations and returns the updated entity schema.
+			Updates existing entity schema with passed mutations and returns the updated entity schema.
 			""")
 		.staticFields(List.of(MUTATIONS))
 		.build();
