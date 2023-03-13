@@ -180,6 +180,8 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 This article will be extended when the C# driver implementation is done.
 
+<Note type="info">
+
 <NoteTitle toggles="true">
 
 ##### Do you need more instructions?
@@ -196,6 +198,8 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 ## Try querying the graphQL endpoint in your favourite IDE
 
+<Note type="info">
+
 <NoteTitle toggles="true">
 
 ##### Do you need more instructions?
@@ -211,6 +215,8 @@ If you need more hints for querying the data, try [the query API chapter](../use
 <LanguageSpecific to="rest">
 
 ## Try querying the REST endpoint in your favourite IDE
+
+<Note type="info">
 
 <NoteTitle toggles="true">
 
