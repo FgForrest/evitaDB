@@ -288,7 +288,6 @@ abstract class CatalogRESTEndpointFunctionalTest extends RESTEndpointFunctionalT
 				.e(LocalizedAssociatedDataDescriptor.LOCALIZED.name(), map()
 					.e(Locale.ENGLISH.toLanguageTag(), map()
 						.e(ASSOCIATED_DATA_LABELS, map()
-							.e("root", map().build())
 							.build())
 						.build())
 					.build())
@@ -296,7 +295,6 @@ abstract class CatalogRESTEndpointFunctionalTest extends RESTEndpointFunctionalT
 		} else {
 			associatedData = map()
 				.e(ASSOCIATED_DATA_LABELS, map()
-					.e("root", map().build())
 					.build())
 				.build();
 		}
