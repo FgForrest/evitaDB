@@ -14,7 +14,7 @@ apostrophes (`'this is string'`).
 This language is expected to be used by human operators, on the code level query is represented by a [query object tree](query_api),
 that can be constructed directly without intermediate string language form (on the contrary to SQL language which is
 strictly string typed). The human-readable form is used in this documentation. The human-readable form can be parsed
-to object representation using [the parser](query_api#conversion-of-the-evitaql-from-string-to-ast-and-back).
+to object representation using [the parser](query_api.md#conversion-of-evitaql-from-string-to-ast-and-back).
 
 Query has these four parts:
 
@@ -939,7 +939,7 @@ Function returns true, if entity has sellable price in most prioritized price li
 or equal to passed higher bound. This function is affected by other price related constraints, such as
 [priceInCurrency](#price-in-currency) functions limiting the examined prices as well.
 
-Most prioritized price term relates to [price computation algorithm](price_computation) described in special article.
+Most prioritized price term relates to [price computation algorithm](price_computation.md) described in special article.
 Non-sellable prices doesn't participate in the filtering at all.
 
 <Note type="info">
@@ -967,7 +967,7 @@ priceBetween(150.25, 220.0)
 
 The `facet` constraint accepts [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
 entity type in first argument,and one or more additional [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
-arguments that represent [facets](../model/entity_model#facets) entity is required to have in order to match this
+arguments that represent [references](../index.md#references) entity is required to have in order to match this
 constraint.
 
 Function returns true, if entity has a facet (faceted reference) for specified reference name matching any of the passed
@@ -1072,17 +1072,17 @@ must be marked as "filterable", otherwise the error is returned.
 
 The `withinHierarchy` constraint accepts [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
 reference name in the first argument, primary key of [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
-type of entity with [hierarchical placement](../model/entity_model#hierarchical-placement) in the second argument. There
+type of entity with [hierarchical placement](../index#hierarchical-placement) in the second argument. There
 are also optional additional arguments - see constraints [directRelation](#direct-relation),
 [excluding root](#excluding-root) and [excluding](#excluding) for more information.
 
-If you query the entity schema that is hierarchical itself (see [hierarchical placement](../model/entity_model#hierarchical-placement)),
+If you query the entity schema that is hierarchical itself (see [hierarchical placement](../index#hierarchical-placement)),
 you need to use just one  numeric argument representing primary key of [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
 the parent entity. This format of the constraint usage may be used for example for returning category subtree (where we
 want to return category entities and also filter them by their own hierarchy placement).
 
-Function returns true, if entity has at least one [reference](../model/entity_model#references) relating to specified
-reference name either directly or transitively to any other reference with [hierarchical placement](../model/entity_model#hierarchical-placement)
+Function returns true, if entity has at least one [reference](../index#references) relating to specified
+reference name either directly or transitively to any other reference with [hierarchical placement](../index#hierarchical-placement)
 subordinate to the directly related entity placement (in other words is present in its subtree).
 
 <Note type="example">
@@ -1459,8 +1459,9 @@ sub-category will be omitted because they're part of the excluded subtrees of `e
 
 The `userFilter` constraint container could contain any constraint except [priceInPriceLists](#price-in-price-lists),
 [language](#language), [priceInCurrency](#price-in-currency), [priceValidInTime](#price-valid-in-time) and
-[within hierarchy](#within-hierarchy), which make no sense to be directly set by the end user and affect the overall
-evaluation of the query. All constraints placed directly inside `userFilter` are combined with by conjunction (AND).
+[within hierarchy](#within-hierarchy-and-within-root-hierarchy), which make no sense to be directly set by the end user 
+and affect the overall evaluation of the query. All constraints placed directly inside `userFilter` are combined with by
+conjunction (AND).
 
 The constraints placed in `userFilter` container should react to the filter selection defined by the end user, and must
 be isolated from the base filter so that [facetSummary](#facet-summary) and [histogram](#attribute-histogram) logic
@@ -1634,7 +1635,7 @@ descending('age')
 ### Price ascending
 
 The `priceAscending` ordering constraint sorts returned entities by price for sale in ascending order. The price for
-sale is computed by [algorithm described in separate chapter](price_computation).
+sale is computed by [algorithm described in separate chapter](price_computation.md).
 
 <Note type="example">
 
@@ -1651,7 +1652,7 @@ priceAscending()
 ### Price descending
 
 The `priceDesscending` ordering constraint sorts returned entities by price for sale in desscending order. The price for
-sale is computed by [algorithm described in separate chapter](price_computation).
+sale is computed by [algorithm described in separate chapter](price_computation.md).
 
 <Note type="example">
 
@@ -1812,7 +1813,7 @@ entityBody()
 
 The `attributes` require constraint changes default behaviour of the query engine returning only entity primary keys in the result.
 When this require constraint is used, the result contains [entity bodies](../index#entity-type) along with
-[attributes](../index#(#attributes-unique-filterable-sortable-localized)). Other parts of the entity (`associated data`,
+[attributes](../index.md#attributes--unique-filterable-sortable-localized-). Other parts of the entity (`associated data`,
 `references` and `prices`) fetching react to similar requirement constraints, but are not related to this one.
 
 The `attributes` require constraint implicitly triggers [entity](#entity-body) fetch, because attributes cannot be
@@ -1839,7 +1840,7 @@ the result. When this require constraint is used, the result contains [entity pr
 the entity (`attributes`, `associated data` and `references`) fetching react to similar requirement constraints, but are
 not related to this one.
 
-This require constraint implicitly triggers [entity](#entity) require, because prices cannot be returned without
+This require constraint implicitly triggers [entity](#entity-body) require, because prices cannot be returned without
 its entity container. By default, the fetched prices are filtered according to price filtering constraints, should
 they are used in the query. This behaviour might be changed, by single optional argument of this requirement constraint.
 
@@ -1867,7 +1868,7 @@ prices(ALL)
 
 The `associatedData` require constraint changes default behaviour of the query engine returning only entity primary keys
 in the result. When this require constraint is used, the result contains [entity bodies](../index#entity-type) along with
-[associated data](../index#(#associated-data)). Other parts of the entity (`attributes`, `references` and `prices`)
+[associated data](../index#associated-data)). Other parts of the entity (`attributes`, `references` and `prices`)
 fetching react to similar requirement constraints, but are not related to this one.
 
 The `associatedData` require constraint implicitly triggers [entity](#entity-body) fetch, because associated data cannot
@@ -2313,7 +2314,7 @@ arguments as second, third (and so on) argument specifying filterable attribute 
 [histograms](https://en.wikipedia.org/wiki/Histogram) should be computed. Attribute must be of numeric type in order
 to compute histogram data.
 
-Each attribute is represented by separate [Histogram](classes/histogram) data structure indexed by attribute name.
+Each attribute is represented by separate [Histogram](../classes/histogram.md) data structure indexed by attribute name.
 
 <Note type="example">
 

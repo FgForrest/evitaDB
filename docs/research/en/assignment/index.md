@@ -143,7 +143,7 @@ record invalidation orders, because of the complex relations between them. The i
 on the caching layer when the tests are run and the performance is evaluated.
 
 <Note type="info">
-The final evaluation of the reseach is [available here](../evaluation/evaluation).
+The final evaluation of the research is [available here](../evaluation/evaluation).
 </Note>
 
 ## Expected record counts for performance tests
@@ -243,7 +243,7 @@ relational database.
 	* [Elasticsearch](https://www.elastic.co/) ([Lucene](https://lucene.apache.org/))
 
 <Note type="info">
-The selection process is described [in appendix A](../nosql/thesis/thesis#appendix-a-elasticsearch-selection-rationale)
+The selection process is described [in appendix A](../nosql/thesis.md#appendix-a-elasticsearch-selection-rationale)
 of the associated thesis. The **Elasticsearch** was selected as the platform for prototype implementation on top of
 relational database.
 </Note>
@@ -293,7 +293,7 @@ The goal is:
 ## Data model
 
 <Note type="info">
-See more detailed [schema API](/updating/schema_api) describing data model manipulation.
+See more detailed [schema API](updating/schema_api.md) describing data model manipulation.
 </Note>
 
 Minimal entity definition consists of: [Entity type](#entity-type) and [Primary key](#primary-key) (even this is optional
@@ -323,7 +323,7 @@ enforced by the evitaDB, however. This mechanism somehow resembles the schema-le
 consistent data store.
 
 <Note type="info">
-The details about [schema definition](updating/schema_api) are part of different document.
+The details about [schema definition](updating/schema_api.md) are part of different document.
 </Note>
 
 ### Primary key
@@ -415,7 +415,7 @@ Associated data carry additional data entries that are never used for filtering 
 along with entity in order to display data to the target consumer (i.e. an user / API / bot). Associated data allow
 storing all basic [data types](model/data_types) and also complex, document like types.
 
-The complex data type is used for rich objects, such as Java POJOs and [automatically converted by](associated_data_implicit_conversion)
+The complex data type is used for rich objects, such as Java POJOs and [automatically converted by](model/associated_data_implicit_conversion)
 to an internal representation that is composed solely of supported data types (or another complex objects) and can be
 deserialized back to the client custom POJO on demand providing the POJO structure matches the original document format.
 
@@ -438,7 +438,7 @@ of the e-commerce systems, and that's why evitaDB provides special treatment for
 
 The references, as the name suggest, refer to other entities (of the same or different entity type).
 The references allow entity filtering by the attributes defined on the reference relation or the attributes of
-the referenced entities. The references enable [statistics](#parameters-faceted-search) computation if
+the referenced entities. The references enable [statistics](#parameters--faceted-search-) computation if
 facet index is enabled for this referenced entity type. The reference is uniquely represented by
 [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
 positive number (max. 2<sup>63</sup>-1) and [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
@@ -453,7 +453,7 @@ We expect that evitaDB will maintain data only partially, and that it will co-ex
 such as content management systems, warehouse systems, ERPs and so on.
 
 The references may carry additional key-value data linked to this entity relation (fe. item count present on the
-relation to a stock). The data on references is subject to the same rules as [entity attributes](#attributes-unique-filterable-sortable-localized).
+relation to a stock). The data on references is subject to the same rules as [entity attributes](#attributes--unique-filterable-sortable-localized-).
 
 Reference is represented by the interface: <SourceClass>[ReferenceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/ReferenceContract.java)</SourceClass>.
 Reference schema is described by: <SourceClass>[ReferenceSchema.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/ReferenceSchema.java)</SourceClass>
@@ -474,20 +474,20 @@ Price schema is part of main entity schema:
 <SourceClass>[EntitySchema.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/EntitySchema.java)</SourceClass>
 
 <Note type="info">
-For detail information about price for sale computation [see this article](../querying/price_computation).
+For detail information about price for sale computation [see this article](../querying/price_computation.md).
 </Note>
 
 ## Entity indexing
 
 <Note type="info">
-See more detailed [entity API](/updating/entity_api) describing entity manipulation.
+See more detailed [entity API](/updating/entity_api.md) describing entity manipulation.
 </Note>
 
 The entity indexing is a mechanism that stores [entity data](#data-model) into the persistent storage and prepares
 the data for searching. We distinguish two types of this mechanism:
 
-- [bulk](#bulk-indexation)
-- [incremental](#incremental-indexation)
+- [bulk](#bulk-indexing)
+- [incremental](#incremental-indexing)
 
 ### Bulk indexing
 
@@ -630,7 +630,7 @@ Example:
 
 **Search engine must:**
 
-* return thresholds for each interval property (stored as entity [attribute](#attributes-unique-filterable-sortable-localized)):
+* return thresholds for each interval property (stored as entity [attribute](#attributes--unique-filterable-sortable-localized-)):
 	* highest value of the property in the item view
 	* lowest value of the property in the item view
 * optionally: compute histogram of describing attribute values computed from the items in this view (i.e. threshold with
@@ -685,7 +685,7 @@ supported:
 - if not, the most preferred price for each item of such a set must be added up and the resulting amount calculated
 
 <Note type="info">
-Exact and detailed [price for sale computation algorithm](querying/price_computation) is described in separate chapter.
+Exact and detailed [price for sale computation algorithm](../querying/price_computation.md) is described in separate chapter.
 </Note>
 
 ##### Price histogram
@@ -708,7 +708,7 @@ frequently lists all categories of products the brand produces.
 
 #### Tags
 
-Tags behave in the same way as described in the [faceted search chapter](#parameters-faceted-search). The search engine
+Tags behave in the same way as described in the [faceted search chapter](#parameters--faceted-search-). The search engine
 must be able to return a list of labels that are used in any currently visible product in the selected category and
 subcategories.
 

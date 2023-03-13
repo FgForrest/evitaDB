@@ -1323,7 +1323,7 @@ The testing queries were run against generated dataset of these row counts:
 | Assoc. data | 3000000 |
 
 In the table below are results of initial testing of our designed model on example queries. Concrete SQL
-queries can be found [here](../spike/query_testing/queries).
+queries can be found here: <SourceClass>docs/research/en/sql/assets/query_testing/queries</SourceClass>.
 
 | **Required output**                                          | **Time [ms]** |
 | ------------------------------------------------------------ | --------------- |

@@ -1,0 +1,24 @@
+version: '2.2'
+
+services:
+  pg01:
+    image: postgres:13.1
+    environment:
+      - POSTGRES_PASSWORD=JQD2BrFiJeEtVh
+    ports:
+      - 5432:5432
+    networks:
+      - postgresql
+    volumes:
+      - /data/sql/data/postgresql:/var/lib/postgresql/data
+
+  pga01:
+    image: adminer
+    ports:
+      - 54320:8080
+    networks:
+      - postgresql
+
+networks:
+  postgresql:
+    driver: bridge
