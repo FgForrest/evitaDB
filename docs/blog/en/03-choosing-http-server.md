@@ -35,10 +35,10 @@ test:
 - [NanoHTTPD](https://github.com/NanoHttpd/nanohttpd)
 - [Netty](https://github.com/netty/netty)
 - [Undertow](https://github.com/undertow-io/undertow)
-- [Spring MVC](https://docs.spring.io/spring-framework/docs/current/reference/html/web.html#spring-web)
+- [Spring MVC](https://docs.spring.io/spring-framework/docs/current/reference/html/web.html#mvc)
   with [Spring Boot](https://docs.spring.io/spring-boot/docs/current/reference/html/) *(runs on Tomcat, Jetty or
   Undertow, we used Tomcat as it is the default)*
-- [Spring WebFlux](https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#spring-webflux)
+- [Spring WebFlux](https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux)
   with [Spring Boot](https://docs.spring.io/spring-boot/docs/current/reference/html/) *(runs on Tomcat, Jetty or
   Undertow, we used Tomcat as it is the default)*
 - [Vert.x](https://github.com/eclipse-vertx/vert.x) *(runs on Netty)*

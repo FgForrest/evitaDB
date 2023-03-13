@@ -7,8 +7,8 @@ published: false
 ---
 
 evitaDB is a [Java application](https://openjdk.org/), and you can run it as an
-[embedded database](#run-embedded-in-you-application) in any Java application or as 
-[a separate service](../operate/run.md) that connects to applications via 
+[embedded database](../use/connectors/java.md) in any Java application or as 
+[a separate service](../operate/run.md) connected to applications via 
 the HTTPS protocol using one of the provided web APIs.
 
 <LanguageSpecific to="java">
@@ -44,6 +44,12 @@ The downside is that your application heap will be cluttered with large evitaDB 
 which makes it harder to find memory leaks in your application. We recommend to use embedded evitaDB for
 [writing tests](../use/api/write-tests.md), which greatly simplifies integration testing with evitaDB and allows for 
 fast and easy setup / teardown of the test data.
+</Note>
+
+<Note type="info">
+This introductory article describes how to run evitaDB in embedded mode. If you prefer to run evitaDB in client & server 
+mode, please refer to the separate chapters describing [how to run evitaDB in Docker](../operate/run.md) and 
+[how to set up EvitaClient](../use/connectors/java.md).
 </Note>
 
 ### Package evitaDB in your application
