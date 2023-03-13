@@ -4,6 +4,7 @@ server:
   threadPriority: ${server.threadPriority:5}
   queueSize: ${server.queueSize:100}
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
+  readOnly: ${server.readOnly:false}
 
 storage:
   storageDirectory: ${storage.storageDirectory:null}
