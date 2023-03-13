@@ -137,8 +137,6 @@ The final tests were run with 1 warm-up iteration, 5 measurement iterations and 
 and an 8-core Intel Core i7-8550U CPU with 16 GB of RAM. The tests were run in two modes: throughput (operations per
 second) and average time (microseconds per operation).
 
-**The results**
-
 <Table caption="Throughput results (ops/s - higher is better).">
 	<Thead>
       <Tr>
