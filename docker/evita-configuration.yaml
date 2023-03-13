@@ -4,11 +4,12 @@ server:
   threadPriority: ${server.threadPriority:5}
   queueSize: ${server.queueSize:100}
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
+  readOnly: ${server.readOnly:false}
 
 storage:
   storageDirectory: ${storage.storageDirectory:null}
-  lockTimeoutSeconds: ${storage.lockTimeoutSeconds:50}
-  waitOnCloseSeconds: ${storage.waitOnCloseSeconds:50}
+  lockTimeoutSeconds: ${storage.lockTimeoutSeconds:60}
+  waitOnCloseSeconds: ${storage.waitOnCloseSeconds:60}
   outputBufferSize: ${storage.outputBufferSize:4MB}
   maxOpenedReadHandles: ${storage.maxOpenedReadHandles:12}
   computeCRC32C: ${storage.computeCRC32C:true}
@@ -17,8 +18,8 @@ cache:
   enabled: ${cache.enabled:true}
   reflection: ${cache.reflection:CACHE}
   reevaluateEachSeconds: ${cache.reevaluateEachSeconds:60}
-  anteroomRecordCount: ${cache.anteroomRecordCount:100k}
-  minimalComplexityThreshold: ${cache.minimalComplexityThreshold:10k}
+  anteroomRecordCount: ${cache.anteroomRecordCount:100K}
+  minimalComplexityThreshold: ${cache.minimalComplexityThreshold:10K}
   minimalUsageThreshold: ${cache.minimalUsageThreshold:2}
   cacheSizeInBytes: ${cache.cacheSizeInBytes:null}
 

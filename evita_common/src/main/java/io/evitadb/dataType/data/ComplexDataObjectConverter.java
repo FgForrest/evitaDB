@@ -138,9 +138,13 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * doesn't represent one, it is converted to {@link ComplexDataObject} automatically.
 	 */
 	public Serializable getSerializableForm() {
-		final Class<?> type = container.getClass().isArray() ?
-			container.getClass().getComponentType() : container.getClass();
-		return EvitaDataTypes.isSupportedType(type) ? container : convertToGenericType(container);
+		if (container instanceof ComplexDataObject) {
+			return container;
+		} else {
+			final Class<?> type = container.getClass().isArray() ?
+				container.getClass().getComponentType() : container.getClass();
+			return EvitaDataTypes.isSupportedType(type) ? container : convertToGenericType(container);
+		}
 	}
 
 	/**
@@ -150,10 +154,13 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	@Nullable
 	public T getOriginalForm(@Nonnull Serializable serializedForm) {
 		Assert.notNull(reflectionLookup, "Reflection lookup required!");
-		if (serializedForm instanceof Object[] && EvitaDataTypes.isSupportedType(serializedForm.getClass().getComponentType()))
+		if (serializedForm instanceof Object[] && EvitaDataTypes.isSupportedType(serializedForm.getClass().getComponentType())) {
 			//noinspection unchecked
 			return (T) serializedForm;
-		if (EvitaDataTypes.isSupportedType(serializedForm.getClass())) {
+		} else if (ComplexDataObject.class.isAssignableFrom(containerClass) && serializedForm instanceof ComplexDataObject) {
+			//noinspection unchecked
+			return (T) serializedForm;
+		} else if (EvitaDataTypes.isSupportedType(serializedForm.getClass())) {
 			//noinspection unchecked
 			return (T) serializedForm;
 		} else {

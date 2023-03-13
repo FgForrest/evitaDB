@@ -1,15 +1,17 @@
 ---
 title: Run evitaDB
-date: '17.1.2023'
+date: '1.3.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 published: false
 ---
 
 evitaDB is a [Java application](https://openjdk.org/), and you can run it as an
-[embedded database](#run-embedded-in-you-application) in any Java application or as 
-[a separate service](#run-as-service-inside-docker) that connects to applications via 
+[embedded database](../use/connectors/java.md) in any Java application or as 
+[a separate service](../operate/run.md) connected to applications via 
 the HTTPS protocol using one of the provided web APIs.
+
+<LanguageSpecific to="java">
 
 <Note type="question">
 
@@ -42,6 +44,12 @@ The downside is that your application heap will be cluttered with large evitaDB 
 which makes it harder to find memory leaks in your application. We recommend to use embedded evitaDB for
 [writing tests](../use/api/write-tests.md), which greatly simplifies integration testing with evitaDB and allows for 
 fast and easy setup / teardown of the test data.
+</Note>
+
+<Note type="info">
+This introductory article describes how to run evitaDB in embedded mode. If you prefer to run evitaDB in client & server 
+mode, please refer to the separate chapters describing [how to run evitaDB in Docker](../operate/run.md) and 
+[how to set up EvitaClient](../use/connectors/java.md).
 </Note>
 
 ### Package evitaDB in your application
@@ -180,3 +188,50 @@ API `graphQL` listening on              https://your-domain:5555/gql/
 API `rest` listening on                 https://your-domain:5555/rest/
 API `system` listening on               http://your-domain:5557/system/
 ```
+
+</LanguageSpecific>
+<LanguageSpecific to="evitaql,graphql,rest,csharp">
+
+### Install Docker
+
+Before we get started, you need to install Docker. You can find instructions for your platform in the
+[Docker documentation](https://docs.docker.com/get-docker/).
+
+### Pull and run image
+
+Once Docker is installed, you need to grab the evitaDB image from
+[Docker Hub](https://hub.docker.com/repository/docker/evitadb/evitadb/general) and create a container.
+You can do both in one command using `docker run`. This is the easiest way to run evitaDB for testing purposes:
+
+```shell
+# run on foreground, destroy container after exit, use host ports without NAT
+docker run --name evitadb -i --rm --net=host \ 
+index.docker.io/evitadb/evitadb:latest
+```
+
+When you start the evitaDB server you should see the following information in the console output:
+
+```
+            _ _        ____  ____  
+  _____   _(_) |_ __ _|  _ \| __ ) 
+ / _ \ \ / / | __/ _` | | | |  _ \ 
+|  __/\ V /| | || (_| | |_| | |_) |
+ \___| \_/ |_|\__\__,_|____/|____/ 
+
+You'll see some version here
+Visit us at: https://evitadb.io
+
+Root CA Certificate fingerprint:        You'll see some fingerprint here
+API `graphQL` listening on              https://your-server:5555/gql/
+API `rest` listening on                 https://your-server:5555/rest/
+API `gRPC` listening on                 https://your-server:5556/
+API `system` listening on               http://your-server:5557/system/
+```
+
+More information about running evitaDB Server in Docker is available in the [separate chapter](../operate/run.md).
+
+</LanguageSpecific>
+
+## What's next?
+
+You may want to [create your first database](create-first-database.md) or [play with our dataset](query-our-dataset.md). 

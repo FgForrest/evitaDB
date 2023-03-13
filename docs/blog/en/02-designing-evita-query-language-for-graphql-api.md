@@ -94,7 +94,7 @@ articles and documentations about attempts of creating
 such [DSL](https://en.wikipedia.org/wiki/Domain-specific_language)s.
 
 Following examples are something we didn’t like too much because this way the editor cannot provide any code completion for
-a client and would be annoyed writing the query with all of the special characters.
+a client and would be annoyed writing the query with all the special characters.
 
 * [https://www.linkedin.com/pulse/building-your-own-query-language-my-first-career-project-batra/](https://www.linkedin.com/pulse/building-your-own-query-language-my-first-career-project-batra/)
 * [https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html)

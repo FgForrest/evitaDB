@@ -10,3 +10,4 @@ published: false
 
 This article will contain description of Evita monitoring facilities - would it be directly Prometheus or OpenTelemetry.
 There should be also information how to log slow queries or see other problems within application (logging).
+The functionality is not finalized - [see issue #18](https://github.com/FgForrest/evitaDB/issues/18).

@@ -19,7 +19,7 @@ jobs:
       # inspiration from https://github.com/nvim-neorocks/luarocks-tag-release#version-optional
       - name: Get new commits   # initialize github env variable with count of commits into the repository that day
         run: |
-          echo "NEW_COMMIT_COUNT=$(git log --oneline --since '24 hours ago' | wc -l)" >> $GITHUB_ENV
+          echo "NEW_COMMIT_COUNT=$(git log --oneline --since '168 hours ago' | wc -l)" >> $GITHUB_ENV
           echo "Commits found: $NEW_COMMIT_COUNT"
 
       - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed this day

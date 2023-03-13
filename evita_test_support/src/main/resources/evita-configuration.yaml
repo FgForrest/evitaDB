@@ -4,6 +4,7 @@ server:
   threadPriority: ${server.threadPriority:5}
   queueSize: ${server.queueSize:100}
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
+  readOnly: ${server.readOnly:false}
 
 storage:
   storageDirectory: ${java.io.tmpdir}/evita
@@ -17,8 +18,8 @@ cache:
   enabled: ${cache.enabled:true}
   reflection: ${cache.reflection:CACHE}
   reevaluateEachSeconds: ${cache.reevaluateEachSeconds:60}
-  anteroomRecordCount: ${cache.anteroomRecordCount:100k}
-  minimalComplexityThreshold: ${cache.minimalComplexityThreshold:10k}
+  anteroomRecordCount: ${cache.anteroomRecordCount:100K}
+  minimalComplexityThreshold: ${cache.minimalComplexityThreshold:10K}
   minimalUsageThreshold: ${cache.minimalUsageThreshold:2}
   cacheSizeInBytes: ${cache.cacheSizeInBytes:null}
 

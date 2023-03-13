@@ -9,4 +9,4 @@ published: false
 **Work in progress**
 
 This article will contain description of evitaDB back-up process and procedure to restore evitaDB data from backed up
-data.
+data. The functionality is not finalized - [see issue #41](https://github.com/FgForrest/evitaDB/issues/41).

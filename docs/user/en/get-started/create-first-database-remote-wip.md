@@ -102,6 +102,4 @@ shell:>create-catalog mycatalog
 
 ## Delete any of existing entities
 
-## Example implementation
-
 ## What's next?
