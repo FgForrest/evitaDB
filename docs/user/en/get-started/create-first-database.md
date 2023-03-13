@@ -86,9 +86,35 @@ Updating an entity is similar to creating a new entity:
 The main difference is that you first fetch the entity with all the data you want to update from the evitaDB server and
 apply changes to it. The fetched entity is immutable, so you need to open it for writing first. This action creates a
 builder that wraps the original immutable object and allows the changes to be captured. These changes are eventually
-collected and passed to the server in the `upsertVia` method. For more information, see
-the [write API description](../use/write-api.md). 
+collected and passed to the server in the `upsertVia` method.
+
+For more information, see the [write API description](../use/write-api.md). 
 
 ## Delete any of existing entities
 
+You can delete entity by is primary key:
+
+<SourceCodeTabs requires="docs/user/en/get-started/example/create-small-dataset.java">
+[Example of deleting entity by PK](docs/user/en/get-started/example/delete-entity-by-pk.java)
+</SourceCodeTabs>
+
+Or, you can issue a query that removes all the entities that match the query:
+
+<SourceCodeTabs requires="docs/user/en/get-started/example/create-small-dataset.java">
+[Example of deleting entity by query](docs/user/en/get-started/example/delete-entity-by-query.java)
+</SourceCodeTabs>
+
+When you delete a hierarchical entity, you can choose whether or not to delete it with all of its child entities:
+
+<SourceCodeTabs requires="docs/user/en/get-started/example/create-small-dataset.java">
+[Example of deleting hierarchical entity](docs/user/en/get-started/example/delete-hierarchical-entity.java)
+</SourceCodeTabs>
+
+For more complex examples and explanations, see the [write API chapter](../use/write-api.md).
+
 ## What's next?
+
+If you don't want to fiddle with your own data, you [can play with our dataset](query-our-dataset.md).
+You can also go into detail in the following chapters on how to use specific parts of
+our [query API](../use/query-api.md), [write API](../use/write-api.md), or [schema API](../use/schema.md).
+You can also familiarize yourself with the [entity Data Structure](../use/entity.md) or other aspects of our database.

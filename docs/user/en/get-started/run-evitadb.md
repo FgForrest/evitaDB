@@ -231,3 +231,7 @@ API `system` listening on               http://your-server:5557/system/
 More information about running evitaDB Server in Docker is available in the [separate chapter](../operate/run.md).
 
 </LanguageSpecific>
+
+## What's next?
+
+You may want to [create your first database](create-first-database.md) or [play with our dataset](query-our-dataset.md). 
