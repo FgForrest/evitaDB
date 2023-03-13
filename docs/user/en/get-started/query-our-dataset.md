@@ -24,7 +24,8 @@ web APIs and all supported drivers.
 The next limitation is that the server is hosted on cheap shared infrastructure of  
 [Contabo hosting](https://contabo.com/en/vps/) with following specs:
 
-![Server specs](assets/contabo-hosting.png)
+[//]: # (![Server specs]&#40;assets/contabo-hosting.png&#41;)
+![Server specs](https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/user/en/get-started/assets/contabo-hosting.png)
 
 If you experience slow responses, let us know and 
 [try evitaDB on your hardware instead](#run-your-own-evitadb-server-with-our-dataset).
@@ -167,6 +168,64 @@ var entities = evita.queryCatalog(
 </NoteTitle>
 
 For complete instructions on setting up a Java client, see [the Java drivers chapter](../use/connectors/java.md).
+If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+</Note>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="c-sharp">
+
+## Connect the C# client
+
+**Work in progress**
+
+This article will be extended when the C# driver implementation is done.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Do you need more instructions?
+
+</NoteTitle>
+
+For complete instructions on setting up a C# client, see [the C# drivers chapter](../use/connectors/c-sharp.md).
+If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+</Note>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+## Try querying the graphQL endpoint in your favourite IDE
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Do you need more instructions?
+
+</NoteTitle>
+
+For complete instructions on setting up a GraphQL client, see [the GraphQL drivers chapter](../use/connectors/graphql.md).
+If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
+</Note>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+## Try querying the REST endpoint in your favourite IDE
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Do you need more instructions?
+
+</NoteTitle>
+
+For complete instructions on setting up a REST client, see [the REST drivers chapter](../use/connectors/rest.md).
 If you need more hints for querying the data, try [the query API chapter](../use/query-api.md).
 </Note>
 
