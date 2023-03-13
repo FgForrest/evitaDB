@@ -283,7 +283,7 @@ second) and average time (microseconds per operation).
 			<Td>926</Td>
 		</Tr>
 	</Tbody>
-</table>
+</Table>
 
 *A gist with the raw results can be found [here](https://gist.github.com/lukashornych/4f500cd1e20de805c697888f263c415c) and
 charts for visualization [here](https://jmh.morethan.io/?gist=4f500cd1e20de805c697888f263c415c&topBar=Java%20HTTP%20servers%20and%20libraries%20performance%20comparison%20test).*
