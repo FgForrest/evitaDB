@@ -474,13 +474,13 @@ Price schema is part of main entity schema:
 <SourceClass>[EntitySchema.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/schema/EntitySchema.java)</SourceClass>
 
 <Note type="info">
-For detail information about price for sale computation [see this article](../querying/price_computation.md).
+For detail information about price for sale computation [see this article](querying/price_computation.md).
 </Note>
 
 ## Entity indexing
 
 <Note type="info">
-See more detailed [entity API](/updating/entity_api.md) describing entity manipulation.
+See more detailed [entity API](updating/entity_api.md) describing entity manipulation.
 </Note>
 
 The entity indexing is a mechanism that stores [entity data](#data-model) into the persistent storage and prepares
@@ -685,7 +685,7 @@ supported:
 - if not, the most preferred price for each item of such a set must be added up and the resulting amount calculated
 
 <Note type="info">
-Exact and detailed [price for sale computation algorithm](../querying/price_computation.md) is described in separate chapter.
+Exact and detailed [price for sale computation algorithm](querying/price_computation.md) is described in separate chapter.
 </Note>
 
 ##### Price histogram
