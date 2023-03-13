@@ -707,7 +707,7 @@ instead of having the user-defined one. This soon changed, as using `integer`, e
 and the new root of the hierarchy was set to null. We quickly discovered further problems which led to the creation of a
 table that was essential for the explanation of all the ways to query the hierarchical entities along with all their
 constraints. This table can be
-found [in the documentation](/research/thesis-assignment/querying/query_language#within-hierarchy-and-within-root-hierarchy).
+found [in the documentation](../assignment/querying/query_language#within-hierarchy-and-within-root-hierarchy).
 This, however, showed us that we had underestimated the complexities and could not use the wrapper strategy.
 
 Our main problem was `null`, which served as a `virtual` root for the queries. This presented a serious problem in
