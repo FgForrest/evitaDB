@@ -34,6 +34,7 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiReferenceValidator;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.resolver.serializer.BigDecimalSerializer;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.Components;
@@ -43,6 +44,7 @@ import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.SpecVersion;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -63,7 +65,9 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  */
 public abstract class RestBuildingContext {
 
+	@Nonnull protected final RestConfig restConfig;
 	@Getter @Nonnull private final Evita evita;
+
 	/**
 	 * This instance of object mapper is shared by all REST handlers registered via RoutingHandler.
 	 */
@@ -79,7 +83,8 @@ public abstract class RestBuildingContext {
 	@Nonnull
 	private final Set<String> registeredCustomEnums = createHashSet(32);
 
-	protected RestBuildingContext(@Nonnull Evita evita) {
+	protected RestBuildingContext(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
+		this.restConfig = restConfig;
 		this.evita = evita;
 		this.objectMapper = setupObjectMapper();
 	}
@@ -94,6 +99,9 @@ public abstract class RestBuildingContext {
 
 		return objectMapper;
 	}
+
+	@Nonnull
+	protected abstract List<Server> buildOpenApiServers();
 
 	@Nonnull
 	protected abstract Info buildOpenApiInfo();
@@ -151,10 +159,9 @@ public abstract class RestBuildingContext {
 
 	@Nonnull
 	private OpenAPI buildOpenApi() {
-		final OpenAPI openApi = new OpenAPI(SpecVersion.V31);
-
-		final Info info = buildOpenApiInfo();
-		openApi.info(info);
+		final OpenAPI openApi = new OpenAPI(SpecVersion.V31)
+			.servers(buildOpenApiServers())
+			.info(buildOpenApiInfo());
 
 		final Components components = new Components();
 		registeredTypes.forEach((name, object) -> components.addSchemas(name, object.toSchema()));
@@ -166,7 +173,7 @@ public abstract class RestBuildingContext {
 			endpoints.forEach((method, endpoint) -> {
 				pathItem.operation(method, endpoint.toOperation());
 			});
-			paths.addPathItem(path.toString(), pathItem);
+			paths.addPathItem("/" + path.toString(), pathItem);
 		});
 		openApi.setPaths(paths);
 
@@ -180,7 +187,7 @@ public abstract class RestBuildingContext {
 		registeredEndpoints.forEach((path, endpoints) ->
 			endpoints.forEach((method, endpoint) ->
 				builtEndpoints.add(new Rest.Endpoint(
-					path.subpath(1, path.getNameCount()), // strip "/rest" prefix
+					path,
 					endpoint.getMethod(),
 					endpoint.toHandler(objectMapper, evita, openApi)
 				))

@@ -80,7 +80,7 @@ public class SystemEndpointBuilder {
 				.staticItem(SystemRootDescriptor.LIVENESS.operation(URL_NAME_NAMING_CONVENTION)))
 			.method(HttpMethod.GET)
 			.description(SystemRootDescriptor.LIVENESS.description())
-			.successResponse(nonNull(typeRefTo(LivenessDescriptor.ALIVE.name())))
+			.successResponse(nonNull(typeRefTo(LivenessDescriptor.THIS.name())))
 			.handler(LivenessHandler::new)
 			.build();
 	}

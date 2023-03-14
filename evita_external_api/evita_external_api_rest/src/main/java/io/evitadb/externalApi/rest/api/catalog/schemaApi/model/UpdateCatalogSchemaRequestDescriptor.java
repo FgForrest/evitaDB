@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.model;
 
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -43,7 +43,7 @@ public interface UpdateCatalogSchemaRequestDescriptor {
 		.description("""
 			Individual mutations to apply to entity schema to create new one or update existing.
 			""")
-		.type(nonNullListRef(EntitySchemaMutationAggregateDescriptor.THIS))
+		.type(nonNullListRef(LocalCatalogSchemaMutationAggregateDescriptor.THIS))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()

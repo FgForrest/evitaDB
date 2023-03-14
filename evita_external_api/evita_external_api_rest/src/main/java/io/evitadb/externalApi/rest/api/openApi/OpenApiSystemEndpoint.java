@@ -54,7 +54,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
  */
 public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingContext> {
 
-	private static final String URL_PREFIX = "system";
+	public static final String URL_PREFIX = "system";
 
 	private OpenApiSystemEndpoint(@Nonnull PathItem.HttpMethod method,
 	                              @Nonnull Path path,
@@ -124,7 +124,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		@Nonnull
 		public Builder path(@Nonnull UnaryOperator<PathBuilder> pathBuilderFunction) {
 			// prepare new system path
-			PathBuilder pathBuilder = newPath().staticItem(URL_PREFIX);
+			PathBuilder pathBuilder = newPath();
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 
 			this.path = pathBuilder.getPath();

@@ -33,6 +33,7 @@ import io.evitadb.externalApi.rest.api.system.builder.SystemRestBuildingContext;
 import io.evitadb.externalApi.rest.api.system.model.CreateCatalogRequestDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.api.system.model.UpdateCatalogRequestDescriptor;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -50,8 +51,8 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 	/**
 	 * Creates new builder.
 	 */
-	public SystemRestBuilder(@Nonnull Evita evita) {
-		super(new SystemRestBuildingContext(evita));
+	public SystemRestBuilder(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
+		super(new SystemRestBuildingContext(restConfig, evita));
 		this.endpointBuilder = new SystemEndpointBuilder(operationPathParameterBuilderTransformer);
 	}
 

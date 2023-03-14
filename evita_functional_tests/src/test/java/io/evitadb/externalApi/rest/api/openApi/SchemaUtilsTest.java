@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
@@ -62,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Slf4j
 class SchemaUtilsTest {
 	private static OpenAPI openAPI;
-	private static final String urlPathToProductList = "/rest/test-catalog/product/list";
+	private static final String urlPathToProductList = "/product/list";
 
 	@DataSet(REST_THOUSAND_PRODUCTS)
 	List<SealedEntity> setUp(Evita evita) {
@@ -70,7 +71,7 @@ class SchemaUtilsTest {
 		final List<SealedEntity> sealedEntities = TestDataGenerator.generateMainCatalogEntities(evita);
 
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		openAPI = new CatalogRestBuilder(evita, catalog).build().openApi();
+		openAPI = new CatalogRestBuilder(new RestConfig(true, "localhost:5555", "rest"), evita, catalog).build().openApi();
 
 		return sealedEntities;
 	}

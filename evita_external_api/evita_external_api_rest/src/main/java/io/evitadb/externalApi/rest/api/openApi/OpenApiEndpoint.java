@@ -219,11 +219,9 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	@NoArgsConstructor(access = AccessLevel.PRIVATE)
 	public static class PathBuilder {
 
-		private static final String PATH_PREFIX = "/rest";
-
 		@Nonnull
 		@Getter(AccessLevel.PROTECTED)
-		private Path path = Path.of(PATH_PREFIX);
+		private Path path = Path.of("");
 		@Getter(AccessLevel.PROTECTED)
 		private final List<OpenApiEndpointParameter> pathParameters = new LinkedList<>();
 

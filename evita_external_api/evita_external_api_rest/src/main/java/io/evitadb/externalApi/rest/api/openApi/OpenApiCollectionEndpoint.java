@@ -158,8 +158,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		@Nonnull
 		public Builder path(boolean localized, @Nonnull UnaryOperator<PathBuilder> pathBuilderFunction) {
 			// prepare new catalog path
-			PathBuilder pathBuilder = newPath()
-				.staticItem(catalogSchema.getNameVariant(URL_NAME_NAMING_CONVENTION));
+			PathBuilder pathBuilder = newPath();
 			if (localized) {
 				pathBuilder.paramItem(newPathParameter()
 					.name(EndpointHeaderDescriptor.LOCALIZED.name())

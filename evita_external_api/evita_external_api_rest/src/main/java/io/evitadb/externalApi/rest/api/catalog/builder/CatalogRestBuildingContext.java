@@ -28,15 +28,20 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.info.License;
+import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -62,8 +67,8 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	@Nonnull @Getter private final List<OpenApiTypeReference> localizedEntityObjects;
 
 
-	public CatalogRestBuildingContext(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
-		super(evita);
+	public CatalogRestBuildingContext(@Nonnull RestConfig restConfig, @Nonnull Evita evita, @Nonnull CatalogContract catalog) {
+		super(restConfig, evita);
 		this.catalog = catalog;
 		this.entitySchemas = evita.queryCatalog(catalog.getName(), session -> {
 			final Set<String> collections = session.getAllEntityTypes();
@@ -83,11 +88,22 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 
 	@Nonnull
 	@Override
+	protected List<Server> buildOpenApiServers() {
+		return Arrays.stream(restConfig.getHost())
+			.map(host -> new Server()
+				.url("https://" + host.hostName() + ":" + host.port() + "/" + restConfig.getPrefix() + "/" + getSchema().getNameVariant(ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION))
+				.description(""))
+			.toList();
+	}
+
+	@Nonnull
+	@Override
 	protected Info buildOpenApiInfo() {
 		final Info info = new Info();
 		info.setTitle("Web services for catalog `" + getCatalog().getName() + "`.");
 		info.setContact(new Contact().email("novotny@fg.cz").url("https://www.fg.cz"));
 		info.setVersion("1.0.0-oas3");
+		info.setLicense(new License().name("Business Source License 1.1").url("https://github.com/FgForrest/evitaDB/blob/dev/LICENSE"));
 		return info;
 	}
 

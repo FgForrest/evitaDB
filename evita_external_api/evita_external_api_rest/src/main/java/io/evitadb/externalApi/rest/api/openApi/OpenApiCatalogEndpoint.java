@@ -46,7 +46,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint.PathBuilder.newPath;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.newPathParameter;
 import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
@@ -147,8 +146,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		@Nonnull
 		public Builder path(boolean localized, @Nonnull UnaryOperator<PathBuilder> pathBuilderFunction) {
 			// prepare new catalog path
-			PathBuilder pathBuilder = newPath()
-				.staticItem(catalogSchema.getNameVariant(URL_NAME_NAMING_CONVENTION));
+			PathBuilder pathBuilder = newPath();
 			if (localized) {
 				pathBuilder.paramItem(newPathParameter()
 					.name(EndpointHeaderDescriptor.LOCALIZED.name())

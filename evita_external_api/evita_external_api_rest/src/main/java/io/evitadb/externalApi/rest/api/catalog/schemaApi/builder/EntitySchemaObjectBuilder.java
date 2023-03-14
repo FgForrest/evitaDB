@@ -266,7 +266,7 @@ public class EntitySchemaObjectBuilder {
 	                                                        @Nonnull ReferenceSchemaContract referenceSchema) {
 		final OpenApiObject referenceSchemaObject = ReferenceSchemaDescriptor.THIS_SPECIFIC
 			.to(objectBuilderTransformer)
-			.name(ReferenceSchemaDescriptor.THIS_SPECIFIC.name(referenceSchema))
+			.name(ReferenceSchemaDescriptor.THIS_SPECIFIC.name(entitySchema, referenceSchema))
 			.property(buildReferencedAttributeSchemasProperty(entitySchema, referenceSchema))
 			.build();
 
