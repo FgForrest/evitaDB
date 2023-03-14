@@ -183,9 +183,4 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.build())
 			.build();
 	}
-
-	@Nonnull
-	protected static EntitySchema createEmptyEntitySchema(@Nonnull String entityType) {
-		return EntitySchema._internalBuild(entityType);
-	}
 }

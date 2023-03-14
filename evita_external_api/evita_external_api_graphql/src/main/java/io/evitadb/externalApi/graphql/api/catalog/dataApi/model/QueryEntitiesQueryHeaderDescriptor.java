@@ -53,7 +53,7 @@ public interface QueryEntitiesQueryHeaderDescriptor {
 		.description("""
 			Complex require query to alter query behaviour.
 			Because most of require constraints are resolved from client-defined output objects structure we need only
-			few left constraints that cannot be resolved from output structure because they usually change whole Evita
+			few left constraints that cannot be resolved from output structure because they usually change whole evitaDB
 			query behaviour.
 			""")
 		// type is expected to be tree of require constraints

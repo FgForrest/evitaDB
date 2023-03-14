@@ -22,6 +22,7 @@
  */
 
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.rest.RestProviderRegistrar;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 /**
@@ -32,11 +33,14 @@ module evita.external.api.rest {
 	uses CatalogPersistenceServiceFactory;
 	uses ExternalApiProviderRegistrar;
 
-	provides ExternalApiProviderRegistrar with io.evitadb.externalApi.rest.RESTProviderRegistrar;
+	provides ExternalApiProviderRegistrar with RestProviderRegistrar;
 
 	opens io.evitadb.externalApi.rest.configuration to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.rest.io.model to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.rest.io.serializer to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.resolver.serializer to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.catalog.dataApi.dto to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.catalog.schemaApi.dto to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer to com.fasterxml.jackson.databind;
 
 	requires static jsr305;
 	requires static lombok;
@@ -55,7 +59,21 @@ module evita.external.api.rest {
 	requires evita.engine;
 
 	exports io.evitadb.externalApi.rest.io;
-	exports io.evitadb.externalApi.rest.io.handler;
-	exports io.evitadb.externalApi.rest.io.handler.constraint;
+	exports io.evitadb.externalApi.rest.configuration;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.dto;
+	exports io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
+	exports io.evitadb.externalApi.rest.api.resolver.endpoint;
+	exports io.evitadb.externalApi.rest.api.openApi;
+	exports io.evitadb.externalApi.rest.api;
+	exports io.evitadb.externalApi.rest.api.catalog.builder;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi.builder;
+	exports io.evitadb.externalApi.rest.api.catalog.schemaApi.builder;
+	exports io.evitadb.externalApi.rest.api.catalog;
+	exports io.evitadb.externalApi.rest.api.catalog.dataApi;
+	exports io.evitadb.externalApi.rest.api.catalog.schemaApi;
+	exports io.evitadb.externalApi.rest.api.catalog.resolver.endpoint;
+	exports io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 }

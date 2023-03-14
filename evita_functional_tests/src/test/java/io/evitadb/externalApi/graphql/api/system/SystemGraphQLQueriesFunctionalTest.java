@@ -25,7 +25,6 @@ package io.evitadb.externalApi.graphql.api.system;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
@@ -77,8 +76,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific catalog")
 	void shouldReturnSpecificCatalog(Evita evita) {
-		final EvitaSystemDataProvider evitaSystemDataProvider = new EvitaSystemDataProvider(evita);
-		final CatalogContract testCatalog = evitaSystemDataProvider.getCatalog(TEST_CATALOG);
+		final CatalogContract testCatalog = evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 		createCatalogDto(testCatalog);
 
 		testGraphQLCall()
@@ -106,8 +104,6 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all catalogs")
 	void shouldReturnAllCatalogs(Evita evita) {
-		final EvitaSystemDataProvider evitaSystemDataProvider = new EvitaSystemDataProvider(evita);
-
 		testGraphQLCall()
 			.document(
 				"""
@@ -129,7 +125,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 			.body(
 				CATALOGS_PATH,
 				equalTo(
-					evitaSystemDataProvider.getCatalogs()
+					evita.getCatalogs()
 						.stream()
 						.map(SystemGraphQLQueriesFunctionalTest::createCatalogDto)
 						.toList()

@@ -75,7 +75,7 @@ public class ReferenceDataFetcher implements DataFetcher<DataFetcherResult<Refer
         final ReferenceContract reference = references.isEmpty() ? null : references.iterator().next();
         if (referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE && reference == null) {
             throw new GraphQLInternalError(
-                "Evita should returned exactly one reference for name `" + referenceSchema.getName() + "` but zero found."
+                "evitaDB should returned exactly one reference for name `" + referenceSchema.getName() + "` but zero found."
             );
         }
 

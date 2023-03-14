@@ -585,6 +585,7 @@ public class EvitaDataTypes {
 	 * @return unknownObject converted to requested type
 	 * @throws UnsupportedDataTypeException when unknownObject cannot be converted to any of Evita supported types
 	 */
+	@Nullable
 	public static <T extends Serializable> T toTargetType(@Nullable Serializable unknownObject, @Nonnull Class<T> requestedType) throws UnsupportedDataTypeException {
 		return toTargetType(unknownObject, requestedType, 0);
 	}

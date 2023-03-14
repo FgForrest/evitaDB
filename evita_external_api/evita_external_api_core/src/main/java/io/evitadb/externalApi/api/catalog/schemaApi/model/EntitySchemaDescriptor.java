@@ -169,7 +169,7 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			Attributes are not recommended for bigger data as they are all loaded at once requested.
 			Large data that are occasionally used store in `associatedData`.
 			""")
-		// type is expected to be either global attribute schema list or list of a union of base attribute schema and global attribute schema
+		.type(nonNullListRef(AttributeSchemaUnionDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor ASSOCIATED_DATA = PropertyDescriptor.builder()
@@ -282,7 +282,10 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			INDEXED_PRICE_PLACES,
 			LOCALES,
 			CURRENCIES,
-			EVOLUTION_MODE
+			EVOLUTION_MODE,
+			ALL_ATTRIBUTES,
+			ALL_ASSOCIATED_DATA,
+			ALL_REFERENCES
 		))
 		.build();
 	ObjectDescriptor THIS_SPECIFIC = ObjectDescriptor.builder()

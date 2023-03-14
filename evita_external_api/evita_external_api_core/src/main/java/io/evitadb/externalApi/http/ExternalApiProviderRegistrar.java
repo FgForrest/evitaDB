@@ -24,17 +24,14 @@
 package io.evitadb.externalApi.http;
 
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.undertow.Undertow;
-import io.undertow.server.handlers.PathHandler;
 
 import javax.annotation.Nonnull;
 
 /**
  * Configures and registers provider of particular external API to HTTP server ({@link ExternalApiServer}).
- * Each provider have to have unique code and have to implement {@link #register(Undertow.Builder, PathHandler, Evita, T)}
+ * Each provider have to have unique code and have to implement {@link #register(Evita, ApiOptions, T)}
  * method which registers provider to the server to be later started by the server.
  *
  * It is based on {@link java.util.ServiceLoader} which requires appropriate registration of implementation of this interface.
@@ -62,9 +59,9 @@ public interface ExternalApiProviderRegistrar<T extends AbstractApiConfiguration
     /**
      * Configures and registers this provider
      *
-     * @param evitaSystemDataProvider ready-to-use Evita with access to internal data structures
+     * @param evita ready-to-use Evita with access to internal data structures
      * @param externalApiConfiguration configuration parameters for this provider (structure is defined by provider itself)
      */
     @Nonnull
-    ExternalApiProvider<T> register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull T externalApiConfiguration);
+    ExternalApiProvider<T> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull T externalApiConfiguration);
 }

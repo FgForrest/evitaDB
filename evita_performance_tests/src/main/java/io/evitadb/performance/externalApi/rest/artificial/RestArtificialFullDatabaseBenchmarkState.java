@@ -29,9 +29,9 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.rest.RESTProvider;
-import io.evitadb.externalApi.rest.RESTProviderRegistrar;
-import io.evitadb.externalApi.rest.configuration.RESTConfig;
+import io.evitadb.externalApi.rest.RestProvider;
+import io.evitadb.externalApi.rest.RestProviderRegistrar;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.performance.generators.TestDatasetGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
 import org.openjdk.jmh.annotations.Level;
@@ -87,8 +87,8 @@ public class RestArtificialFullDatabaseBenchmarkState extends RestArtificialBenc
 		// start rest server
 		server = new ExternalApiServer(
 			this.evita,
-			new ApiOptions(null, new CertificateSettings.Builder().build(), Map.of(RESTProvider.CODE, new RESTConfig())),
-			Collections.singleton(new RESTProviderRegistrar())
+			new ApiOptions(null, new CertificateSettings.Builder().build(), Map.of(RestProvider.CODE, new RestConfig())),
+			Collections.singleton(new RestProviderRegistrar())
 		);
 		server.start();
 	}

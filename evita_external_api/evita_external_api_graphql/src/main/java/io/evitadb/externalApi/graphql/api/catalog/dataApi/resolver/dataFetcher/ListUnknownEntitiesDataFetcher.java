@@ -110,7 +110,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
             filterBy,
             require
         );
-        log.debug("Generated Evita query for single unknown entity fetch `{}`.", query);
+        log.debug("Generated evitaDB query for single unknown entity fetch `{}`.", query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
         final List<SealedEntity> entityReferences = evitaSession.queryList(query, SealedEntity.class);

@@ -17,4 +17,5 @@ module evita.test.support {
 	requires evita.api;
 	requires evita.engine;
 	requires evita.common;
+	requires com.fasterxml.jackson.databind;
 }

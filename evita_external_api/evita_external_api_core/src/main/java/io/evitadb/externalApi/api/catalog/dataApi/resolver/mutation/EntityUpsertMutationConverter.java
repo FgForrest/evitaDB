@@ -63,10 +63,10 @@ public abstract class EntityUpsertMutationConverter<A> {
 	}
 
 	@Nonnull
-	public EntityUpsertMutation resolve(@Nullable Integer primaryKey,
+	public EntityUpsertMutation convert(@Nullable Integer primaryKey,
 	                                    @Nonnull EntityExistence entityExistence,
 	                                    @Nonnull A inputLocalMutationAggregates) {
-		final List<Object> rawInputLocalMutationAggregates = resolveAggregates(inputLocalMutationAggregates);
+		final List<Object> rawInputLocalMutationAggregates = convertAggregates(inputLocalMutationAggregates);
 		final List<LocalMutation<?, ?>> localMutations = rawInputLocalMutationAggregates.stream()
 			.flatMap(agg -> localMutationAggregateResolver.convert(agg).stream())
 			.toList();
@@ -78,5 +78,5 @@ public abstract class EntityUpsertMutationConverter<A> {
 	 * Resolvers input aggregates from input object into list of individual aggregates
 	 */
 	@Nonnull
-	protected abstract List<Object> resolveAggregates(@Nonnull A inputLocalMutationAggregates);
+	protected abstract List<Object> convertAggregates(@Nonnull A inputLocalMutationAggregates);
 }

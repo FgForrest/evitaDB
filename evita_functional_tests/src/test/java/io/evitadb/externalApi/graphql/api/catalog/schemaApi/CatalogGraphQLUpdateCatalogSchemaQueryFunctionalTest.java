@@ -54,7 +54,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	private static final String CATALOG_SCHEMA_PATH = "data.get_catalog";
 	private static final String UPDATE_CATALOG_SCHEMA_PATH = "data.update_catalog";
 	private static final String MY_NEW_COLLECTION_SCHEMA_PATH = "data.get_myNewCollection";
-	public static final String NEW_COLLECTION_NAME = "myNewCollection";
+	private static final String NEW_COLLECTION_NAME = "myNewCollection";
 
 
 	@Test
@@ -68,7 +68,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 					update_catalog {
 						version
 					}
-				}	
+				}
 				"""
 			)
 			.executeAndThen()
@@ -91,9 +91,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 					) {
 						version
 					}
-				}	
-				""",
-				NEW_COLLECTION_NAME
+				}
+				"""
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -131,9 +130,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 						version
 						description
 					}
-				}	
-				""",
-				NEW_COLLECTION_NAME
+				}
+				"""
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -179,9 +177,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 					) {
 						version
 					}
-				}	
-				""",
-				NEW_COLLECTION_NAME
+				}
+				"""
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -247,6 +244,36 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				)
 			);
 
+		// revert
+		testGraphQLCall()
+			.document(
+				"""
+				mutation {
+					update_catalog (
+						mutations: [
+							{
+								removeAttributeSchemaMutation: {
+									name: "mySpecialCode"
+								}
+							}
+						]
+					) {
+						version
+					}
+				}
+				"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				UPDATE_CATALOG_SCHEMA_PATH,
+				equalTo(
+					map()
+						.e(CatalogSchemaDescriptor.VERSION.name(), initialCatalogSchemVersion + 2)
+						.build()
+				)
+			);
 	}
 
 	@Test

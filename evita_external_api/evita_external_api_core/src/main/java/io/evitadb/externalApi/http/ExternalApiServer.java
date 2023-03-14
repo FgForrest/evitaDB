@@ -26,7 +26,6 @@ package io.evitadb.externalApi.http;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -230,21 +229,20 @@ public class ExternalApiServer implements AutoCloseable {
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
 	) {
 		this.apiOptions = apiOptions;
-		final EvitaSystemDataProvider evitaSystemDataProvider = new EvitaSystemDataProvider(evita);
 
 		final Undertow.Builder rootServerBuilder = Undertow.builder();
 
 		final ServerCertificateManager serverCertificateManager = new ServerCertificateManager(apiOptions.certificate());
 		final CertificatePath certificatePath = initCertificate(apiOptions, serverCertificateManager);
 
-		this.registeredApiProviders = registerApiProviders(evitaSystemDataProvider, apiOptions, externalApiProviders);
+		this.registeredApiProviders = registerApiProviders(evita, apiOptions, externalApiProviders);
 		if (this.registeredApiProviders.isEmpty()) {
 			log.info("No external API providers were registered. No server will be created.");
 			rootServer = null;
 			return;
 		}
 
-		configureUndertow(rootServerBuilder, evitaSystemDataProvider, certificatePath, apiOptions, serverCertificateManager);
+		configureUndertow(rootServerBuilder, evita, certificatePath, apiOptions, serverCertificateManager);
 
 		this.rootServer = rootServerBuilder.build();
 	}
@@ -287,12 +285,12 @@ public class ExternalApiServer implements AutoCloseable {
 
 	private void configureUndertow(
 		@Nonnull Undertow.Builder undertowBuilder,
-		@Nonnull EvitaSystemDataProvider evitaSystemDataProvider,
+		@Nonnull Evita evita,
 		@Nonnull CertificatePath certificatePath,
 		@Nonnull ApiOptions apiOptions,
 		@Nonnull ServerCertificateManager serverCertificateManager
 	) {
-		final EnhancedQueueExecutor executor = evitaSystemDataProvider.getExecutor();
+		final EnhancedQueueExecutor executor = evita.getExecutor();
 		undertowBuilder
 			.setWorker(
 				Xnio.getInstance()
@@ -412,7 +410,7 @@ public class ExternalApiServer implements AutoCloseable {
 	 */
 	@SuppressWarnings("unchecked")
 	private static Map<String, ExternalApiProvider<?>> registerApiProviders(
-		@Nonnull EvitaSystemDataProvider evitaSystemDataProvider,
+		@Nonnull Evita evitaSystemDataProvider,
 		@Nonnull ApiOptions apiOptions,
 		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
 	) {

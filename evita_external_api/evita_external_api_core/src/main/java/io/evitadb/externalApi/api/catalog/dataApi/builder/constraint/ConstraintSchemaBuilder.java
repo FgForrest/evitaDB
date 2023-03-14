@@ -104,12 +104,13 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER
  * </ul>
  *
  * @param <CTX> type of API-specific context object
- * @param <ST> output type of schema
- * @param <FST> output type of schema of single field of parent object
+ * @param <SIMPLE_TYPE> type that references remote object or scalar and can be safely used anywhere, also this is output type of this builder
+ * @param <OBJECT_TYPE> type that holds actual full object that others reference to, needs to be registered
+ * @param <OBJECT_FIELD> output type of schema of single field of parent object
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
-public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildingContext<ST>, ST, FST> {
+public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE>, SIMPLE_TYPE, OBJECT_TYPE, OBJECT_FIELD> {
 
 	@Nonnull
 	protected final CTX sharedContext;
@@ -133,7 +134,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * as virtual root query.
 	 */
 	@Nonnull
-	public ST build() {
+	public SIMPLE_TYPE build() {
 		// find root container
 		final ConstraintDescriptor rootDescriptor = getRootConstraintContainerDescriptor();
 
@@ -208,8 +209,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * The container is either retrieved from cache or it is build new one.
 	 */
 	@Nonnull
-	protected ST obtainContainer(@Nonnull BuildContext buildContext,
-	                             @Nonnull ChildParameterDescriptor childParameter) {
+	protected SIMPLE_TYPE obtainContainer(@Nonnull BuildContext buildContext,
+	                                      @Nonnull ChildParameterDescriptor childParameter) {
 		final AllowedConstraintPredicate allowedChildrenPredicate = getAllowedChildrenPredicate(childParameter);
 
 		final ContainerKey containerKey = new ContainerKey(
@@ -220,7 +221,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		);
 
 		// reuse already build container with same properties
-		final ST cachedContainer = sharedContext.getCachedContainer(containerKey);
+		final SIMPLE_TYPE cachedContainer = sharedContext.getCachedContainer(containerKey);
 		if (cachedContainer != null) {
 			return cachedContainer;
 		}
@@ -237,17 +238,17 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * <b>Note:</b> this method should not be used directly, instead use {@link #obtainContainer(BuildContext, ChildParameterDescriptor)}.
 	 */
 	@Nonnull
-	protected abstract ST buildContainer(@Nonnull BuildContext buildContext,
-	                                     @Nonnull ContainerKey containerKey,
-	                                     @Nonnull AllowedConstraintPredicate allowedChildrenPredicate);
+	protected abstract SIMPLE_TYPE buildContainer(@Nonnull BuildContext buildContext,
+	                                              @Nonnull ContainerKey containerKey,
+	                                              @Nonnull AllowedConstraintPredicate allowedChildrenPredicate);
 
 	/**
 	 * Builds fields representing children of query container from query descriptors of these children.
 	 */
 	@Nonnull
-	protected List<FST> buildChildren(@Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
-	                                  @Nonnull Set<ConstraintDescriptor> childConstraintDescriptors,
-	                                  @Nonnull FieldFromConstraintDescriptorBuilder<FST> fieldBuilder) {
+	protected List<OBJECT_FIELD> buildChildren(@Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
+	                                           @Nonnull Set<ConstraintDescriptor> childConstraintDescriptors,
+	                                           @Nonnull FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder) {
 		return childConstraintDescriptors
 			.stream()
 			.filter(allowedChildrenPredicate)
@@ -261,17 +262,17 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * This is shortcut method for building non-dynamic (no classifier and no generic value types) children.
 	 */
 	@Nonnull
-	protected List<FST> buildBasicChildren(@Nonnull BuildContext buildContext,
-										   @Nonnull BuildContext childBuildContext,
-	                                       @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
-	                                       @Nonnull ConstraintPropertyType propertyType) {
+	protected List<OBJECT_FIELD> buildBasicChildren(@Nonnull BuildContext buildContext,
+	                                                @Nonnull BuildContext childBuildContext,
+	                                                @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
+	                                                @Nonnull ConstraintPropertyType propertyType) {
 		final Set<ConstraintDescriptor> constraintDescriptors = ConstraintDescriptorProvider.getConstraints(
 			getConstraintType(),
 			propertyType,
 			buildContext.dataLocator().targetDomain()
 		);
 
-		final FieldFromConstraintDescriptorBuilder<FST> fieldBuilder =
+		final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder =
 			constraintDescriptor -> buildFieldFromConstraintDescriptor(
 				childBuildContext,
 				constraintDescriptor,
@@ -287,8 +288,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#GENERIC} property type.
 	 */
 	@Nonnull
-	protected List<FST> buildGenericChildren(@Nonnull BuildContext buildContext,
-	                                         @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+	protected List<OBJECT_FIELD> buildGenericChildren(@Nonnull BuildContext buildContext,
+	                                                  @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		return buildBasicChildren(
 			buildContext,
 			buildContext,
@@ -302,8 +303,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#ENTITY} property type.
 	 */
 	@Nonnull
-	protected List<FST> buildEntityChildren(@Nonnull BuildContext buildContext,
-	                                        @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+	protected List<OBJECT_FIELD> buildEntityChildren(@Nonnull BuildContext buildContext,
+	                                                 @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		final DataLocator childDataLocator;
 		if (!(buildContext.dataLocator() instanceof DataLocatorWithReference)) {
 			childDataLocator = new EntityDataLocator(buildContext.dataLocator().entityType());
@@ -328,9 +329,9 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#ATTRIBUTE} property type.
 	 */
 	@Nonnull
-	protected List<FST> buildAttributeChildren(@Nonnull BuildContext buildContext,
-	                                           @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
-		final List<FST> fields = new LinkedList<>();
+	protected List<OBJECT_FIELD> buildAttributeChildren(@Nonnull BuildContext buildContext,
+	                                                    @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
 		// build constraints without dynamic classifier
 		final Set<ConstraintDescriptor> constraintDescriptorsWithoutClassifier = ConstraintDescriptorProvider.getConstraints(
@@ -370,7 +371,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 						.filter(cd -> cd.creator().hasClassifierParameter())
 						.collect(Collectors.toUnmodifiableSet());
 
-					final FieldFromConstraintDescriptorBuilder<FST> fieldBuilder =
+					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder =
 						constraintDescriptor -> buildFieldFromConstraintDescriptor(
 							new BuildContext(new GenericDataLocator(buildContext.dataLocator().entityType())), // attribute constraints doesn't support children, thus generic domain is used as the default
 							constraintDescriptor,
@@ -401,9 +402,9 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * for it.
 	 */
 	@Nonnull
-	protected List<FST> buildAssociatedDataChildren(@Nonnull BuildContext buildContext,
-	                                                @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
-		final List<FST> fields = new LinkedList<>();
+	protected List<OBJECT_FIELD> buildAssociatedDataChildren(@Nonnull BuildContext buildContext,
+	                                                         @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
 		// build constraints without dynamic classifier
 		final Set<ConstraintDescriptor> constraintDescriptorsWithoutClassifier = ConstraintDescriptorProvider.getConstraints(
@@ -435,8 +436,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#PRICE} property type.
 	 */
 	@Nonnull
-	protected List<FST> buildPriceChildren(@Nonnull BuildContext buildContext,
-	                                       @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+	protected List<OBJECT_FIELD> buildPriceChildren(@Nonnull BuildContext buildContext,
+	                                                @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		if (findRequiredEntitySchema(buildContext.dataLocator()).getCurrencies().isEmpty()) {
 			// no prices, cannot operate on them
 			return List.of();
@@ -450,9 +451,9 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	}
 
 	@Nonnull
-	protected List<FST> buildReferenceChildren(@Nonnull BuildContext buildContext,
-	                                           @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
-	                                           @Nonnull Collection<ReferenceSchemaContract> referenceSchemas) {
+	protected List<OBJECT_FIELD> buildReferenceChildren(@Nonnull BuildContext buildContext,
+	                                                    @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
+	                                                    @Nonnull Collection<ReferenceSchemaContract> referenceSchemas) {
 		// build constraint with dynamic classifier only, others are currently not needed
 		final Set<ConstraintDescriptor> referenceConstraints = ConstraintDescriptorProvider.getConstraints(
 				getConstraintType(),
@@ -467,7 +468,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			.stream()
 			.filter(ReferenceSchemaContract::isFilterable)
 			.flatMap(referenceSchema -> {
-				final FieldFromConstraintDescriptorBuilder<FST> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
+				final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
 					new BuildContext(
 						new ReferenceDataLocator(
 							buildContext.dataLocator().entityType(),
@@ -489,16 +490,16 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#HIERARCHY} property type.
 	 */
 	@Nonnull
-	protected List<FST> buildHierarchyChildren(@Nonnull BuildContext buildContext,
-	                                           @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
-	                                           @Nonnull Collection<ReferenceSchemaContract> referenceSchemas) {
+	protected List<OBJECT_FIELD> buildHierarchyChildren(@Nonnull BuildContext buildContext,
+	                                                    @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
+	                                                    @Nonnull Collection<ReferenceSchemaContract> referenceSchemas) {
 		final Set<ConstraintDescriptor> hierarchyConstraints = ConstraintDescriptorProvider.getConstraints(
 			getConstraintType(),
 			ConstraintPropertyType.HIERARCHY,
 			buildContext.dataLocator().targetDomain()
 		);
 
-		final FieldFromConstraintDescriptorBuilder<FST> nonReferencedConstraintsFieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
+		final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> nonReferencedConstraintsFieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
 			new BuildContext(
 				new HierarchyDataLocator(
 					buildContext.dataLocator().entityType(),
@@ -510,7 +511,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			null
 		);
 
-		final List<FST> fields = new LinkedList<>();
+		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
 		// build constraints with classifier of queried collection
 		if (!(buildContext.dataLocator() instanceof DataLocatorWithReference) &&
@@ -555,7 +556,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 							.getSchema()
 							.isWithHierarchy())
 				.flatMap(hierarchyReferenceSchema -> {
-					final FieldFromConstraintDescriptorBuilder<FST> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
+					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder = constraintDescriptor -> buildFieldFromConstraintDescriptor(
 						new BuildContext(
 							new HierarchyDataLocator(
 								buildContext.dataLocator().entityType(),
@@ -580,16 +581,16 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * This is shortcut method for building all children of {@link ConstraintPropertyType#FACET} property type.
 	 */
 	@Nonnull
-	protected List<FST> buildFacetChildren(@Nonnull BuildContext buildContext,
-	                                       @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
-	                                       @Nonnull Collection<ReferenceSchemaContract> referenceSchemas) {
+	protected List<OBJECT_FIELD> buildFacetChildren(@Nonnull BuildContext buildContext,
+	                                                @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
+	                                                @Nonnull Collection<ReferenceSchemaContract> referenceSchemas) {
 		final Set<ConstraintDescriptor> constraintsForFacets = ConstraintDescriptorProvider.getConstraints(
 			getConstraintType(),
 			ConstraintPropertyType.FACET,
 			buildContext.dataLocator().targetDomain()
 		);
 
-		final List<FST> fields = new LinkedList<>();
+		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
 		// build constraints without dynamic classifier
 		fields.addAll(
@@ -618,7 +619,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				.stream()
 				.filter(ReferenceSchemaContract::isFaceted)
 				.flatMap(facetSchema -> {
-					final FieldFromConstraintDescriptorBuilder<FST> fieldBuilder =
+					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder =
 						constraintDescriptor -> buildFieldFromConstraintDescriptor(
 							new BuildContext(
 								new FacetDataLocator(
@@ -656,17 +657,17 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 *         context
 	 */
 	@Nullable
-	protected FST buildFieldFromConstraintDescriptor(@Nonnull BuildContext buildContext,
-	                                                 @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                                 @Nullable Supplier<String> classifierSupplier,
-	                                                 @Nullable ValueTypeSupplier valueTypeSupplier) {
+	protected OBJECT_FIELD buildFieldFromConstraintDescriptor(@Nonnull BuildContext buildContext,
+	                                                          @Nonnull ConstraintDescriptor constraintDescriptor,
+	                                                          @Nullable Supplier<String> classifierSupplier,
+	                                                          @Nullable ValueTypeSupplier valueTypeSupplier) {
 		if (!canFieldBeCreatedFromConstraintDescriptor(buildContext, constraintDescriptor)) {
 			// missing some data in current context, constraint descriptor shouldn't be created, it wouldn't make sense
 			return null;
 		}
 
 		final String constraintKey = buildConstraintKey(constraintDescriptor, classifierSupplier);
-		final ST constraintValue = buildConstraintValue(buildContext, constraintDescriptor, valueTypeSupplier);
+		final SIMPLE_TYPE constraintValue = buildConstraintValue(buildContext, constraintDescriptor, valueTypeSupplier);
 		return buildFieldFromConstraintDescriptor(constraintDescriptor, constraintKey, constraintValue);
 	}
 
@@ -679,9 +680,9 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * @return output schema field object
 	 */
 	@Nullable
-	protected abstract FST buildFieldFromConstraintDescriptor(@Nonnull ConstraintDescriptor constraintDescriptor,
-	                                                          @Nonnull String constraintKey,
-	                                                          @Nonnull ST constraintValue);
+	protected abstract OBJECT_FIELD buildFieldFromConstraintDescriptor(@Nonnull ConstraintDescriptor constraintDescriptor,
+	                                                                   @Nonnull String constraintKey,
+	                                                                   @Nonnull SIMPLE_TYPE constraintValue);
 
 	/**
 	 * Builds field key uniquely representing single variant of query.
@@ -739,9 +740,9 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * @return input type representing the field value
 	 */
 	@Nonnull
-	protected ST buildConstraintValue(@Nonnull BuildContext buildContext,
-	                                  @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                  @Nullable ValueTypeSupplier valueTypeSupplier) {
+	protected SIMPLE_TYPE buildConstraintValue(@Nonnull BuildContext buildContext,
+	                                           @Nonnull ConstraintDescriptor constraintDescriptor,
+	                                           @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final ConstraintCreator creator = constraintDescriptor.creator();
 		final ConstraintValueStructure constraintValueStructure = ConstraintProcessingUtils.getValueStructureForConstraintCreator(creator);
 
@@ -777,41 +778,41 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * Builds field value representing query value of query without any creator parameters.
 	 */
 	@Nonnull
-	protected abstract ST buildNoneConstraintValue();
+	protected abstract SIMPLE_TYPE buildNoneConstraintValue();
 
 	/**
 	 * Builds field value representing query value of query with single creator value parameter.
 	 */
 	@Nonnull
-	protected abstract ST buildPrimitiveConstraintValue(@Nonnull BuildContext buildContext,
-	                                                    @Nonnull ValueParameterDescriptor valueParameter,
-	                                                    boolean canBeRequired,
-	                                                    @Nullable ValueTypeSupplier valueTypeSupplier);
+	protected abstract SIMPLE_TYPE buildPrimitiveConstraintValue(@Nonnull BuildContext buildContext,
+	                                                             @Nonnull ValueParameterDescriptor valueParameter,
+	                                                             boolean canBeRequired,
+	                                                             @Nullable ValueTypeSupplier valueTypeSupplier);
 
 	/**
 	 * Builds field value representing query value of query with single creator value parameter.
 	 */
 	@Nonnull
-	protected abstract ST buildWrapperRangeConstraintValue(@Nonnull BuildContext buildContext,
-	                                                       @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                       @Nullable ValueTypeSupplier valueTypeSupplier);
+	protected abstract SIMPLE_TYPE buildWrapperRangeConstraintValue(@Nonnull BuildContext buildContext,
+	                                                                @Nonnull List<ValueParameterDescriptor> valueParameters,
+	                                                                @Nullable ValueTypeSupplier valueTypeSupplier);
 
 	/**
 	 * Builds field value representing query value of query with single creator child parameter.
 	 */
 	@Nonnull
-	protected abstract ST buildChildConstraintValue(@Nonnull BuildContext buildContext,
-	                                                @Nonnull ChildParameterDescriptor childParameter);
+	protected abstract SIMPLE_TYPE buildChildConstraintValue(@Nonnull BuildContext buildContext,
+	                                                         @Nonnull ChildParameterDescriptor childParameter);
 
 	/**
 	 * Returns field value representing constraint value of constraint with multiple creator value parameters or
 	 * combination of value and child parameters, either from cache or newly built one.
 	 */
 	@Nonnull
-	protected ST obtainWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
-	                                                @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                @Nullable ChildParameterDescriptor childParameter,
-	                                                @Nullable ValueTypeSupplier valueTypeSupplier) {
+	protected SIMPLE_TYPE obtainWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
+	                                                         @Nonnull List<ValueParameterDescriptor> valueParameters,
+	                                                         @Nullable ChildParameterDescriptor childParameter,
+	                                                         @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final WrapperObjectKey wrapperObjectKey = new WrapperObjectKey(
 			getConstraintType(),
 			buildContext.dataLocator(),
@@ -820,7 +821,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		);
 
 		// reuse already build wrapper object with same parameters
-		final ST cachedWrapperObject = sharedContext.getCachedWrapperObject(wrapperObjectKey);
+		final SIMPLE_TYPE cachedWrapperObject = sharedContext.getCachedWrapperObject(wrapperObjectKey);
 		if (cachedWrapperObject != null) {
 			return cachedWrapperObject;
 		}
@@ -842,11 +843,11 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * <b>Note:</b> this method should not be used directly, instead use {@link #obtainWrapperObjectConstraintValue(BuildContext, List, ChildParameterDescriptor, ValueTypeSupplier)}.
 	 */
 	@Nonnull
-	protected abstract ST buildWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
-	                                                        @Nonnull WrapperObjectKey wrapperObjectKey,
-	                                                        @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                        @Nullable ChildParameterDescriptor childParameter,
-	                                                        @Nullable ValueTypeSupplier valueTypeSupplier);
+	protected abstract SIMPLE_TYPE buildWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
+	                                                                 @Nonnull WrapperObjectKey wrapperObjectKey,
+	                                                                 @Nonnull List<ValueParameterDescriptor> valueParameters,
+	                                                                 @Nullable ChildParameterDescriptor childParameter,
+	                                                                 @Nullable ValueTypeSupplier valueTypeSupplier);
 
 	@Nonnull
 	protected Optional<EntitySchemaContract> findEntitySchema(@Nonnull DataLocator dataLocator) {
