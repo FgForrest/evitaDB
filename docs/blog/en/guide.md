@@ -3,7 +3,7 @@ title: Guide
 perex: In order to create a bit more rich in content documentations and blog posts we will take advantage of `.mdx` file format. In short, this gives us option of option to write documents in plain Markdown + we can insert custom react components with specific functionality. Read more about it [here](https://nextjs.org/docs/advanced-features/using-mdx).
 date: 05.12.2022
 author: Miroslav Alt
-coverImageList: TODO
+coverImageList: only for blog posts
 motive: assets/images/guide-img.jpg
 ---
 
@@ -63,7 +63,7 @@ Headings up to level 6
 ###### Heading Level 6
 
 
-[Link somewhere](https:www.edee.one)
+[Link somewhere](https://www.edee.one)
 
 **Bold text**
 
@@ -125,11 +125,11 @@ This block highlights document guide for used terms/prerequisites. Make sure you
     <h4>Used Terms</h4>
     <dl>
         <dt>item title</dt>
-        <dd>Item description [Test link to Research](/research)</dd>
+        <dd>Item description [Test link to Research](guide.md)</dd>
         <dt>another item title</dt>
         <dd>Another description Lorem ipsum dolor sit amet, consectetur adipisicing elit. Ad cumque dolores eaque, earum eius esse est exercitationem harum obcaecati porro qui similique vero voluptas! A alias explicabo maxime soluta velit! A ab adipisci atque blanditiis consectetur culpa cumque dolores doloribus esse est et eum fuga fugiat iusto laudantium minima molestias, necessitatibus nisi optio provident quaerat quibusdam quos saepe sint ullam. Assumenda inventore odit rem. A adipisci alias aperiam assumenda at.</dd>
         <dt>product</dt>
-        <dd>Entity with type “product”, which contains information about a [specific product](www.google.com) in the e-shop.</dd>
+        <dd>Entity with type “product”, which contains information about a [specific product](https://www.google.com) in the e-shop.</dd>
         <dt>document</dt>
         <dd>Equivalent to a table in SQL, represents stored entity data in Elasticsearch</dd>
         <dt>catalog</dt>

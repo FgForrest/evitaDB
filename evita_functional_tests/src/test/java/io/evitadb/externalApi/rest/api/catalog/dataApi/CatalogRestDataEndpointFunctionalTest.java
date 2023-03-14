@@ -249,7 +249,6 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 				.e(SectionedAssociatedDataDescriptor.LOCALIZED.name(), map()
 					.e(Locale.ENGLISH.toLanguageTag(), map()
 						.e(ASSOCIATED_DATA_LABELS, map()
-							.e("root", map().build())
 							.build())
 						.build())
 					.build())
@@ -257,7 +256,6 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		} else {
 			associatedData = map()
 				.e(ASSOCIATED_DATA_LABELS, map()
-					.e("root", map().build())
 					.build())
 				.build();
 		}

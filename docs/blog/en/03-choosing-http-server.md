@@ -35,10 +35,10 @@ test:
 - [NanoHTTPD](https://github.com/NanoHttpd/nanohttpd)
 - [Netty](https://github.com/netty/netty)
 - [Undertow](https://github.com/undertow-io/undertow)
-- [Spring MVC](https://docs.spring.io/spring-framework/docs/current/reference/html/web.html#spring-web)
+- [Spring MVC](https://docs.spring.io/spring-framework/docs/current/reference/html/web.html#mvc)
   with [Spring Boot](https://docs.spring.io/spring-boot/docs/current/reference/html/) *(runs on Tomcat, Jetty or
   Undertow, we used Tomcat as it is the default)*
-- [Spring WebFlux](https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#spring-webflux)
+- [Spring WebFlux](https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux)
   with [Spring Boot](https://docs.spring.io/spring-boot/docs/current/reference/html/) *(runs on Tomcat, Jetty or
   Undertow, we used Tomcat as it is the default)*
 - [Vert.x](https://github.com/eclipse-vertx/vert.x) *(runs on Netty)*
@@ -137,35 +137,151 @@ The final tests were run with 1 warm-up iteration, 5 measurement iterations and 
 and an 8-core Intel Core i7-8550U CPU with 16 GB of RAM. The tests were run in two modes: throughput (operations per
 second) and average time (microseconds per operation).
 
-| Server, library or framework | JMH Score (ops/s) | Min JMH Score (ops/s) | Max JMH Score (ops/s) |
-| ---------------------------- |-------------------|-----------------------|-----------------------|
-| microhttp                    | 18,187            | 18,003                | 18,384                |
-| Javalin                      | 17,958            | 17,697                | 18,357                |
-| Undertow                     | 17,874            | 17,573                | 18,289                |
-| Micronaut                    | 14,742            | 14,464                | 15,052                |
-| Spring Boot WebFlux          | 12,986            | 12,889                | 13,224                |
-| Vert.x                       | 12,223            | 12,120                | 12,406                |
-| Spring Boot MVC              | 11,691            | 11,360                | 11,819                |
-| Netty                        | 11,272            | 11,043                | 11,407                |
-| Quarkus (in native mode)     | 10,100            | 10,012                | 10,159                |
-| NanoHTTPD                    | 8,874             | 8,709                 | 9,023                 |
+<Table caption="Throughput results (ops/s - higher is better).">
+	<Thead>
+      <Tr>
+          <Th>Server, library or framework</Th>
+          <Th>JMH Score (ops/s)</Th>
+          <Th>Min JMH Score (ops/s)</Th>
+          <Th>Max JMH Score (ops/s)</Th>
+      </Tr>
+	</Thead>
+	<Tbody>
+      <Tr>
+          <Td>microhttp</Td>
+          <Td>18,187</Td>
+          <Td>18,003</Td>
+          <Td>18,384</Td>
+      </Tr>
+      <Tr>
+          <Td>Javalin</Td>
+          <Td>17,958</Td>
+          <Td>17,697</Td>
+          <Td>18,357</Td>
+      </Tr>
+      <Tr>
+          <Td>Undertow</Td>
+          <Td>17,874</Td>
+          <Td>17,573</Td>
+          <Td>18,289</Td>
+      </Tr>
+      <Tr>
+          <Td>Micronaut</Td>
+          <Td>14,742</Td>
+          <Td>14,464</Td>
+          <Td>15,052</Td>
+      </Tr>
+      <Tr>
+          <Td>Spring Boot WebFlux</Td>
+          <Td>12,986</Td>
+          <Td>12,889</Td>
+          <Td>13,224</Td>
+      </Tr>
+      <Tr>
+          <Td>Vert.x</Td>
+          <Td>12,223</Td>
+          <Td>12,120</Td>
+          <Td>12,406</Td>
+      </Tr>
+      <Tr>
+          <Td>Spring Boot MVC</Td>
+          <Td>11,691</Td>
+          <Td>11,360</Td>
+          <Td>11,819</Td>
+      </Tr>
+      <Tr>
+          <Td>Netty</Td>
+          <Td>11,272</Td>
+          <Td>11,043</Td>
+          <Td>11,407</Td>
+      </Tr>
+      <Tr>
+          <Td>Quarkus (in native mode)</Td>
+          <Td>10,100</Td>
+          <Td>10,012</Td>
+          <Td>10,159</Td>
+      </Tr>
+      <Tr>
+          <Td>NanoHTTPD</Td>
+          <Td>8,874</Td>
+          <Td>8,709</Td>
+          <Td>9,023</Td>
+      </Tr>
+	</Tbody>
+</Table>
 
-*Throughput results (ops/s - higher is better).*
-
-| Server, library or framework | JMH Score (us/op) | Min JMH Score (us/op) | Max JMH Score (us/op) |
-| ---------------------------- |-------------------|-----------------------|-----------------------|
-| Undertow                     | 435               | 417                   | 460                   |
-| microhttp                    | 449               | 448                   | 451                   |
-| Javalin                      | 452               | 437                   | 457                   |
-| Micronaut                    | 543               | 534                   | 555                   |
-| Spring Boot WebFlux          | 612               | 601                   | 620                   |
-| Vert.x                       | 659               | 653                   | 676                   |
-| Spring Boot MVC              | 689               | 678                   | 698                   |
-| Netty                        | 714               | 706                   | 725                   |
-| Quarkus (in native mode)     | 790               | 787                   | 793                   |
-| NanoHTTPD                    | 913               | 899                   | 926                   |
-
-*Average time results (us/op - smaller is better).*
+<Table caption="Average time results (us/op - smaller is better).">
+	<Thead>
+		<Tr>
+			<Th>Server, library or framework</Th>
+			<Th>JMH Score (us/op)</Th>
+			<Th>Min JMH Score (us/op)</Th>
+			<Th>Max JMH Score (us/op)</Th>
+		</Tr>
+	</Thead>
+	<Tbody>
+		<Tr>
+			<Td>Undertow</Td>
+			<Td>435</Td>
+			<Td>417</Td>
+			<Td>460</Td>
+		</Tr>
+		<Tr>
+			<Td>microhttp</Td>
+			<Td>449</Td>
+			<Td>448</Td>
+			<Td>451</Td>
+		</Tr>
+		<Tr>
+			<Td>Javalin</Td>
+			<Td>452</Td>
+			<Td>437</Td>
+			<Td>457</Td>
+		</Tr>
+		<Tr>
+			<Td>Micronaut</Td>
+			<Td>543</Td>
+			<Td>534</Td>
+			<Td>555</Td>
+		</Tr>
+		<Tr>
+			<Td>Spring Boot WebFlux</Td>
+			<Td>612</Td>
+			<Td>601</Td>
+			<Td>620</Td>
+		</Tr>
+		<Tr>
+			<Td>Vert.x</Td>
+			<Td>659</Td>
+			<Td>653</Td>
+			<Td>676</Td>
+		</Tr>
+		<Tr>
+			<Td>Spring Boot MVC</Td>
+			<Td>689</Td>
+			<Td>678</Td>
+			<Td>698</Td>
+		</Tr>
+		<Tr>
+			<Td>Netty</Td>
+			<Td>714</Td>
+			<Td>706</Td>
+			<Td>725</Td>
+		</Tr>
+		<Tr>
+			<Td>Quarkus (in native mode)</Td>
+			<Td>790</Td>
+			<Td>787</Td>
+			<Td>793</Td>
+		</Tr>
+		<Tr>
+			<Td>NanoHTTPD</Td>
+			<Td>913</Td>
+			<Td>899</Td>
+			<Td>926</Td>
+		</Tr>
+	</Tbody>
+</Table>
 
 *A gist with the raw results can be found [here](https://gist.github.com/lukashornych/4f500cd1e20de805c697888f263c415c) and
 charts for visualization [here](https://jmh.morethan.io/?gist=4f500cd1e20de805c697888f263c415c&topBar=Java%20HTTP%20servers%20and%20libraries%20performance%20comparison%20test).*

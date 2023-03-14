@@ -23,6 +23,8 @@
 
 package io.evitadb.api.configuration;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.ToString;
 
 /**
@@ -39,6 +41,9 @@ import lombok.ToString;
  * @param queueSize                             maximum amount of task accepted to thread pool to wait for a free thread
  * @param closeSessionsAfterSecondsOfInactivity sets the timeout in seconds after which the session is closed
  *                                              automatically if there is no activity observed on it
+ * @param readOnly                              starts the database in full read-only mode that forbids to execute write
+ *                                              operations on {@link EntityContract} level and open read-write
+ *                                              {@link EvitaSessionContract}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(
@@ -46,7 +51,8 @@ public record ServerOptions(
 	int maxThreadCount,
 	int threadPriority,
 	int queueSize,
-	int closeSessionsAfterSecondsOfInactivity
+	int closeSessionsAfterSecondsOfInactivity,
+	boolean readOnly
 ) {
 
 	public static final int DEFAULT_CORE_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 10;
@@ -68,7 +74,8 @@ public record ServerOptions(
 			DEFAULT_MAX_THREAD_COUNT,
 			DEFAULT_THREAD_PRIORITY,
 			DEFAULT_QUEUE_SIZE,
-			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY
+			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
+			false
 		);
 	}
 
@@ -82,6 +89,7 @@ public record ServerOptions(
 		private int threadPriority = DEFAULT_THREAD_PRIORITY;
 		private int queueSize = DEFAULT_QUEUE_SIZE;
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
+		private boolean readOnly = false;
 
 		Builder() {
 		}
@@ -111,13 +119,19 @@ public record ServerOptions(
 			return this;
 		}
 
+		public ServerOptions.Builder readOnly(boolean readOnly) {
+			this.readOnly = readOnly;
+			return this;
+		}
+
 		public ServerOptions build() {
 			return new ServerOptions(
 				coreThreadCount,
 				maxThreadCount,
 				threadPriority,
 				queueSize,
-				closeSessionsAfterSecondsOfInactivity
+				closeSessionsAfterSecondsOfInactivity,
+				readOnly
 			);
 		}
 

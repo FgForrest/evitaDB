@@ -77,26 +77,26 @@ Tests were run on elastic machine running in docker on machine with:
 - 32 GB RAM of DDR-4
 - 35 GB of 512 GB SSD with SAS interface, read speed 1700 MB/s write speed 1540 MB/s
 
-Each test is repeatable by [creation indexes](../../spike_tests/src/test/java/io/evitadb/referential/experiment/ESSpikeTest.java) 
-with different shards in java module [spike_tests](../../spike_tests).
+Each test is repeatable by creating indexes in class <SourceClass>docs/research/en/nosql/spike_tests/src/test/java/io/evitadb/referential/experiment/ESSpikeTest.java</SourceClass> 
+with different shards in java module <SourceClass>docs/research/en/nosql/spike_tests/</SourceClass>.
 This test allows you to generate data and inject data into ES (including specific number of records) 
 and also you can specify number of shards either in the test itself (recreates the index) or on Document annotation(only 
-in case it doesn't already exist) of [general entity](../../spike_tests/src/main/java/io/evitadb/referential/nosql/model/Entity.java).
-See [testing section](../nosql_analysis.md#testing) in general document
+in case it doesn't already exist) of general entity: <SourceClass>docs/research/en/nosql/spike_tests/src/main/java/io/evitadb/referential/nosql/model/Entity.java</SourceClass>.
+See [testing section](../thesis.md#testing) in general document
 
-| # of total records in thousands | # of shard | Query time | Query |
-|:-------------:|:-------------:|:-------------:|:-------------:|
-| 100 | 1 | 7-10ms | [Query](#1) |
-| 100 | 5 | 4-7ms | [Query](#2) |
-| 100 | 10 | 4-8ms | [Query](#3) |
-| 1000 | 1 | 60-100ms | [Query](#4) |
-| 1000 | 5 | 20-40ms | [Query](#5) |
-| 1000 | 10 | 15-35ms | [Query](#6) |
-| 5000 | 1 | 240-300ms | [Query](#7) |
-| 5000 | 5 | 70-120ms | [Query](#8) |
-| 5000 | 10 | 60-120ms | [Query](#9) |
+| # of total records in thousands | # of shard | Query time |       Query       |
+|:-------------------------------:|:----------:|:----------:|:-----------------:|
+|               100               |     1      |   7-10ms   | [Query](#query-1) |
+|               100               |     5      |   4-7ms    | [Query](#query-2) |
+|               100               |     10     |   4-8ms    | [Query](#query-3) |
+|              1000               |     1      |  60-100ms  | [Query](#query-4) |
+|              1000               |     5      |  20-40ms   | [Query](#query-5) |
+|              1000               |     10     |  15-35ms   | [Query](#query-6) |
+|              5000               |     1      | 240-300ms  | [Query](#query-7) |
+|              5000               |     5      |  70-120ms  | [Query](#query-8) |
+|              5000               |     10     |  60-120ms  | [Query](#query-9) |
 
-#### <a id="1"></a> #1
+#### Query 1
 ```elasticsearch
 GET /sh-100-1/_search {
     "size": 20,
@@ -106,7 +106,7 @@ GET /sh-100-1/_search {
 }
 ```
 
-#### <a id="2"></a> #2
+#### Query 2
 ```elasticsearch
 GET /sh-100-5/_search {
     "size": 20,
@@ -116,7 +116,7 @@ GET /sh-100-5/_search {
 }
 ```
 
-#### <a id="3"></a> #3
+#### Query 3
 ```elasticsearch
 GET /sh-100-10/_search {
     "size": 20,
@@ -126,7 +126,7 @@ GET /sh-100-10/_search {
 }
 ```
 
-#### <a id="4"></a> #4
+#### Query 4
 ```elasticsearch
 GET /sh-1000-1/_search {
     "size": 20,
@@ -136,7 +136,7 @@ GET /sh-1000-1/_search {
 }
 ```
 
-#### <a id="5"></a> #5
+#### Query 5
 ```elasticsearch
 GET /sh-1000-5/_search {
     "size": 20,
@@ -146,7 +146,7 @@ GET /sh-1000-5/_search {
 }
 ```
 
-#### <a id="6"></a> #6
+#### Query 6
 ```elasticsearch
 GET /sh-1000-10/_search {
     "size": 20,
@@ -156,7 +156,7 @@ GET /sh-1000-10/_search {
 }
 ```
 
-#### <a id="7"></a> #7
+#### Query 7
 ```elasticsearch
 GET /sh-5000-1/_search {
     "size": 20,
@@ -166,7 +166,7 @@ GET /sh-5000-1/_search {
 }
 ```
 
-#### <a id="8"></a> #8
+#### Query 8
 ```elasticsearch
 GET /sh-5000-5/_search {
     "size": 20,
@@ -176,7 +176,7 @@ GET /sh-5000-5/_search {
 }
 ```
 
-#### <a id="9"></a> #9
+#### Query 9
 ```elasticsearch
 GET /sh-5000-10/_search {
     "size": 20,

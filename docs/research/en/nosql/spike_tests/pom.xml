@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~
+  ~                         _ _        ____  ____
+  ~               _____   _(_) |_ __ _|  _ \| __ )
+  ~              / _ \ \ / / | __/ _` | | | |  _ \
+  ~             |  __/\ V /| | || (_| | |_| | |_) |
+  ~              \___| \_/ |_|\__\__,_|____/|____/
+  ~
+  ~   Copyright (c) 2023
+  ~
+  ~   Licensed under the Business Source License, Version 1.1 (the "License");
+  ~   you may not use this file except in compliance with the License.
+  ~   You may obtain a copy of the License at
+  ~
+  ~   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+  ~
+  ~   Unless required by applicable law or agreed to in writing, software
+  ~   distributed under the License is distributed on an "AS IS" BASIS,
+  ~   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~   See the License for the specific language governing permissions and
+  ~   limitations under the License.
+  -->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<name>Evita DB - No-SQL referential spike implementation</name>
+	<artifactId>evita_nosql_spike_referential</artifactId>
+	<packaging>pom</packaging>
+
+	<properties>
+		<java.version>11</java.version>
+		<spring.version>5.2.10.RELEASE</spring.version>
+		<spring-data-elasticsearch.version>4.0.0.RELEASE</spring-data-elasticsearch.version>
+		<elasticsearch.version>7.6.2</elasticsearch.version>
+		<fastjson.version>1.2.47</fastjson.version>
+		<spatial4j.version>0.7</spatial4j.version>
+		<jts.version>1.15.0</jts.version>
+	</properties>
+
+	<parent>
+		<groupId>io.evitadb</groupId>
+		<artifactId>evita_nosql_referential</artifactId>
+		<version>0.1-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-web</artifactId>
+			<version>${spring.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.data</groupId>
+			<artifactId>spring-data-elasticsearch</artifactId>
+			<version>${spring-data-elasticsearch.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.elasticsearch</groupId>
+			<artifactId>elasticsearch</artifactId>
+			<version>${elasticsearch.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.11.3</version>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-core</artifactId>
+			<version>2.11.3</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework</groupId>
+			<artifactId>spring-test</artifactId>
+			<version>${spring.version}</version>
+			<scope>test</scope>
+		</dependency><!-- https://mvnrepository.com/artifact/junit/junit -->
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.13</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.11</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-autoconfigure</artifactId>
+			<version>2.3.5.RELEASE</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.querydsl</groupId>
+			<artifactId>querydsl-core</artifactId>
+			<version>4.0.1</version>
+		</dependency>
+		<dependency>
+			<groupId>com.voodoodyne.jackson.jsog</groupId>
+			<artifactId>jackson-jsog</artifactId>
+			<version>1.1.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-to-slf4j</artifactId>
+			<version>2.8.2</version>
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<version>1.0.13</version>
+		</dependency>
+
+	</dependencies>
+
+	<build>
+		<resources>
+			<resource>
+				<directory>config</directory>
+				<targetPath>${project.build.outputDirectory}</targetPath>
+				<includes>
+					<include>application.properties</include>
+				</includes>
+			</resource>
+		</resources>
+	</build>
+</project>

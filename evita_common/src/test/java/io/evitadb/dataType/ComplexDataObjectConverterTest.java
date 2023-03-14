@@ -24,6 +24,9 @@
 package io.evitadb.dataType;
 
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
+import io.evitadb.dataType.data.DataItem;
+import io.evitadb.dataType.data.DataItemArray;
+import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.dataType.data.DiscardedData;
 import io.evitadb.dataType.data.NonSerializedData;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
@@ -61,13 +64,43 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test verifies general POJO conversion logic to {@link io.evitadb.api.dataType.ComplexDataObject} that can be
+ * This test verifies general POJO conversion logic to {@link ComplexDataObject} that can be
  * handled by evitaDB.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class ComplexDataObjectConverterTest {
 	private final ReflectionLookup reflectionLookup = new ReflectionLookup(ReflectionCachingBehaviour.NO_CACHE);
+
+	@Test
+	void shouldReturnComplexDataObjectWithoutSerialization() {
+		final ComplexDataObject cdo = new ComplexDataObject(
+			new DataItemArray(
+				new DataItem[]{
+					new DataItemValue("ABC")
+				}
+			)
+		);
+		final ComplexDataObjectConverter<ComplexDataObject> converter = new ComplexDataObjectConverter<>(cdo);
+		final Serializable serializedForm = converter.getSerializableForm();
+
+		assertEquals(cdo, serializedForm);
+	}
+
+	@Test
+	void shouldReturnComplexDataObjectWithoutDeserialization() {
+		final ComplexDataObject cdo = new ComplexDataObject(
+			new DataItemArray(
+				new DataItem[]{
+					new DataItemValue("ABC")
+				}
+			)
+		);
+		final ComplexDataObjectConverter<ComplexDataObject> converter = new ComplexDataObjectConverter<>(ComplexDataObject.class, reflectionLookup);
+		final Serializable deserializedForm = converter.getOriginalForm(cdo);
+
+		assertEquals(cdo, deserializedForm);
+	}
 
 	@Test
 	void shouldSerializeSimpleObject() {

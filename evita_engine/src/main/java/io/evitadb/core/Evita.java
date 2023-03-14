@@ -37,6 +37,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -56,7 +57,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
@@ -82,6 +82,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.utils.Assert.isTrue;
+import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
@@ -246,7 +248,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	@Nonnull
 	public EvitaSessionContract createSession(@Nonnull SessionTraits traits) {
-		Assert.notNull(traits.catalogName(), "Catalog name is mandatory information.");
+		notNull(traits.catalogName(), "Catalog name is mandatory information.");
 		return createEvitaSession(traits);
 	}
 
@@ -311,6 +313,9 @@ public final class Evita implements EvitaContract {
 	@Override
 	public void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations) {
 		assertActive();
+		if (this.configuration.server().readOnly()) {
+			throw new ReadOnlyException();
+		}
 		// TOBEDONE JNO - append mutation to the WAL and execute asynchronously
 		for (CatalogSchemaMutation catalogMutation : catalogMutations) {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
@@ -356,6 +361,9 @@ public final class Evita implements EvitaContract {
 	@Override
 	public <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags... flags) {
 		assertActive();
+		if (this.configuration.server().readOnly()) {
+			throw new ReadOnlyException();
+		}
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
 			flags == null ?
@@ -485,7 +493,7 @@ public final class Evita implements EvitaContract {
 	private void renameCatalogInternal(@Nonnull ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
 		final String currentName = modifyCatalogSchemaName.getCatalogName();
 		final String newName = modifyCatalogSchemaName.getNewCatalogName();
-		Assert.isTrue(!catalogs.containsKey(newName), () -> new CatalogAlreadyPresentException(newName, catalogs.get(newName).getSchema()));
+		isTrue(!catalogs.containsKey(newName), () -> new CatalogAlreadyPresentException(newName, catalogs.get(newName).getSchema()));
 		final CatalogContract catalogToBeRenamed = getCatalogInstanceOrThrowException(currentName);
 
 		closeAllActiveSessionsTo(currentName);
@@ -563,7 +571,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	private CatalogContract replaceCatalogReference(@Nonnull CatalogContract catalog) {
-		Assert.notNull(catalog, "Sanity check.");
+		notNull(catalog, "Sanity check.");
 		final String catalogName = catalog.getName();
 		// catalog indexes are ConcurrentHashMap - we can do it safely here
 		final AtomicReference<CatalogContract> originalCatalog = new AtomicReference<>();
@@ -658,6 +666,10 @@ public final class Evita implements EvitaContract {
 		final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =
 			catalog.getCatalogState() == CatalogState.WARMING_UP && sessionTraits.isReadWrite() && !sessionTraits.isDryRun() ?
 				new NonTransactionalCatalogDescriptor(catalog, structuralChangeObservers) : null;
+
+		if (this.configuration.server().readOnly()) {
+			isTrue(!sessionTraits.isReadWrite() , ReadOnlyException::new);
+		}
 
 		final EvitaSessionTerminationCallback terminationCallback = session -> {
 			sessionRegistry.removeSession(session);

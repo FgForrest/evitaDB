@@ -179,7 +179,6 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 			.e(EntityDescriptor.ASSOCIATED_DATA.name(), map()
 				.e(TYPENAME_FIELD, AssociatedDataDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 				.e(ASSOCIATED_DATA_LABELS, map()
-					.e("root", map().build())
 					.build())
 				.build())
 			.build();

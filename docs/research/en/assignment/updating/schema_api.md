@@ -6,8 +6,8 @@ author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
 
-All schema classes are designed as **immutable** and follow similar rules as [entities](entity_api) - including
-naming conventions and [versioning](entity_api#versioning). They don't follow the [soft-removal](entity_api#removal)
+All schema classes are designed as **immutable** and follow similar rules as [entities](entity_api.md) - including
+naming conventions and [versioning](entity_api.md#versioning). They don't follow the [soft-removal](entity_api.md#removal)
 approach, though. The changes in the schema affect the database structure and once applied, the previous schema of the catalog
 is no longer available.
 

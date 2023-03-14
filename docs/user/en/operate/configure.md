@@ -17,6 +17,7 @@ server:                                           # [see Server configuration](#
   threadPriority: 5
   queueSize: 100
   closeSessionsAfterSecondsOfInactivity: 60
+  readOnly: false
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: null
@@ -234,6 +235,12 @@ This section contains general settings for the evitaDB server. It allows configu
         <p>It specifies the maximum acceptable period of 
         <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> inactivity before 
         it is forcibly closed by the server side.</p>
+    </dd>
+    <dt>readOnly</dt>
+    <dd>
+        <p>**Default: `false`**</p>
+        <p>It switches the evitaDB server into read-only mode, where no updates are allowed and the server only provides 
+           read access to the data of the catalogs present in the data directory at the start of the server instance.</p>
     </dd>
 </dl>
 
