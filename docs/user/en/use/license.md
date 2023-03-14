@@ -5,7 +5,7 @@ date: '22.2.2023'
 author: 'Ing. Jan Novotný'
 published: false
 ---
-evitaDB is licensed under the [Business Source License 1.1](LICENSE). Technically, it is not
+evitaDB is licensed under the [Business Source License 1.1](/LICENSE). Technically, it is not
 an open source license, but is an [open source friendly](https://itsfoss.com/making-the-business-source-license-open-source-compliant/) 
 license, because it automatically converts to one after a period of time specified in the license. 
 
