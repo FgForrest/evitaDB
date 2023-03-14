@@ -21,21 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.model;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.model.header;
 
-import io.evitadb.externalApi.api.model.EndpointDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Root descriptor for REST with common data for all endpoints.
+ * Parameters for endpoint {@link io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor#UPSERT_ENTITY}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface RestRootDescriptor {
+public interface UpsertEntityEndpointHeaderDescriptor {
 
-	EndpointDescriptor OPEN_API_SPECIFICATION = EndpointDescriptor.builder()
-		.operation("openApiSpec")
+	PropertyDescriptor PRIMARY_KEY = PropertyDescriptor.builder()
+		.name("primaryKey")
 		.description("""
-			OpenAPI Specification in YAML format.
-			""")
+            Parameter specifying primary key of upserted entity (new or updated).
+            """)
+		.type(nullable(Integer.class))
 		.build();
 }

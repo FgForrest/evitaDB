@@ -27,11 +27,11 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
- * TODO lho docs
+ * Descriptor for entities fetching request bodies.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface FetchRequestDescriptor {
+public interface FetchEntityRequestDescriptor {
 
 	PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
 		.name("filterBy")

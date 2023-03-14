@@ -29,7 +29,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderByConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
@@ -82,13 +82,13 @@ public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
 		final QueryEntityRequestDto requestData = parseRequestBody(exchange, QueryEntityRequestDto.class);
 
 		final FilterBy filterBy = requestData.getFilterBy()
-			.map(it -> (FilterBy) filterConstraintResolver.resolve(FetchRequestDescriptor.FILTER_BY.name(), it))
+			.map(it -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), it))
 			.orElse(null);
 		final OrderBy orderBy = requestData.getOrderBy()
-			.map(it -> (OrderBy) orderByConstraintResolver.resolve(FetchRequestDescriptor.ORDER_BY.name(), it))
+			.map(it -> (OrderBy) orderByConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), it))
 			.orElse(null);
 		final Require require = requestData.getRequire()
-			.map(it -> (Require) requireConstraintResolver.resolve(FetchRequestDescriptor.REQUIRE.name(), it))
+			.map(it -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), it))
 			.orElse(null);
 
 		return Query.query(

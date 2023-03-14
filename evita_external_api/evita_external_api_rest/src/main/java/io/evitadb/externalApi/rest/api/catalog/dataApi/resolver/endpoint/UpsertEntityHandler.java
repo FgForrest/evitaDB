@@ -30,8 +30,8 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.UpsertEntityUpsertRequestDto;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchRequestDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.DeleteEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
@@ -79,10 +79,10 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 		if (withPrimaryKeyInPath) {
 			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 			Assert.isTrue(
-				parametersFromRequest.containsKey(ParamDescriptor.PRIMARY_KEY.name()),
+				parametersFromRequest.containsKey(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
 				() -> new RestInvalidArgumentException("Primary key is not present in request's URL path.")
 			);
-			requestData.setPrimaryKey((Integer) parametersFromRequest.get(ParamDescriptor.PRIMARY_KEY.name()));
+			requestData.setPrimaryKey((Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()));
 		}
 
 		final EntityMutation entityMutation = mutationResolver.convert(
@@ -105,7 +105,7 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 	@Nonnull
 	private Optional<EntityContentRequire[]> getEntityContentRequires(@Nonnull UpsertEntityUpsertRequestDto requestData) {
 		return requestData.getRequire()
-			.map(it -> (Require) requireConstraintResolver.resolve(FetchRequestDescriptor.REQUIRE.name(), it))
+			.map(it -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), it))
 			.flatMap(require -> Arrays.stream(require.getChildren())
 				.filter(EntityFetch.class::isInstance)
 				.findFirst()

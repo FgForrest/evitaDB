@@ -30,7 +30,8 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -68,23 +69,23 @@ public class FilterByConstraintFromRequestQueryBuilder {
 	                                                                                             @Nonnull EntitySchemaContract entitySchema) {
 		final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
-		if (parameters.containsKey(ParamDescriptor.PRIMARY_KEY.name())) {
-			filterConstraints.add(entityPrimaryKeyInSet((Integer) parameters.get(ParamDescriptor.PRIMARY_KEY.name())));
+		if (parameters.containsKey(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name())) {
+			filterConstraints.add(entityPrimaryKeyInSet((Integer) parameters.get(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name())));
 		}
-		if (parameters.containsKey(ParamDescriptor.PRICE_IN_PRICE_LISTS.name())) {
-			filterConstraints.add(QueryConstraints.priceInPriceLists((String[]) parameters.get(ParamDescriptor.PRICE_IN_PRICE_LISTS.name())));
+		if (parameters.containsKey(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name())) {
+			filterConstraints.add(QueryConstraints.priceInPriceLists((String[]) parameters.get(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name())));
 		}
-		if (parameters.containsKey(ParamDescriptor.PRICE_IN_CURRENCY.name())) {
-			filterConstraints.add(QueryConstraints.priceInCurrency((Currency) parameters.get(ParamDescriptor.PRICE_IN_CURRENCY.name())));
+		if (parameters.containsKey(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name())) {
+			filterConstraints.add(QueryConstraints.priceInCurrency((Currency) parameters.get(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name())));
 		}
-		if (parameters.containsKey(ParamDescriptor.PRICE_VALID_IN.name())) {
-			filterConstraints.add(QueryConstraints.priceValidIn((OffsetDateTime) parameters.get(ParamDescriptor.PRICE_VALID_IN.name())));
+		if (parameters.containsKey(GetEntityEndpointHeaderDescriptor.PRICE_VALID_IN.name())) {
+			filterConstraints.add(QueryConstraints.priceValidIn((OffsetDateTime) parameters.get(GetEntityEndpointHeaderDescriptor.PRICE_VALID_IN.name())));
 		}
-		if (Boolean.TRUE.equals(parameters.get(ParamDescriptor.PRICE_VALID_NOW.name()))) {
+		if (Boolean.TRUE.equals(parameters.get(GetEntityEndpointHeaderDescriptor.PRICE_VALID_NOW.name()))) {
 			filterConstraints.add(QueryConstraints.priceValidNow());
 		}
-		if (parameters.containsKey(ParamDescriptor.LOCALE.name())) {
-			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(ParamDescriptor.LOCALE.name())));
+		if (parameters.containsKey(GetEntityEndpointHeaderDescriptor.LOCALE.name())) {
+			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(GetEntityEndpointHeaderDescriptor.LOCALE.name())));
 		}
 
 		entitySchema.getAttributes()
@@ -118,8 +119,8 @@ public class FilterByConstraintFromRequestQueryBuilder {
 	                                                                                              @Nonnull CatalogSchemaContract catalogSchema) {
 		final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
-		if (parameters.containsKey(ParamDescriptor.LOCALE.name())) {
-			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(ParamDescriptor.LOCALE.name())));
+		if (parameters.containsKey(FetchEntityEndpointHeaderDescriptor.LOCALE.name())) {
+			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name())));
 		}
 
 		getGloballyUniqueAttributes(catalogSchema).stream()
@@ -150,8 +151,8 @@ public class FilterByConstraintFromRequestQueryBuilder {
 	                                                                                                  @Nonnull CatalogSchemaContract catalogSchema) {
 		final List<FilterConstraint> filterConstraints = new LinkedList<>();
 
-		if (parameters.containsKey(ParamDescriptor.LOCALE.name())) {
-			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(ParamDescriptor.LOCALE.name())));
+		if (parameters.containsKey(FetchEntityEndpointHeaderDescriptor.LOCALE.name())) {
+			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name())));
 		}
 
 		getGloballyUniqueAttributes(catalogSchema)

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.builder;
+package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
@@ -52,12 +52,11 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Description
+ * Tests for {@link OpenApiScalar}
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-// todo lho rename to scalar test?
-class SchemaCreatorTest {
+class OpenApiScalarTest {
 
 	@Test
 	void shouldCreateStringSchema() {
@@ -197,13 +196,6 @@ class SchemaCreatorTest {
 	void shouldCreateLocaleSchema() {
 		final var expectedSchema = "type: string format: locale example: cs-CZ";
 		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Locale.class).toSchema()));
-	}
-
-	@Test
-	@Disabled("todo lho remove test probably, no longer applicable")
-	void shouldCreateSchemaForSerializable() {
-		final var expectedSchema = "type: string";
-		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Serializable.class).toSchema()));
 	}
 
 	@Test

@@ -26,7 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.CollectionsEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.annotation.UseDataSet;
@@ -86,7 +86,7 @@ class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		testRestCall()
 			.httpMethod(Request.METHOD_GET)
-			.requestParams(map().e(ParamDescriptor.ENTITY_COUNT.name(), Boolean.TRUE).build())
+			.requestParams(map().e(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name(), Boolean.TRUE).build())
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(expectedBody));

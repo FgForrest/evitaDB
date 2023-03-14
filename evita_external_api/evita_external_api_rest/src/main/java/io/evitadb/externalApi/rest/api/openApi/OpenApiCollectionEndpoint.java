@@ -27,7 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.EndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
@@ -162,8 +162,8 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 				.staticItem(catalogSchema.getNameVariant(URL_NAME_NAMING_CONVENTION));
 			if (localized) {
 				pathBuilder.paramItem(newPathParameter()
-					.name(ParamDescriptor.REQUIRED_LOCALE.name())
-					.description(ParamDescriptor.REQUIRED_LOCALE.description())
+					.name(EndpointHeaderDescriptor.LOCALIZED.name())
+					.description(EndpointHeaderDescriptor.LOCALIZED.description())
 					.type(typeRefTo(ENTITY_LOCALE_ENUM.name(entitySchema)))
 					.build());
 			}

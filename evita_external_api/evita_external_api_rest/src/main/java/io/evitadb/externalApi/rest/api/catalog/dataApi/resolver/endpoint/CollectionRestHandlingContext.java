@@ -35,7 +35,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Context object specific to collection-related endpoints for handling and resolving those endpoints.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

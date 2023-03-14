@@ -26,7 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.CollectionsEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandler;
@@ -55,7 +55,7 @@ public class CollectionsHandler extends RestHandler<CatalogRestHandlingContext> 
 	@Nonnull
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
-		final Boolean withCounts = (Boolean) parametersFromRequest.get(ParamDescriptor.ENTITY_COUNT.name());
+		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
 
 		final ArrayNode collections = restApiHandlingContext.queryCatalog(session -> {
 			final ArrayNode collectionArray = objectJsonSerializer.arrayNode();

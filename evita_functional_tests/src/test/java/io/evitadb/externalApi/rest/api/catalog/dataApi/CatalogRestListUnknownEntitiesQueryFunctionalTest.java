@@ -28,8 +28,8 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
@@ -126,7 +126,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_URL, Arrays.asList(urlAttribute1, urlAttribute2))
-				.e(ParamDescriptor.ATTRIBUTE_CONTENT_ALL.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -155,56 +155,6 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			);
 	}
 
-	/*@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return custom price for sale for products")
-	void shouldReturnCustomPriceForSaleForEntities(Evita evita, List<SealedEntity> originalProductEntities) {
-		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
-
-		final List<Map<String,Object>> expectedBody = entities.stream()
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
-						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-						.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-						.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-						.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().getPriceWithTax().toString())
-						.build())
-					.build()
-			)
-			.toList();
-
-		testRESTCall()
-			.document(
-				"""
-	                query {
-	                    list_entity(
-	                        code: ["%s", "%s"]
-	                    ) {
-	                        primaryKey
-	                        type
-                            ... on Product {
-                                priceForSale(currency: CZK, priceList: "basic") {
-                                    __typename
-	                                currency
-	                                priceList
-	                                priceWithTax
-	                            }
-                            }
-	                    }
-	                }
-					""",
-				entities.get(0).getAttribute(ATTRIBUTE_CODE),
-				entities.get(1).getAttribute(ATTRIBUTE_CODE)
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
-			.body(ENTITY_LIST_PATH, equalTo(expectedBody));
-	}*/
-
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for entities")
@@ -231,7 +181,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				.e(ATTRIBUTE_CODE, Arrays.asList(
 					entities.get(0).getAttribute(ATTRIBUTE_CODE),
 					entities.get(1).getAttribute(ATTRIBUTE_CODE)))
-				.e(ParamDescriptor.PRICE_CONTENT.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -260,8 +210,8 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				.e(ATTRIBUTE_CODE, Arrays.asList(
 					entities.get(0).getAttribute(ATTRIBUTE_CODE),
 					entities.get(1).getAttribute(ATTRIBUTE_CODE)))
-				.e(ParamDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
-				.e(ParamDescriptor.ASSOCIATED_DATA_CONTENT_ALL.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+				.e(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT_ALL.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -290,7 +240,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				.e(ATTRIBUTE_CODE, Arrays.asList(
 					entities.get(0).getAttribute(ATTRIBUTE_CODE),
 					entities.get(1).getAttribute(ATTRIBUTE_CODE)))
-				.e(ParamDescriptor.ASSOCIATED_DATA_CONTENT_ALL.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT_ALL.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -319,8 +269,8 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				.e(ATTRIBUTE_CODE, Arrays.asList(
 					entities.get(0).getAttribute(ATTRIBUTE_CODE),
 					entities.get(1).getAttribute(ATTRIBUTE_CODE)))
-				.e(ParamDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
-				.e(ParamDescriptor.REFERENCE_CONTENT_ALL.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+				.e(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)

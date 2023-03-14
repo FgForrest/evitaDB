@@ -21,21 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.model;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.model.header;
 
-import io.evitadb.externalApi.api.model.EndpointDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import java.util.Locale;
+
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Root descriptor for REST with common data for all endpoints.
+ * Generic parameters for endpoints.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface RestRootDescriptor {
+public interface EndpointHeaderDescriptor {
 
-	EndpointDescriptor OPEN_API_SPECIFICATION = EndpointDescriptor.builder()
-		.operation("openApiSpec")
+	PropertyDescriptor LOCALIZED = PropertyDescriptor.builder()
+		.name("locale")
 		.description("""
-			OpenAPI Specification in YAML format.
-			""")
+            Parameter specifying desired locale of queried entity and its inner datasets
+            """)
+		.type(nonNull(Locale.class))
 		.build();
 }

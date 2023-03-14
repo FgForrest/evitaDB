@@ -26,7 +26,7 @@ package io.evitadb.externalApi.rest.api.openApi;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.EndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
@@ -94,7 +94,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 			evita,
 			catalogSchema,
 			openApi,
-			toOperation(), // todo lho i dont like that this will be created twice, once to register to openapi, second here
+			toOperation(),
 			localized
 		);
 		return handlerBuilder.apply(context);
@@ -151,9 +151,9 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 				.staticItem(catalogSchema.getNameVariant(URL_NAME_NAMING_CONVENTION));
 			if (localized) {
 				pathBuilder.paramItem(newPathParameter()
-					.name(ParamDescriptor.REQUIRED_LOCALE.name())
-					.description(ParamDescriptor.REQUIRED_LOCALE.description())
-					.type(DataTypesConverter.getOpenApiScalar(ParamDescriptor.REQUIRED_LOCALE.primitiveType().javaType()))
+					.name(EndpointHeaderDescriptor.LOCALIZED.name())
+					.description(EndpointHeaderDescriptor.LOCALIZED.description())
+					.type(DataTypesConverter.getOpenApiScalar(EndpointHeaderDescriptor.LOCALIZED.primitiveType().javaType()))
 					.build());
 			}
 

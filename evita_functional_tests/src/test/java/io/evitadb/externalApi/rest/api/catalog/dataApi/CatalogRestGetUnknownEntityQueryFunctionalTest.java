@@ -28,8 +28,9 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
@@ -77,7 +78,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, codeAttribute)
-				.e(ParamDescriptor.BODY_FETCH.name(), false)
+				.e(FetchEntityEndpointHeaderDescriptor.BODY_FETCH.name(), false)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -107,7 +108,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_URL, urlAttribute)
-				.e(ParamDescriptor.ATTRIBUTE_CONTENT_ALL.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -141,7 +142,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_URL, urlAttribute)
-				.e(ParamDescriptor.ATTRIBUTE_CONTENT_ALL.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -202,7 +203,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
-				.e(ParamDescriptor.PRICE_CONTENT.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -224,8 +225,8 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
-				.e(ParamDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
-				.e(ParamDescriptor.ASSOCIATED_DATA_CONTENT_ALL.name(), Boolean.TRUE)
+				.e(FetchEntityEndpointHeaderDescriptor.LOCALE.name(), Locale.ENGLISH.toLanguageTag())
+				.e(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT_ALL.name(), Boolean.TRUE)
 				.build())
 			.executeAndThen()
 			.statusCode(200)

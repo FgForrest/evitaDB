@@ -31,7 +31,7 @@ import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -63,7 +63,7 @@ public class RequireConstraintFromRequestQueryBuilder {
 	public static Require buildRequire(@Nonnull Map<String, Object> parameters) {
 		final EntityContentRequire[] contentRequires = getEntityContentRequires(parameters);
 
-		if(contentRequires.length == 0 && !isBooleanParameterPresentAndTrue(parameters, ParamDescriptor.BODY_FETCH)) {
+		if(contentRequires.length == 0 && !isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.BODY_FETCH)) {
 			return null;
 		}
 
@@ -75,31 +75,31 @@ public class RequireConstraintFromRequestQueryBuilder {
 	@Nonnull
 	public static EntityContentRequire[] getEntityContentRequires(@Nonnull Map<String, Object> parameters) {
 
-		if (isBooleanParameterPresentAndTrue(parameters, ParamDescriptor.FETCH_ALL)) {
+		if (isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.FETCH_ALL)) {
 			return entityFetchAll().getRequirements();
 		}
 
 		final List<EntityContentRequire> contentRequires = new LinkedList<>();
-		if (isBooleanParameterPresentAndTrue(parameters, ParamDescriptor.ASSOCIATED_DATA_CONTENT_ALL)) {
+		if (isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT_ALL)) {
 			contentRequires.add(new AssociatedDataContent());
-		} else if(isParameterPresent(parameters, ParamDescriptor.ASSOCIATED_DATA_CONTENT)) {
-			contentRequires.add(new AssociatedDataContent((String[]) parameters.get(ParamDescriptor.ASSOCIATED_DATA_CONTENT.name())));
+		} else if(isParameterPresent(parameters, FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT)) {
+			contentRequires.add(new AssociatedDataContent((String[]) parameters.get(FetchEntityEndpointHeaderDescriptor.ASSOCIATED_DATA_CONTENT.name())));
 		}
-		if (isBooleanParameterPresentAndTrue(parameters, ParamDescriptor.ATTRIBUTE_CONTENT_ALL)) {
+		if (isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL)) {
 			contentRequires.add(new AttributeContent());
-		} else if(isParameterPresent(parameters, ParamDescriptor.ATTRIBUTE_CONTENT)) {
-			contentRequires.add(new AttributeContent((String[]) parameters.get(ParamDescriptor.ATTRIBUTE_CONTENT.name())));
+		} else if(isParameterPresent(parameters, FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT)) {
+			contentRequires.add(new AttributeContent((String[]) parameters.get(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT.name())));
 		}
-		if (isBooleanParameterPresentAndTrue(parameters, ParamDescriptor.REFERENCE_CONTENT_ALL)) {
+		if (isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL)) {
 			contentRequires.add(new ReferenceContent());
-		} else if(isParameterPresent(parameters, ParamDescriptor.REFERENCE_CONTENT)) {
-			contentRequires.add(new ReferenceContent((String[]) parameters.get(ParamDescriptor.REFERENCE_CONTENT.name())));
+		} else if(isParameterPresent(parameters, FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT)) {
+			contentRequires.add(new ReferenceContent((String[]) parameters.get(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT.name())));
 		}
-		if (isBooleanParameterPresentAndTrue(parameters, ParamDescriptor.PRICE_CONTENT)) {
+		if (isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT)) {
 			contentRequires.add(new PriceContent());
 		}
-		if (parameters.containsKey(ParamDescriptor.DATA_IN_LOCALES.name())) {
-			contentRequires.add(new DataInLocales((Locale[]) parameters.get(ParamDescriptor.DATA_IN_LOCALES.name())));
+		if (parameters.containsKey(FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES.name())) {
+			contentRequires.add(new DataInLocales((Locale[]) parameters.get(FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES.name())));
 		}
 
 		return contentRequires.toArray(EntityContentRequire[]::new);

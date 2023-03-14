@@ -21,21 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.model;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.model.header;
 
-import io.evitadb.externalApi.api.model.EndpointDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Root descriptor for REST with common data for all endpoints.
+ * Parameters for endpoint {@link io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor#LIST_UNKNOWN_ENTITY}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface RestRootDescriptor {
+public interface ListUnknownEntitiesEndpointHeaderDescriptor extends FetchEntityEndpointHeaderDescriptor {
 
-	EndpointDescriptor OPEN_API_SPECIFICATION = EndpointDescriptor.builder()
-		.operation("openApiSpec")
+	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
+		.name("limit")
 		.description("""
-			OpenAPI Specification in YAML format.
-			""")
+            Limits number of returned entities.
+            """)
+		.type(nullable(Integer.class))
 		.build();
 }

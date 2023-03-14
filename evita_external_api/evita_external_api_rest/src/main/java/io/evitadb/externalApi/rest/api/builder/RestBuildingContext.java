@@ -87,8 +87,6 @@ public abstract class RestBuildingContext {
 	@Nonnull
 	protected ObjectMapper setupObjectMapper() {
 		final ObjectMapper objectMapper = new ObjectMapper();
-		// todo lho i dont think we want this in schema api, do we want it in data api?
-//		objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
 		final SimpleModule module = new SimpleModule();
 		module.addSerializer(new BigDecimalSerializer());

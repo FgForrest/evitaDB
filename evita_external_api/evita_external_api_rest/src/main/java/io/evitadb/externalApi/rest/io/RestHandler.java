@@ -116,7 +116,6 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
      * Validates HTTP request.
      */
     protected void validateRequest(@Nonnull HttpServerExchange exchange) {
-        // todo lho this should vary on handler and method
         if (!acceptsSupportedContentType(exchange)) {
             throw new HttpExchangeException(
                 StatusCodes.NOT_ACCEPTABLE,

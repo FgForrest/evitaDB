@@ -28,8 +28,8 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
@@ -182,7 +182,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
-				.e(ParamDescriptor.PRIMARY_KEY.name(), primaryKey)
+				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), primaryKey)
 				.build())
 			.executeAndThen()
 			.statusCode(404);

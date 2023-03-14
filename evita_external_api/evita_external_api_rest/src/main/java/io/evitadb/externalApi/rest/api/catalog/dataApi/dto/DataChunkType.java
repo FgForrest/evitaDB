@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.dto;
 
 /**
- * TODO lho docs
+ * Concrete type of resulted {@link io.evitadb.dataType.DataChunk} based on requested data by client.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

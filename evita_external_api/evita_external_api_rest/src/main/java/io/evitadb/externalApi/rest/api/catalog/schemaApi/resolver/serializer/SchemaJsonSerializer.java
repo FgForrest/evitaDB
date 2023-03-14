@@ -34,9 +34,9 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 
 /**
- * TODO lho docs
+ * Ancestor for evitaDB internal schema serialization to JSON.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class SchemaJsonSerializer {

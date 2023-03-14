@@ -32,8 +32,8 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchRequestDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderByConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
@@ -101,13 +101,13 @@ public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingConte
 		final QueryEntityRequestDto requestData = parseRequestBody(exchange, QueryEntityRequestDto.class);
 
 		final FilterBy filterBy = requestData.getFilterBy()
-			.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchRequestDescriptor.FILTER_BY.name(), container))
+			.map(container -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), container))
 			.orElse(null);
 		final OrderBy orderBy = requestData.getOrderBy()
-			.map(container -> (OrderBy) orderByConstraintResolver.resolve(FetchRequestDescriptor.ORDER_BY.name(), container))
+			.map(container -> (OrderBy) orderByConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), container))
 			.orElse(null);
 		final Require require = requestData.getRequire()
-			.map(container -> (Require) requireConstraintResolver.resolve(FetchRequestDescriptor.REQUIRE.name(), container))
+			.map(container -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), container))
 			.orElse(null);
 
 		return query(
@@ -122,7 +122,7 @@ public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingConte
 	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull HttpServerExchange exchange, @Nullable FilterBy filterBy) {
 		if (restApiHandlingContext.isLocalized()) {
 			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
-			final Locale locale = (Locale) parametersFromRequest.get(ParamDescriptor.LOCALE.name());
+			final Locale locale = (Locale) parametersFromRequest.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 			if (locale == null) {
 				throw new RestRequiredParameterMissingException("Missing LOCALE in URL path.");
 			}

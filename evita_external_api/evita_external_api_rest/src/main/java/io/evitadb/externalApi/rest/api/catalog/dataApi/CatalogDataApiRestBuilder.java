@@ -41,7 +41,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.Requir
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUnion;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
@@ -292,12 +292,12 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	@Nonnull
 	private OpenApiTypeReference buildListRequestBodyObject(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingContext,
 	                                                        boolean localized) {
-		final OpenApiObject.Builder objectBuilder = FetchRequestDescriptor.THIS_LIST
+		final OpenApiObject.Builder objectBuilder = FetchEntityRequestDescriptor.THIS_LIST
 			.to(objectBuilderTransformer)
 			.name(constructEntityListRequestBodyObjectName(entitySchemaBuildingContext.getSchema(), localized))
-			.property(FetchRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedFilterByObject() : entitySchemaBuildingContext.getFilterByObject()))
-			.property(FetchRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
-			.property(FetchRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequiredForListObject()));
+			.property(FetchEntityRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedFilterByObject() : entitySchemaBuildingContext.getFilterByObject()))
+			.property(FetchEntityRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
+			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequiredForListObject()));
 
 		return entitySchemaBuildingContext.getCatalogCtx().registerType(objectBuilder.build());
 	}
@@ -305,24 +305,24 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	@Nonnull
 	private OpenApiTypeReference buildQueryRequestBodyObject(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingContext,
 	                                                         boolean localized) {
-		final OpenApiObject.Builder objectBuilder = FetchRequestDescriptor.THIS_QUERY
+		final OpenApiObject.Builder objectBuilder = FetchEntityRequestDescriptor.THIS_QUERY
 			.to(objectBuilderTransformer)
 			.name(constructEntityQueryRequestBodyObjectName(entitySchemaBuildingContext.getSchema(), localized))
-			.property(FetchRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedFilterByObject() : entitySchemaBuildingContext.getFilterByObject()))
-			.property(FetchRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
-			.property(FetchRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequiredForQueryObject()));
+			.property(FetchEntityRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedFilterByObject() : entitySchemaBuildingContext.getFilterByObject()))
+			.property(FetchEntityRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
+			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequiredForQueryObject()));
 
 		return entitySchemaBuildingContext.getCatalogCtx().registerType(objectBuilder.build());
 	}
 
 	@Nonnull
 	private OpenApiTypeReference buildDeleteRequestBodyObject(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingContext) {
-		final OpenApiObject.Builder objectBuilder = FetchRequestDescriptor.THIS_DELETE
+		final OpenApiObject.Builder objectBuilder = FetchEntityRequestDescriptor.THIS_DELETE
 			.to(objectBuilderTransformer)
-			.name(FetchRequestDescriptor.THIS_DELETE.name(entitySchemaBuildingContext.getSchema()))
-			.property(FetchRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getFilterByObject()))
-			.property(FetchRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
-			.property(FetchRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequiredForDeleteObject()));
+			.name(FetchEntityRequestDescriptor.THIS_DELETE.name(entitySchemaBuildingContext.getSchema()))
+			.property(FetchEntityRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getFilterByObject()))
+			.property(FetchEntityRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
+			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequiredForDeleteObject()));
 
 		return entitySchemaBuildingContext.getCatalogCtx().registerType(objectBuilder.build());
 	}
