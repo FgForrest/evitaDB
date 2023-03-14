@@ -1,6 +1,9 @@
 ---
 title: License
-perex:
+perex: |
+    evitaDB is licensed under the Business Source License 1.1. Technically, it is not an open source license, but 
+    is an open source friendly license, because it automatically converts to one after a period of time specified in the 
+    license.
 date: '22.2.2023'
 author: 'Ing. Jan Novotný'
 published: false
