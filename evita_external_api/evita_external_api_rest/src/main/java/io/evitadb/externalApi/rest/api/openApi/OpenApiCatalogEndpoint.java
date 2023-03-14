@@ -27,11 +27,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.io.RestHandler;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -49,9 +49,7 @@ import java.util.function.UnaryOperator;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint.PathBuilder.newPath;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.newPathParameter;
-import static io.swagger.v3.oas.models.PathItem.HttpMethod.DELETE;
-import static io.swagger.v3.oas.models.PathItem.HttpMethod.POST;
-import static io.swagger.v3.oas.models.PathItem.HttpMethod.PUT;
+import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
 
 /**
  * Single REST endpoint with schema description and handler builder for building catalog-specific endpoints
@@ -60,7 +58,9 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.PUT;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext> {
+public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingContext> {
+
+	@Nonnull protected final CatalogSchemaContract catalogSchema;
 
 	private OpenApiCatalogEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
 	                               @Nonnull PathItem.HttpMethod method,
@@ -71,8 +71,9 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 	                               @Nonnull List<OpenApiEndpointParameter> parameters,
 	                               @Nullable OpenApiSimpleType requestBody,
 	                               @Nonnull OpenApiSimpleType successResponse,
-	                               @Nonnull Function<RestHandlingContext, RestHandler<RestHandlingContext>> handlerBuilder) {
-		super(catalogSchema, method, path, localized, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
+	                               @Nonnull Function<CatalogRestHandlingContext, RestHandler<CatalogRestHandlingContext>> handlerBuilder) {
+		super(method, path, localized, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
+		this.catalogSchema = catalogSchema;
 	}
 
 	/**
@@ -85,10 +86,10 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 
 	@Nonnull
 	@Override
-	public RestHandler<RestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
-                                                      @Nonnull Evita evita,
-                                                      @Nonnull OpenAPI openApi) {
-		final RestHandlingContext context = new RestHandlingContext(
+	public RestHandler<CatalogRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	                                                         @Nonnull Evita evita,
+	                                                         @Nonnull OpenAPI openApi) {
+		final CatalogRestHandlingContext context = new CatalogRestHandlingContext(
 			objectMapper,
 			evita,
 			catalogSchema,
@@ -114,7 +115,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<RestHandlingContext, RestHandler<RestHandlingContext>> handlerBuilder;
+		@Nullable private Function<CatalogRestHandlingContext, RestHandler<CatalogRestHandlingContext>> handlerBuilder;
 
 		private Builder(@Nonnull CatalogSchemaContract catalogSchema) {
 			this.catalogSchema = catalogSchema;
@@ -131,7 +132,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 		}
 
 		/**
-		 * Set non-localized path of this endpoint. Provided builder is already configured with collection-specific prefix
+		 * Set non-localized path of this endpoint. Provided builder is already configured with catalog-specific prefix
 		 * `/rest/catalog`.
 		 */
 		@Nonnull
@@ -140,7 +141,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 		}
 
 		/**
-		 * Set path of this endpoint. Provided builder is already configured with collection-specific prefix
+		 * Set path of this endpoint. Provided builder is already configured with catalog-specific prefix
 		 * `/rest/catalog` or `/rest/catalog/{locale}`.
 		 */
 		@Nonnull
@@ -233,7 +234,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<RestHandlingContext, RestHandler<RestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<CatalogRestHandlingContext, RestHandler<CatalogRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}
@@ -252,21 +253,26 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<RestHandlingContext>
 				description != null && !description.isEmpty(),
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing description.")
 			);
-			if (Set.of(POST, PUT, DELETE).contains(method)) {
+
+			if (Set.of(POST, PUT, PATCH).contains(method)) {
 				Assert.isPremiseValid(
 					requestBody != null,
 					() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing request body.")
 				);
-			} else {
+			} else if (Set.of(GET, HEAD, TRACE, OPTIONS).contains(method)) {
 				Assert.isPremiseValid(
 					requestBody == null,
 					() -> new OpenApiBuildingError("Endpoint `" + path + "` doesn't support request body.")
 				);
 			}
-			Assert.isPremiseValid(
-				successResponse != null,
-				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing success response.")
-			);
+
+			if (Set.of(GET, POST, PUT, PATCH).contains(method)) {
+				Assert.isPremiseValid(
+					successResponse != null,
+					() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing success response.")
+				);
+			}
+
 			Assert.isPremiseValid(
 				handlerBuilder != null,
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing handler.")

@@ -21,25 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.system.model;
+package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.rest.api.system.dto.LivenessDto;
+import io.evitadb.externalApi.rest.io.RestHandler;
+import io.undertow.server.HttpServerExchange;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
- * Descriptor for header arguments of {@link SystemRootDescriptor#DELETE_CATALOG_IF_EXISTS}
- * query.
+ * Returns information about liveness of REST API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface DeleteCatalogIfExistsMutationHeaderDescriptor {
+public class LivenessHandler extends RestHandler<SystemRestHandlingContext> {
 
-	PropertyDescriptor NAME = PropertyDescriptor.builder()
-		.name("name")
-		.description("""
-			Name of the catalog to delete.
-			""")
-		.type(nonNull(String.class))
-		.build();
+	public LivenessHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
+		super(restApiHandlingContext);
+	}
+
+	@Nullable
+	@Override
+	protected Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
+		return Optional.of(new LivenessDto(true));
+	}
 }

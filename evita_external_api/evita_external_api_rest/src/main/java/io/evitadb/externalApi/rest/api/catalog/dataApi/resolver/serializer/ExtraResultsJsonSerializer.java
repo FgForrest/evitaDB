@@ -49,8 +49,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyPar
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -71,13 +71,13 @@ import java.util.Map.Entry;
 @Slf4j
 public class ExtraResultsJsonSerializer {
 
-	private final RestHandlingContext restHandlingContext;
+	private final CatalogRestHandlingContext restHandlingContext;
 	private final EntityJsonSerializer entityJsonSerializer;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
 	private final Map<String, String> referenceNameToFieldName;
 
-	public ExtraResultsJsonSerializer(@Nonnull RestHandlingContext restHandlingContext,
+	public ExtraResultsJsonSerializer(@Nonnull CatalogRestHandlingContext restHandlingContext,
 	                                  @Nonnull EntityJsonSerializer entityJsonSerializer,
 	                                  @Nonnull Map<String, String> referenceNameToFieldName) {
 		this.restHandlingContext = restHandlingContext;

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api;
+package io.evitadb.externalApi.rest.api.catalog;
 
 import io.evitadb.api.CatalogStructuralChangeObserver;
 import io.evitadb.externalApi.rest.RestManager;
@@ -33,11 +33,11 @@ import javax.annotation.Nonnull;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class RestRefreshingObserver implements CatalogStructuralChangeObserver {
+public class CatalogRestRefreshingObserver implements CatalogStructuralChangeObserver {
 
 	private final RestManager restManager;
 
-	public RestRefreshingObserver(RestManager restManager) {
+	public CatalogRestRefreshingObserver(@Nonnull RestManager restManager) {
 		this.restManager = restManager;
 	}
 

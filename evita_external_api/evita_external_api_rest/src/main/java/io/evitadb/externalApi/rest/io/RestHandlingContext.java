@@ -24,18 +24,13 @@
 package io.evitadb.externalApi.rest.io;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.function.Function;
 
 /**
  * This class contains information required to process REST API requests. Not all attributes has to be set
@@ -48,35 +43,10 @@ public class RestHandlingContext {
 
 	@Nonnull @Getter protected final ObjectMapper objectMapper;
 
-	@Nonnull protected final Evita evita;
-	@Nonnull @Getter protected final CatalogSchemaContract catalogSchema;
+	@Nonnull @Getter protected final Evita evita;
 
 	@Nonnull @Getter private final OpenAPI openApi;
 	@Nonnull @Getter private final Operation endpointOperation;
 
 	@Getter private final boolean localized;
-
-	/**
-	 * Creates Evita's read-only session
-	 */
-	public <T> T queryCatalog(@Nonnull Function<EvitaSessionContract, T> queryLogic) {
-		return evita.queryCatalog(catalogSchema.getName(), queryLogic);
-	}
-
-	/**
-	 * Creates Evita's read/write session
-	 */
-	public <T> T updateCatalog(@Nonnull Function<EvitaSessionContract, T> updater) {
-		return evita.updateCatalog(catalogSchema.getName(), updater);
-	}
-
-	/**
-	 * Gets entity schema for any entity by entity name
-	 */
-	@Nonnull
-	public EntitySchemaContract getEntitySchema(@Nonnull String entityName) {
-		return evita.getCatalogInstanceOrThrowException(catalogSchema.getName())
-			.getEntitySchema(entityName)
-			.orElseThrow(() -> new RestInternalError("No schema found for entity: " + entityName + " in catalog: " + catalogSchema.getName()));
-	}
 }

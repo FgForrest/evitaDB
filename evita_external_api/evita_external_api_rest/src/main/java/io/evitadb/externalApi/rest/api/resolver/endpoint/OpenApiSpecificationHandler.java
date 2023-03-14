@@ -37,9 +37,9 @@ import java.util.Optional;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class OpenApiSpecificationHandler extends RestHandler<RestHandlingContext> {
+public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends RestHandler<C> {
 
-	public OpenApiSpecificationHandler(@Nonnull RestHandlingContext restHandlingContext) {
+	public OpenApiSpecificationHandler(@Nonnull C restHandlingContext) {
 		super(restHandlingContext);
 	}
 

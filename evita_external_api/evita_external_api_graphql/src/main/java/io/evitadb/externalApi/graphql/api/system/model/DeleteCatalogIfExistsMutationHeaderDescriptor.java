@@ -21,31 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.system.model;
+package io.evitadb.externalApi.graphql.api.system.model;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of {@link SystemRootDescriptor#REPLACE_CATALOG}
+ * Descriptor for header arguments of {@link SystemRootDescriptor#DELETE_CATALOG_IF_EXISTS}
  * query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ReplaceCatalogMutationHeaderDescriptor {
+public interface DeleteCatalogIfExistsMutationHeaderDescriptor {
 
-	PropertyDescriptor NAME_TO_BE_REPLACED = PropertyDescriptor.builder()
-		.name("nameToBeReplaced")
+	PropertyDescriptor NAME = PropertyDescriptor.builder()
+		.name("name")
 		.description("""
-			Name of the catalog that will be replaced and dropped.
-			""")
-		.type(nonNull(String.class))
-		.build();
-	PropertyDescriptor NAME_TO_BE_REPLACED_WITH = PropertyDescriptor.builder()
-		.name("nameToBeReplacedWith")
-		.description("""
-			Name of the catalog that will become the successor of the original catalog
+			Name of the catalog to delete.
 			""")
 		.type(nonNull(String.class))
 		.build();

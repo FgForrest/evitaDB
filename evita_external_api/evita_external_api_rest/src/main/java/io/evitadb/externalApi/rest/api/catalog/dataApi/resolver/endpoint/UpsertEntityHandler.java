@@ -77,7 +77,7 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 		final UpsertEntityUpsertRequestDto requestData = parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class);
 
 		if (withPrimaryKeyInPath) {
-			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
+			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 			Assert.isTrue(
 				parametersFromRequest.containsKey(ParamDescriptor.PRIMARY_KEY.name()),
 				() -> new RestInvalidArgumentException("Primary key is not present in request's URL path.")

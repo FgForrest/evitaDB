@@ -63,6 +63,7 @@ import static io.swagger.v3.oas.models.PathItem.HttpMethod.*;
  */
 public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHandlingContext> {
 
+	@Nonnull protected final CatalogSchemaContract catalogSchema;
 	@Nonnull private final EntitySchemaContract entitySchema;
 
 	private OpenApiCollectionEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
@@ -76,7 +77,8 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 	                                  @Nullable OpenApiSimpleType requestBody,
 	                                  @Nonnull OpenApiSimpleType successResponse,
 	                                  @Nonnull Function<CollectionRestHandlingContext, RestHandler<CollectionRestHandlingContext>> handlerBuilder) {
-		super(catalogSchema, method, path, localized, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
+		super(method, path, localized, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
+		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
 	}
 

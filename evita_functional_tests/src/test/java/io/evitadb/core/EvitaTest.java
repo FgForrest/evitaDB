@@ -2571,18 +2571,15 @@ class EvitaTest implements TestFileSupport {
 			getEvitaConfiguration()
 		);
 
-		final ExternalApiServer externalApiServer = new ExternalApiServer(
+		try (ExternalApiServer externalApiServer = new ExternalApiServer(
 			evita,
 			ApiOptions.builder()
 				.enable(GraphQLProvider.CODE)
 				.enable(GrpcProvider.CODE)
 				.enable(RestProvider.CODE)
 				.build()
-		);
-		try {
+		)) {
 			externalApiServer.start();
-		} finally {
-			externalApiServer.close();
 		}
 
 		final Set<String> catalogNames = evita.getCatalogNames();

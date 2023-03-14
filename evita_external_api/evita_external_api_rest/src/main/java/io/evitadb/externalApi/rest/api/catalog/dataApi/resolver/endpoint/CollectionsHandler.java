@@ -27,9 +27,9 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.ParamDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandler;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
@@ -41,12 +41,12 @@ import java.util.Optional;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CollectionsHandler extends RestHandler<RestHandlingContext> {
+public class CollectionsHandler extends RestHandler<CatalogRestHandlingContext> {
 
 	@Nonnull
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	public CollectionsHandler(@Nonnull RestHandlingContext restHandlingContext) {
+	public CollectionsHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
 		objectJsonSerializer = new ObjectJsonSerializer(restApiHandlingContext.getObjectMapper());
 	}
@@ -54,7 +54,7 @@ public class CollectionsHandler extends RestHandler<RestHandlingContext> {
 	@Override
 	@Nonnull
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(ParamDescriptor.ENTITY_COUNT.name());
 
 		final ArrayNode collections = restApiHandlingContext.queryCatalog(session -> {

@@ -21,9 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.system.model;
+package io.evitadb.externalApi.rest.api.system.model;
 
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
+import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
@@ -45,17 +46,17 @@ public interface SystemRootDescriptor {
         .description("""
             Returns `true` when the API is ready to take requests.
             """)
-        .type(nonNull(Boolean.class))
+        .type(nonNullRef(LivenessDescriptor.THIS))
         .build();
 
-    EndpointDescriptor CATALOG = EndpointDescriptor.builder()
-        .operation("catalog")
+    EndpointDescriptor GET_CATALOG = EndpointDescriptor.builder()
+        .operation("catalogs")
         .description("""
             Returns single catalog by its name.
             """)
         .type(nullableRef(CatalogDescriptor.THIS))
         .build();
-    EndpointDescriptor CATALOGS = EndpointDescriptor.builder()
+    EndpointDescriptor LIST_CATALOGS = EndpointDescriptor.builder()
         .operation("catalogs")
         .description("""
             Returns all catalogs known to evitaDB.
@@ -64,38 +65,21 @@ public interface SystemRootDescriptor {
         .build();
 
     EndpointDescriptor CREATE_CATALOG = EndpointDescriptor.builder()
-        .operation("createCatalog")
+        .operation("catalogs")
         .description("""
             Creates new catalog of particular name if it doesn't exist. New empty catalog is returned.
             """)
         .type(nonNullRef(CatalogDescriptor.THIS))
         .build();
-    EndpointDescriptor RENAME_CATALOG = EndpointDescriptor.builder()
-        .operation("renameCatalog")
+    EndpointDescriptor UPDATE_CATALOG = EndpointDescriptor.builder()
+        .operation("catalogs")
         .description("""
-            Renames existing catalog to a new name. The `newName` must not clash with any existing catalog name,
-            otherwise exception is thrown. If you need to rename catalog to a name of existing catalog use
-            the `replaceCatalog` mutation instead.
-            
-            In case exception occurs the original catalog (`name`) is guaranteed to be untouched,
-            and the `newName` will not be present.
+            Updates part of data of the specified catalog.
             """)
         .type(nonNullRef(CatalogDescriptor.THIS))
         .build();
-    EndpointDescriptor REPLACE_CATALOG = EndpointDescriptor.builder()
-        .operation("replaceCatalog")
-        .description("""
-            Replaces existing catalog of particular with the contents of the another catalog. When this method is
-            successfully finished, the catalog `nameToBeReplacedWith` will be known under the name of the
-            `nameToBeReplaced` and the original contents of the `nameToBeReplaced` will be purged entirely.
-            
-            In case exception occurs, the original catalog (`nameToBeReplaced`) is guaranteed to be untouched, the
-            state of `nameToBeReplacedWith` is however unknown and should be treated as damaged.
-            """)
-        .type(nonNullRef(CatalogDescriptor.THIS))
-        .build();
-    EndpointDescriptor DELETE_CATALOG_IF_EXISTS = EndpointDescriptor.builder()
-        .operation("deleteCatalogIfExists")
+    EndpointDescriptor DELETE_CATALOG = EndpointDescriptor.builder()
+        .operation("catalogs")
         .description("""
             Deletes catalog with name along with its contents on disk.
             """)

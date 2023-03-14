@@ -41,9 +41,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import lombok.extern.slf4j.Slf4j;
@@ -60,10 +60,10 @@ import java.util.Map.Entry;
 @Slf4j
 public class EntityJsonSerializer {
 
-	private final RestHandlingContext restHandlingContext;
+	private final CatalogRestHandlingContext restHandlingContext;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	public EntityJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
+	public EntityJsonSerializer(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		this.restHandlingContext = restHandlingContext;
 		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}

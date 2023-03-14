@@ -30,7 +30,6 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -81,8 +80,8 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		return flags.isEmpty() ? null : flags.toArray(new SessionFlags[0]);
 	}
 
-	public EvitaService(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider) {
-		this.evita = evitaSystemDataProvider.getEvita();
+	public EvitaService(@Nonnull Evita evita) {
+		this.evita = evita;
 	}
 
 	/**

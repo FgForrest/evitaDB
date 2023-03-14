@@ -123,12 +123,6 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
                 "Only supported result content types are those officially recommended by OpenApi Spec (`" + getContentType() + "`)."
             );
         }
-        if (!bodyHasSupportedContentType(exchange)) {
-            throw new HttpExchangeException(
-                StatusCodes.UNSUPPORTED_MEDIA_TYPE,
-                "Only supported request body content types are those officially recommended by OpenApi Spec (`" + getContentType() + "`)."
-            );
-        }
     }
 
     @Nullable
@@ -163,6 +157,13 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
      */
     @Nonnull
     private String readRequestBody(@Nonnull HttpServerExchange exchange) {
+        if (!bodyHasSupportedContentType(exchange)) {
+            throw new HttpExchangeException(
+                StatusCodes.UNSUPPORTED_MEDIA_TYPE,
+                "Only supported request body content types are those officially recommended by OpenApi Spec (`" + getContentType() + "`)."
+            );
+        }
+
         final String bodyContentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
         final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
             .map(String::trim)
@@ -212,18 +213,18 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     }
 
     @Nonnull
-    protected Map<String, Object> getParametersFromRequest(@Nonnull HttpServerExchange exchange, @Nonnull Operation operation) {
+    protected Map<String, Object> getParametersFromRequest(@Nonnull HttpServerExchange exchange) {
         //create copy of parameters
         final Map<String, Deque<String>> parameters = new HashMap<>(exchange.getQueryParameters());
 
+        final Operation operation = restApiHandlingContext.getEndpointOperation();
         final HashMap<String, Object> parameterData = createHashMap(operation.getParameters().size());
         if(operation.getParameters() != null) {
             for (Parameter parameter : operation.getParameters()) {
                 getParameterFromRequest(parameters, parameter).ifPresent(data -> {
-                        parameterData.put(parameter.getName(), data);
-                        parameters.remove(parameter.getName());
-                    }
-                );
+                    parameterData.put(parameter.getName(), data);
+                    parameters.remove(parameter.getName());
+                });
             }
         }
 
@@ -235,10 +236,15 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     }
 
     @Nonnull
-    protected Optional<Object> getParameterFromRequest(@Nonnull Map<String, Deque<String>> queryParameters, @Nonnull Parameter parameter) {
+    private Optional<Object> getParameterFromRequest(@Nonnull Map<String, Deque<String>> queryParameters,
+                                                     @Nonnull Parameter parameter) {
         final Deque<String> queryParam = queryParameters.get(parameter.getName());
-        if(queryParam != null) {
-            return Optional.ofNullable(DataDeserializer.deserializeValue(restApiHandlingContext.getOpenApi(), getParameterSchema(parameter), queryParam.toArray(new String[]{})));
+        if (queryParam != null) {
+            return Optional.ofNullable(DataDeserializer.deserializeValue(
+                restApiHandlingContext.getOpenApi(),
+                getParameterSchema(parameter),
+                queryParam.toArray(String[]::new)
+            ));
         } else if(Boolean.TRUE.equals(parameter.getRequired())) {
             throw new RestRequiredParameterMissingException("Required parameter " + parameter.getName() +
                 " is missing in query data (" + parameter.getIn() + ")");

@@ -57,7 +57,7 @@ public class DeleteEntityHandler extends RestHandler<CollectionRestHandlingConte
 	@Override
 	@Nonnull
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		Assert.isTrue(
 			parametersFromRequest.containsKey(ParamDescriptor.PRIMARY_KEY.name()),

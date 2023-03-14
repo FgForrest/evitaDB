@@ -21,24 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.system.model;
+package io.evitadb.externalApi.rest.api.system.model;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor for header arguments of {@link SystemRootDescriptor#CREATE_CATALOG}
+ * Descriptor for header arguments of {@link SystemRootDescriptor#GET_CATALOG}
  * query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface CreateCatalogMutationHeaderDescriptor {
+public interface CatalogsHeaderDescriptor {
 
 	PropertyDescriptor NAME = PropertyDescriptor.builder()
 		.name("name")
 		.description("""
-			Name of new catalog.
+			Name of catalog to operate on.
 			""")
 		.type(nonNull(String.class))
 		.build();

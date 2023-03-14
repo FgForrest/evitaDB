@@ -23,9 +23,9 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
+import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.CatalogSchemaJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandler;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,12 +38,12 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class GetCatalogSchemaHandler extends RestHandler<RestHandlingContext> {
+public class GetCatalogSchemaHandler extends RestHandler<CatalogRestHandlingContext> {
 
 	@Nonnull
 	private final CatalogSchemaJsonSerializer catalogSchemaJsonSerializer;
 
-	public GetCatalogSchemaHandler(@Nonnull RestHandlingContext restApiHandlingContext) {
+	public GetCatalogSchemaHandler(@Nonnull CatalogRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		catalogSchemaJsonSerializer = new CatalogSchemaJsonSerializer(restApiHandlingContext);
 	}

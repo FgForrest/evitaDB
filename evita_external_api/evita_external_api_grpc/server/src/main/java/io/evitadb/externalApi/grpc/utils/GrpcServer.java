@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.grpc.utils;
 
+import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.certificate.ServerCertificateManager;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
@@ -66,21 +66,21 @@ public class GrpcServer {
 	/**
 	 * Builds the server instance with default server port.
 	 *
-	 * @param evitaSystemDataProvider instance on which will services be operating
+	 * @param evita instance on which will services be operating
 	 */
-	public GrpcServer(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig config) {
-		setUpServer(evitaSystemDataProvider, apiOptions, config);
+	public GrpcServer(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig config) {
+		setUpServer(evita, apiOptions, config);
 	}
 
 	/**
 	 * Builds the server instance which will operate on a set-up server port. If configured, from provided {@link ApiOptions}
 	 * and {@link GrpcConfig} the TLS/mTLS settings will be used.
 	 *
-	 * @param evitaSystemDataProvider instance on which will services be operating
+	 * @param evita                   instance on which will services be operating
 	 * @param apiOptions              API options from configuration file for getting certificate settings
 	 * @param config                  gRPC configuration from configuration file
 	 */
-	private void setUpServer(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig config) {
+	private void setUpServer(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig config) {
 		final HostDefinition[] hosts = config.getHost();
 		final CertificatePath certificatePath = ServerCertificateManager.getCertificatePath(apiOptions.certificate());
 		if (certificatePath.certificate() == null || certificatePath.privateKey() == null) {
@@ -119,10 +119,10 @@ public class GrpcServer {
 			);
 		}
 		server = Grpc.newServerBuilderForPort(hosts[0].port(), tlsServerCredentials)
-			.intercept(new ServerSessionInterceptor(evitaSystemDataProvider.getEvita()))
+			.intercept(new ServerSessionInterceptor(evita))
 			.intercept(new GlobalExceptionHandlerInterceptor())
-			.executor(evitaSystemDataProvider.getExecutor())
-			.addService(new EvitaService(evitaSystemDataProvider))
+			.executor(evita.getExecutor())
+			.addService(new EvitaService(evita))
 			.addService(new EvitaSessionService())
 			.build();
 	}

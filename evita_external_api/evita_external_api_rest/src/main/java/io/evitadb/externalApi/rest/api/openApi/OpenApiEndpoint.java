@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
@@ -81,8 +80,6 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	private static final String STATUS_CODE_NOT_ACCEPTABLE = String.valueOf(StatusCodes.NOT_ACCEPTABLE);
 	private static final String STATUS_CODE_UNSUPPORTED_MEDIA_TYPE = String.valueOf(StatusCodes.UNSUPPORTED_MEDIA_TYPE);
 	private static final String STATUS_CODE_BAD_REQUEST = String.valueOf(StatusCodes.BAD_REQUEST);
-
-	@Nonnull protected final CatalogSchemaContract catalogSchema;
 
 	@Nonnull @Getter protected final HttpMethod method;
 	@Nonnull @Getter protected final Path path;

@@ -121,7 +121,7 @@ public class ListEntitiesHandler extends RestHandler<CollectionRestHandlingConte
 	@Nonnull
 	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull HttpServerExchange exchange, @Nullable FilterBy filterBy) {
 		if (restApiHandlingContext.isLocalized()) {
-			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
+			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 			final Locale locale = (Locale) parametersFromRequest.get(ParamDescriptor.LOCALE.name());
 			if (locale == null) {
 				throw new RestRequiredParameterMissingException("Missing LOCALE in URL path.");

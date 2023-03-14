@@ -33,7 +33,15 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemasDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaUnionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemasDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
@@ -65,7 +73,6 @@ import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLObjectType.newObject;
 import static graphql.schema.GraphQLTypeReference.typeRef;
-import static graphql.schema.GraphQLUnionType.newUnionType;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
 
 /**

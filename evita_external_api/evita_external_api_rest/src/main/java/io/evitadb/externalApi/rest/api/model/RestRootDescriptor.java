@@ -21,32 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.system.model;
+package io.evitadb.externalApi.rest.api.model;
 
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import io.evitadb.externalApi.api.model.EndpointDescriptor;
 
 /**
- * Descriptor for header arguments of {@link SystemRootDescriptor#RENAME_CATALOG}
- * query.
+ * TODO lho docs
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2023
  */
-public interface RenameCatalogMutationHeaderDescriptor {
+public interface RestRootDescriptor {
 
-	PropertyDescriptor NAME = PropertyDescriptor.builder()
-		.name("name")
+	EndpointDescriptor OPEN_API_SPECIFICATION = EndpointDescriptor.builder()
+		.operation("openApiSpec")
 		.description("""
-			Name of existing catalog to rename.
+			OpenAPI Specification in YAML format.
 			""")
-		.type(nonNull(String.class))
-		.build();
-	PropertyDescriptor NEW_NAME = PropertyDescriptor.builder()
-		.name("newName")
-		.description("""
-			New name of catalog the existing one will be replaced to.
-			""")
-		.type(nonNull(String.class))
 		.build();
 }

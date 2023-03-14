@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
+import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint;
 import io.evitadb.externalApi.rest.api.resolver.endpoint.OpenApiSpecificationHandler;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
@@ -40,14 +41,14 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class EndpointBuilder {
+public class CatalogEndpointBuilder {
 
 	@Nonnull
 	public OpenApiCatalogEndpoint buildOpenApiSpecificationEndpoint(@Nonnull CatalogRestBuildingContext buildingContext) {
 		return newCatalogEndpoint(buildingContext.getSchema())
 			.path(p -> p) // directly at the catalog root
 			.method(HttpMethod.GET)
-			.description("OpenAPI Specification in YAML format.")
+			.description(RestRootDescriptor.OPEN_API_SPECIFICATION.description())
 			.successResponse(nonNull(DataTypesConverter.getOpenApiScalar(String.class)))
 			.handler(OpenApiSpecificationHandler::new)
 			.build();

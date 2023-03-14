@@ -72,5 +72,7 @@ module evita.external.api.rest {
 	exports io.evitadb.externalApi.rest.api.catalog;
 	exports io.evitadb.externalApi.rest.api.catalog.dataApi;
 	exports io.evitadb.externalApi.rest.api.catalog.schemaApi;
+	exports io.evitadb.externalApi.rest.api.catalog.resolver.endpoint;
+	exports io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 }

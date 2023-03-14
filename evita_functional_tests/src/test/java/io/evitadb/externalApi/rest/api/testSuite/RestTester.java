@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.api.testSuite;
 
 import io.evitadb.externalApi.http.MimeTypes;
 import io.restassured.http.Header;
+import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
 import io.restassured.specification.RequestSpecification;
 import io.undertow.util.Headers;
@@ -76,35 +77,19 @@ public class RestTester {
 			requestSpecification.params(request.getRequestParams());
 		}
 
-		if(request.httpMethod.equals(Request.METHOD_GET)) {
-			return requestSpecification.
-				when()
-					.get(url + (request.getUrlPathSuffix() != null?request.getUrlPathSuffix():"")).
-				then()
-					.log()
-					.ifError();
-		} else if(request.httpMethod.equals(Request.METHOD_PUT)) {
-			return requestSpecification.
-				when()
-					.put(url + (request.getUrlPathSuffix() != null?request.getUrlPathSuffix():"")).
-				then()
-					.log()
-					.ifError();
-		} else if(request.httpMethod.equals(Request.METHOD_DELETE)) {
-			return requestSpecification.
-				when()
-					.delete(url + (request.getUrlPathSuffix() != null?request.getUrlPathSuffix():"")).
-				then()
-					.log()
-					.ifError();
-		} else {
-			return requestSpecification.
-				when()
-					.post(url + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
-				then()
-					.log()
-					.ifError();
-		}
+		final String fullUrl = url + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "");
+		final Response response = switch (request.httpMethod) {
+			case Request.METHOD_GET -> requestSpecification.when().get(fullUrl);
+			case Request.METHOD_PUT -> requestSpecification.when().put(fullUrl);
+			case Request.METHOD_DELETE -> requestSpecification.when().delete(fullUrl);
+			case Request.METHOD_PATCH -> requestSpecification.when().patch(fullUrl);
+			default -> requestSpecification.when().post(fullUrl);
+		};
+
+		return response
+			.then()
+				.log()
+				.ifError();
 	}
 
 	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
@@ -113,6 +98,7 @@ public class RestTester {
 		public static final String METHOD_POST = "post";
 		public static final String METHOD_DELETE = "delete";
 		public static final String METHOD_PUT = "put";
+		public static final String METHOD_PATCH = "patch";
 		public static final String METHOD_GET = "get";
 
 		private final RestTester tester;

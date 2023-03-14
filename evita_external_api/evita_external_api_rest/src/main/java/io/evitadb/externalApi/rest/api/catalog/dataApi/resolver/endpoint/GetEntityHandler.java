@@ -57,7 +57,7 @@ public class GetEntityHandler extends RestHandler<CollectionRestHandlingContext>
 	@Override
 	@Nonnull
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
 			collection(restApiHandlingContext.getEntityType()),

@@ -27,8 +27,8 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
+import io.evitadb.externalApi.rest.api.catalog.builder.CatalogEndpointBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.builder.EndpointBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.CatalogDataApiRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.CatalogSchemaApiRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
@@ -44,14 +44,14 @@ import javax.annotation.Nonnull;
 @Slf4j
 public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingContext> {
 
-	@Nonnull private final EndpointBuilder endpointBuilder;
+	@Nonnull private final CatalogEndpointBuilder endpointBuilder;
 
 	/**
 	 * Creates new builder.
 	 */
 	public CatalogRestBuilder(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
 		super(new CatalogRestBuildingContext(evita, catalog));
-		this.endpointBuilder = new EndpointBuilder();
+		this.endpointBuilder = new CatalogEndpointBuilder();
 	}
 
 	/**

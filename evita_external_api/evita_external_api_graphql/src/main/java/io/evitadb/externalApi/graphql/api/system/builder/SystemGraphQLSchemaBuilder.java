@@ -29,17 +29,16 @@ import graphql.schema.GraphQLSchema;
 import graphql.schema.PropertyDataFetcher;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
-import io.evitadb.externalApi.api.system.model.CatalogQueryHeaderDescriptor;
-import io.evitadb.externalApi.api.system.model.CreateCatalogMutationHeaderDescriptor;
-import io.evitadb.externalApi.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
-import io.evitadb.externalApi.api.system.model.RenameCatalogMutationHeaderDescriptor;
-import io.evitadb.externalApi.api.system.model.ReplaceCatalogMutationHeaderDescriptor;
-import io.evitadb.externalApi.api.system.model.SystemRootDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.RenameCatalogMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.ReplaceCatalogMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.system.model.SystemRootDescriptor;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogsDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.LivenessDataFetcher;
@@ -58,11 +57,11 @@ import javax.annotation.Nonnull;
 public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQLSchemaBuildingContext> {
 
 	@Nonnull
-	private final EvitaSystemDataProvider evitaSystemDataProvider;
+	private final Evita evita;
 
 	public SystemGraphQLSchemaBuilder(@Nonnull Evita evita) {
 		super(new GraphQLSchemaBuildingContext(evita));
-		this.evitaSystemDataProvider = new EvitaSystemDataProvider(evita);
+		this.evita = evita;
 	}
 
 	@Override
@@ -111,7 +110,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			catalogField,
-			new CatalogDataFetcher(evitaSystemDataProvider)
+			new CatalogDataFetcher(evita)
 		);
 	}
 
@@ -119,7 +118,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	private BuiltFieldDescriptor buildCatalogsField() {
 		return new BuiltFieldDescriptor(
 			SystemRootDescriptor.CATALOGS.to(staticEndpointBuilderTransformer).build(),
-			new CatalogsDataFetcher(evitaSystemDataProvider)
+			new CatalogsDataFetcher(evita)
 		);
 	}
 
@@ -132,7 +131,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			createCatalogField,
-			new CreateCatalogMutatingDataFetcher(evitaSystemDataProvider)
+			new CreateCatalogMutatingDataFetcher(evita)
 		);
 	}
 
@@ -146,7 +145,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			renameCatalogField,
-			new RenameCatalogMutatingDataFetcher(evitaSystemDataProvider)
+			new RenameCatalogMutatingDataFetcher(evita)
 		);
 	}
 
@@ -160,7 +159,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			replaceCatalogField,
-			new ReplaceCatalogMutatingDataFetcher(evitaSystemDataProvider)
+			new ReplaceCatalogMutatingDataFetcher(evita)
 		);
 	}
 
@@ -173,7 +172,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			deleteCatalogIfExistsCatalogField,
-			new DeleteCatalogIfExistsMutatingDataFetcher(evitaSystemDataProvider)
+			new DeleteCatalogIfExistsMutatingDataFetcher(evita)
 		);
 	}
 }

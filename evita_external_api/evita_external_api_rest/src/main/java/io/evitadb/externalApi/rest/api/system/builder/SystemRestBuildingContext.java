@@ -21,47 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi;
+package io.evitadb.externalApi.rest.api.system.builder;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import org.jboss.threads.EnhancedQueueExecutor;
+import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
+import io.swagger.v3.oas.models.info.Contact;
+import io.swagger.v3.oas.models.info.Info;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
 
 /**
- * Helper for getting package-private Evita data to APIs because those we don't want to expose those data directly to clients.
+ * This context contains objects which are used (and shared) during building REST API for evitaDB management.
  *
- * @author Lukáš Hornych, FG Forrest a.s. 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
-public class EvitaSystemDataProvider {
-	@Getter private final Evita evita;
+public class SystemRestBuildingContext extends RestBuildingContext {
 
-	/**
-	 * Returns shared thread pool for Evita.
-	 */
-	@Nonnull
-	public EnhancedQueueExecutor getExecutor() {
-		return evita.getExecutor();
+	public SystemRestBuildingContext(@Nonnull Evita evita) {
+		super(evita);
 	}
 
-	/**
-	 * Returns specific catalog from Evita by name
-	 */
 	@Nonnull
-	public CatalogContract getCatalog(@Nonnull String name) {
-		return evita.getCatalogInstanceOrThrowException(name);
-	}
-
-	/**
-	 * Returns all loaded catalogs from Evita
-	 */
-	@Nonnull
-	public Collection<CatalogContract> getCatalogs() {
-		return evita.getCatalogs();
+	@Override
+	protected Info buildOpenApiInfo() {
+		final Info info = new Info();
+		info.setTitle("Web services for managing evitaDB.");
+		info.setContact(new Contact().email("novotny@fg.cz").url("https://www.fg.cz"));
+		info.setVersion("1.0.0-oas3");
+		return info;
 	}
 }

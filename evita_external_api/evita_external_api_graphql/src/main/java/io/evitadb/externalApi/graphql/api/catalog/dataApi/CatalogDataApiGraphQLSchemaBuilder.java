@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
@@ -51,6 +50,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Fil
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderBySchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesQueryHeaderDescriptor;

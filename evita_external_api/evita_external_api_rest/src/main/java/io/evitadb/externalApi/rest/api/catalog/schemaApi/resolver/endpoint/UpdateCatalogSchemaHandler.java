@@ -27,13 +27,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
+import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectParser;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.dto.CreateOrUpdateEntitySchemaRequestData;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.CatalogSchemaJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestHandler;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
@@ -49,12 +49,12 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class UpdateCatalogSchemaHandler extends RestHandler<RestHandlingContext> {
+public class UpdateCatalogSchemaHandler extends RestHandler<CatalogRestHandlingContext> {
 
 	@Nonnull private final LocalCatalogSchemaMutationAggregateConverter mutationAggregateResolver;
 	@Nonnull private final CatalogSchemaJsonSerializer catalogSchemaJsonSerializer;
 
-	public UpdateCatalogSchemaHandler(@Nonnull RestHandlingContext restApiHandlingContext) {
+	public UpdateCatalogSchemaHandler(@Nonnull CatalogRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.mutationAggregateResolver = new LocalCatalogSchemaMutationAggregateConverter(
 			new RestMutationObjectParser(restApiHandlingContext.getObjectMapper()),

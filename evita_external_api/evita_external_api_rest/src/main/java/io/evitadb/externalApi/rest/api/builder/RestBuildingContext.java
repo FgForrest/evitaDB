@@ -79,7 +79,7 @@ public abstract class RestBuildingContext {
 	@Nonnull
 	private final Set<String> registeredCustomEnums = createHashSet(32);
 
-	public RestBuildingContext(@Nonnull Evita evita) {
+	protected RestBuildingContext(@Nonnull Evita evita) {
 		this.evita = evita;
 		this.objectMapper = setupObjectMapper();
 	}

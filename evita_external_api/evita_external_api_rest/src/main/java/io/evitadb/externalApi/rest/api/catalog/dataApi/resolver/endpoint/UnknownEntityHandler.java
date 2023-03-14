@@ -28,8 +28,8 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterByConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
+import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.io.RestHandler;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,12 +43,12 @@ import java.util.Optional;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class UnknownEntityHandler extends RestHandler<RestHandlingContext> {
+public class UnknownEntityHandler extends RestHandler<CatalogRestHandlingContext> {
 
 	@Nonnull
 	private final EntityJsonSerializer entityJsonSerializer;
 
-	public UnknownEntityHandler(@Nonnull RestHandlingContext restHandlingContext) {
+	public UnknownEntityHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
@@ -56,7 +56,7 @@ public class UnknownEntityHandler extends RestHandler<RestHandlingContext> {
 	@Override
 	@Nonnull
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange, restApiHandlingContext.getEndpointOperation());
+		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
 			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntity(parametersFromRequest, restApiHandlingContext.getCatalogSchema()),

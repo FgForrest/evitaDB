@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
+class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
 
 	@Nonnull
 	@Override

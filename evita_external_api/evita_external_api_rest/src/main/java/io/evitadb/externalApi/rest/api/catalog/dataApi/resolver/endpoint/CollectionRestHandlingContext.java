@@ -27,7 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
+import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import lombok.Getter;
@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CollectionRestHandlingContext extends RestHandlingContext {
+public class CollectionRestHandlingContext extends CatalogRestHandlingContext {
 
 	@Nonnull @Getter private final EntitySchemaContract entitySchema;
 
