@@ -1,6 +1,8 @@
 ---
 title: Entity API design
-perex:
+perex: |
+  The article explains basic concepts of evitaDB entities, session handling, immutability and versioning mechanism.
+  It also contains examples of working with the entity API from Java code.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'

@@ -1,5 +1,8 @@
 ---
 title: Aim and purpose of the study
+perex: |
+  The document contains a summary of the tender documentation and hypothesis definition for research grant No 
+  CZ.01.1.02/0.0/0.0/19_262/0020308 and a signpost to further information related to this research.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný (FG Forrest, a.s.)'
 proofreading: 'needed'

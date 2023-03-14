@@ -1,6 +1,8 @@
 ---
 title: Histogram
-perex:
+perex: |
+    The article explains the Histogram class and its components, such as data arrays and bin edges, which are 
+    used for frequency distribution visualization.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'

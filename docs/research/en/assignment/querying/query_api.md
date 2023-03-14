@@ -1,6 +1,8 @@
 ---
 title: Query API design
-perex:
+perex: |
+    The article introduces the basics of querying EvitaDB using its query API, including constructing queries, making
+    requests, and handling responses, with Java code examples.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
