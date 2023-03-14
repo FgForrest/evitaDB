@@ -91,9 +91,9 @@ import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.OBJECT;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
 
 /**
- * TODO lho docs
+ * Builds schema object representing {@link io.evitadb.api.requestResponse.EvitaResponse} with entities and extra results.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
 public class FullResponseObjectBuilder {

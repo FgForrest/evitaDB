@@ -158,7 +158,6 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			buildingContext.registerType(buildEntitySchemaObject(entitySchema));
 			buildingContext.registerQueryField(buildEntitySchemaField(entitySchema));
-			// todo lho implement entity schema create mutation
 			buildingContext.registerMutationField(buildUpdateEntitySchemaField(entitySchema));
 		});
 	}

@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DataInLocales;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.PriceContent;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -95,8 +96,9 @@ public class RequireConstraintFromRequestQueryBuilder {
 		} else if(isParameterPresent(parameters, FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT)) {
 			contentRequires.add(new ReferenceContent((String[]) parameters.get(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT.name())));
 		}
-		if (isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT)) {
-			contentRequires.add(new PriceContent());
+		if (isParameterPresent(parameters, FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT)) {
+			final String priceContentMode = (String) parameters.get(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name());
+			contentRequires.add(new PriceContent(PriceContentMode.valueOf(priceContentMode)));
 		}
 		if (parameters.containsKey(FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES.name())) {
 			contentRequires.add(new DataInLocales((Locale[]) parameters.get(FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES.name())));

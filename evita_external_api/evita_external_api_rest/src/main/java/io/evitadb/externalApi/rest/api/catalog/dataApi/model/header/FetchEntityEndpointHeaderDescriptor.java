@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.model.header;
 
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.Locale;
@@ -105,7 +106,7 @@ public interface FetchEntityEndpointHeaderDescriptor {
 		.description("""
             Parameter specifying whether price data will be present in returned entity.
             """)
-		.type(nullable(Boolean.class))
+		.type(nullable(PriceContentMode.class))
 		.build();
 	PropertyDescriptor REFERENCE_CONTENT = PropertyDescriptor.builder()
 		.name("referenceContent")

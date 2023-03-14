@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
@@ -333,7 +334,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), "basic")
-				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), Boolean.TRUE)
+				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
 				.build())
 			.executeAndThen()
 			.statusCode(200)
@@ -354,7 +355,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.name(), "basic")
-				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), Boolean.TRUE)
+				.e(GetEntityEndpointHeaderDescriptor.PRICE_CONTENT.name(), PriceContentMode.RESPECTING_FILTER.name())
 				.build())
 			.executeAndThen()
 			.statusCode(200)

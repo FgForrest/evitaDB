@@ -64,12 +64,4 @@ public interface ReferenceDescriptor {
 			""")
 		// type is expected to be a map with attribute names as key and attribute values as values
 		.build();
-
-	// todo lho consider deletion as it is only used in OpenAPI
-	interface ExternalEntityReferenceDescriptor {
-
-		String OBJECT_TYPE_DESCRIPTION = """
-			Reference to external entity.
-			""";
-	}
 }
