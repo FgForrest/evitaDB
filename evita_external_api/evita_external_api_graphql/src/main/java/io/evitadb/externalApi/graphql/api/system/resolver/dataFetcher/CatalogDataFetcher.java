@@ -48,7 +48,7 @@ public class CatalogDataFetcher implements DataFetcher<DataFetcherResult<Catalog
     public DataFetcherResult<CatalogContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final String catalogName = environment.getArgument(CatalogQueryHeaderDescriptor.NAME.name());
         return DataFetcherResult.<CatalogContract>newResult()
-            .data(evita.getCatalogInstance(catalogName).orElse(null))
+            .data(evita.getCatalogInstanceOrThrowException(catalogName))
             .build();
     }
 }
