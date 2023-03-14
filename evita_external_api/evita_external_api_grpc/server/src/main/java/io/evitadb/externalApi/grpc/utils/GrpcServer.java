@@ -36,11 +36,11 @@ import io.evitadb.externalApi.grpc.services.EvitaSessionService;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.utils.CertificateUtils;
-import io.grpc.Grpc;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.ServerCredentials;
 import io.grpc.TlsServerCredentials;
+import io.grpc.netty.NettyServerBuilder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,6 +48,7 @@ import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.security.cert.CertificateFactory;
 
 /**
@@ -118,7 +119,7 @@ public class GrpcServer {
 				e
 			);
 		}
-		server = Grpc.newServerBuilderForPort(hosts[0].port(), tlsServerCredentials)
+		server = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()), tlsServerCredentials)
 			.intercept(new ServerSessionInterceptor(evitaSystemDataProvider.getEvita()))
 			.intercept(new GlobalExceptionHandlerInterceptor())
 			.executor(evitaSystemDataProvider.getExecutor())

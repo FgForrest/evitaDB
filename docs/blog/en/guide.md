@@ -3,7 +3,7 @@ title: Guide
 perex: In order to create a bit more rich in content documentations and blog posts we will take advantage of `.mdx` file format. In short, this gives us option of option to write documents in plain Markdown + we can insert custom react components with specific functionality. Read more about it [here](https://nextjs.org/docs/advanced-features/using-mdx).
 date: 05.12.2022
 author: Miroslav Alt
-coverImageList: TODO
+coverImageList: only for blog posts
 motive: assets/images/guide-img.jpg
 ---
 
