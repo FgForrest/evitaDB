@@ -12,7 +12,7 @@ license, because it automatically converts to one after a period of time specifi
 We're fans of open source, and we've benefited a lot from open source software (even the database engine uses some of it).
 The database implementation has taken thousands of man-days and, if successful, will take several thousand more. We were
 lucky to get an [EU grant](https://evitadb.io/project-info) that partially funded the initial implementation, but we
-need to build a self-sustaining project in the long run. [Our company](https://www.fg.cz) uses evitaDB for its own
+need to build a self-sustaining project in the long run. [Our company](https://www.fg.cz/en) uses evitaDB for its own
 commercial projects, so the development of the database is guaranteed, but without additional income the development 
 would be limited. That's why we have chosen this type of license, but in the end we allow you - our users - almost any 
 use.

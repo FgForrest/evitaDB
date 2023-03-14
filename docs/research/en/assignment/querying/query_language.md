@@ -1,6 +1,8 @@
 ---
 title: Query language
-perex:
+perex: |
+  The article introduces the query language used in EvitaDB, covering syntax, querying multiple tables, filtering data, 
+  and aggregating data, with code examples.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'

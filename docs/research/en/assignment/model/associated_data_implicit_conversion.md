@@ -1,6 +1,8 @@
 ---
 title: Associated data implicit conversion process
-perex:
+perex: |
+  Related data represents complex unstructured or semi-structured documents that can be automatically converted 
+  from/to Java POJO classes automatically using implicit conversion mechanisms.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'

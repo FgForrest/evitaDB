@@ -1,6 +1,10 @@
 ---
 title: NoSQL Implementation of Evita
-perex:
+perex: |
+  The document contains the original research paper for the implementation of the evitaDB prototype that uses 
+  Elasticsearch under the hood. The implementation tries to translate evitaQL into an Elasticsearch query and store all 
+  necessary data in the Elasticsearch indexes. The paper describes the positives and negatives associated with this 
+  approach and led to not choosing the Elasticsearch prototype as a path for the final implementation.
 date: '15.12.2022'
 author: 'Štěpán Kameník, Vladislav Poverin and David Grey (University of Hradec Králové)'
 proofreading: 'done'
