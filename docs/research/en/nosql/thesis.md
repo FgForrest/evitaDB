@@ -1114,8 +1114,8 @@ more efficiently. Subsequently, only queries by ID or classic strings without wi
 use of PMPTT at this point could still be replaced by one of the de-normalization techniques, such as the combination of
 concatenated path (described earlier) and category id fields, which would potentially speed up the search for entities
 within a specific category. However, there is also
-the [parentsOfEntity](https://gitlab.fg.cz/hv/evita/-/blob/master/docs/fct_specs/querying/query_language.md#parents)
-and [parentsOfType](https://gitlab.fg.cz/hv/evita/-/blob/master/docs/fct_specs/querying/query_language.md#parents-of-type)
+the [parentsOfEntity](../assignment/querying/query_language.md#parents)
+and [parentsOfType](../assignment/querying/query_language.md#parents-of-type)
 functions, which is also computationally intensive in terms of searching for entities in the hierarchy. Due to the
 blending of hierarchies into a large number of API functions, we decided to implement PMPTT, which is much faster than
 the ES denormalized principle, but there is definitely a way to do it the ES way.

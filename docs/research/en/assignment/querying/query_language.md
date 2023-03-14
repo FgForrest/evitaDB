@@ -1587,7 +1587,7 @@ Ordering process is as follows:
 
 Entities with same (equal) values must not be subject to secondary ordering rules and may be sorted randomly within the
 scope of entities with the same value (this is subject to change; this behaviour differs from the one used by relational
-databases - but might be more performant). See [issue #77](https://gitlab.fg.cz/hv/evita/-/issues/77) for planned
+databases - but might be more performant). See [issue #11](https://github.com/FgForrest/evitaDB/issues/11) for planned
 changes in this area.
 
 <Note type="info">
