@@ -4,7 +4,6 @@ perex:
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 The Docker image is based on RedHat JDK / Linux (see <SourceClass>docker/Dockerfile</SourceClass>) base

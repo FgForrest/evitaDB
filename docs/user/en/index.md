@@ -3,7 +3,6 @@ title: Introduction
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 evitaDB helps developers to create fast product catalog applications, which are the heart of every e-commerce site.

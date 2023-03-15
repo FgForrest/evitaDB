@@ -4,7 +4,6 @@ perex:
 date: '1.3.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 The evitaDB server is configured in YAML format and its default settings are best described by the following code

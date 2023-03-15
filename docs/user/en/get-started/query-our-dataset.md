@@ -3,7 +3,6 @@ title: Query our dataset
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 While it is much better to play with the schema and data that suits your own e-commerce use case, we believe that
