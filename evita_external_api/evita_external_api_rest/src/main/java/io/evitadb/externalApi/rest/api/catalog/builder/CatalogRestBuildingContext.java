@@ -33,9 +33,6 @@ import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
-import io.swagger.v3.oas.models.info.Contact;
-import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 
@@ -91,20 +88,14 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	protected List<Server> buildOpenApiServers() {
 		return Arrays.stream(restConfig.getHost())
 			.map(host -> new Server()
-				.url("https://" + host.hostName() + ":" + host.port() + "/" + restConfig.getPrefix() + "/" + getSchema().getNameVariant(ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION))
-				.description(""))
+				.url("https://" + host.hostName() + ":" + host.port() + "/" + restConfig.getPrefix() + "/" + getSchema().getNameVariant(ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)))
 			.toList();
 	}
 
 	@Nonnull
 	@Override
-	protected Info buildOpenApiInfo() {
-		final Info info = new Info();
-		info.setTitle("Web services for catalog `" + getCatalog().getName() + "`.");
-		info.setContact(new Contact().email("novotny@fg.cz").url("https://www.fg.cz"));
-		info.setVersion("1.0.0-oas3");
-		info.setLicense(new License().name("Business Source License 1.1").url("https://github.com/FgForrest/evitaDB/blob/dev/LICENSE"));
-		return info;
+	protected String getOpenApiTitle() {
+		return "Web services for catalog `" + getCatalog().getName() + "`.";
 	}
 
 	@Nonnull
