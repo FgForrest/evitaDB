@@ -31,13 +31,13 @@ import java.util.List;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor of object containing all name variants of certain schema.
+ * Descriptor of object containing all name variants of certain object (usually schema).
  *
  * Note: this descriptor has static structure.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface SchemaNameVariantsDescriptor {
+public interface NameVariantsDescriptor {
 
 	PropertyDescriptor CAMEL_CASE = PropertyDescriptor.builder()
 		.name("camelCase")
@@ -80,9 +80,9 @@ public interface SchemaNameVariantsDescriptor {
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SchemaNameVariants")
+		.name("NameVariants")
 		.description("""
-			Contains all name variants of parent schema.
+			Contains all name variants of parent object.
 			""")
 		.staticFields(List.of(
 			CAMEL_CASE,

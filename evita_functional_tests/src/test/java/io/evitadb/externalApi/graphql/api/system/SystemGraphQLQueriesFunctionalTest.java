@@ -24,9 +24,14 @@
 package io.evitadb.externalApi.graphql.api.system;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.core.Catalog;
+import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -77,18 +82,28 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@DisplayName("Should return specific catalog")
 	void shouldReturnSpecificCatalog(Evita evita) {
 		final CatalogContract testCatalog = evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
-		createCatalogDto(testCatalog);
 
 		testGraphQLCall()
 			.document(
 				"""
 					query {
 						catalog(name: "%s") {
-							name
-							version
-							catalogState
-							supportsTransaction
-							entityTypes
+							... on Catalog {
+								__typename
+								name
+								nameVariants {
+									camelCase
+									pascalCase
+									snakeCase
+									upperSnakeCase
+									kebabCase
+								}
+								version
+								catalogState
+								supportsTransaction
+								entityTypes
+								corrupted
+							}
 						}
 					}
 					""",
@@ -97,7 +112,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(CATALOG_PATH, equalTo(createCatalogDto(testCatalog)));
+			.body(CATALOG_PATH, equalTo(createCatalogDto((Catalog) testCatalog)));
 	}
 
 	@Test
@@ -109,11 +124,22 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 				"""
 					query {
 						catalogs {
-							name
-							version
-							catalogState
-							supportsTransaction
-							entityTypes
+							... on Catalog {
+								__typename
+								name
+								nameVariants {
+									camelCase
+									pascalCase
+									snakeCase
+									upperSnakeCase
+									kebabCase
+								}
+								version
+								catalogState
+								supportsTransaction
+								entityTypes
+								corrupted
+							}
 						}
 					}
 					""",
@@ -175,11 +201,30 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@Nonnull
 	private static Map<String, Object> createCatalogDto(@Nonnull CatalogContract catalog) {
 		return map()
+			.e(TYPENAME_FIELD, CatalogDescriptor.THIS.name())
 			.e(CatalogDescriptor.NAME.name(), catalog.getName())
+			.e(CatalogDescriptor.NAME_VARIANTS.name(), map()
+				.e(NameVariantsDescriptor.CAMEL_CASE.name(), catalog.getSchema().getNameVariants().get(NamingConvention.CAMEL_CASE))
+				.e(NameVariantsDescriptor.PASCAL_CASE.name(), catalog.getSchema().getNameVariants().get(NamingConvention.PASCAL_CASE))
+				.e(NameVariantsDescriptor.SNAKE_CASE.name(), catalog.getSchema().getNameVariants().get(NamingConvention.SNAKE_CASE))
+				.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), catalog.getSchema().getNameVariants().get(NamingConvention.UPPER_SNAKE_CASE))
+				.e(NameVariantsDescriptor.KEBAB_CASE.name(), catalog.getSchema().getNameVariants().get(NamingConvention.KEBAB_CASE)))
 			.e(CatalogDescriptor.VERSION.name(), String.valueOf(catalog.getVersion()))
 			.e(CatalogDescriptor.CATALOG_STATE.name(), catalog.getCatalogState().name())
 			.e(CatalogDescriptor.SUPPORTS_TRANSACTION.name(), catalog.supportsTransaction())
 			.e(CatalogDescriptor.ENTITY_TYPES.name(), new ArrayList<>(catalog.getEntityTypes()))
+			.e(CatalogDescriptor.CORRUPTED.name(), false)
+			.build();
+	}
+
+	@Nonnull
+	private static Map<String, Object> createCorruptedCatalogDto(@Nonnull CorruptedCatalog catalog) {
+		return map()
+			.e(TYPENAME_FIELD, CorruptedCatalogDescriptor.THIS.name())
+			.e(CorruptedCatalogDescriptor.NAME.name(), catalog.getName())
+			.e(CorruptedCatalogDescriptor.CATALOG_STORAGE_PATH.name(), catalog.getCatalogStoragePath().toFile())
+			.e(CorruptedCatalogDescriptor.CAUSE.name(), catalog.getCause().toString())
+			.e(CorruptedCatalogDescriptor.CORRUPTED.name(), true)
 			.build();
 	}
 }

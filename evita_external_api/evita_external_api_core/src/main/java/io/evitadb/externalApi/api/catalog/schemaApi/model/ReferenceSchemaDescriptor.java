@@ -72,7 +72,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			translate to / from names used in different protocols. Each API protocol prefers names in different naming
 			conventions.
 			""")
-		.type(nonNullRef(SchemaNameVariantsDescriptor.THIS))
+		.type(nonNullRef(NameVariantsDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor REFERENCED_ENTITY_TYPE_MANAGED = PropertyDescriptor.builder()
@@ -101,7 +101,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			translate to / from names used in different protocols. Each API protocol prefers names in different naming
 			conventions.
 			""")
-		.type(nullableRef(SchemaNameVariantsDescriptor.THIS))
+		.type(nullableRef(NameVariantsDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor REFERENCED_GROUP_TYPE_MANAGED = PropertyDescriptor.builder()

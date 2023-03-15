@@ -38,7 +38,7 @@ import java.util.Map;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class SchemaNameVariantDataFetcher implements DataFetcher<DataFetcherResult<String>> {
+public class NameVariantDataFetcher implements DataFetcher<DataFetcherResult<String>> {
 
 	@Nonnull
 	private final NamingConvention variantName;

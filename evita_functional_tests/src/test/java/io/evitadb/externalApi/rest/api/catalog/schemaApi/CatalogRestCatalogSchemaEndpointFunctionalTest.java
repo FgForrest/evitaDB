@@ -29,9 +29,9 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescrip
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.VersionedDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.test.Entities;
@@ -195,11 +195,11 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 					map()
 						.e(NamedSchemaDescriptor.NAME.name(), "mySpecialCode")
 						.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
-							.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), "mySpecialCode")
-							.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), "MySpecialCode")
-							.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), "my_special_code")
-							.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), "MY_SPECIAL_CODE")
-							.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), "my-special-code")
+							.e(NameVariantsDescriptor.CAMEL_CASE.name(), "mySpecialCode")
+							.e(NameVariantsDescriptor.PASCAL_CASE.name(), "MySpecialCode")
+							.e(NameVariantsDescriptor.SNAKE_CASE.name(), "my_special_code")
+							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), "MY_SPECIAL_CODE")
+							.e(NameVariantsDescriptor.KEBAB_CASE.name(), "my-special-code")
 							.build())
 						.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
 						.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
@@ -298,11 +298,11 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 						.e(VersionedDescriptor.VERSION.name(), 1)
 						.e(NamedSchemaDescriptor.NAME.name(), "myNewCollection")
 						.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
-							.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), "myNewCollection")
-							.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), "MyNewCollection")
-							.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), "my_new_collection")
-							.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), "MY_NEW_COLLECTION")
-							.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), "my-new-collection")
+							.e(NameVariantsDescriptor.CAMEL_CASE.name(), "myNewCollection")
+							.e(NameVariantsDescriptor.PASCAL_CASE.name(), "MyNewCollection")
+							.e(NameVariantsDescriptor.SNAKE_CASE.name(), "my_new_collection")
+							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), "MY_NEW_COLLECTION")
+							.e(NameVariantsDescriptor.KEBAB_CASE.name(), "my-new-collection")
 							.build())
 						.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
 						.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
