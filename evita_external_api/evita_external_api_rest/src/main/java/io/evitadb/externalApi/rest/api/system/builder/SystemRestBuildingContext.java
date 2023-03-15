@@ -27,9 +27,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
-import io.swagger.v3.oas.models.info.Contact;
-import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
 
 import javax.annotation.Nonnull;
@@ -43,6 +40,8 @@ import java.util.List;
  */
 public class SystemRestBuildingContext extends RestBuildingContext {
 
+	private static final String OPEN_API_TITLE = "Web services for managing evitaDB.";
+
 	public SystemRestBuildingContext(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
 		super(restConfig, evita);
 	}
@@ -52,19 +51,13 @@ public class SystemRestBuildingContext extends RestBuildingContext {
 	protected List<Server> buildOpenApiServers() {
 		return Arrays.stream(restConfig.getHost())
 			.map(host -> new Server()
-				.url("https://" + host.hostName() + ":" + host.port() + "/" + restConfig.getPrefix() + "/" + OpenApiSystemEndpoint.URL_PREFIX)
-				.description(""))
+				.url("https://" + host.hostName() + ":" + host.port() + "/" + restConfig.getPrefix() + "/" + OpenApiSystemEndpoint.URL_PREFIX))
 			.toList();
 	}
 
 	@Nonnull
 	@Override
-	protected Info buildOpenApiInfo() {
-		final Info info = new Info();
-		info.setTitle("Web services for managing evitaDB.");
-		info.setContact(new Contact().email("novotny@fg.cz").url("https://www.fg.cz"));
-		info.setVersion("1.0.0-oas3");
-		info.setLicense(new License().name("Business Source License 1.1").url("https://github.com/FgForrest/evitaDB/blob/dev/LICENSE"));
-		return info;
+	protected String getOpenApiTitle() {
+		return OPEN_API_TITLE;
 	}
 }

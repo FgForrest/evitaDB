@@ -37,13 +37,16 @@ import io.evitadb.externalApi.rest.api.resolver.serializer.BigDecimalSerializer;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.VersionUtils;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.SpecVersion;
+import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 
@@ -100,11 +103,17 @@ public abstract class RestBuildingContext {
 		return objectMapper;
 	}
 
+	/**
+	 * Builds OpenAPI servers section defining base paths for API endpoints.
+	 */
 	@Nonnull
 	protected abstract List<Server> buildOpenApiServers();
 
+	/**
+	 * @return public title of OpenAPI used in info.
+	 */
 	@Nonnull
-	protected abstract Info buildOpenApiInfo();
+	protected abstract String getOpenApiTitle();
 
 	/**
 	 * Registers new custom enum if there is not enum with same name.
@@ -160,8 +169,14 @@ public abstract class RestBuildingContext {
 	@Nonnull
 	private OpenAPI buildOpenApi() {
 		final OpenAPI openApi = new OpenAPI(SpecVersion.V31)
-			.servers(buildOpenApiServers())
-			.info(buildOpenApiInfo());
+			.servers(buildOpenApiServers());
+
+		final Info info = new Info();
+		info.setTitle(getOpenApiTitle());
+		info.setContact(new Contact().email("novotny@fg.cz").url("https://www.fg.cz"));
+		info.setVersion(VersionUtils.readVersion());
+		info.setLicense(new License().name("Business Source License 1.1").url("https://github.com/FgForrest/evitaDB/blob/dev/LICENSE"));
+		openApi.info(info);
 
 		final Components components = new Components();
 		registeredTypes.forEach((name, object) -> components.addSchemas(name, object.toSchema()));
