@@ -40,14 +40,14 @@ You can access all our APIs on these addresses:
 This option requires more work, but you will have control over the performance, and you will be able to modify any data 
 in the set. To access the dataset on your hardware, you need to:
 
-1. [download the archive with the dataset from the Google drive](https://drive.google.com/file/d/1Dh0Zdom8ovTNkMUsiM-lsv6PZ7r302w0/view?usp=share_link)
+1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-data.zip)
 2. unzip the contents to the `data` folder
 3. pull the evitaDB docker image
-   ```
+   ```bash
    docker pull index.docker.io/evitadb/evitadb:latest
    ```
 4. start the evitaDB server (replace `__data_dir__` with the path to your data folder)
-   ```
+   ```bash
    docker run --name evitadb -i --net=host \
           -v "__data_dir__:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
@@ -113,7 +113,6 @@ instance:
 
 <CodeTabs>
 <CodeTabsBlock>
-
 ```java
 new EvitaClient(
 	EvitaClientConfiguration.builder()
@@ -122,7 +121,6 @@ new EvitaClient(
 		.build()
 );
 ```
-
 </CodeTabsBlock>
 </CodeTabs>
 
@@ -131,7 +129,6 @@ After that you can create a new session and try any of the evitaQL queries descr
 
 <CodeTabs>
 <CodeTabsBlock>
-
 ```java
 var entities = evita.queryCatalog(
 	"evita",
@@ -154,7 +151,6 @@ var entities = evita.queryCatalog(
 	}
 )
 ```
-
 </CodeTabsBlock>
 </CodeTabs>
 
