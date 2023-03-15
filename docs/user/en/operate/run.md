@@ -304,6 +304,32 @@ If you are using the host network stack (`--net=host`), you won't see any ports 
 you will also see the ports configuration here.
 </Note>
 
+### Check statuses of the APIs
+
+You can check statuses of the GraphQL and the REST API by using the `curl` command.
+
+#### GraphQL
+
+For GraphQL API run (applies to default evitaDB configuration):
+```shell
+curl -k -X POST -H 'Content-Type: application/graphql+json' -d '{"query":"{liveness}"}' "https://localhost:5555/gql/system"
+```
+this should return following confirmation about liveness of the GraphQL API:
+```json
+{"data":{"liveness":true}}
+```
+
+#### REST
+
+For REST API run (applies to default evitaDB configuration):
+```shell
+curl -k -H 'Content-Type: application/json' "https://localhost:5555/rest/system/liveness"
+```
+this should return following confirmation about liveness of the REST API:
+```json
+{"alive":true}
+```
+
 ### Control logging
 
 evitaDB uses the [Slf4j](https://www.slf4j.org/) logging facade with [Logback](https://logback.qos.ch/) implementation, but

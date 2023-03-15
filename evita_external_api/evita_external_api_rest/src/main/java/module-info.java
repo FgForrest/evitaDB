@@ -39,6 +39,7 @@ module evita.external.api.rest {
 	opens io.evitadb.externalApi.rest.api.resolver.serializer to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.rest.api.catalog.dataApi.dto to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.rest.api.catalog.schemaApi.dto to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.system.dto to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer to com.fasterxml.jackson.databind;
 	opens io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer to com.fasterxml.jackson.databind;
 
