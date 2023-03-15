@@ -24,9 +24,8 @@ web APIs and all supported drivers.
 The next limitation is that the server is hosted on cheap shared infrastructure of  
 [Contabo hosting](https://contabo.com/en/vps/) with following specs:
 
-[//]: # (TODO MAL - NEITHER OF THIS WORKS)
-[//]: # (![Server specs]&#40;assets/contabo-hosting.png&#41;)
-[//]: # (![Server specs]&#40;https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/user/en/get-started/assets/contabo-hosting.png&#41;)
+![Server specs](assets/contabo-hosting.png)
+![Server specs](https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/user/en/get-started/assets/contabo-hosting.png)
 
 If you experience slow responses, let us know and 
 [try evitaDB on your hardware instead](#run-your-own-evitadb-server-with-our-dataset).
