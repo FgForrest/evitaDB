@@ -146,7 +146,6 @@
 	  },
 	  {
 		"title": "Ordering",
-		"path": "/query/ordering/ordering.md",
 		"children": [
 		  {
 			"title": "Natural",
