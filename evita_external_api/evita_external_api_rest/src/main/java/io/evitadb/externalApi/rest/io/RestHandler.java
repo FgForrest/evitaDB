@@ -148,7 +148,7 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
         if (acceptHeaders == null) {
             return true;
         }
-        return acceptHeaders.anyMatch(hv -> hv.equals(getContentType()));
+        return acceptHeaders.anyMatch(hv -> hv.equals(MimeTypes.ALL) || hv.equals(getContentType()));
     }
 
     /**
