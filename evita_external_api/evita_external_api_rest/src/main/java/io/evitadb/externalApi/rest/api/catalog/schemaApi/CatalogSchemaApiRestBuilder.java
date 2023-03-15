@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 
-import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.rest.api.builder.PartialRestBuilder;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.CatalogSchemaObjectBuilder;
@@ -66,7 +66,7 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 	}
 
 	private void buildCommonTypes() {
-		buildingContext.registerType(SchemaNameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(NameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
 
 		entitySchemaObjectBuilder.buildCommonTypes();
 		catalogSchemaObjectBuilder.buildCommonTypes();

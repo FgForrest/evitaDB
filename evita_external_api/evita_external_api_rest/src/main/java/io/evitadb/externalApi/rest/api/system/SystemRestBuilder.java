@@ -24,10 +24,16 @@
 package io.evitadb.externalApi.rest.api.system;
 
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
+import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.system.builder.SystemEndpointBuilder;
 import io.evitadb.externalApi.rest.api.system.builder.SystemRestBuildingContext;
 import io.evitadb.externalApi.rest.api.system.model.CreateCatalogRequestDescriptor;
@@ -37,6 +43,8 @@ import io.evitadb.externalApi.rest.configuration.RestConfig;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
 /**
  * Creates OpenAPI specification for evitaDB management.
@@ -71,7 +79,10 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 	private void buildCommonTypes() {
 		buildingContext.registerType(ErrorDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(LivenessDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(NameVariantsDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(CatalogDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(buildCatalogUnion());
+		buildingContext.registerType(CorruptedCatalogDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(CreateCatalogRequestDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(UpdateCatalogRequestDescriptor.THIS.to(objectBuilderTransformer).build());
 	}
@@ -84,5 +95,15 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		buildingContext.registerEndpoint(endpointBuilder.buildCreateCatalogEndpoint());
 		buildingContext.registerEndpoint(endpointBuilder.buildUpdateCatalogEndpoint());
 		buildingContext.registerEndpoint(endpointBuilder.buildDeleteCatalogEndpoint());
+	}
+
+	@Nonnull
+	private OpenApiObject buildCatalogUnion() {
+		return CatalogUnionDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.unionType(OpenApiObjectUnionType.ONE_OF)
+			.unionObject(typeRefTo(CatalogDescriptor.THIS.name()))
+			.unionObject(typeRefTo(CorruptedCatalogDescriptor.THIS.name()))
+			.build();
 	}
 }

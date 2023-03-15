@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
@@ -47,11 +47,11 @@ public abstract class SchemaJsonSerializer {
 	@Nonnull
 	protected ObjectNode serializeNameVariants(@Nonnull Map<NamingConvention, String> nameVariants) {
 		final ObjectNode nameVariantsNode = objectJsonSerializer.objectNode();
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), nameVariants.get(NamingConvention.CAMEL_CASE));
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), nameVariants.get(NamingConvention.PASCAL_CASE));
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), nameVariants.get(NamingConvention.SNAKE_CASE));
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), nameVariants.get(NamingConvention.UPPER_SNAKE_CASE));
-		nameVariantsNode.put(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), nameVariants.get(NamingConvention.KEBAB_CASE));
+		nameVariantsNode.put(NameVariantsDescriptor.CAMEL_CASE.name(), nameVariants.get(NamingConvention.CAMEL_CASE));
+		nameVariantsNode.put(NameVariantsDescriptor.PASCAL_CASE.name(), nameVariants.get(NamingConvention.PASCAL_CASE));
+		nameVariantsNode.put(NameVariantsDescriptor.SNAKE_CASE.name(), nameVariants.get(NamingConvention.SNAKE_CASE));
+		nameVariantsNode.put(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), nameVariants.get(NamingConvention.UPPER_SNAKE_CASE));
+		nameVariantsNode.put(NameVariantsDescriptor.KEBAB_CASE.name(), nameVariants.get(NamingConvention.KEBAB_CASE));
 
 		return nameVariantsNode;
 	}

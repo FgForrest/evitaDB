@@ -25,10 +25,10 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLObjectType;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.SchemaNameVariantDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
@@ -50,38 +50,38 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		buildingContext.registerType(scalarEnum);
 		buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
-		buildingContext.registerType(buildSchemaNameVariantsObject());
+		buildingContext.registerType(buildNameVariantsObject());
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildSchemaNameVariantsObject() {
+	private GraphQLObjectType buildNameVariantsObject() {
 		buildingContext.registerDataFetcher(
-			SchemaNameVariantsDescriptor.THIS,
-			SchemaNameVariantsDescriptor.CAMEL_CASE,
-			new SchemaNameVariantDataFetcher(NamingConvention.CAMEL_CASE)
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.CAMEL_CASE,
+			new NameVariantDataFetcher(NamingConvention.CAMEL_CASE)
 		);
 		buildingContext.registerDataFetcher(
-			SchemaNameVariantsDescriptor.THIS,
-			SchemaNameVariantsDescriptor.PASCAL_CASE,
-			new SchemaNameVariantDataFetcher(NamingConvention.PASCAL_CASE)
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.PASCAL_CASE,
+			new NameVariantDataFetcher(NamingConvention.PASCAL_CASE)
 		);
 		buildingContext.registerDataFetcher(
-			SchemaNameVariantsDescriptor.THIS,
-			SchemaNameVariantsDescriptor.SNAKE_CASE,
-			new SchemaNameVariantDataFetcher(NamingConvention.SNAKE_CASE)
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.SNAKE_CASE,
+			new NameVariantDataFetcher(NamingConvention.SNAKE_CASE)
 		);
 		buildingContext.registerDataFetcher(
-			SchemaNameVariantsDescriptor.THIS,
-			SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE,
-			new SchemaNameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE)
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.UPPER_SNAKE_CASE,
+			new NameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE)
 		);
 		buildingContext.registerDataFetcher(
-			SchemaNameVariantsDescriptor.THIS,
-			SchemaNameVariantsDescriptor.KEBAB_CASE,
-			new SchemaNameVariantDataFetcher(NamingConvention.KEBAB_CASE)
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.KEBAB_CASE,
+			new NameVariantDataFetcher(NamingConvention.KEBAB_CASE)
 		);
 
-		return SchemaNameVariantsDescriptor.THIS
+		return NameVariantsDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.build();
 	}

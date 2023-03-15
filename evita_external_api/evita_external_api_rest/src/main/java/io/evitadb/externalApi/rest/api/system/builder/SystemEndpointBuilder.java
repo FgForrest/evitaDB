@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.system.builder;
 
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
@@ -93,7 +94,7 @@ public class SystemEndpointBuilder {
 				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.GET)
 			.description(SystemRootDescriptor.GET_CATALOG.description())
-			.successResponse(typeRefTo(CatalogDescriptor.THIS.name()))
+			.successResponse(typeRefTo(CatalogUnionDescriptor.THIS.name()))
 			.handler(GetCatalogHandler::new)
 			.build();
 	}
@@ -105,7 +106,7 @@ public class SystemEndpointBuilder {
 				.staticItem(SystemRootDescriptor.LIST_CATALOGS.operation(URL_NAME_NAMING_CONVENTION)))
 			.method(HttpMethod.GET)
 			.description(SystemRootDescriptor.LIST_CATALOGS.description())
-			.successResponse(nonNull(arrayOf(typeRefTo(CatalogDescriptor.THIS.name()))))
+			.successResponse(nonNull(arrayOf(typeRefTo(CatalogUnionDescriptor.THIS.name()))))
 			.handler(ListCatalogsHandler::new)
 			.build();
 	}

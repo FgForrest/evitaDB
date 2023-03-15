@@ -26,13 +26,21 @@ package io.evitadb.externalApi.graphql.api.system.builder;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
+import graphql.schema.GraphQLUnionType;
 import graphql.schema.PropertyDataFetcher;
+import graphql.schema.TypeResolver;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.core.Catalog;
+import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
+import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.model.CatalogQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.system.model.DeleteCatalogIfExistsMutationHeaderDescriptor;
@@ -46,8 +54,10 @@ import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.Cr
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DeleteCatalogIfExistsMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ReplaceCatalogMutatingDataFetcher;
+import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 /**
  * Implementation of {@link FinalGraphQLSchemaBuilder} for building evitaDB management manipulation schema.
@@ -67,7 +77,13 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Override
     @Nonnull
 	public GraphQLSchema build() {
-		buildingContext.registerType(buildCatalogObject());
+		buildingContext.registerType(buildNameVariantsObject());
+
+		final GraphQLObjectType catalogObject = buildCatalogObject();
+		buildingContext.registerType(catalogObject);
+		final GraphQLObjectType corruptedCatalogObject = buildCorruptedCatalogObject();
+		buildingContext.registerType(corruptedCatalogObject);
+		buildingContext.registerType(buildCatalogUnion(catalogObject, corruptedCatalogObject));
 
 		buildingContext.registerQueryField(buildLivenessField());
 		buildingContext.registerQueryField(buildCatalogField());
@@ -83,14 +99,99 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 
 	@Nonnull
+	private GraphQLObjectType buildNameVariantsObject() {
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.CAMEL_CASE,
+			new NameVariantDataFetcher(NamingConvention.CAMEL_CASE)
+		);
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.PASCAL_CASE,
+			new NameVariantDataFetcher(NamingConvention.PASCAL_CASE)
+		);
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.SNAKE_CASE,
+			new NameVariantDataFetcher(NamingConvention.SNAKE_CASE)
+		);
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.UPPER_SNAKE_CASE,
+			new NameVariantDataFetcher(NamingConvention.UPPER_SNAKE_CASE)
+		);
+		buildingContext.registerDataFetcher(
+			NameVariantsDescriptor.THIS,
+			NameVariantsDescriptor.KEBAB_CASE,
+			new NameVariantDataFetcher(NamingConvention.KEBAB_CASE)
+		);
+
+		return NameVariantsDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.build();
+	}
+
+	@Nonnull
 	private GraphQLObjectType buildCatalogObject() {
+		buildingContext.registerDataFetcher(
+			CatalogDescriptor.THIS,
+			CatalogDescriptor.NAME_VARIANTS,
+			PropertyDataFetcher.fetching(it -> ((Catalog) it).getSchema().getNameVariants())
+		);
 		buildingContext.registerDataFetcher(
 			CatalogDescriptor.THIS,
 			CatalogDescriptor.SUPPORTS_TRANSACTION,
 			PropertyDataFetcher.fetching(CatalogContract::supportsTransaction)
 		);
+		buildingContext.registerDataFetcher(
+			CatalogDescriptor.THIS,
+			CatalogDescriptor.CORRUPTED,
+			PropertyDataFetcher.fetching(it -> false)
+		);
 
 		return CatalogDescriptor.THIS.to(objectBuilderTransformer).build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildCorruptedCatalogObject() {
+		buildingContext.registerDataFetcher(
+			CorruptedCatalogDescriptor.THIS,
+			CorruptedCatalogDescriptor.CATALOG_STORAGE_PATH,
+			PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCatalogStoragePath().toString())
+		);
+		buildingContext.registerDataFetcher(
+			CorruptedCatalogDescriptor.THIS,
+			CorruptedCatalogDescriptor.CAUSE,
+			PropertyDataFetcher.fetching(it -> ((CorruptedCatalog) it).getCause().toString())
+		);
+		buildingContext.registerDataFetcher(
+			CorruptedCatalogDescriptor.THIS,
+			CorruptedCatalogDescriptor.CORRUPTED,
+			PropertyDataFetcher.fetching(it -> true)
+		);
+
+		return CorruptedCatalogDescriptor.THIS.to(objectBuilderTransformer).build();
+	}
+
+	@Nonnull
+	private GraphQLUnionType buildCatalogUnion(@Nonnull GraphQLObjectType catalogObject,
+	                                           @Nonnull GraphQLObjectType corruptedCatalogObject) {
+		final GraphQLUnionType catalogUnion = CatalogUnionDescriptor.THIS
+			.to(unionBuilderTransformer)
+			.possibleTypes(catalogObject)
+			.possibleType(corruptedCatalogObject)
+			.build();
+
+		final TypeResolver catalogUnionResolver = env -> {
+			if (env.getObject() instanceof CorruptedCatalog) {
+				return corruptedCatalogObject;
+			} else {
+				return catalogObject;
+			}
+		};
+		buildingContext.registerTypeResolver(catalogUnion, catalogUnionResolver);
+
+		return catalogUnion;
 	}
 
 	@Nonnull

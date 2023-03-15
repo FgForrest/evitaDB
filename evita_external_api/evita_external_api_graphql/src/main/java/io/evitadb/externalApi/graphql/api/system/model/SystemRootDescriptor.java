@@ -26,9 +26,11 @@ package io.evitadb.externalApi.graphql.api.system.model;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 import io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -54,14 +56,14 @@ public interface SystemRootDescriptor {
         .description("""
             Returns single catalog by its name.
             """)
-        .type(ObjectPropertyDataTypeDescriptor.nullableRef(CatalogDescriptor.THIS))
+        .type(nullableRef(CatalogUnionDescriptor.THIS))
         .build();
     EndpointDescriptor CATALOGS = EndpointDescriptor.builder()
         .operation("catalogs")
         .description("""
             Returns all catalogs known to evitaDB.
             """)
-        .type(nullableListRef(CatalogDescriptor.THIS))
+        .type(nullableListRef(CatalogUnionDescriptor.THIS))
         .build();
 
     EndpointDescriptor CREATE_CATALOG = EndpointDescriptor.builder()

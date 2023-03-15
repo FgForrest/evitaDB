@@ -57,7 +57,7 @@ public interface NamedSchemaDescriptor {
 			translate to / from names used in different protocols. Each API protocol prefers names in different naming
 			conventions.
 			""")
-		.type(nonNullRef(SchemaNameVariantsDescriptor.THIS))
+		.type(nonNullRef(NameVariantsDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor DESCRIPTION = PropertyDescriptor.builder()
