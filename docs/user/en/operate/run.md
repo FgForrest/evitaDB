@@ -312,9 +312,11 @@ You can check statuses of the GraphQL and the REST API by using the `curl` comma
 
 For GraphQL API run (applies to default evitaDB configuration):
 ```shell
-curl -k -X POST -H 'Content-Type: application/graphql+json' -d '{"query":"{liveness}"}' "https://localhost:5555/gql/system"
+curl -k -X POST -H 'Content-Type: application/graphql+json' \
+     -d '{"query":"{liveness}"}' \ 
+     "https://localhost:5555/gql/system"
 ```
-this should return following confirmation about liveness of the GraphQL API:
+this should return following confirmation about liveness status of the GraphQL API:
 ```json
 {"data":{"liveness":true}}
 ```
@@ -323,9 +325,10 @@ this should return following confirmation about liveness of the GraphQL API:
 
 For REST API run (applies to default evitaDB configuration):
 ```shell
-curl -k -H 'Content-Type: application/json' "https://localhost:5555/rest/system/liveness"
+curl -k -H 'Content-Type: application/json' \
+     "https://localhost:5555/rest/system/liveness"
 ```
-this should return following confirmation about liveness of the REST API:
+this should return following confirmation about liveness status of the REST API:
 ```json
 {"alive":true}
 ```
