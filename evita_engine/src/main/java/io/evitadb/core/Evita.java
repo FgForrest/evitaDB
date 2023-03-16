@@ -61,6 +61,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
+import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
@@ -193,9 +194,10 @@ public final class Evita implements EvitaContract {
 				.map(it -> {
 					final String catalogName = it.toFile().getName();
 					try {
+						final long start = System.nanoTime();
 						final CatalogContract catalog = new Catalog(
 							catalogName, it, cacheSupervisor, configuration.storage());
-						log.info("Catalog {} fully loaded.", catalogName);
+						log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 						return catalog;
 					} catch (Throwable ex) {
 						log.error("Catalog {} is corrupted!", catalogName);
