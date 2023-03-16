@@ -6,6 +6,7 @@ perex: |
     evitaDB.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
+proofreading: 'done'
 ---
 
 <UsedTerms>
@@ -31,9 +32,31 @@ author: 'Ing. Jan Novotný'
 	</dl>
 </UsedTerms>
 
-TODO JNO - write me
+The evitaDB data model consists of three layers:
+
+1. [catalog](#catalog)
+2. [entity collection](#collection)
+3. [entity](#entity) (data)
+
+Each catalog occupies a single folder within the evitaDB `data` folder. Each collection within this catalog is usually 
+represented by a single file (key/value store) in this folder. Entities are stored in binary format in the collection 
+file. More [details about the storage format](../deep-dive/storage-model.md) can be found in a separate chapter.
 
 ## Catalog
+
+The catalog is a top-level isolation layer. It's equivalent to a *database* in other database terms. The catalog 
+contains a set of entity collections that maintain data for a single tenant. evitaDB doesn't support queries that could 
+span multiple catalogs. The catalogs are completely isolated from each other on disk and in memory.
+
+## Collection
+
+The collection is a storage unit for data related to the same [entity type](#entity-type). It's equivalent to 
+a *collection* in terms of other NoSQL databases like MongoDB. In the relational world, the closest term is *table*, 
+but the collection in evitaDB manages much more data than a single relational table could. The correct projection 
+in the relational world would be "a set of logically related linked tables".
+
+Collections in evitaDB are not isolated and entities in them can be related to entities in different collections.
+Currently, the relationships are only unidirectional.
 
 ## Entity
 
