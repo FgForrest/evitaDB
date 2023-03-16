@@ -178,37 +178,7 @@ public class ClientCertificateManager {
 	public SslContext buildClientSslContext() {
 		try {
 			final Path usedCertificatePath = getUsedRootCaCertificatePath();
-
-			try {
-				if (!getDefaultClientCertificateFolderPath().toFile().exists()) {
-					Assert.isPremiseValid(
-						getDefaultClientCertificateFolderPath().toFile().mkdirs(),
-						() -> "Cannot create path `" + getDefaultClientCertificateFolderPath() + "`!"
-					);
-				}
-
-				if (useGeneratedCertificate && !usedCertificatePath.toFile().exists()) {
-					getCertificatesFromServer(host, port);
-				}
-
-				final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-				final Certificate serverCert;
-				try (InputStream in = new FileInputStream(usedCertificatePath.toFile())) {
-					serverCert = cf.generateCertificate(in);
-				}
-				log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(serverCert));
-				if (isMtlsEnabled) {
-					final Certificate clientCert;
-					try (InputStream in = new FileInputStream(clientCertificateFilePath.toFile())) {
-						clientCert = cf.generateCertificate(in);
-					}
-					log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(clientCert));
-				}
-			} catch (CertificateException | IOException | NoSuchAlgorithmException e) {
-				throw new EvitaInternalError(e.getMessage(), e);
-			}
-
-			final TrustManager trustManagerTrustingProvidedRootCertificate = getTrustManagerTrustingProvidedCertificate(usedCertificatePath, "evita-root-ca");
+			final TrustManager trustManagerTrustingProvidedRootCertificate = getTrustManager(usedCertificatePath);
 			final SslContextBuilder sslContextBuilder = SslContextBuilder.forClient()
 				.applicationProtocolConfig(
 					new ApplicationProtocolConfig(
@@ -222,15 +192,59 @@ public class ClientCertificateManager {
 				}
 				sslContextBuilder.keyManager(new File(clientCertificateFilePath.toUri()), new File(clientPrivateKeyFilePath.toUri()), clientPrivateKeyPassword);
 			}
-			if (!usingTrustedRootCaCertificate) {
+			if (!usingTrustedRootCaCertificate && trustManagerTrustingProvidedRootCertificate != null) {
 				sslContextBuilder.trustManager(trustManagerTrustingProvidedRootCertificate);
-			} else {
+			} else if (getUsedRootCaCertificatePath().toFile().exists()) {
 				sslContextBuilder.trustManager(new File(usedCertificatePath.toUri()));
 			}
 			return sslContextBuilder.build();
 		} catch (Exception e) {
 			throw new EvitaInvalidUsageException("Failed to initialize EvitaClient", e);
 		}
+	}
+
+	/**
+	 * Returns trust manager initialized with provided certificate - either automatically downloaded from the server
+	 * or initialized from local certificate file. Method may also return NULL if the client is provided with none
+	 * of those, and we will rely on Java internal trust store.
+	 */
+	@Nullable
+	private TrustManager getTrustManager(@Nonnull Path usedCertificatePath) {
+		final TrustManager trustManagerTrustingProvidedRootCertificate;
+		try {
+			if (!getDefaultClientCertificateFolderPath().toFile().exists()) {
+				Assert.isPremiseValid(
+					getDefaultClientCertificateFolderPath().toFile().mkdirs(),
+					() -> "Cannot create path `" + getDefaultClientCertificateFolderPath() + "`!"
+				);
+			}
+
+			if (useGeneratedCertificate && !usedCertificatePath.toFile().exists()) {
+				getCertificatesFromServer(host, port);
+			}
+
+			final CertificateFactory cf = CertificateFactory.getInstance("X.509");
+			if (usedCertificatePath.toFile().exists()) {
+				final Certificate serverCert;
+				try (InputStream in = new FileInputStream(usedCertificatePath.toFile())) {
+					serverCert = cf.generateCertificate(in);
+				}
+				log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(serverCert));
+				trustManagerTrustingProvidedRootCertificate = getTrustManagerTrustingProvidedCertificate(usedCertificatePath, "evita-root-ca");
+			} else {
+				trustManagerTrustingProvidedRootCertificate = null;
+			}
+			if (isMtlsEnabled) {
+				final Certificate clientCert;
+				try (InputStream in = new FileInputStream(clientCertificateFilePath.toFile())) {
+					clientCert = cf.generateCertificate(in);
+				}
+				log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(clientCert));
+			}
+		} catch (CertificateException | IOException | NoSuchAlgorithmException e) {
+			throw new EvitaInternalError(e.getMessage(), e);
+		}
+		return trustManagerTrustingProvidedRootCertificate;
 	}
 
 	/**
