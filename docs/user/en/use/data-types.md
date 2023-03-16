@@ -153,13 +153,21 @@ and Byte as upper bound.
 
 ## Complex data types
 
-The complex types are all types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple evitaDB types)
-and don't belong to a `java` package (i.e. `java.lang.URL` is forbidden to be stored in evitaDB, even if it is Serializable,
-because is in the package `java`, and is not directly supported by the basic data types). The complex types are targeted
-for the client POJO classes to carry bigger data or associate simple logic along with the data.
+The complex types are all types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple 
+evitaDB types). Complex types are stored in a 
+<SourceClass>evita_common/src/main/java/io/evitadb/dataType/ComplexDataObject.java</SourceClass> data structure that is 
+intentionally similar to the JSON data structure so that it can be easily converted to JSON format and can also accept 
+and store any valid JSON document.
+
+<LanguageSpecific to="java">
+The complex type in Java is a class that implements the serializable interface and does not belong to a `java` package
+(i.e. `java.lang.URL` is forbidden to be stored in evitaDB, even if it is serializable, because it belongs to the `java` 
+package and is not directly supported by the basic data types). The complex types are intended for the client POJO 
+classes to carry larger data or to associate simple logic with the data.
+</LanguageSpecific>
 
 <Note type="info">
-Associated data may even contain array of POJOs. Such data will be automatically converted to an array of
+Associated data may even contain array of complex objects. Such data will be automatically converted to an array of
 `ComplexDataObject` types - i.e. `ComplexDataObject[]`.
 </Note>
 
