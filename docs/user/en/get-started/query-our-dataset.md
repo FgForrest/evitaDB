@@ -119,52 +119,16 @@ thousands of products.
 Open your Java IDE and create an <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 instance:
 
-<CodeTabs>
-<CodeTabsBlock>
-```java
-new EvitaClient(
-	EvitaClientConfiguration.builder()
-		.host("demo.evitadb.io")
-		.port(5556)
-        // demo server provides Let's encrypt trusted certificate
-        .useGeneratedCertificate(false)
-        // the client will not be mutually verified by the server side
-        .mtlsEnabled(false)
-		.build()
-);
-```
-</CodeTabsBlock>
-</CodeTabs>
+<SourceCodeTabs>
+[Connect the demo server](docs/user/en/get-started/example/connect-demo-server.java)
+</SourceCodeTabs>
 
 After that you can create a new session and try any of the evitaQL queries described in 
 [the reference documentation](../query/basics.md):
 
-<CodeTabs>
-<CodeTabsBlock>
-```java
-var entities = evita.queryCatalog(
-	"evita",
-	session -> {
-		return session.queryListOfSealedEntities(
-			query(
-				collection("brand"),
-				filterBy(
-					and(
-						attributeStartsWith("name", "A"),
-						entityLocaleEquals(Locale.ENGLISH)
-					)
-				),
-				orderBy(
-					attributeNatural("name", OrderDirection.ASC)
-				),
-				require(entityFetchAll())
-			)
-		);
-	}
-)
-```
-</CodeTabsBlock>
-</CodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
+[Query the demo server](docs/user/en/get-started/example/query-demo-server.java)
+</SourceCodeTabs>
 
 <Note type="info">
 
