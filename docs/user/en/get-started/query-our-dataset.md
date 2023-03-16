@@ -31,9 +31,9 @@ If you experience slow responses, let us know and
 
 You can access all our APIs on these addresses:
 
-- `graphQL` API: [https://evitadb.io:5555/gql/](https://evitadb.io:5555/gql/)
-- `REST` API: [https://evitadb.io:5555/rest/](https://evitadb.io:5555/rest/)
-- `gRPC` API: [https://evitadb.io:5556/](https://evitadb.io:5556/)
+- `graphQL` API: [https://demo.evitadb.io:5555/gql/](https://demo.evitadb.io:5555/gql/)
+- `REST` API: [https://demo.evitadb.io:5555/rest/](https://demo.evitadb.io:5555/rest/)
+- `gRPC` API: [https://demo.evitadb.io:5556/](https://demo.evitadb.io:5556/)
 
 ## Run your own evitaDB server with our dataset
 
