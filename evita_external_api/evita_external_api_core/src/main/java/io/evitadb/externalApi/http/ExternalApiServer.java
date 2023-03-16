@@ -80,12 +80,15 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * HTTP server of external APIs. It is responsible for starting HTTP server with all configured external API providers
@@ -167,43 +170,25 @@ public class ExternalApiServer implements AutoCloseable {
 
 		try {
 			final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-			final Certificate rootCa;
-			try (InputStream in = new FileInputStream(serverCertificateManager.getRootCaCertificatePath().toFile())) {
-				rootCa = cf.generateCertificate(in);
-			}
+			final Optional<String> rootCaFingerPrint = getRootCaCertificateFingerPrint(serverCertificateManager, cf);
 
 			final Certificate cert;
-
-			try (InputStream in = new FileInputStream(Objects.requireNonNull(certificatePath.certificate()))) {
+			final File certificateFile = Path.of(Objects.requireNonNull(certificatePath.certificate())).toFile();
+			Assert.isTrue(certificateFile.exists(), () -> "Certificate file `" + certificatePath.certificate() + "` doesn't exists!");
+			try (InputStream in = new FileInputStream(certificateFile)) {
 				cert = cf.generateCertificate(in);
 			}
-			final PrivateKey privateKey;
 
-			try (PemReader privateKeyReader = new PemReader(new FileReader(serverCertificateManager.getCertificatePrivateKeyPath().toFile()))) {
-				final PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyReader.readPemObject().getContent());
-				final KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-				privateKey = keyFactory.generatePrivate(keySpec);
-			} catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-				throw new EvitaInvalidUsageException(
-					"Error while loading stored certificates. Check the server configuration file: " + e.getMessage(),
-					"Error while loading stored certificates. Check the server configuration file.",
-					e
-				);
-			}
-
-			final KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-			keyStore.load(null);
-			keyStore.setCertificateEntry("cert", cert);
-			keyStore.setKeyEntry("key", privateKey, certificatePath.privateKeyPassword() == null ? null : certificatePath.privateKeyPassword().toCharArray(), new Certificate[]{cert});
-
-			final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-			keyManagerFactory.init(keyStore, null);
+			final PrivateKey privateKey = loadPrivateKey(certificatePath);
+			final KeyManagerFactory keyManagerFactory = createKeyManagerFactory(certificatePath, cert, privateKey);
 
 			sslContext = SSLContext.getInstance("TLS");
 			sslContext.init(keyManagerFactory.getKeyManagers(), null, null);
 
-			ConsoleWriter.write(StringUtils.rightPad("Root CA Certificate fingerprint: ", " ", PADDING_START_UP));
-			ConsoleWriter.write(CertificateUtils.getCertificateFingerprint(rootCa) + "\n", ConsoleColor.BRIGHT_YELLOW);
+			rootCaFingerPrint.ifPresent(it -> {
+				ConsoleWriter.write(StringUtils.rightPad("Root CA Certificate fingerprint: ", " ", PADDING_START_UP));
+				ConsoleWriter.write(it + "\n", ConsoleColor.BRIGHT_YELLOW);
+			});
 
 		} catch (NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException | KeyStoreException |
 		         IOException | KeyManagementException e) {
@@ -214,6 +199,104 @@ public class ExternalApiServer implements AutoCloseable {
 			);
 		}
 		return sslContext;
+	}
+
+	/**
+	 * Reads root CA certificate from the file if exists.
+	 */
+	@Nullable
+	private static Optional<String> getRootCaCertificateFingerPrint(
+		@Nonnull ServerCertificateManager serverCertificateManager,
+		@Nonnull CertificateFactory certificateFactory
+	) throws IOException, CertificateException, NoSuchAlgorithmException {
+		final File rootCaFile = serverCertificateManager.getRootCaCertificatePath().toFile();
+		if (rootCaFile.exists()) {
+			try (InputStream in = new FileInputStream(rootCaFile)) {
+				final String fingerprint = CertificateUtils.getCertificateFingerprint(
+					certificateFactory.generateCertificate(in)
+				);
+				return of(fingerprint);
+			}
+		} else {
+			return empty();
+		}
+	}
+
+	/**
+	 * Reads certificate private key.
+	 */
+	@Nonnull
+	private static PrivateKey loadPrivateKey(@Nonnull CertificatePath certificatePath) {
+		final PrivateKey privateKey;
+		final File certificatePrivateKey = Path.of(Objects.requireNonNull(certificatePath.privateKey())).toFile();
+		Assert.isTrue(certificatePrivateKey.exists(), () -> "Certificate private key file `" + certificatePath.privateKey() + "` doesn't exists!");
+		try (PemReader privateKeyReader = new PemReader(new FileReader(certificatePrivateKey))) {
+			final PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyReader.readPemObject().getContent());
+			final KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+			privateKey = keyFactory.generatePrivate(keySpec);
+		} catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+			throw new EvitaInvalidUsageException(
+				"Error while loading stored certificates. Check the server configuration file: " + e.getMessage(),
+				"Error while loading stored certificates. Check the server configuration file.",
+				e
+			);
+		}
+		return privateKey;
+	}
+
+	/**
+	 * Creates key manager factory.
+	 */
+	@Nonnull
+	private static KeyManagerFactory createKeyManagerFactory(
+		@Nonnull CertificatePath certificatePath,
+		@Nonnull Certificate cert,
+		@Nonnull PrivateKey privateKey
+	) throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException {
+		final KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+		keyStore.load(null);
+		keyStore.setCertificateEntry("cert", cert);
+		keyStore.setKeyEntry("key", privateKey, certificatePath.privateKeyPassword() == null ?
+			null : certificatePath.privateKeyPassword().toCharArray(), new Certificate[]{cert});
+
+		final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+		keyManagerFactory.init(keyStore, null);
+		return keyManagerFactory;
+	}
+
+	/**
+	 * Registers API providers based on configuration and returns its references.
+	 */
+	@SuppressWarnings("unchecked")
+	private static Map<String, ExternalApiProvider<?>> registerApiProviders(
+		@Nonnull Evita evitaSystemDataProvider,
+		@Nonnull ApiOptions apiOptions,
+		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
+	) {
+		return (Map) externalApiProviders
+			.stream()
+			.map(registrar -> {
+				final AbstractApiConfiguration apiProviderConfiguration = apiOptions.endpoints().get(registrar.getExternalApiCode());
+				if (apiProviderConfiguration == null || !apiProviderConfiguration.isEnabled()) {
+					return null;
+				}
+
+				//noinspection unchecked
+				return registrar.register(evitaSystemDataProvider, apiOptions, apiProviderConfiguration);
+			})
+			.filter(Objects::nonNull)
+			.collect(
+				Collectors.toMap(
+					it -> it.getCode().toLowerCase(),
+					Function.identity(),
+					(externalApiProvider, externalApiProvider2) -> {
+						throw new EvitaInternalError(
+							"Multiple implementations of `" + externalApiProvider.getCode() + "` found on classpath!"
+						);
+					},
+					LinkedHashMap::new
+				)
+			);
 	}
 
 	public ExternalApiServer(
@@ -403,41 +486,6 @@ public class ExternalApiServer implements AutoCloseable {
 				ConsoleDecoration.UNDERLINE
 			);
 		}
-	}
-
-	/**
-	 * Registers API providers based on configuration and returns its references.
-	 */
-	@SuppressWarnings("unchecked")
-	private static Map<String, ExternalApiProvider<?>> registerApiProviders(
-		@Nonnull Evita evitaSystemDataProvider,
-		@Nonnull ApiOptions apiOptions,
-		@SuppressWarnings("rawtypes") @Nonnull Collection<ExternalApiProviderRegistrar> externalApiProviders
-	) {
-		return (Map)externalApiProviders
-			.stream()
-			.map(registrar -> {
-				final AbstractApiConfiguration apiProviderConfiguration = apiOptions.endpoints().get(registrar.getExternalApiCode());
-				if (apiProviderConfiguration == null || !apiProviderConfiguration.isEnabled()) {
-					return null;
-				}
-
-				//noinspection unchecked
-				return registrar.register(evitaSystemDataProvider, apiOptions, apiProviderConfiguration);
-			})
-			.filter(Objects::nonNull)
-			.collect(
-				Collectors.toMap(
-					it -> it.getCode().toLowerCase(),
-					Function.identity(),
-					(externalApiProvider, externalApiProvider2) -> {
-						throw new EvitaInternalError(
-							"Multiple implementations of `" + externalApiProvider.getCode() + "` found on classpath!"
-						);
-					},
-					LinkedHashMap::new
-				)
-			);
 	}
 
 	private record HostKey(HostDefinition host, boolean ssl) {

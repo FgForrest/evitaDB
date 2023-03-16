@@ -112,7 +112,7 @@ public class ServerCertificateManager {
 			certPrivateKeyPassword = null;
 		} else {
 			final CertificatePath certificatePath = certificateSettings.custom();
-			if (certificatePath == null || certificatePath.certificate() == null) {
+			if (certificatePath == null || certificatePath.certificate() == null || certificatePath.privateKey() == null) {
 				throw new EvitaInternalError("Certificate path is not properly set in the configuration file.");
 			}
 			certPath = ofNullable(certificatePath.certificate()).map(Path::of).orElse(null);
@@ -120,7 +120,9 @@ public class ServerCertificateManager {
 			certPrivateKeyPassword = certificatePath.privateKeyPassword();
 		}
 		return new CertificatePath(
-			certPath.toAbsolutePath().toString(),
+			ofNullable(certPath.toAbsolutePath())
+				.map(it -> it.toAbsolutePath().toString())
+				.orElse(null),
 			ofNullable(certPrivateKeyPath)
 				.map(it -> it.toAbsolutePath().toString())
 				.orElse(null),
