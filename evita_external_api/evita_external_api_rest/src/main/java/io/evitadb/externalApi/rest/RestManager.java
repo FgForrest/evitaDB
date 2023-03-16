@@ -36,6 +36,7 @@ import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.io.RestExceptionHandler;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
@@ -82,8 +83,11 @@ public class RestManager {
 		this.evita = evita;
 
 		// register initial endpoints
+		final long buildingStartTime = System.currentTimeMillis();
+		log.info("Starting to build REST API...");
 		registerSystemApi();
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
+		log.info("Built REST API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
 
 	/**
@@ -100,10 +104,15 @@ public class RestManager {
 			() -> new OpenApiInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
 
+		final long buildingStartTime = System.currentTimeMillis();
+		log.info("Starting to build REST API for catalog `" + catalogName + "`...");
+
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig, evita, catalog);
 		final Rest builtRest = catalogRestBuilder.build();
 
 		builtRest.endpoints().forEach(endpoint -> registerCatalogRestEndpoint(catalog, endpoint));
+
+		log.info("Built REST API for catalog `" + catalogName + "` in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
 
 	/**
@@ -126,12 +135,17 @@ public class RestManager {
 			() -> new OpenApiInternalError("Cannot refresh catalog `" + catalogName + "`. Such catalog has not been registered yet.")
 		);
 
+		final long buildingStartTime = System.currentTimeMillis();
+		log.info("Starting to build REST API for catalog `" + catalogName + "`...");
+
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig, evita, catalog);
 		final Rest builtRest = catalogRestBuilder.build();
 
 		unregisterCatalog(catalogName);
 		builtRest.endpoints().forEach(endpoint -> registerCatalogRestEndpoint(catalog, endpoint));
+
+		log.info("Built REST API for catalog `" + catalogName + "` in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
 
 	/**

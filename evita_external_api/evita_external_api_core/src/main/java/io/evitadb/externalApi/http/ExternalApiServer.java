@@ -76,8 +76,10 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -89,6 +91,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * HTTP server of external APIs. It is responsible for starting HTTP server with all configured external API providers
@@ -171,16 +174,7 @@ public class ExternalApiServer implements AutoCloseable {
 		try {
 			final CertificateFactory cf = CertificateFactory.getInstance("X.509");
 			final Optional<String> rootCaFingerPrint = getRootCaCertificateFingerPrint(serverCertificateManager, cf);
-
-			final Certificate cert;
-			final File certificateFile = Path.of(Objects.requireNonNull(certificatePath.certificate())).toFile();
-			Assert.isTrue(certificateFile.exists(), () -> "Certificate file `" + certificatePath.certificate() + "` doesn't exists!");
-			try (InputStream in = new FileInputStream(certificateFile)) {
-				cert = cf.generateCertificate(in);
-			}
-
-			final PrivateKey privateKey = loadPrivateKey(certificatePath);
-			final KeyManagerFactory keyManagerFactory = createKeyManagerFactory(certificatePath, cert, privateKey);
+			final KeyManagerFactory keyManagerFactory = createKeyManagerFactory(certificatePath, cf);
 
 			sslContext = SSLContext.getInstance("TLS");
 			sslContext.init(keyManagerFactory.getKeyManagers(), null, null);
@@ -250,14 +244,27 @@ public class ExternalApiServer implements AutoCloseable {
 	@Nonnull
 	private static KeyManagerFactory createKeyManagerFactory(
 		@Nonnull CertificatePath certificatePath,
-		@Nonnull Certificate cert,
-		@Nonnull PrivateKey privateKey
+		@Nonnull CertificateFactory cf
 	) throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException, UnrecoverableKeyException {
+		final PrivateKey privateKey = loadPrivateKey(certificatePath);
+
+		final File certificateFile = Path.of(Objects.requireNonNull(certificatePath.certificate())).toFile();
+		final List<? extends Certificate> certificates;
+		Assert.isTrue(certificateFile.exists(), () -> "Certificate file `" + certificatePath.certificate() + "` doesn't exists!");
+		try (InputStream in = new FileInputStream(certificateFile)) {
+			certificates = new ArrayList<>(cf.generateCertificates(in));
+			Assert.isTrue(certificateFile.length() > 0, () -> "Certificate file `" + certificatePath.certificate() + "` contains no certificate!");
+		}
+
 		final KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
 		keyStore.load(null);
-		keyStore.setCertificateEntry("cert", cert);
-		keyStore.setKeyEntry("key", privateKey, certificatePath.privateKeyPassword() == null ?
-			null : certificatePath.privateKeyPassword().toCharArray(), new Certificate[]{cert});
+		keyStore.setCertificateEntry("cert", certificates.get(0));
+		keyStore.setKeyEntry(
+			"key",
+			privateKey,
+			ofNullable(certificatePath.privateKeyPassword()).map(String::toCharArray).orElse(null),
+			certificates.toArray(Certificate[]::new)
+		);
 
 		final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
 		keyManagerFactory.init(keyStore, null);
