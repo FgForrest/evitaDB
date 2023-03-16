@@ -21,7 +21,8 @@ all of you, we had to make it read-only. So you cannot make any changes to it. B
 web APIs and all supported drivers.
 
 The next limitation is that the server is hosted on cheap shared infrastructure of  
-[Contabo hosting](https://contabo.com/en/vps/) with following specs:
+[Contabo hosting](https://contabo.com/en/vps/) (which has been known to buy old servers to provide low-cost hosting 
+services) with following specs:
 
 ![Server specs](assets/contabo-hosting.png)
 
@@ -39,8 +40,16 @@ You can access all our APIs on these addresses:
 This option requires more work, but you will have control over the performance, and you will be able to modify any data 
 in the set. To access the dataset on your hardware, you need to:
 
-1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-data.zip)
+1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-dataset.zip)
+   ```bash
+   wget https://evitadb.io/download/evita-demo-data.zip
+   ```
+
 2. unzip the contents to the `data` folder
+   ```bash
+   unzip -d data evita-demo-dataset.zip
+   ```
+
 3. pull the evitaDB docker image
    ```bash
    docker pull index.docker.io/evitadb/evitadb:latest
@@ -48,7 +57,7 @@ in the set. To access the dataset on your hardware, you need to:
 4. start the evitaDB server (replace `__data_dir__` with the path to your data folder)
    ```bash
    docker run --name evitadb -i --net=host \
-          -v "__data_dir__:/evita/data" \
+          -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
    ```
 
