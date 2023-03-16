@@ -6,7 +6,6 @@ perex: |
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 We assume you already have the following snippet of the code from the [previous chapter](run-evitadb.md):

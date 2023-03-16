@@ -4,7 +4,6 @@ perex:
 date: '1.3.2023'
 author: 'Bc. Tomáš Pozler'
 proofreading: 'needed'
-published: false
 ---
 
 <UsedTerms>

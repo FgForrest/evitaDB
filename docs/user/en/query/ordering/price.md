@@ -3,7 +3,6 @@ title: Price ordering
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 **Work in progress**

@@ -4,7 +4,6 @@ perex:
 date: '1.3.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 The evitaDB server is configured in YAML format and its default settings are best described by the following code
@@ -497,7 +496,7 @@ only exposed endpoint on the unsecured http protocol, it must run on a separate 
 download the public part of the server certificate.
 
 It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and
-`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour--not-secure-) for
+`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour-not-secure) for
 more information.
 
 <dl>
@@ -513,6 +512,6 @@ more information.
         other APIs because the system API needs to run on the insecure HTTP protocol while the other APIs use the secure one.</p>
         <p>The system endpoint allows anyone to view public <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
         <Term document="docs/user/en/operate/tls.md">certificate</Term> and it also provides information for 
-        [default `mTLS` implementation](tls.md#default-mtls-behaviour--not-secure-).</p>
+        [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure).</p>
     </dd>
 </dl>
