@@ -120,11 +120,13 @@ referred to by multiple child entities. A hierarchy always consists of entities 
 Each entity must be part of at most one hierarchy (tree).
 
 <LanguageSpecific to="java">
+<Note type="info">
 Hierarchy placement is represented by the interface:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/HierarchicalPlacementContract.java</SourceClass>.
 
 Hierarchy schema is part of main entity schema:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass>
+</Note>
 </LanguageSpecific>
 
 <Note type="question">
@@ -157,11 +159,13 @@ Attributes are also recommended to be used for frequently used data that accompa
 fetches all attributes in a single block, so keeping this frequently used data in attributes reduces the overall I/O.
 
 <LanguageSpecific to="java">
+<Note type="info">
 The attribute provider ([entity](#entity-type) or [reference](#references)) is represented by the interface:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AttributesContract.java</SourceClass>
 
 The attribute schema is described by:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeSchemaContract.java</SourceClass>
+</Note>
 </LanguageSpecific>
 
 #### Localized attributes
@@ -201,18 +205,20 @@ along with entity in order to display data to the target consumer (i.e. a user /
 storing all basic [data types](data-types.md#simple-data-types) and also [complex](data-types.md#complex-data-types), 
 document like types.
 
+The [search query](../query/basics.md) must contain specific
+[requirement](../query/requirements/fetching.md#associated-data) to fetch the associated data along with the entity.
+Associated data are stored and fetched separately by their name and *locale* (if the associated data is
+[localized](#localized-associated-data)).
+
 <LanguageSpecific to="java">
+<Note type="info">
 AssociatedData provider ([entity](#entity-type)) is represented by the interface:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AssociatedDataContract.java</SourceClass>
 
 Associated data schema is described by:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AssociatedDataSchemaContract.java</SourceClass>
+</Note>
 </LanguageSpecific>
-
-The [search query](../query/basics.md) must contain specific 
-[requirement](../query/requirements/fetching.md#associated-data) to fetch the associated data along with the entity. 
-Associated data are stored and fetched separately by their name and *locale* (if the associated data is 
-[localized](#localized-associated-data)).
 
 #### Localized associated data
 
@@ -245,11 +251,13 @@ the relationship to a stock). The data on references is subject to the same rule
 [entity attributes](#attributes-unique-filterable-sortable-localized).
 
 <LanguageSpecific to="java">
+<Note type="info">
 Reference is represented by the interface: 
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass>.
 
 Reference schema is described by: 
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass>
+</Note>
 </LanguageSpecific>
 
 ### Prices
@@ -260,6 +268,7 @@ filtering and sorting, they deserve first-class support in the entity model. It 
 a single product has dozens of prices assigned to different customers.
 
 <LanguageSpecific to="java">
+<Note type="info">
 Price provider is represented by the interface:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PricesContract.java</SourceClass>
 
@@ -268,6 +277,7 @@ Single price is represented by the interface:
 
 Price schema is part of main entity schema:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass>
+</Note>
 </LanguageSpecific>
 
 <Note type="question">
