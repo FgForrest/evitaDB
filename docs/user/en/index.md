@@ -27,26 +27,6 @@ time trying to create an alternative to general-purpose databases, that would me
 and results of our research](https://evitadb.io/research/introduction) happening between 2019 and 2022 are documented 
 in the separate part of this site.
 
-<UsedTerms>
-    <h4>Used terms</h4>
-   <dl>
-      <dt>catalog</dt>
-      <dd>
-         A catalog isolates one data-set from another. In relational database world a catalog would represent a single 
-         database schema. It represents a physical container for set of logically interconnected entity collections.
-         evitaDB usually contains multiple catalogs. If you need to take care of data for multiple customers 
-         (multi-tenant application) it's a good idea to dedicate separate catalog to each of them.
-      </dd>
-      <dt>entity collection</dt>
-      <dd>
-         An entity collection encompass all entities sharing the same schema (structure). In relational database world
-         an entity collection would represent a one or tables that contain data of one logical entity. An entity is
-         closer to a "document" term used in NoSQL databases or "object" 
-         in [OOP terminology](https://en.wikipedia.org/wiki/Object-oriented_programming) than to a "table record".
-      </dd>
-   </dl>
-</UsedTerms>
-
 ## Get started
 
 1. [Run evitaDB](get-started/run-evitadb.md)
