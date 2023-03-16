@@ -121,7 +121,9 @@ public class ServerCertificateManager {
 		}
 		return new CertificatePath(
 			certPath.toAbsolutePath().toString(),
-			certPrivateKeyPath.toAbsolutePath().toString(),
+			ofNullable(certPrivateKeyPath)
+				.map(it -> it.toAbsolutePath().toString())
+				.orElse(null),
 			certPrivateKeyPassword
 		);
 	}
