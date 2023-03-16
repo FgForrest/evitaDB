@@ -1,9 +1,11 @@
 ---
 title: Create first database
+perex: |
+    This article will guide you through the basics of the evitaDB API for creating, updating, querying and 
+    deleting entities in the catalog.  
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 We assume you already have the following snippet of the code from the [previous chapter](run-evitadb.md):

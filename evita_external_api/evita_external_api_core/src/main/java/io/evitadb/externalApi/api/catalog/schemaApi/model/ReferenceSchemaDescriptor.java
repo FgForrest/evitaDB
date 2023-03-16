@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -51,7 +52,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			of the client API (returning only single reference or collections) and also help us to protect the consistency
 			of the data so that conforms to the creator mental model.
 			""")
-		.type(nonNull(String.class))
+		.type(nonNull(Cardinality.class))
 		.build();
 
 	PropertyDescriptor REFERENCED_ENTITY_TYPE = PropertyDescriptor.builder()
@@ -71,7 +72,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			translate to / from names used in different protocols. Each API protocol prefers names in different naming
 			conventions.
 			""")
-		.type(nonNullRef(SchemaNameVariantsDescriptor.THIS))
+		.type(nonNullRef(NameVariantsDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor REFERENCED_ENTITY_TYPE_MANAGED = PropertyDescriptor.builder()
@@ -100,7 +101,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			translate to / from names used in different protocols. Each API protocol prefers names in different naming
 			conventions.
 			""")
-		.type(nullableRef(SchemaNameVariantsDescriptor.THIS))
+		.type(nullableRef(NameVariantsDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor REFERENCED_GROUP_TYPE_MANAGED = PropertyDescriptor.builder()
@@ -190,8 +191,7 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			FILTERABLE,
 			FACETED,
 			ENTITY_TYPE_NAME_VARIANTS,
-			GROUP_TYPE_NAME_VARIANTS,
-			ALL_ATTRIBUTES
+			GROUP_TYPE_NAME_VARIANTS
 		))
 		.build();
 

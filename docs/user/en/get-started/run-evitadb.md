@@ -1,9 +1,9 @@
 ---
 title: Run evitaDB
+perex: If you are new to evitaDB, try these baby steps to get your own server up and running.
 date: '1.3.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 evitaDB is a [Java application](https://openjdk.org/), and you can run it as an

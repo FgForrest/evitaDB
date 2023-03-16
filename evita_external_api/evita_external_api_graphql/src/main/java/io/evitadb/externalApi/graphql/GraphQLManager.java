@@ -27,8 +27,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.GraphQL;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.core.CorruptedCatalog;
+import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.CatalogDataApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.CatalogSchemaApiGraphQLSchemaBuilder;
@@ -66,7 +67,7 @@ public class GraphQLManager {
 	/**
 	 * Provides access to Evita private API
 	 */
-	private final EvitaSystemDataProvider evitaSystemDataProvider;
+	private final Evita evita;
 	/**
 	 * GraphQL specific endpoint router.
 	 */
@@ -77,19 +78,23 @@ public class GraphQLManager {
 	 */
 	private final Map<String, RegisteredCatalog> registeredCatalogs = createHashMap(20);
 
-	public GraphQLManager(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider) {
-		this.evitaSystemDataProvider = evitaSystemDataProvider;
+	public GraphQLManager(@Nonnull Evita evita) {
+		this.evita = evita;
 
 		// register initial endpoints
 		registerSystemApi();
-		this.evitaSystemDataProvider.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
+		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 	}
 
 	/**
 	 * Registers new Evita catalog to API. It creates new endpoint and {@link GraphQL} instance for it.
 	 */
 	public void registerCatalog(@Nonnull String catalogName) {
-		final CatalogContract catalog = evitaSystemDataProvider.getCatalog(catalogName);
+		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
+		if (catalog instanceof CorruptedCatalog) {
+			log.warn("Catalog `" + catalogName + "` is corrupted. Skipping...");
+			return;
+		}
 		Assert.isPremiseValid(
 			!registeredCatalogs.containsKey(catalogName),
 			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
@@ -98,9 +103,9 @@ public class GraphQLManager {
 		try {
 			final String catalogDataApiPath = buildCatalogDataApiPath(catalog.getSchema());
 			final GraphQL catalogDataApiGraphQL = new CatalogGraphQLBuilder(
-				evitaSystemDataProvider.getEvita(),
+				evita,
 				catalog,
-				new CatalogDataApiGraphQLSchemaBuilder(evitaSystemDataProvider.getEvita(), catalog).build()
+				new CatalogDataApiGraphQLSchemaBuilder(evita, catalog).build()
 			).build();
 			final RegisteredGraphQLApi registeredDataApiGraphQL = new RegisteredGraphQLApi(
 				catalogDataApiPath,
@@ -110,9 +115,9 @@ public class GraphQLManager {
 
 			final String catalogSchemaApiPath = buildCatalogSchemaApiPath(catalog.getSchema());
 			final GraphQL catalogSchemaApiGraphQL = new CatalogGraphQLBuilder(
-				evitaSystemDataProvider.getEvita(),
+				evita,
 				catalog,
-				new CatalogSchemaApiGraphQLSchemaBuilder(evitaSystemDataProvider.getEvita(), catalog).build()
+				new CatalogSchemaApiGraphQLSchemaBuilder(evita, catalog).build()
 			).build();
 			final RegisteredGraphQLApi registeredSchemaApiGraphQL = new RegisteredGraphQLApi(
 				catalogSchemaApiPath,
@@ -124,7 +129,7 @@ public class GraphQLManager {
 			registeredCatalogs.put(catalogName, registeredCatalog);
 		} catch (EvitaInternalError ex) {
 			// log and skip the catalog entirely
-			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.");
+			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.", ex);
 		}
 	}
 
@@ -138,19 +143,19 @@ public class GraphQLManager {
 			() -> new GraphQLInternalError("Cannot refresh catalog `" + catalogName + "`. Such catalog has not been registered yet.")
 		);
 
-		final CatalogContract catalog = evitaSystemDataProvider.getCatalog(catalogName);
+		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
 
 		final GraphQL newCatalogDataApiGraphQL = new CatalogGraphQLBuilder(
-			evitaSystemDataProvider.getEvita(),
+			evita,
 			catalog,
-			new CatalogDataApiGraphQLSchemaBuilder(evitaSystemDataProvider.getEvita(), catalog).build()
+			new CatalogDataApiGraphQLSchemaBuilder(evita, catalog).build()
 		).build();
 		registeredCatalog.dataApi().graphQLReference().set(newCatalogDataApiGraphQL);
 
 		final GraphQL newCatalogSchemaApiGraphQL = new CatalogGraphQLBuilder(
-			evitaSystemDataProvider.getEvita(),
+			evita,
 			catalog,
-			new CatalogSchemaApiGraphQLSchemaBuilder(evitaSystemDataProvider.getEvita(), catalog).build()
+			new CatalogSchemaApiGraphQLSchemaBuilder(evita, catalog).build()
 		).build();
 		registeredCatalog.schemaApi().graphQLReference().set(newCatalogSchemaApiGraphQL);
 	}
@@ -167,6 +172,16 @@ public class GraphQLManager {
 	}
 
 	/**
+	 * Initializes system GraphQL endpoint for managing Evita.
+	 */
+	private void registerSystemApi() {
+		registerGraphQLEndpoint(new RegisteredGraphQLApi(
+			"/system",
+			new AtomicReference<>(new SystemGraphQLBuilder(evita).build())
+		));
+	}
+
+	/**
 	 * Creates new GraphQL endpoint on specified path with specified {@link GraphQL} instance.
 	 */
 	private void registerGraphQLEndpoint(@Nonnull RegisteredGraphQLApi registeredGraphQLApi) {
@@ -179,16 +194,6 @@ public class GraphQLManager {
 				)
 			)
 		);
-	}
-
-	/**
-	 * Initializes system GraphQL endpoint for managing Evita.
-	 */
-	private void registerSystemApi() {
-		registerGraphQLEndpoint(new RegisteredGraphQLApi(
-			"/system",
-			new AtomicReference<>(new SystemGraphQLBuilder(evitaSystemDataProvider.getEvita()).build())
-		));
 	}
 
 	/**

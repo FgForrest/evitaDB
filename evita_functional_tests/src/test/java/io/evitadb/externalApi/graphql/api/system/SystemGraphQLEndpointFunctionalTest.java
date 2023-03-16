@@ -28,11 +28,11 @@ import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTes
 import javax.annotation.Nonnull;
 
 /**
- * Tests for GraphQL system management endpoint.
+ * Tests for GraphQL system management endpoints.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class SystemGraphQLEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
+public abstract class SystemGraphQLEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
 
 	@Nonnull
 	@Override

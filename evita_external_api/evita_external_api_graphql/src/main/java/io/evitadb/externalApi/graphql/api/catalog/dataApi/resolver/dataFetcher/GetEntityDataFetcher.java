@@ -101,7 +101,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 			filterBy,
 			require
 		);
-		log.debug("Generated Evita query for single entity fetch of type `{}` is `{}`.", entitySchema.getName(), query);
+		log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 

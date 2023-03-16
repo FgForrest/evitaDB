@@ -115,7 +115,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             orderBy,
             require
         );
-        log.debug("Generated Evita query for entity list fetch of type `{}` is `{}`.", entitySchema.getName(), query);
+        log.debug("Generated evitaDB query for entity list fetch of type `{}` is `{}`.", entitySchema.getName(), query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
         final List<EntityClassifier> entities = evitaSession.queryList(query, EntityClassifier.class);

@@ -43,6 +43,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.VersionUtils;
 import lombok.Getter;
 import org.apache.commons.text.StringSubstitutor;
 import org.apache.commons.text.io.StringSubstitutorReader;
@@ -54,19 +55,14 @@ import javax.annotation.Nonnull;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.jar.Attributes;
-import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -109,10 +105,6 @@ public class EvitaServer {
 	 * Pattern for matching Unix like arguments `--name=value`
 	 */
 	private static final Pattern OPTION_GNU_ARGUMENT = Pattern.compile("--(\\S+)=(\\S+)");
-	private static final String DEFAULT_MANIFEST_LOCATION = "META-INF/MANIFEST.MF";
-	private static final String IMPLEMENTATION_VENDOR_TITLE = "Implementation-Title";
-	private static final String IO_EVITADB_TITLE = "evitaDB - Standalone server";
-	private static final String IMPLEMENTATION_VERSION = "Implementation-Version";
 	/**
 	 * Instance of the {@link EvitaConfiguration} initialized from the evita configuration file.
 	 */
@@ -156,7 +148,7 @@ public class EvitaServer {
 				 \\___| \\_/ |_|\\__\\__,_|____/|____/\s\n\n""",
 			ConsoleColor.DARK_GREEN
 		);
-		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[] {readVersion()}, ConsoleColor.LIGHT_GRAY);
+		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[] {VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io\n\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 
@@ -185,27 +177,6 @@ public class EvitaServer {
 			}
 		}
 		return map;
-	}
-
-	/**
-	 * Method reads the current evitaDB version from the Manifest file where the version is injected during Maven build.
-	 */
-	private static String readVersion() {
-		try {
-			final Enumeration<URL> resources = EvitaServer.class.getClassLoader().getResources(DEFAULT_MANIFEST_LOCATION);
-			while (resources.hasMoreElements()) {
-				try (final InputStream manifestStream = resources.nextElement().openStream()) {
-					final Manifest manifest = new Manifest(manifestStream);
-					final Attributes mainAttributes = manifest.getMainAttributes();
-					if (IO_EVITADB_TITLE.equals(mainAttributes.getValue(IMPLEMENTATION_VENDOR_TITLE))) {
-						return ofNullable(mainAttributes.getValue(IMPLEMENTATION_VERSION)).orElse("?");
-					}
-				}
-			}
-		} catch (Exception ignored) {
-			// just return unknown value
-		}
-		return "?";
 	}
 
 	/**

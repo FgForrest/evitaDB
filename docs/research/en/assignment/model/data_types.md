@@ -1,6 +1,8 @@
 ---
 title: Supported data types
-perex:
+perex: |
+    The article gives an introduction to data types in EvitaDB query language, including basic and advanced types, 
+    and provides code examples to demonstrate their usage.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'

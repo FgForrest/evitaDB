@@ -46,7 +46,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
-import io.evitadb.externalApi.graphql.dataType.coercing.AnyCoercing;
+import io.evitadb.externalApi.graphql.api.dataType.coercing.AnyCoercing;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;

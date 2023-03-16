@@ -1,6 +1,10 @@
 ---
 title: Facet lookup summary
-perex: Facet lookup summary is a data structure containing information on facet groups and facets in a given hierarchy section or entity set. It outlines the object structure, including FacetGroupStatistics and FacetStatistics, and provides details on their respective components and the Impact section, which contains projected entity statistics for modified facet requirements.
+perex: |
+    Facet lookup summary is a data structure containing information on facet groups and facets in a given 
+    hierarchy section or entity set. It outlines the object structure, including FacetGroupStatistics and 
+    FacetStatistics, and provides details on their respective components and the Impact section, which contains 
+    projected entity statistics for modified facet requirements.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'

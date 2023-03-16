@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.system;
 
+import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
@@ -62,7 +62,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<SystemConfig> register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig externalApiConfiguration) {
+	public ExternalApiProvider<SystemConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig externalApiConfiguration) {
 		final File file;
 		final String fileName;
 		final CertificateSettings certificateSettings = apiOptions.certificate();

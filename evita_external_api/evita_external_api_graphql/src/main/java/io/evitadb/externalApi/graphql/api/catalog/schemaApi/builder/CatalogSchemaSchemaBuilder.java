@@ -27,24 +27,21 @@ import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemasDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.CreateGlobalAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaNameMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AllAssociatedDataSchemasDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AllAttributeSchemasDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AllEntitySchemasDataFetcher;
@@ -59,11 +56,9 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDat
 import javax.annotation.Nonnull;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
-import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder.EntitySchemaSchemaBuilder.ATTRIBUTE_SCHEMA_UNION_NAME;
 
 /**
  * Implementation of {@link PartialGraphQLSchemaBuilder} for building schema for fetching and updating {@link CatalogSchemaContract}.
@@ -81,26 +76,23 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	@Override
 	public void build() {
 		// build reusable objects
-		graphQLSchemaBuildingCtx.registerType(buildEntitySchemaObject());
-		graphQLSchemaBuildingCtx.registerType(buildCatalogSchemaObject());
+		buildingContext.registerType(buildEntitySchemaObject());
+		buildingContext.registerType(buildCatalogSchemaObject());
 
 		// catalog schema mutations
-		graphQLSchemaBuildingCtx.registerType(CreateCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(ModifyCatalogSchemaNameMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(RemoveCatalogSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// global attribute schema mutations
-		graphQLSchemaBuildingCtx.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		graphQLSchemaBuildingCtx.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// other mutation objects should be already created by EntitySchemaSchemaBuilder
-		graphQLSchemaBuildingCtx.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
 		// build catalog field
-		graphQLSchemaBuildingCtx.registerQueryField(buildCatalogSchemaField());
-		graphQLSchemaBuildingCtx.registerMutationField(buildUpdateCatalogSchemaField());
+		buildingContext.registerQueryField(buildCatalogSchemaField());
+		buildingContext.registerMutationField(buildUpdateCatalogSchemaField());
 	}
 
 	/*
@@ -117,31 +109,33 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 	@Nonnull
 	private GraphQLObjectType buildCatalogSchemaObject() {
-		final CatalogSchemaContract catalogSchema = graphQLSchemaBuildingCtx.getSchema();
+		final CatalogSchemaContract catalogSchema = buildingContext.getSchema();
 
-		final GraphQLObjectType.Builder schemaObjectBuilder = CatalogSchemaDescriptor.THIS.to(objectBuilderTransformer);
+		final GraphQLObjectType.Builder schemaObjectBuilder = CatalogSchemaDescriptor.THIS.to(objectBuilderTransformer)
+			.field(CatalogSchemaDescriptor.ALL_ATTRIBUTES.to(fieldBuilderTransformer))
+			.field(CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.to(fieldBuilderTransformer));
 
 		if (!catalogSchema.getAttributes().isEmpty()) {
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				CatalogSchemaDescriptor.THIS,
 				schemaObjectBuilder,
 				buildGlobalAttributeSchemasField()
 			);
 		}
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			CatalogSchemaDescriptor.THIS,
 			CatalogSchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
 		);
 
-		if (!graphQLSchemaBuildingCtx.getEntitySchemas().isEmpty()) {
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+		if (!buildingContext.getEntitySchemas().isEmpty()) {
+			buildingContext.registerFieldToObject(
 				CatalogSchemaDescriptor.THIS,
 				schemaObjectBuilder,
 				buildEntitySchemasField()
 			);
 		}
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			CatalogSchemaDescriptor.THIS,
 			CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS,
 			new AllEntitySchemasDataFetcher()
@@ -174,10 +168,10 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		final GraphQLObjectType.Builder attributeSchemasObjectBuilder = GlobalAttributeSchemasDescriptor.THIS
 			.to(objectBuilderTransformer);
 
-		graphQLSchemaBuildingCtx.getSchema().getAttributes()
+		buildingContext.getSchema().getAttributes()
 			.values()
 			.forEach(attributeSchema ->
-				graphQLSchemaBuildingCtx.registerFieldToObject(
+				buildingContext.registerFieldToObject(
 					GlobalAttributeSchemasDescriptor.THIS,
 					attributeSchemasObjectBuilder,
 					buildGlobalAttributeSchemaField(attributeSchema)
@@ -226,7 +220,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		final GraphQLObjectType.Builder entitySchemasObjectBuilder = EntitySchemasDescriptor.THIS
 			.to(objectBuilderTransformer);
 
-		graphQLSchemaBuildingCtx.getEntitySchemas().forEach(entitySchema -> {
+		buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			final GraphQLFieldDefinition entitySchemaField = newFieldDefinition()
 				.name(entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
 				.description(entitySchema.getDescription())
@@ -236,7 +230,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 			final CatalogEntitySchemaDataFetcher dataFetcher = new CatalogEntitySchemaDataFetcher(entitySchema.getName());
 			final BuiltFieldDescriptor fieldDescriptor = new BuiltFieldDescriptor(entitySchemaField, dataFetcher);
 
-			graphQLSchemaBuildingCtx.registerFieldToObject(
+			buildingContext.registerFieldToObject(
 				EntitySchemasDescriptor.THIS,
 				entitySchemasObjectBuilder,
 				fieldDescriptor
@@ -248,33 +242,25 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 	@Nonnull
 	private GraphQLObjectType buildEntitySchemaObject() {
-		final GraphQLObjectType.Builder entitySchemaBuilder = EntitySchemaDescriptor.THIS_GENERIC
-			.to(objectBuilderTransformer);
-
-		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_ATTRIBUTES
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(ATTRIBUTE_SCHEMA_UNION_NAME))))));
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ATTRIBUTES,
 			new AllAttributeSchemasDataFetcher()
 		);
-
-		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_ASSOCIATED_DATA.to(fieldBuilderTransformer));
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_ASSOCIATED_DATA,
 			new AllAssociatedDataSchemasDataFetcher()
 		);
-
-		entitySchemaBuilder.field(EntitySchemaDescriptor.ALL_REFERENCES.to(fieldBuilderTransformer));
-		graphQLSchemaBuildingCtx.registerDataFetcher(
+		buildingContext.registerDataFetcher(
 			EntitySchemaDescriptor.THIS_GENERIC,
 			EntitySchemaDescriptor.ALL_REFERENCES,
 			new AllReferenceSchemasDataFetcher()
 		);
 
-		return entitySchemaBuilder.build();
+		return EntitySchemaDescriptor.THIS_GENERIC
+			.to(objectBuilderTransformer)
+			.build();
 	}
 
 	/*

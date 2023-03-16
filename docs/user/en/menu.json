@@ -146,7 +146,6 @@
 	  },
 	  {
 		"title": "Ordering",
-		"path": "/query/ordering/ordering.md",
 		"children": [
 		  {
 			"title": "Natural",
@@ -201,16 +200,16 @@
 	"title": "Operate",
 	"children" : [
 	  {
-		"title": "Configure",
-		"path" : "/operate/configure.md"
+		"title": "Run",
+		"path" : "/operate/run.md"
 	  },
 	  {
 		"title": "Setup TLS",
 		"path" : "/operate/tls.md"
 	  },
 	  {
-		"title": "Run",
-		"path" : "/operate/run.md"
+		"title": "Configure",
+		"path" : "/operate/configure.md"
 	  },
 	  {
 		"title": "Backup & Restore",

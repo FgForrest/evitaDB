@@ -3,7 +3,6 @@ title: Query our dataset
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 While it is much better to play with the schema and data that suits your own e-commerce use case, we believe that
@@ -24,9 +23,7 @@ web APIs and all supported drivers.
 The next limitation is that the server is hosted on cheap shared infrastructure of  
 [Contabo hosting](https://contabo.com/en/vps/) with following specs:
 
-[//]: # (TODO MAL - NEITHER OF THIS WORKS)
-[//]: # (![Server specs]&#40;assets/contabo-hosting.png&#41;)
-[//]: # (![Server specs]&#40;https://raw.githubusercontent.com/FgForrest/evitaDB/dev/docs/user/en/get-started/assets/contabo-hosting.png&#41;)
+![Server specs](assets/contabo-hosting.png)
 
 If you experience slow responses, let us know and 
 [try evitaDB on your hardware instead](#run-your-own-evitadb-server-with-our-dataset).
@@ -42,14 +39,14 @@ You can access all our APIs on these addresses:
 This option requires more work, but you will have control over the performance, and you will be able to modify any data 
 in the set. To access the dataset on your hardware, you need to:
 
-1. [download the archive with the dataset from the Google drive](https://drive.google.com/file/d/1Dh0Zdom8ovTNkMUsiM-lsv6PZ7r302w0/view?usp=share_link)
+1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-data.zip)
 2. unzip the contents to the `data` folder
 3. pull the evitaDB docker image
-   ```
+   ```bash
    docker pull index.docker.io/evitadb/evitadb:latest
    ```
 4. start the evitaDB server (replace `__data_dir__` with the path to your data folder)
-   ```
+   ```bash
    docker run --name evitadb -i --net=host \
           -v "__data_dir__:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
@@ -115,7 +112,6 @@ instance:
 
 <CodeTabs>
 <CodeTabsBlock>
-
 ```java
 new EvitaClient(
 	EvitaClientConfiguration.builder()
@@ -124,7 +120,6 @@ new EvitaClient(
 		.build()
 );
 ```
-
 </CodeTabsBlock>
 </CodeTabs>
 
@@ -133,7 +128,6 @@ After that you can create a new session and try any of the evitaQL queries descr
 
 <CodeTabs>
 <CodeTabsBlock>
-
 ```java
 var entities = evita.queryCatalog(
 	"evita",
@@ -156,7 +150,6 @@ var entities = evita.queryCatalog(
 	}
 )
 ```
-
 </CodeTabsBlock>
 </CodeTabs>
 

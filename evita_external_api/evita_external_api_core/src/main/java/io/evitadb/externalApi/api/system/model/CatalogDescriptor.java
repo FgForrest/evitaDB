@@ -24,11 +24,13 @@
 package io.evitadb.externalApi.api.system.model;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
@@ -46,6 +48,16 @@ public interface CatalogDescriptor {
             Name of the catalog. Name must be unique across all catalogs inside same evitaDB instance.
             """)
         .type(nonNull(String.class))
+        .build();
+    PropertyDescriptor NAME_VARIANTS = PropertyDescriptor.builder()
+        .name("nameVariants")
+        .description("""
+            Map contains the `name` variants in different naming conventions. The name
+			is guaranteed to be unique among other references in same convention. These names are used to quickly
+			translate to / from names used in different protocols. Each API protocol prefers names in different naming
+			conventions.
+            """)
+        .type(nonNullRef(NameVariantsDescriptor.THIS))
         .build();
     PropertyDescriptor VERSION = PropertyDescriptor.builder()
         .name("version")
@@ -77,6 +89,13 @@ public interface CatalogDescriptor {
             """)
         .type(nonNull(String[].class))
         .build();
+	PropertyDescriptor CORRUPTED = PropertyDescriptor.builder()
+		.name("corrupted")
+		.description("""
+			Whether this catalog is corrupted or can be freely used.
+			""")
+		.type(nonNull(Boolean.class))
+		.build();
 
     ObjectDescriptor THIS = ObjectDescriptor.builder()
         .name("Catalog")
@@ -89,6 +108,6 @@ public interface CatalogDescriptor {
             connected with single client. In the e-commerce world catalog means "single e-shop" although it may not be the truth
             in every case. Catalog manages set of entity collection uniquely identified by their name.
             """)
-        .staticFields(List.of(NAME, VERSION, CATALOG_STATE, SUPPORTS_TRANSACTION, ENTITY_TYPES))
+        .staticFields(List.of(NAME, NAME_VARIANTS, VERSION, CATALOG_STATE, SUPPORTS_TRANSACTION, ENTITY_TYPES, CORRUPTED))
         .build();
 }

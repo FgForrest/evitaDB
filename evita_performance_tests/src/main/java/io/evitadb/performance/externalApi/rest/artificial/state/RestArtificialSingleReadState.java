@@ -95,10 +95,9 @@ public class RestArtificialSingleReadState extends AbstractRestArtificialState {
 
 			/* 75% only filtered prices */
 			if (benchmarkState.getRandom().nextInt(4) != 0) {
-				parameters.add("priceContent=true");
+				parameters.add("priceContent=RESPECTING_FILTER");
 			} else {
-				// todo lho have to add support for all prices
-				parameters.add("priceContent=true");
+				parameters.add("priceContent=ALL");
 			}
 		}
 
@@ -107,9 +106,6 @@ public class RestArtificialSingleReadState extends AbstractRestArtificialState {
 			Stream.of(Entities.BRAND, Entities.CATEGORY, Entities.PRICE_LIST, Entities.STORE)
 				.filter(it -> benchmarkState.getProductSchema().getReference(it).isPresent())
 				.forEach(ref -> {
-					// todo lho reimplement when api is fixed with correct cases
-//					final String refFieldName = StringUtils.toCamelCase(ref);
-//					parameters.add("referenceContent=" + refFieldName);
 					parameters.add("referenceContent=" + ref);
 				});
 		}

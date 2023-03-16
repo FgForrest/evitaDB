@@ -106,7 +106,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
             filterBy,
             require(entityFetch())
         );
-        log.debug("Generated Evita query for single unknown entity fetch `{}`.", query);
+        log.debug("Generated evitaDB query for single unknown entity fetch `{}`.", query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
         final EntityClassifier loadedEntity = evitaSession.queryOne(query, SealedEntity.class)
