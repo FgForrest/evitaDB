@@ -96,9 +96,10 @@ public class DataApiEndpointBuilder {
 	                                                        boolean withPkInPath) {
 		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
-				.staticItem(CatalogDataApiRootDescriptor.GET_ENTITY.operation(URL_NAME_NAMING_CONVENTION))
+				.staticItem(CatalogDataApiRootDescriptor.GET_ENTITY.urlPathItem())
 				.paramItem(withPkInPath ? GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer) : null))
 			.method(HttpMethod.GET)
+			.operationId(CatalogDataApiRootDescriptor.GET_ENTITY.operation(entitySchema))
 			.description(CatalogDataApiRootDescriptor.GET_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.queryParameters(buildGetEntityQueryParameters(entitySchema, localized, withPkInPath))
@@ -112,8 +113,9 @@ public class DataApiEndpointBuilder {
 	                                                         boolean localized) {
 		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
-				.staticItem(CatalogDataApiRootDescriptor.LIST_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(CatalogDataApiRootDescriptor.LIST_ENTITY.urlPathItem()))
 			.method(HttpMethod.POST)
+			.operationId(CatalogDataApiRootDescriptor.LIST_ENTITY.operation(entitySchema))
 			.description(CatalogDataApiRootDescriptor.LIST_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(constructEntityListRequestBodyObjectName(entitySchema, localized)))
@@ -127,8 +129,9 @@ public class DataApiEndpointBuilder {
 	                                                          boolean localized) {
 		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
-				.staticItem(CatalogDataApiRootDescriptor.QUERY_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(CatalogDataApiRootDescriptor.QUERY_ENTITY.urlPathItem()))
 			.method(HttpMethod.POST)
+			.operationId(CatalogDataApiRootDescriptor.QUERY_ENTITY.operation(entitySchema))
 			.description(CatalogDataApiRootDescriptor.QUERY_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(constructEntityQueryRequestBodyObjectName(entitySchema, localized)))
@@ -141,8 +144,9 @@ public class DataApiEndpointBuilder {
 	public OpenApiCatalogEndpoint buildCollectionsEndpoint(@Nonnull CatalogRestBuildingContext buildingContext) {
 		return newCatalogEndpoint(buildingContext.getSchema())
 			.path(p -> p
-				.staticItem(CatalogDataApiRootDescriptor.COLLECTIONS.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(CatalogDataApiRootDescriptor.COLLECTIONS.urlPathItem()))
 			.method(HttpMethod.GET)
+			.operationId(CatalogDataApiRootDescriptor.COLLECTIONS.operation())
 			.description(CatalogDataApiRootDescriptor.COLLECTIONS.description())
 			.queryParameter(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT
 				.to(operationQueryParameterBuilderTransformer)
@@ -174,8 +178,9 @@ public class DataApiEndpointBuilder {
 			newCatalogEndpoint(buildingContext.getSchema())
 				.path(localized, p -> p
 					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION))
-					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
+					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.urlPathItem()))
 				.method(HttpMethod.GET)
+				.operationId(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.operation())
 				.description(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.description())
 				.queryParameters(queryParameters)
 				.successResponse(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name()))
@@ -208,8 +213,9 @@ public class DataApiEndpointBuilder {
 			newCatalogEndpoint(buildingContext.getSchema())
 				.path(localized, p -> p
 					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION))
-					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.operation(URL_NAME_NAMING_CONVENTION)))
+					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.urlPathItem()))
 				.method(HttpMethod.GET)
+				.operationId(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.operation())
 				.description(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.description())
 				.queryParameters(queryParameters)
 				.successResponse(nonNull(arrayOf(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name()))))
@@ -222,9 +228,11 @@ public class DataApiEndpointBuilder {
 	public OpenApiCollectionEndpoint buildUpsertEntityEndpoint(@Nonnull EntitySchemaContract entitySchema,
 	                                                           boolean withPrimaryKeyInPath) {
 		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
-			.path(p -> p // directly at the collection root
+			.path(p -> p
+				.staticItem(CatalogDataApiRootDescriptor.UPSERT_ENTITY.urlPathItem())
 				.paramItem(withPrimaryKeyInPath ? UpsertEntityEndpointHeaderDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer) : null))
 			.method(withPrimaryKeyInPath ? HttpMethod.PUT : HttpMethod.POST)
+			.operationId(CatalogDataApiRootDescriptor.UPSERT_ENTITY.operation(entitySchema))
 			.description(CatalogDataApiRootDescriptor.UPSERT_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(EntityUpsertRequestDescriptor.THIS.name(entitySchema)))
@@ -236,11 +244,13 @@ public class DataApiEndpointBuilder {
 	@Nonnull
 	public OpenApiCollectionEndpoint buildDeleteEntityEndpoint(@Nonnull EntitySchemaContract entitySchema) {
 		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
-			.path(p -> p // directly at the collection root
+			.path(p -> p
+				.staticItem(CatalogDataApiRootDescriptor.DELETE_ENTITY.urlPathItem())
 				.paramItem(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY
 					.to(operationPathParameterBuilderTransformer)
 					.type(DataTypesConverter.getOpenApiScalar(Integer.class, true))))
 			.method(HttpMethod.DELETE)
+			.operationId(CatalogDataApiRootDescriptor.DELETE_ENTITY.operation(entitySchema))
 			.description(CatalogDataApiRootDescriptor.DELETE_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.queryParameters(buildEntityFetchQueryParameters(entitySchema))
@@ -252,8 +262,10 @@ public class DataApiEndpointBuilder {
 	@Nonnull
 	public OpenApiCollectionEndpoint buildDeleteEntitiesByQueryEndpoint(@Nonnull EntitySchemaContract entitySchema) {
 		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
-			.path(p -> p) // directly at the collection root
+			.path(p -> p
+				.staticItem(CatalogDataApiRootDescriptor.DELETE_ENTITY.urlPathItem()))
 			.method(HttpMethod.DELETE)
+			.operationId(CatalogDataApiRootDescriptor.DELETE_ENTITY.operation(entitySchema))
 			.description(CatalogDataApiRootDescriptor.DELETE_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(FetchEntityRequestDescriptor.THIS_DELETE.name(entitySchema)))

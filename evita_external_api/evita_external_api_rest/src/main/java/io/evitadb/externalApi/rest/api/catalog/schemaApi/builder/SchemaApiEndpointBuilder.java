@@ -25,17 +25,15 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.builder;
 
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.UpdateCatalogSchemaRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.model.UpdateEntitySchemaRequestDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.DeleteEntitySchemaHandler;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.GetCatalogSchemaHandler;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.GetEntitySchemaHandler;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.UpdateCatalogSchemaHandler;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint.UpdateEntitySchemaHandler;
-import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCollectionEndpoint;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
@@ -43,7 +41,6 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint.newCatalogEndpoint;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiCollectionEndpoint.newCollectionEndpoint;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
@@ -58,16 +55,15 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 @RequiredArgsConstructor
 public class SchemaApiEndpointBuilder {
 
-	@Nonnull private final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
-
 	@Nonnull
 	public OpenApiCollectionEndpoint buildGetEntitySchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
 	                                                              @Nonnull EntitySchemaContract entitySchema) {
 
 		return newCollectionEndpoint(catalogSchema, entitySchema)
 			.path(p -> p
-				.staticItem(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.urlPathItem()))
 			.method(HttpMethod.GET)
+			.operationId(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.operation())
 			.description(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.successResponse(nonNull(typeRefTo(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema))))
@@ -77,12 +73,13 @@ public class SchemaApiEndpointBuilder {
 
 	@Nonnull
 	public OpenApiCollectionEndpoint buildUpdateEntitySchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
-	                                                                         @Nonnull EntitySchemaContract entitySchema) {
+	                                                                 @Nonnull EntitySchemaContract entitySchema) {
 
 		return newCollectionEndpoint(catalogSchema, entitySchema)
 			.path(p -> p
-				.staticItem(CatalogSchemaApiRootDescriptor.UPDATE_ENTITY_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(CatalogSchemaApiRootDescriptor.UPDATE_ENTITY_SCHEMA.urlPathItem()))
 			.method(HttpMethod.PUT)
+			.operationId(CatalogSchemaApiRootDescriptor.UPDATE_ENTITY_SCHEMA.operation(entitySchema))
 			.description(CatalogSchemaApiRootDescriptor.UPDATE_ENTITY_SCHEMA.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(UpdateEntitySchemaRequestDescriptor.THIS.name()))
@@ -92,25 +89,12 @@ public class SchemaApiEndpointBuilder {
 	}
 
 	@Nonnull
-	public OpenApiCollectionEndpoint buildDeleteEntitySchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
-	                                                                 @Nonnull EntitySchemaContract entitySchema) {
-
-		return newCollectionEndpoint(catalogSchema, entitySchema)
-			.path(p -> p
-				.staticItem(CatalogSchemaApiRootDescriptor.DELETE_ENTITY_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
-			.method(HttpMethod.DELETE)
-			.description(CatalogSchemaApiRootDescriptor.DELETE_ENTITY_SCHEMA.description(entitySchema.getName()))
-			.deprecationNotice(entitySchema.getDeprecationNotice())
-			.handler(DeleteEntitySchemaHandler::new)
-			.build();
-	}
-
-	@Nonnull
 	public OpenApiCatalogEndpoint buildGetCatalogSchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
 		return newCatalogEndpoint(catalogSchema)
 			.path(p -> p
-				.staticItem(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.urlPathItem()))
 			.method(HttpMethod.GET)
+			.operationId(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.operation())
 			.description(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.description())
 			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))
 			.handler(GetCatalogSchemaHandler::new)
@@ -121,8 +105,9 @@ public class SchemaApiEndpointBuilder {
 	public OpenApiCatalogEndpoint buildUpdateCatalogSchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
 		return newCatalogEndpoint(catalogSchema)
 			.path(p -> p
-				.staticItem(CatalogSchemaApiRootDescriptor.UPDATE_CATALOG_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(CatalogSchemaApiRootDescriptor.UPDATE_CATALOG_SCHEMA.urlPathItem()))
 			.method(HttpMethod.PUT)
+			.operationId(CatalogSchemaApiRootDescriptor.UPDATE_CATALOG_SCHEMA.operation())
 			.description(CatalogSchemaApiRootDescriptor.UPDATE_CATALOG_SCHEMA.description())
 			.requestBody(typeRefTo(UpdateCatalogSchemaRequestDescriptor.THIS.name()))
 			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))

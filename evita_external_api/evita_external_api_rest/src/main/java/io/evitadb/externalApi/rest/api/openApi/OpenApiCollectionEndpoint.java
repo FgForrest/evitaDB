@@ -71,13 +71,14 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 	                                  @Nonnull PathItem.HttpMethod method,
 	                                  @Nonnull Path path,
 									  boolean localized,
+									  @Nonnull String operationId,
 	                                  @Nonnull String description,
 	                                  @Nullable String deprecationNotice,
 	                                  @Nonnull List<OpenApiEndpointParameter> parameters,
 	                                  @Nullable OpenApiSimpleType requestBody,
 	                                  @Nonnull OpenApiSimpleType successResponse,
 	                                  @Nonnull Function<CollectionRestHandlingContext, RestHandler<CollectionRestHandlingContext>> handlerBuilder) {
-		super(method, path, localized, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
+		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
 	}
@@ -118,6 +119,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		@Nullable private Path path;
 		private boolean localized;
 
+		@Nullable private String operationId;
 		@Nullable private String description;
 		@Nullable private String deprecationNotice;
 		@Nonnull private final List<OpenApiEndpointParameter> parameters;
@@ -173,6 +175,15 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 			this.localized = localized;
 			this.path = pathBuilder.getPath();
 			this.parameters.addAll(pathBuilder.getPathParameters());
+			return this;
+		}
+
+		/**
+		 * Sets endpoint operation ID.
+		 */
+		@Nonnull
+		public Builder operationId(@Nonnull String operationId) {
+			this.operationId = operationId;
 			return this;
 		}
 
@@ -261,6 +272,10 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing method.")
 			);
 			Assert.isPremiseValid(
+				operationId != null && !operationId.isEmpty(),
+				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing operationId.")
+			);
+			Assert.isPremiseValid(
 				description != null && !description.isEmpty(),
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing description.")
 			);
@@ -295,6 +310,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 				method,
 				path,
 				localized,
+				operationId,
 				description,
 				deprecationNotice,
 				parameters,

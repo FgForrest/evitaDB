@@ -33,7 +33,8 @@ import io.evitadb.externalApi.api.model.EndpointDescriptor;
 public interface RestRootDescriptor {
 
 	EndpointDescriptor OPEN_API_SPECIFICATION = EndpointDescriptor.builder()
-		.operation("openApiSpec")
+		.operation("getOpenApiSpecification")
+		.urlPathItem("")
 		.description("""
 			OpenAPI Specification in YAML format.
 			""")

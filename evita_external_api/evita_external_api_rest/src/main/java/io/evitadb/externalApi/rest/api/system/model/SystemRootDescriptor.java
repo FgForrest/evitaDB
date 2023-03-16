@@ -43,6 +43,7 @@ public interface SystemRootDescriptor {
 
     EndpointDescriptor LIVENESS = EndpointDescriptor.builder()
         .operation("liveness")
+        .urlPathItem("liveness")
         .description("""
             Returns `true` when the API is ready to take requests.
             """)
@@ -50,14 +51,16 @@ public interface SystemRootDescriptor {
         .build();
 
     EndpointDescriptor GET_CATALOG = EndpointDescriptor.builder()
-        .operation("catalogs")
+        .operation("getCatalog")
+        .urlPathItem("catalogs")
         .description("""
             Returns single catalog by its name.
             """)
         .type(nullableRef(CatalogDescriptor.THIS))
         .build();
     EndpointDescriptor LIST_CATALOGS = EndpointDescriptor.builder()
-        .operation("catalogs")
+        .operation("listCatalogs")
+        .urlPathItem("catalogs")
         .description("""
             Returns all catalogs known to evitaDB.
             """)
@@ -65,21 +68,24 @@ public interface SystemRootDescriptor {
         .build();
 
     EndpointDescriptor CREATE_CATALOG = EndpointDescriptor.builder()
-        .operation("catalogs")
+        .operation("createCatalog")
+        .urlPathItem("catalogs")
         .description("""
             Creates new catalog of particular name if it doesn't exist. New empty catalog is returned.
             """)
         .type(nonNullRef(CatalogDescriptor.THIS))
         .build();
     EndpointDescriptor UPDATE_CATALOG = EndpointDescriptor.builder()
-        .operation("catalogs")
+        .operation("updateCatalog")
+        .urlPathItem("catalogs")
         .description("""
             Updates part of data of the specified catalog.
             """)
         .type(nonNullRef(CatalogDescriptor.THIS))
         .build();
     EndpointDescriptor DELETE_CATALOG = EndpointDescriptor.builder()
-        .operation("catalogs")
+        .operation("deleteCatalog")
+        .urlPathItem("catalogs")
         .description("""
             Deletes catalog with name along with its contents on disk.
             """)

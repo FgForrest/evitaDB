@@ -23,6 +23,9 @@
 
 package io.evitadb.externalApi.api.model;
 
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.externalApi.api.ExternalApiNamingConventions;
+import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
@@ -31,11 +34,18 @@ import lombok.Builder;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
 
 /**
  * API-independent descriptor of single endpoint (query, mutation, ...) in schema-based external APIs.
  *
  * @param operation name of operation this endpoint will provide
+ * @param urlPathItem how is the operation name presented in URL (if used by target API)
  * @param classifier name of classifier to locate data this endpoint will work with
  * @param description can be parametrized with {@link String#format(String, Object...)} parameters
  *
@@ -43,6 +53,7 @@ import javax.annotation.Nullable;
  */
 @Builder
 public record EndpointDescriptor(@Nonnull String operation,
+								 @Nullable String urlPathItem,
                                  @Nullable String classifier,
                                  @Nonnull String description,
                                  @Nullable PropertyDataTypeDescriptor type) {
@@ -64,9 +75,37 @@ public record EndpointDescriptor(@Nonnull String operation,
 		);
 	}
 
+	/**
+	 * Returns operation name. If static classifier is specified, it is appended as suffix to operation name.
+	 */
 	@Nonnull
-	public String operation(@Nonnull NamingConvention namingConvention) {
-		return StringUtils.toSpecificCase(operation(), namingConvention);
+	public String operation() {
+		if (classifier() != null) {
+			return String.join(CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER, operation, classifier(FIELD_NAME_NAMING_CONVENTION));
+		}
+		return operation;
+	}
+
+	/**
+	 * Returns operation name suffixed with schema name
+	 */
+	@Nonnull
+	public String operation(@Nonnull NamedSchemaContract schema) {
+		Assert.isPremiseValid(
+			!hasClassifier(),
+			() -> new ExternalApiInternalError("Endpoint `" + operation + "` has static classifier, cannot use dynamic one.")
+		);
+
+		return String.join(CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER, operation, schema.getNameVariant(FIELD_NAME_NAMING_CONVENTION));
+	}
+
+	@Nonnull
+	public String urlPathItem() {
+		Assert.isPremiseValid(
+			urlPathItem != null,
+			() -> new ExternalApiInternalError("URL path item of endpoint is missing.")
+		);
+		return urlPathItem;
 	}
 
 	@Nullable
@@ -75,6 +114,10 @@ public record EndpointDescriptor(@Nonnull String operation,
 			return null;
 		}
 		return StringUtils.toSpecificCase(classifier(), namingConvention);
+	}
+
+	public boolean hasClassifier() {
+		return classifier != null;
 	}
 
 	@Nonnull

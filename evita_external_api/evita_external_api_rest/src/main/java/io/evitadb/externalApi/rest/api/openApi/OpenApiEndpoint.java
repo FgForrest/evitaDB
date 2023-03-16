@@ -88,6 +88,10 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	 */
 	protected final boolean localized;
 
+	/**
+	 * ID/name of operation this endpoint represents. Usually used by client generators for naming methods.
+	 */
+	@Nonnull protected final String operationId;
 	@Nonnull protected final String description;
 	@Nullable protected final String deprecationNotice;
 	/**
@@ -119,6 +123,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	@Nonnull
 	public Operation toOperation() {
 		final Operation operation = new Operation();
+		operation.operationId(this.operationId);
 		operation.description(this.description);
 		if (this.deprecationNotice != null) {
 			operation.deprecated(true);
@@ -232,7 +237,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 
 		@Nonnull
 		public PathBuilder staticItem(@Nullable String staticItem) {
-			if (staticItem != null) {
+			if (staticItem != null && !staticItem.isEmpty()) {
 				this.path = this.path.resolve(staticItem);
 			}
 			return this;

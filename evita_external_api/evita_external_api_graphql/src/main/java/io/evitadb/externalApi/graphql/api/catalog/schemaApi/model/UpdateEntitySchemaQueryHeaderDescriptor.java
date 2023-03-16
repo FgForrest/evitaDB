@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.model;
 
+import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaApiRootDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
