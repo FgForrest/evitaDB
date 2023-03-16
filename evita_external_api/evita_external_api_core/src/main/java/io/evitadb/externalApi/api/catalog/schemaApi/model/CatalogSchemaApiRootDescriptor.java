@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.schemaApi.model;
+package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
@@ -30,7 +30,7 @@ import io.evitadb.externalApi.api.model.EndpointDescriptor;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 
 /**
- * Descriptor of root of schema API for GraphQL API.
+ * Descriptor of root of schema API for schema-based APIs.
  *
  * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Endpoints in this
  * descriptor are supposed to be dynamically registered to target generated DTO.
@@ -41,6 +41,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor GET_CATALOG_SCHEMA = EndpointDescriptor.builder()
         .operation("get")
+        .urlPathItem("schema")
         .classifier("catalog")
         .description("""
             Returns evitaDB's internal schema for whole catalog.
@@ -50,6 +51,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
         .build();
     EndpointDescriptor UPDATE_CATALOG_SCHEMA = EndpointDescriptor.builder()
         .operation("update")
+        .urlPathItem("schema")
         .classifier("catalog")
         .description("""
             Updates evitaDB's internal schema for whole catalog.
@@ -59,6 +61,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor GET_ENTITY_SCHEMA = EndpointDescriptor.builder()
         .operation("get")
+        .urlPathItem("schema")
         .description("""
             Returns evitaDB's internal schema for entities from `%s` collection.
             Can be used for altering schema of entities and their data.
@@ -68,6 +71,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor UPDATE_ENTITY_SCHEMA = EndpointDescriptor.builder()
         .operation("update")
+        .urlPathItem("schema")
         .description("""
             Updates evitaDB's internal schema for entities from `%s` collection.
             """)

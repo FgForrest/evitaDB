@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.api.openApi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiCollectionEndpoint.Builder;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.ParameterLocation;
 import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
@@ -58,13 +59,14 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 
 	private OpenApiSystemEndpoint(@Nonnull PathItem.HttpMethod method,
 	                              @Nonnull Path path,
+								  @Nonnull String operationId,
 	                              @Nonnull String description,
 	                              @Nullable String deprecationNotice,
 	                              @Nonnull List<OpenApiEndpointParameter> parameters,
 	                              @Nullable OpenApiSimpleType requestBody,
 	                              @Nonnull OpenApiSimpleType successResponse,
 	                              @Nonnull Function<SystemRestHandlingContext, RestHandler<SystemRestHandlingContext>> handlerBuilder) {
-		super(method, path, false, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
+		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 	}
 
 	/**
@@ -95,6 +97,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		@Nullable private PathItem.HttpMethod method;
 		@Nullable private Path path;
 
+		@Nullable private String operationId;
 		@Nullable private String description;
 		@Nullable private String deprecationNotice;
 		@Nonnull private final List<OpenApiEndpointParameter> parameters;
@@ -129,6 +132,15 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 
 			this.path = pathBuilder.getPath();
 			this.parameters.addAll(pathBuilder.getPathParameters());
+			return this;
+		}
+
+		/**
+		 * Sets endpoint operation ID.
+		 */
+		@Nonnull
+		public Builder operationId(@Nonnull String operationId) {
+			this.operationId = operationId;
 			return this;
 		}
 
@@ -217,6 +229,10 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing method.")
 			);
 			Assert.isPremiseValid(
+				operationId != null && !operationId.isEmpty(),
+				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing operationId.")
+			);
+			Assert.isPremiseValid(
 				description != null && !description.isEmpty(),
 				() -> new OpenApiBuildingError("Endpoint `" + path + "` is missing description.")
 			);
@@ -248,6 +264,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 			return new OpenApiSystemEndpoint(
 				method,
 				path,
+				operationId,
 				description,
 				deprecationNotice,
 				parameters,

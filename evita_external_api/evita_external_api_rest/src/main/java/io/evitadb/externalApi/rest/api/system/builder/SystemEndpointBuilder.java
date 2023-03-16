@@ -46,7 +46,6 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiSystemEndpoint.newSystemEndpoint;
@@ -66,8 +65,10 @@ public class SystemEndpointBuilder {
 	@Nonnull
 	public OpenApiSystemEndpoint buildOpenApiSpecificationEndpoint() {
 		return newSystemEndpoint()
-			.path(p -> p) // directly at the system root
+			.path(p -> p
+				.staticItem(RestRootDescriptor.OPEN_API_SPECIFICATION.urlPathItem()))
 			.method(HttpMethod.GET)
+			.operationId(RestRootDescriptor.OPEN_API_SPECIFICATION.operation())
 			.description(RestRootDescriptor.OPEN_API_SPECIFICATION.description())
 			.successResponse(nonNull(DataTypesConverter.getOpenApiScalar(String.class)))
 			.handler(OpenApiSpecificationHandler::new)
@@ -78,8 +79,9 @@ public class SystemEndpointBuilder {
 	public OpenApiSystemEndpoint buildLivenessEndpoint() {
 		return newSystemEndpoint()
 			.path(p -> p
-				.staticItem(SystemRootDescriptor.LIVENESS.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(SystemRootDescriptor.LIVENESS.urlPathItem()))
 			.method(HttpMethod.GET)
+			.operationId(SystemRootDescriptor.LIVENESS.operation())
 			.description(SystemRootDescriptor.LIVENESS.description())
 			.successResponse(nonNull(typeRefTo(LivenessDescriptor.THIS.name())))
 			.handler(LivenessHandler::new)
@@ -90,9 +92,10 @@ public class SystemEndpointBuilder {
 	public OpenApiSystemEndpoint buildGetCatalogEndpoint() {
 		return newSystemEndpoint()
 			.path(p -> p
-				.staticItem(SystemRootDescriptor.GET_CATALOG.operation(URL_NAME_NAMING_CONVENTION))
+				.staticItem(SystemRootDescriptor.GET_CATALOG.urlPathItem())
 				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.GET)
+			.operationId(SystemRootDescriptor.GET_CATALOG.operation())
 			.description(SystemRootDescriptor.GET_CATALOG.description())
 			.successResponse(typeRefTo(CatalogUnionDescriptor.THIS.name()))
 			.handler(GetCatalogHandler::new)
@@ -103,8 +106,9 @@ public class SystemEndpointBuilder {
 	public OpenApiSystemEndpoint buildListCatalogsEndpoint() {
 		return newSystemEndpoint()
 			.path(p -> p
-				.staticItem(SystemRootDescriptor.LIST_CATALOGS.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(SystemRootDescriptor.LIST_CATALOGS.urlPathItem()))
 			.method(HttpMethod.GET)
+			.operationId(SystemRootDescriptor.LIST_CATALOGS.operation())
 			.description(SystemRootDescriptor.LIST_CATALOGS.description())
 			.successResponse(nonNull(arrayOf(typeRefTo(CatalogUnionDescriptor.THIS.name()))))
 			.handler(ListCatalogsHandler::new)
@@ -115,8 +119,9 @@ public class SystemEndpointBuilder {
 	public OpenApiSystemEndpoint buildCreateCatalogEndpoint() {
 		return newSystemEndpoint()
 			.path(p -> p
-				.staticItem(SystemRootDescriptor.CREATE_CATALOG.operation(URL_NAME_NAMING_CONVENTION)))
+				.staticItem(SystemRootDescriptor.CREATE_CATALOG.urlPathItem()))
 			.method(HttpMethod.POST)
+			.operationId(SystemRootDescriptor.CREATE_CATALOG.operation())
 			.description(SystemRootDescriptor.CREATE_CATALOG.description())
 			.requestBody(typeRefTo(CreateCatalogRequestDescriptor.THIS.name()))
 			.successResponse(nonNull(typeRefTo(CatalogDescriptor.THIS.name())))
@@ -128,9 +133,10 @@ public class SystemEndpointBuilder {
 	public OpenApiSystemEndpoint buildUpdateCatalogEndpoint() {
 		return newSystemEndpoint()
 			.path(p -> p
-				.staticItem(SystemRootDescriptor.UPDATE_CATALOG.operation(URL_NAME_NAMING_CONVENTION))
+				.staticItem(SystemRootDescriptor.UPDATE_CATALOG.urlPathItem())
 				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.PATCH)
+			.operationId(SystemRootDescriptor.UPDATE_CATALOG.operation())
 			.description(SystemRootDescriptor.UPDATE_CATALOG.description())
 			.requestBody(typeRefTo(UpdateCatalogRequestDescriptor.THIS.name()))
 			.successResponse(nonNull(typeRefTo(CatalogDescriptor.THIS.name())))
@@ -142,67 +148,12 @@ public class SystemEndpointBuilder {
 	public OpenApiSystemEndpoint buildDeleteCatalogEndpoint() {
 		return newSystemEndpoint()
 			.path(p -> p
-				.staticItem(SystemRootDescriptor.DELETE_CATALOG.operation(URL_NAME_NAMING_CONVENTION))
+				.staticItem(SystemRootDescriptor.DELETE_CATALOG.urlPathItem())
 				.paramItem(CatalogsHeaderDescriptor.NAME.to(operationPathParameterBuilderTransformer)))
 			.method(HttpMethod.DELETE)
+			.operationId(SystemRootDescriptor.DELETE_CATALOG.operation())
 			.description(SystemRootDescriptor.DELETE_CATALOG.description())
 			.handler(DeleteCatalogHandler::new)
 			.build();
 	}
-
-//
-//	@Nonnull
-//	public OpenApiCollectionEndpoint buildUpdateEntitySchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
-//	                                                                         @Nonnull EntitySchemaContract entitySchema) {
-//
-//		return newCollectionEndpoint(catalogSchema, entitySchema)
-//			.path(p -> p
-//				.staticItem(CatalogSchemaApiRootDescriptor.UPDATE_ENTITY_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
-//			.method(HttpMethod.PUT)
-//			.description(CatalogSchemaApiRootDescriptor.UPDATE_ENTITY_SCHEMA.description(entitySchema.getName()))
-//			.deprecationNotice(entitySchema.getDeprecationNotice())
-//			.requestBody(typeRefTo(UpdateEntitySchemaRequestDescriptor.THIS.name()))
-//			.successResponse(nonNull(typeRefTo(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema))))
-//			.handler(UpdateEntitySchemaHandler::new)
-//			.build();
-//	}
-//
-//	@Nonnull
-//	public OpenApiCollectionEndpoint buildDeleteEntitySchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema,
-//	                                                                 @Nonnull EntitySchemaContract entitySchema) {
-//
-//		return newCollectionEndpoint(catalogSchema, entitySchema)
-//			.path(p -> p
-//				.staticItem(CatalogSchemaApiRootDescriptor.DELETE_ENTITY_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
-//			.method(HttpMethod.DELETE)
-//			.description(CatalogSchemaApiRootDescriptor.DELETE_ENTITY_SCHEMA.description(entitySchema.getName()))
-//			.deprecationNotice(entitySchema.getDeprecationNotice())
-//			.handler(DeleteEntitySchemaHandler::new)
-//			.build();
-//	}
-//
-//	@Nonnull
-//	public OpenApiCatalogEndpoint buildGetCatalogSchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
-//		return newCatalogEndpoint(catalogSchema)
-//			.path(p -> p
-//				.staticItem(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
-//			.method(HttpMethod.GET)
-//			.description(CatalogSchemaApiRootDescriptor.GET_CATALOG_SCHEMA.description())
-//			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))
-//			.handler(GetCatalogSchemaHandler::new)
-//			.build();
-//	}
-//
-//	@Nonnull
-//	public OpenApiCatalogEndpoint buildUpdateCatalogSchemaEndpoint(@Nonnull CatalogSchemaContract catalogSchema) {
-//		return newCatalogEndpoint(catalogSchema)
-//			.path(p -> p
-//				.staticItem(CatalogSchemaApiRootDescriptor.UPDATE_CATALOG_SCHEMA.operation(URL_NAME_NAMING_CONVENTION)))
-//			.method(HttpMethod.PUT)
-//			.description(CatalogSchemaApiRootDescriptor.UPDATE_CATALOG_SCHEMA.description())
-//			.requestBody(typeRefTo(UpdateCatalogSchemaRequestDescriptor.THIS.name()))
-//			.successResponse(nonNull(typeRefTo(CatalogSchemaDescriptor.THIS.name())))
-//			.handler(UpdateCatalogSchemaHandler::new)
-//			.build();
-//	}
 }

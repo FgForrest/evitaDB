@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
+import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint;
@@ -46,8 +47,10 @@ public class CatalogEndpointBuilder {
 	@Nonnull
 	public OpenApiCatalogEndpoint buildOpenApiSpecificationEndpoint(@Nonnull CatalogRestBuildingContext buildingContext) {
 		return newCatalogEndpoint(buildingContext.getSchema())
-			.path(p -> p) // directly at the catalog root
+			.path(p -> p
+				.staticItem(RestRootDescriptor.OPEN_API_SPECIFICATION.urlPathItem()))
 			.method(HttpMethod.GET)
+			.operationId(RestRootDescriptor.OPEN_API_SPECIFICATION.operation())
 			.description(RestRootDescriptor.OPEN_API_SPECIFICATION.description())
 			.successResponse(nonNull(DataTypesConverter.getOpenApiScalar(String.class)))
 			.handler(OpenApiSpecificationHandler::new)

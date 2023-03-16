@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.system.model;
 
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
-import io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 

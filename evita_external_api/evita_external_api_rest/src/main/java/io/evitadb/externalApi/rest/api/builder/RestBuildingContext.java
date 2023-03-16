@@ -175,7 +175,7 @@ public abstract class RestBuildingContext {
 		info.setTitle(getOpenApiTitle());
 		info.setContact(new Contact().email("novotny@fg.cz").url("https://www.fg.cz"));
 		info.setVersion(VersionUtils.readVersion());
-		info.setLicense(new License().name("Business Source License 1.1").url("https://github.com/FgForrest/evitaDB/blob/dev/LICENSE"));
+		info.setLicense(new License().name("Business Source License 1.1").url("https://github.com/FgForrest/evitaDB/blob/master/LICENSE"));
 		openApi.info(info);
 
 		final Components components = new Components();

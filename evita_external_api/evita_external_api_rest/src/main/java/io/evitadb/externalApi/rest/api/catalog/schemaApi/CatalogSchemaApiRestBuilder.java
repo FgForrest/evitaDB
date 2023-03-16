@@ -46,7 +46,7 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 	public CatalogSchemaApiRestBuilder(@Nonnull CatalogRestBuildingContext buildingContext) {
 		super(buildingContext);
 
-		this.endpointBuilder = new SchemaApiEndpointBuilder(operationPathParameterBuilderTransformer);
+		this.endpointBuilder = new SchemaApiEndpointBuilder();
 		this.entitySchemaObjectBuilder = new EntitySchemaObjectBuilder(
 			buildingContext,
 			objectBuilderTransformer,
@@ -77,7 +77,6 @@ public class CatalogSchemaApiRestBuilder extends PartialRestBuilder<CatalogRestB
 			entitySchemaObjectBuilder.build(entitySchema);
 			buildingContext.registerEndpoint(endpointBuilder.buildGetEntitySchemaEndpoint(buildingContext.getSchema(), entitySchema));
 			buildingContext.registerEndpoint(endpointBuilder.buildUpdateEntitySchemaEndpoint(buildingContext.getSchema(), entitySchema));
-			buildingContext.registerEndpoint(endpointBuilder.buildDeleteEntitySchemaEndpoint(buildingContext.getSchema(), entitySchema));
 		});
 
 		catalogSchemaObjectBuilder.build();

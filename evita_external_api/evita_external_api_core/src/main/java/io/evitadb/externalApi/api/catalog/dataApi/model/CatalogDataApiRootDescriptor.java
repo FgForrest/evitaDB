@@ -56,6 +56,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor COLLECTIONS = EndpointDescriptor.builder()
         .operation("collections")
+        .urlPathItem("collections")
         .description("""
             Returns all present collection entity types in this catalog.
             """)
@@ -64,6 +65,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor GET_UNKNOWN_ENTITY = EndpointDescriptor.builder()
         .operation("get")
+        .urlPathItem("get")
         .classifier("entity")
         .description("""
             Finds and returns single entity from unspecified collection by shared arguments between collections.
@@ -73,6 +75,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor LIST_UNKNOWN_ENTITY = EndpointDescriptor.builder()
         .operation("list")
+        .urlPathItem("list")
         .classifier("entity")
         .description("""
             Finds and returns list of entities from unspecified collections by shared arguments between collections.
@@ -82,6 +85,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor GET_ENTITY = EndpointDescriptor.builder()
         .operation("get")
+        .urlPathItem("get")
         .description("""
             Finds and returns single entity from `%s` collection by simplified collection-specific arguments.
             """)
@@ -90,6 +94,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor LIST_ENTITY = EndpointDescriptor.builder()
         .operation("list")
+        .urlPathItem("list")
         .description("""
             Finds and returns list of entities from `%s` collection by complex query.
             """)
@@ -98,6 +103,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor QUERY_ENTITY = EndpointDescriptor.builder()
         .operation("query")
+        .urlPathItem("query")
         .description("""
             Finds and returns entities and extra results from `%s` collection by complex query.
             """)
@@ -106,6 +112,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor COUNT_COLLECTION = EndpointDescriptor.builder()
         .operation("count")
+        .urlPathItem("count")
         .description("""
             Returns number of all entities stored in `%s` collection.
             """)
@@ -114,6 +121,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor UPSERT_ENTITY = EndpointDescriptor.builder()
         .operation("upsert")
+        .urlPathItem("")
         .description("""
             Updates existing or inserts new entity to `%s` collection.
             """)
@@ -122,6 +130,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor DELETE_ENTITY = EndpointDescriptor.builder()
         .operation("delete")
+        .urlPathItem("")
         .description("""
             Deletes existing entities from `%s` collection that conforms with passed query and returns deletion info.
             """)
