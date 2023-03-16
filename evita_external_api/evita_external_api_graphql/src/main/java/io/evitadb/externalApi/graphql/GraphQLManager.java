@@ -38,6 +38,7 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler;
 import io.evitadb.externalApi.graphql.io.GraphQLHandler;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.server.handlers.PathHandler;
@@ -82,8 +83,11 @@ public class GraphQLManager {
 		this.evita = evita;
 
 		// register initial endpoints
+		final long buildingStartTime = System.currentTimeMillis();
+		log.info("Starting to build GraphQL API...");
 		registerSystemApi();
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
+		log.info("Built GraphQL API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
 
 	/**
@@ -99,6 +103,9 @@ public class GraphQLManager {
 			!registeredCatalogs.containsKey(catalogName),
 			() -> new GraphQLInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
+
+		final long buildingStartTime = System.currentTimeMillis();
+		log.info("Starting to build GraphQL API for catalog `" + catalogName + "`...");
 
 		try {
 			final String catalogDataApiPath = buildCatalogDataApiPath(catalog.getSchema());
@@ -131,6 +138,8 @@ public class GraphQLManager {
 			// log and skip the catalog entirely
 			log.error("Catalog `" + catalogName + "` is corrupted and will not accessible by GraphQL API.", ex);
 		}
+
+		log.info("Built GraphQL API for catalog `" + catalogName + "` in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
 
 	/**
