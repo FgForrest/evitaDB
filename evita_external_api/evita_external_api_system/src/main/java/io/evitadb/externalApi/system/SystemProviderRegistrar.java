@@ -106,12 +106,16 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				Arrays.stream(externalApiConfiguration.getBaseUrls())
 					.map(it -> it + fileName)
 					.toArray(String[]::new),
-				Arrays.stream(externalApiConfiguration.getBaseUrls())
-					.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
-					.toArray(String[]::new),
-				Arrays.stream(externalApiConfiguration.getBaseUrls())
-					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
-					.toArray(String[]::new)
+				certificateSettings.generateAndUseSelfSigned() ?
+					Arrays.stream(externalApiConfiguration.getBaseUrls())
+						.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
+						.toArray(String[]::new) :
+					new String[0],
+				certificateSettings.generateAndUseSelfSigned() ?
+					Arrays.stream(externalApiConfiguration.getBaseUrls())
+						.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
+						.toArray(String[]::new) :
+					new String[0]
 			);
 		} catch (IOException e) {
 			throw new EvitaInternalError(e.getMessage(), e);
