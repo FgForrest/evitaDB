@@ -54,7 +54,7 @@ in the set. To access the dataset on your hardware, you need to:
    ```bash
    docker pull index.docker.io/evitadb/evitadb:latest
    ```
-4. start the evitaDB server (replace `__data_dir__` with the path to your data folder)
+4. start the evitaDB server
    ```bash
    docker run --name evitadb -i --net=host \
           -v "./data:/evita/data" \
