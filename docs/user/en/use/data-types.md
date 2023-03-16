@@ -40,7 +40,7 @@ evitaDB data types are limited to following list:
 - [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html), 
     formatted as `1.124`
 - [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html), 
-    formatted as `2021-01-01T00:00:00+01:00` ([offset needs to be maintained](https://spin.atomicobject.com/2016/07/06/time-zones-offsets/))
+    formatted as `2021-01-01T00:00:00+01:00`
 - [LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html), 
     formatted as `2021-01-01T00:00:00`
 - [LocalDate](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDate.html), 
@@ -69,10 +69,29 @@ arrays and non-array types in a single *attribute* / *associated data* schema. O
 data* schema specifies that it accepts an array of integers, it cannot store a single integer value, and vice versa.
 integer attribute/associated data will never accept an array of integers.
 
+<LanguageSpecific to="java">
+
 <Note type="info">
 Application logic connected with evitaDB data types is located in 
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/EvitaDataTypes.java</SourceClass>
 class.
+</Note>
+
+</LanguageSpecific>
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Why do we use OffsetDateTime for time information?
+</NoteTitle>
+
+Offset/time zone handling varies from database to database. We wanted to avoid setting the timezone in session or 
+database configuration properties, as this mechanism is error-prone and impractical. Saving/loading date times with 
+timezone information would be the best option, but we run into problems with 
+[parsing](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/parse) in certain 
+environments, and only the date with offset information seems to be widely supported. The offset information is good 
+enough for our case - it identifies a globally valid time that is known at the time the data value is stored.
 </Note>
 
 ### DateTimeRange
@@ -155,19 +174,16 @@ Associated data may even contain array of POJOs. Such data will be automatically
 
 <LanguageSpecific to="java">
 
-Collection generics must be resolvable to an exact class (meaning that wildcard generics are not supported). The complex 
-type may also be an immutable class, accepting properties via the constructor parameters. Immutable classes must be 
-compiled with the javac `-parameters` argument, and their names in the constructor must match their property names 
-of the getter fields. This fact plays really well with
-[Lombok @Data annotation](https://projectlombok.org/features/Data).
-
 ### Serialization
 
 Storing a complex type to entity is executed as follows:
 
 ``` java
 session.createNewEntity("product", 1)
-	   .setAssociatedData("stockAvailability", new ProductStockAvailability());
+	   .setAssociatedData(
+	        "stockAvailability", 
+	        new ProductStockAvailability()
+        );
 ```
 
 All [properties that comply with JavaBean naming rules](https://www.baeldung.com/java-pojo-class#what-is-a-javabean) and
@@ -183,22 +199,26 @@ public class ProductStockAvailability implements Serializable {
     private URL stockUrl;
     private URL stockMotive;
     
-    // id gets serialized - both methods are present and are valid JavaBean property methods
+    // id gets serialized - both methods are present and 
+    // are valid JavaBean property methods
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
     
-    // stockName gets serialized - both methods are present and are valid JavaBean property methods
+    // stockName gets serialized - both methods are present 
+    // and are valid JavaBean property methods
     public String getStockName() { return stockName; }
     public void setStockName(String stockName) { this.stockName = stockName; }
     
-    // stockUrl will not be serialized - corresponding field is annotated with @NonSerializedData
+    // stockUrl will not be serialized 
+    // corresponding field is annotated with @NonSerializedData
     public URL getStockUrl() { return stockUrl; }
     public void setStockUrl(URL stockUrl) { this.stockUrl = stockUrl; }
     
     // active will not be serialized - it has no corresponding mutator method
     public isActive() { return false; }
     
-    // stock motive will not be serialized because getter method is marked with @NonSerializedData
+    // stock motive will not be serialized 
+    // because getter method is marked with @NonSerializedData
     @NonSerializedData
     public URL getStockMotive() { return stockMotive; }
     public void setStockMotive(URL stockMotive) { this.stockMotive = stockMotive; }
@@ -241,6 +261,13 @@ public class SomeDataWithCollections implements Serializable {
 
 This class will (de)serialize just fine.
 
+<Note type="warning">
+Collection generics must be resolvable to an exact class (meaning that wildcard generics are not supported). The complex 
+type may also be an immutable class, accepting properties via the constructor parameters. Immutable classes must be 
+compiled with the javac `-parameters` argument, and their names in the constructor must match their property names of 
+the getter fields. This fact plays really well with [Lombok @Data annotation](https://projectlombok.org/features/Data).
+</Note>
+
 #### Test recommendations
 
 Because methods that don't follow the JavaBeans contract are silently skipped, it is highly recommended to always
@@ -250,14 +277,15 @@ store and retrieve associated data in the unit test and check that all important
 @Test
 void verifyProductStockAvailabilityIsProperlySerialized() {
     final EntityBuilder entity = new InitialEntityBuilder("product");
-    final ProductStockAvailability stockAvailabilityBeforeStore = new ProductStockAvailability(); 
-    entity.setAssociatedData("stockAvailability", stockAvailabilityBeforeStore);
-    final SealedEntity loadedEntity = entity(); //some custom logic to load proper entity
-    final ProductStockAvailability stockAvailabilityAfterLoad = loadedEntity.getAssociatedData(
+    final ProductStockAvailability beforeStore = new ProductStockAvailability(); 
+    entity.setAssociatedData("stockAvailability", beforeStore);
+    //some custom logic to load proper entity
+    final SealedEntity loadedEntity = entity();
+    final ProductStockAvailability afterLoad = loadedEntity.getAssociatedData(
         "stockAvailability", ProductStockAvailability.class
     );
     assertEquals(
-        stockAvailabilityBeforeStore, stockAvailabilityAfterLoad, 
+        beforeStore, afterLoad, 
         "ProductStockAvailability was not entirely serialized!"
     );
 }
@@ -390,7 +418,8 @@ public class ProductStockAvailability implements Serializable {
     
     @RenamedData
     public void setStockName(String stockName) {
-        this.upperCasedStockName = stockName == null ? null : stockName.toUpperCase();
+        this.upperCasedStockName = stockName == null ? 
+            null : stockName.toUpperCase();
     }
 }
 ```
