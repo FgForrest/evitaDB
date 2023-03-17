@@ -124,6 +124,20 @@ collections, and we want to make sure it's named and described the same in all o
 define an attribute with the same name as the global attribute. It can only "use" the global attribute with that name
 and thus share its complete definition.
 
+<Note type="info">
+
+<Note toggles="false">
+**** List of global attribute level mutations
+</Note>
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/CreateGlobalAttributeSchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/UseGlobalAttributeSchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaGloballyUniqueMutation.java</SourceClass>**
+
+And of course all [standard attribute mutations](#attribute).
+
+</Note>
+
 ### Entity
 
 Entity schema contains information about the `name`, `description` and the:
@@ -138,6 +152,24 @@ Entity schema contains information about the `name`, `description` and the:
 - [references](#reference)
 
 Entity schema can be made *deprecated*, which will be propagated to generated web API documentation.
+
+<Note type="info">
+
+<Note toggles="false">
+**** List of mutations related to entity type
+</Note>
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/CreateEntitySchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/RemoveEntitySchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyEntitySchemaNameMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyEntitySchemaMutation.java</SourceClass>**
+
+Within `ModifyEntitySchemaMutation` you can use mutations:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/ModifyEntitySchemaDescriptionMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/ModifyEntitySchemaDeprecationNoticeMutation.java</SourceClass>**
+
+</Note>
 
 #### Primary key generation
 
