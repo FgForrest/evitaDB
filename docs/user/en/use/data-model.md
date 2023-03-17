@@ -391,7 +391,7 @@ Price schema is part of main entity schema:
 
 <NoteTitle toggles="true">
 
-##### Want to know more about how to calculate your sales price?
+##### Want to know more about how the price for sale is calculated?
 </NoteTitle>
 
 The algorithm is quite complex and needs a lot of examples to understand it. Therefore, there is 

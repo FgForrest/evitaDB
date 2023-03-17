@@ -120,6 +120,11 @@ Within `ModifyCatalogSchemaMutation` you can use mutations:
 
 And [entity top level mutations](#entity).
 
+<LanguageSpecific to="java">
+The catalog schema is described by:
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/CatalogSchemaContract.java</SourceClass>
+</LanguageSpecific>
+
 </Note>
 
 #### Global attribute schema
@@ -159,6 +164,11 @@ and thus share its complete definition.
 
 And of course all [standard attribute mutations](#attribute).
 
+<LanguageSpecific to="java">
+The global attribute schema is described by:
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/GlobalAttributeSchemaContract.java</SourceClass>
+</LanguageSpecific>
+
 </Note>
 
 ### Entity
@@ -194,6 +204,11 @@ Within `ModifyEntitySchemaMutation` you can use mutations:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/ModifyEntitySchemaDescriptionMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/ModifyEntitySchemaDeprecationNoticeMutation.java</SourceClass>**
+
+<LanguageSpecific to="java">
+The entity schema is described by:
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass>
+</LanguageSpecific>
 
 </Note>
 
@@ -338,10 +353,10 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 
 #### Prices
 
-When prices are enabled, entities of this type can have a set prices associated with them and can be 
-[filtered](../query/filtering/price.md) and [sorted](../query/ordering/price.md) by price constraints. Single entity
-may have zero or more prices (the system is designed for situation when entity has tens or hundreds prices attached 
-to it). For each combination of `priceList` and `currency` there is a special 
+When prices are enabled, entities of this type can have a set of prices associated with them and can be 
+[filtered](../query/filtering/price.md) and [sorted](../query/ordering/price.md) by price constraints. Single entity 
+can have zero or more prices (the system is designed for situation when entity has tens or hundreds of prices attached 
+to it).For each combination of `priceList` and `currency` there is a special 
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/price/PriceListAndCurrencyPriceSuperIndex.java</SourceClass>.
 
 <Note type="info">
@@ -358,6 +373,47 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 </Note>
 
 #### Attribute
+
+An entity type can have zero or more attributes. The system is designed for situation when entity has tens of 
+attributes. You should pay attention to the number of `filterable` / `sortable` / `unique` attributes. There is a 
+separate instance of 
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java</SourceClass> for each filterable
+attribute, <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/SortIndex.java</SourceClass> for each
+sortable attribute and <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java</SourceClass>
+or <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java</SourceClass> for each
+unique attribute. Attributes that are neither `filterable` / `sortable` / `unique` don't consume operating memory.
+
+Attribute schema can be made *deprecated*, which will be propagated to generated web API documentation.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of mutations related to attribute
+</NoteTitle>
+
+Within `ModifyEntitySchemaMutation` you can use mutation:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/CreateAttributeSchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/RemoveAttributeSchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaNameMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaDescriptionMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaDefaultValueMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaDeprecationNoticeMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaTypeMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/ModifyAttributeSchemaTypeMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaFilterableMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaLocalizedMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNullableMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaSortableMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaUniqueMutation.java</SourceClass>**
+
+<LanguageSpecific to="java">
+The attribute schema is described by:
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeSchemaContract.java</SourceClass>
+</LanguageSpecific>
+
+</Note>
 
 ##### Allowed decimal places
 
