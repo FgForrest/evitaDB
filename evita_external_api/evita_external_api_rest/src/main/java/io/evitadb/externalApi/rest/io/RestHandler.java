@@ -40,6 +40,7 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
+import io.undertow.util.HttpString;
 import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
@@ -101,8 +102,20 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     }
 
     @Nonnull
-    protected String getContentType() {
-        return MimeTypes.APPLICATION_JSON;
+    public abstract String getSupportedHttpMethod();
+
+    /**
+     * Whether this handler supports and uses reading of request bodies.
+     */
+    public boolean acceptsRequestBodies() {
+        return false;
+    }
+
+    /**
+     * Whether this handler supports returning of response bodies.
+     */
+    public boolean returnsResponseBodies() {
+        return false;
     }
 
     /**
@@ -113,15 +126,38 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     protected abstract Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange);
 
     /**
-     * Validates HTTP request.
+     * Defines supported content type of request and response body.
      */
+    @Nonnull
+    protected String getSupportedContentType() {
+        return MimeTypes.APPLICATION_JSON;
+    }
+
     protected void validateRequest(@Nonnull HttpServerExchange exchange) {
-        if (!acceptsSupportedContentType(exchange)) {
+        if (!acceptsSupportedResponseContentType(exchange)) {
             throw new HttpExchangeException(
                 StatusCodes.NOT_ACCEPTABLE,
-                "Only supported result content types are those officially recommended by OpenApi Spec (`" + getContentType() + "`)."
+                "Only supported result content types are those officially recommended by OpenApi Spec (`" + getSupportedContentType() + "`)."
             );
         }
+        if (!requestBodyHasSupportedContentType(exchange)) {
+            throw new HttpExchangeException(
+                StatusCodes.UNSUPPORTED_MEDIA_TYPE,
+                "Only supported request body content types are those officially recommended by OpenApi Spec (`" + getSupportedContentType() + "`)."
+            );
+        }
+    }
+
+    protected boolean acceptsSupportedResponseContentType(@Nonnull HttpServerExchange exchange) {
+        if (!returnsResponseBodies()) {
+            return true;
+        }
+
+        final Stream<String> acceptHeaders = parseAcceptHeaders(exchange);
+        if (acceptHeaders == null) {
+            return true;
+        }
+        return acceptHeaders.anyMatch(hv -> hv.equals(MimeTypes.ALL) || hv.equals(getSupportedContentType()));
     }
 
     @Nullable
@@ -135,20 +171,16 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
             .map(String::strip);
     }
 
-    protected boolean bodyHasSupportedContentType(HttpServerExchange exchange) {
+    protected boolean requestBodyHasSupportedContentType(HttpServerExchange exchange) {
+        if (!acceptsRequestBodies()) {
+            return true;
+        }
+
         final String bodyContentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
         if (bodyContentType == null) {
             return false;
         }
-        return bodyContentType.startsWith(getContentType());
-    }
-
-    protected boolean acceptsSupportedContentType(@Nonnull HttpServerExchange exchange) {
-        final Stream<String> acceptHeaders = parseAcceptHeaders(exchange);
-        if (acceptHeaders == null) {
-            return true;
-        }
-        return acceptHeaders.anyMatch(hv -> hv.equals(MimeTypes.ALL) || hv.equals(getContentType()));
+        return bodyContentType.startsWith(getSupportedContentType());
     }
 
     /**
@@ -156,12 +188,10 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
      */
     @Nonnull
     private String readRequestBody(@Nonnull HttpServerExchange exchange) {
-        if (!bodyHasSupportedContentType(exchange)) {
-            throw new HttpExchangeException(
-                StatusCodes.UNSUPPORTED_MEDIA_TYPE,
-                "Only supported request body content types are those officially recommended by OpenApi Spec (`" + getContentType() + "`)."
-            );
-        }
+        Assert.isPremiseValid(
+            acceptsRequestBodies(),
+            () -> new RestInternalError("Handler doesn't support reading of request body.")
+        );
 
         final String bodyContentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
         final Charset bodyCharset = Arrays.stream(bodyContentType.split(";"))
@@ -281,7 +311,9 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
 
     private void sendSuccessResponse(@Nonnull HttpServerExchange exchange, @Nonnull String data) {
         exchange.setStatusCode(StatusCodes.OK);
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, getContentType() + CONTENT_TYPE_CHARSET);
+        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, getSupportedContentType() + CONTENT_TYPE_CHARSET);
+        // todo lho value
+        exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), "");
         exchange.getResponseSender().send(data);
     }
 }

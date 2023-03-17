@@ -71,7 +71,7 @@ class SchemaUtilsTest {
 		final List<SealedEntity> sealedEntities = TestDataGenerator.generateMainCatalogEntities(evita);
 
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		openAPI = new CatalogRestBuilder(new RestConfig(true, "localhost:5555", "rest"), evita, catalog).build().openApi();
+		openAPI = new CatalogRestBuilder(new RestConfig(true, "localhost:5555", "rest", null), evita, catalog).build().openApi();
 
 		return sealedEntities;
 	}

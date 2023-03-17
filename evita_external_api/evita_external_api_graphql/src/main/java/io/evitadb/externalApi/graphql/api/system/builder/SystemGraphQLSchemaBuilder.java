@@ -57,7 +57,6 @@ import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.Re
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 
 /**
  * Implementation of {@link FinalGraphQLSchemaBuilder} for building evitaDB management manipulation schema.

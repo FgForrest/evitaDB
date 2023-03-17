@@ -29,6 +29,7 @@ import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -43,6 +44,12 @@ public class DeleteCatalogHandler extends RestHandler<SystemRestHandlingContext>
 
 	public DeleteCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
+	}
+
+	@Nonnull
+	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.DELETE_STRING;
 	}
 
 	@Nonnull

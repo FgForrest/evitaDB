@@ -34,20 +34,26 @@ import io.evitadb.externalApi.graphql.api.catalog.CatalogGraphQLBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.CatalogDataApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.CatalogSchemaApiGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.system.SystemGraphQLBuilder;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler;
 import io.evitadb.externalApi.graphql.io.GraphQLHandler;
+import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
+import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
-import io.undertow.server.handlers.PathHandler;
+import io.undertow.util.Headers;
+import io.undertow.util.Methods;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
@@ -64,22 +70,25 @@ public class GraphQLManager {
 	/**
 	 * Common object mapper for endpoints
 	 */
-	private final ObjectMapper objectMapper = new ObjectMapper();
+	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
+
+	@Nonnull private final GraphQLConfig graphQLConfig;
 	/**
 	 * Provides access to Evita private API
 	 */
-	private final Evita evita;
+	@Nonnull private final Evita evita;
+
 	/**
 	 * GraphQL specific endpoint router.
 	 */
-	@Getter
-	private final PathHandler graphQLRouter = Handlers.path();
+	@Nonnull @Getter private final RoutingHandler graphQLRouter = Handlers.routing();
 	/**
 	 * Already registered catalogs (corresponds to existing endpoints as well)
 	 */
-	private final Map<String, RegisteredCatalog> registeredCatalogs = createHashMap(20);
+	@Nonnull private final Map<String, RegisteredCatalog> registeredCatalogs = createHashMap(20);
 
-	public GraphQLManager(@Nonnull Evita evita) {
+	public GraphQLManager(@Nonnull GraphQLConfig graphQLConfig, @Nonnull Evita evita) {
+		this.graphQLConfig = graphQLConfig;
 		this.evita = evita;
 
 		final long buildingStartTime = System.currentTimeMillis();
@@ -171,8 +180,11 @@ public class GraphQLManager {
 	public void unregisterCatalog(@Nonnull String catalogName) {
 		final RegisteredCatalog registeredCatalog = registeredCatalogs.remove(catalogName);
 		if (registeredCatalog != null) {
-			graphQLRouter.removeExactPath(registeredCatalog.dataApi().path());
-			graphQLRouter.removeExactPath(registeredCatalog.schemaApi().path());
+			graphQLRouter.remove(Methods.POST, registeredCatalog.dataApi().path());
+			graphQLRouter.remove(Methods.POST, registeredCatalog.schemaApi().path());
+
+			graphQLRouter.remove(Methods.OPTIONS, registeredCatalog.dataApi().path());
+			graphQLRouter.remove(Methods.OPTIONS, registeredCatalog.schemaApi().path());
 		}
 	}
 
@@ -190,12 +202,32 @@ public class GraphQLManager {
 	 * Creates new GraphQL endpoint on specified path with specified {@link GraphQL} instance.
 	 */
 	private void registerGraphQLEndpoint(@Nonnull RegisteredGraphQLApi registeredGraphQLApi) {
-		graphQLRouter.addExactPath(
+		// actual GraphQL handler
+		graphQLRouter.add(
+			Methods.POST,
 			registeredGraphQLApi.path(),
 			new BlockingHandler(
-				new GraphQLExceptionHandler(
-					objectMapper,
-					new GraphQLHandler(objectMapper, registeredGraphQLApi.graphQLReference())
+				new CorsFilter(
+					new GraphQLExceptionHandler(
+						objectMapper,
+						new GraphQLHandler(objectMapper, registeredGraphQLApi.graphQLReference())
+					),
+					graphQLConfig.getAllowedOrigins()
+				)
+			)
+		);
+		// CORS pre-flight handler for the GraphQL handler
+		graphQLRouter.add(
+			Methods.OPTIONS,
+			registeredGraphQLApi.path(),
+			new BlockingHandler(
+				new CorsFilter(
+					new CorsPreflightHandler(
+						graphQLConfig.getAllowedOrigins(),
+						Set.of(Methods.POST_STRING),
+						Set.of(Headers.CONTENT_TYPE_STRING, Headers.ACCEPT_STRING)
+					),
+					graphQLConfig.getAllowedOrigins()
 				)
 			)
 		);

@@ -27,6 +27,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.http.CorsFilter;
+import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.Rest.Endpoint;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
@@ -35,16 +37,21 @@ import io.evitadb.externalApi.rest.api.system.SystemRestBuilder;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiInternalError;
 import io.evitadb.externalApi.rest.io.RestExceptionHandler;
+import io.evitadb.externalApi.rest.io.RestHandler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
+import io.undertow.server.HttpHandler;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
+import io.undertow.util.Headers;
 import io.undertow.util.HttpString;
+import io.undertow.util.Methods;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
@@ -72,11 +79,12 @@ public class RestManager {
 	/**
 	 * All registered endpoint paths for each catalog
 	 */
-	@Nonnull private final Map<String, Set<Endpoint>> registeredEndpoints = createConcurrentHashMap(20);
+	@Nonnull private final Map<String, Set<Endpoint>> registeredCatalogEndpoints = createConcurrentHashMap(20);
 	/**
 	 * REST specific endpoint router.
 	 */
 	@Getter private final RoutingHandler restRouter = Handlers.routing();
+	@Nonnull private final Map<String, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
 	public RestManager(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
 		this.restConfig = restConfig;
@@ -87,6 +95,7 @@ public class RestManager {
 		// register initial endpoints
 		registerSystemApi();
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
+		corsEndpoints.forEach((path, endpoint) -> restRouter.add("OPTIONS", path, endpoint.toHandler()));
 
 		log.info("Built REST API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
 	}
@@ -101,7 +110,7 @@ public class RestManager {
 			return;
 		}
 		Assert.isPremiseValid(
-			!registeredEndpoints.containsKey(catalogName),
+			!registeredCatalogEndpoints.containsKey(catalogName),
 			() -> new OpenApiInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
 
@@ -115,10 +124,18 @@ public class RestManager {
 	 * Unregister all REST endpoints of catalog.
 	 */
 	public void unregisterCatalog(@Nonnull String catalogName) {
-		final Set<Endpoint> endpointsForCatalog = registeredEndpoints.remove(catalogName);
+		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
+
+		final Set<Endpoint> endpointsForCatalog = registeredCatalogEndpoints.remove(catalogName);
 		if (endpointsForCatalog != null) {
-			endpointsForCatalog.forEach(endpoint ->
-				restRouter.remove(new HttpString(endpoint.method().toString()), endpoint.path().toString()));
+			endpointsForCatalog.forEach(endpoint -> {
+				final String catalogPath = constructCatalogPath(catalog, endpoint.path()).toString();
+
+				restRouter.remove(endpoint.method(), catalogPath);
+
+				corsEndpoints.remove(catalogPath);
+				restRouter.remove(Methods.OPTIONS, catalogPath);
+			});
 		}
 	}
 
@@ -127,7 +144,7 @@ public class RestManager {
 	 */
 	public void refreshCatalog(@Nonnull String catalogName) {
 		Assert.isPremiseValid(
-			registeredEndpoints.containsKey(catalogName),
+			registeredCatalogEndpoints.containsKey(catalogName),
 			() -> new OpenApiInternalError("Cannot refresh catalog `" + catalogName + "`. Such catalog has not been registered yet.")
 		);
 
@@ -152,18 +169,13 @@ public class RestManager {
 	 * Creates new REST endpoint on specified path with specified {@link Rest} instance.
 	 */
 	private void registerCatalogRestEndpoint(@Nonnull CatalogContract catalog, @Nonnull Rest.Endpoint endpoint) {
-		final Set<Endpoint> endpointsForCatalog = registeredEndpoints.computeIfAbsent(catalog.getName(), key -> createHashSet(100));
+		final Set<Endpoint> endpointsForCatalog = registeredCatalogEndpoints.computeIfAbsent(catalog.getName(), key -> createHashSet(100));
 		endpointsForCatalog.add(endpoint);
 
-		restRouter.add(
-			endpoint.method().toString(),
-			Path.of("/" + catalog.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION)).resolve(endpoint.path()).toString(),
-			new BlockingHandler(
-				new RestExceptionHandler(
-					objectMapper,
-					endpoint.handler()
-				)
-			)
+		registerRestEndpoint(
+			endpoint.method(),
+			constructCatalogPath(catalog, endpoint.path()),
+			endpoint.handler()
 		);
 	}
 
@@ -171,15 +183,68 @@ public class RestManager {
 	 * Creates new REST endpoint on specified path with specified {@link Rest} instance.
 	 */
 	private void registerSystemRestEndpoint(@Nonnull Rest.Endpoint endpoint) {
+		registerRestEndpoint(
+			endpoint.method(),
+			Path.of("/" + OpenApiSystemEndpoint.URL_PREFIX).resolve(endpoint.path()),
+			endpoint.handler()
+		);
+	}
+
+	/**
+	 * Registers endpoints into router. Also CORS endpoint is created automatically for this endpoint.
+	 */
+	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull Path path, @Nonnull RestHandler<?> handler) {
+		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path.toString(), p -> new CorsEndpoint(restConfig));
+		corsEndpoint.addMetadataFromHandler(handler);
+
 		restRouter.add(
-			endpoint.method().toString(),
-			Path.of("/" + OpenApiSystemEndpoint.URL_PREFIX).resolve(endpoint.path()).toString(),
+			method,
+			path.toString(),
 			new BlockingHandler(
-				new RestExceptionHandler(
-					objectMapper,
-					endpoint.handler()
+				new CorsFilter(
+					new RestExceptionHandler(
+						objectMapper,
+						handler
+					),
+					restConfig.getAllowedOrigins()
 				)
 			)
 		);
+	}
+
+	@Nonnull
+	private Path constructCatalogPath(@Nonnull CatalogContract catalog, @Nonnull Path endpointPath) {
+		return Path.of("/" + catalog.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION)).resolve(endpointPath);
+	}
+
+	private static class CorsEndpoint {
+
+		@Nullable private final Set<String> allowedOrigins;
+		@Nonnull private final Set<String> allowedMethods = createHashSet(10);
+		@Nonnull private final Set<String> allowedHeaders = createHashSet(2);
+
+		public CorsEndpoint(@Nonnull RestConfig restConfig) {
+			this.allowedOrigins = restConfig.getAllowedOrigins() == null ? null : Set.of(restConfig.getAllowedOrigins());
+		}
+
+		public void addMetadataFromHandler(@Nonnull RestHandler<?> handler) {
+			allowedMethods.add(handler.getSupportedHttpMethod());
+			if (handler.acceptsRequestBodies()) {
+				allowedHeaders.add(Headers.CONTENT_TYPE_STRING);
+			}
+			if (handler.returnsResponseBodies()) {
+				allowedHeaders.add(Headers.ACCEPT_STRING);
+			}
+		}
+
+		@Nonnull
+		public HttpHandler toHandler() {
+			return new BlockingHandler(
+				new CorsFilter(
+					new CorsPreflightHandler(allowedOrigins, allowedMethods, allowedHeaders),
+					allowedOrigins
+				)
+			);
+		}
 	}
 }

@@ -39,6 +39,7 @@ import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -70,6 +71,23 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 		this.withPrimaryKeyInPath = withPrimaryKeyInPath;
 	}
+
+	@Nonnull
+	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.PUT_STRING;
+	}
+
+	@Override
+	public boolean acceptsRequestBodies() {
+		return true;
+	}
+
+	@Override
+	public boolean returnsResponseBodies() {
+		return true;
+	}
+
 
 	@Override
 	@Nonnull
