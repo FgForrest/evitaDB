@@ -70,10 +70,10 @@ public class CorsFilter implements HttpHandler {
 				return;
 			}
 
-			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGINS, requestOrigin);
+			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, requestOrigin);
 			exchange.getResponseHeaders().put(Headers.VARY, "Origin");
 		} else {
-			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGINS, "*");
+			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
 		}
 
 		next.handleRequest(exchange);
