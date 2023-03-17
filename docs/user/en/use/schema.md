@@ -320,7 +320,7 @@ Enabling hierarchy placement implies the creation of a new
 entity type. When another entity references a hierarchy entity and the reference is marked as *indexed*, the special 
 <SourceClass>io.evitadb.index.ReducedEntityIndex</SourceClass> is created for each hierarchical entity. This index will 
 hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of 
-[`referencedEntityHaving`](../query/filtering/references.md) filter conditions.
+[`withinHierarchy`](../query/filtering/hierarchy.md) filter conditions.
 
 ##### Orphan hierarchy nodes
 
@@ -471,6 +471,33 @@ The associated data schema is described by:
 </Note>
 
 ### Reference
+
+An entity type may have zero or more references. References can be managed or unmanaged. The managed references refer 
+to entities within the same catalog and can be checked for consistency by evitaDB. The non-managed references refer 
+to entities that are managed by external systems outside the scope of evitaDB. An entity can have a self-reference 
+that refers to the same entity type. An entity type can have several references to the same entity type.
+
+References can have zero or more attributes that apply only to a particular "link" between these two entity instances.
+[Global attribute](#global-attribute-schema) cannot be used as a reference attribute. Otherwise, the same rules apply 
+for reference attributes as for regular entity attributes.
+
+When another entity references an entity and the reference is marked as *filterable*, the special
+<SourceClass>io.evitadb.index.ReducedEntityIndex</SourceClass> is created for each referenced entity. This index will
+hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
+[`referencedEntityHaving`](../query/filtering/references.md) filter conditions.
+
+If the reference is marked as *faceted*, the special 
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for 
+the entity type. This index contains optimized data structures for [facet summary](../query/requirements/facet.md) 
+computation. All reference instances of a given type are then inserted into the *facet reference index* (there is no 
+way to exclude a reference from indexing in the facet reference index). References can (but don't have to) be organized 
+into facet groups that refer to a *managed* or *non-managed* entity type.
+
+Each reference schema has a certain cardinality. The cardinality describes the expected number of relations of this 
+type. In evitaDB we define only one-way relations from the perspective of the entity. We follow the ERD modeling 
+[standards](https://www.gleek.io/blog/crows-foot-notation.html). Cardinality affects the design of the Web API schemas
+(returning only single references or arrays) and also helps us to protect the consistency of the data so that it 
+conforms to the creator's mental model.
 
 <Note type="info">
 
