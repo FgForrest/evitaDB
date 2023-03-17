@@ -100,6 +100,28 @@ of the object name in different "developer" notations such as *camel case*, *pas
 for a complete listing.
 </Note>
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of mutations related to catalog
+</NoteTitle>
+
+Top level mutations:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/CreateCatalogSchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/RemoveCatalogSchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaMutation.java</SourceClass>**
+
+Within `ModifyCatalogSchemaMutation` you can use mutations:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaNameMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaDescriptionMutation.java</SourceClass>**
+
+And [entity top level mutations](#entity).
+
+</Note>
+
 #### Global attribute schema
 
 Global attribute schema has the same structure as [attribute schema](#attribute) except for one additional 
@@ -126,9 +148,10 @@ and thus share its complete definition.
 
 <Note type="info">
 
-<Note toggles="false">
-**** List of global attribute level mutations
-</Note>
+<NoteTitle toggles="false">
+
+##### List of mutations related to global attribute
+</NoteTitle>
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/CreateGlobalAttributeSchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/UseGlobalAttributeSchemaMutation.java</SourceClass>**
@@ -155,9 +178,12 @@ Entity schema can be made *deprecated*, which will be propagated to generated we
 
 <Note type="info">
 
-<Note toggles="false">
-**** List of mutations related to entity type
-</Note>
+<NoteTitle toggles="false">
+
+##### List of mutations related to entity type
+</NoteTitle>
+
+Top level entity mutations:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/CreateEntitySchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/RemoveEntitySchemaMutation.java</SourceClass>**
