@@ -38,6 +38,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Entit
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.ExtraResultsJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -73,6 +74,22 @@ public class QueryEntitiesHandler extends ListEntitiesHandler {
 			this.entityJsonSerializer,
 			referenceNameToFieldName
 		);
+	}
+
+	@Nonnull
+	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.POST_STRING;
+	}
+
+	@Override
+	public boolean acceptsRequestBodies() {
+		return true;
+	}
+
+	@Override
+	public boolean returnsResponseBodies() {
+		return true;
 	}
 
 	@Override

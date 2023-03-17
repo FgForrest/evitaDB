@@ -1,8 +1,8 @@
 ---
 title: In-memory Implementation of Evita
 perex: |
-	The document contains the original research paper for the in-memory implementation of the evitaDB prototype. 
-	This version of the prototype proved to be viable and was transformed into the final evitaDB implementation.
+  The document contains the original research paper for the in-memory implementation of the evitaDB prototype.
+  This version of the prototype proved to be viable and was transformed into the final evitaDB implementation.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný (FG Forrest, a.s.)'
 proofreading: 'done'

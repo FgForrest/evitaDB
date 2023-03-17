@@ -21,24 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api;
+package io.evitadb.externalApi.http;
 
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.swagger.v3.oas.models.OpenAPI;
 import io.undertow.util.HttpString;
-
-import javax.annotation.Nonnull;
-import java.nio.file.Path;
-import java.util.List;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 /**
- * Represents final built REST API with its specs and handlers for registration into routers.
+ * Additional list of HTTP headers that are not supported by {@link io.undertow.util.Headers}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class AdditionalHeaders {
 
-	public record Endpoint(@Nonnull Path path,
-	                       @Nonnull HttpString method,
-	                       @Nonnull RestHandler<?> handler) {}
+	public static final String ACCESS_CONTROL_ALLOW_ORIGINS_STRING = "Access-Control-Allow-Origins";
+	public static final String ACCESS_CONTROL_ALLOW_METHODS_STRING = "Access-Control-Allow-Methods";
+	public static final String ACCESS_CONTROL_ALLOW_HEADERS_STRING = "Access-Control-Allow-Headers";
+
+	public static final HttpString ACCESS_CONTROL_ALLOW_ORIGINS = new HttpString(ACCESS_CONTROL_ALLOW_ORIGINS_STRING);
+	public static final HttpString ACCESS_CONTROL_ALLOW_METHODS = new HttpString(ACCESS_CONTROL_ALLOW_METHODS_STRING);
+	public static final HttpString ACCESS_CONTROL_ALLOW_HEADERS = new HttpString(ACCESS_CONTROL_ALLOW_HEADERS_STRING);
 }

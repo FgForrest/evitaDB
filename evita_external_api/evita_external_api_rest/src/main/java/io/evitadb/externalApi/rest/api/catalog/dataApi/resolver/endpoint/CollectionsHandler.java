@@ -31,6 +31,7 @@ import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHand
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -49,6 +50,17 @@ public class CollectionsHandler extends RestHandler<CatalogRestHandlingContext> 
 	public CollectionsHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
 		objectJsonSerializer = new ObjectJsonSerializer(restApiHandlingContext.getObjectMapper());
+	}
+
+	@Nonnull
+	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.PUT_STRING;
+	}
+
+	@Override
+	public boolean returnsResponseBodies() {
+		return true;
 	}
 
 	@Override

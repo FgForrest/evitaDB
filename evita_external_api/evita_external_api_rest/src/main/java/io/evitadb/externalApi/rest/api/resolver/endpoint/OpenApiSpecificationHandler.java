@@ -28,6 +28,7 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
@@ -45,6 +46,17 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Nonnull
 	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.GET_STRING;
+	}
+
+	@Override
+	public boolean returnsResponseBodies() {
+		return true;
+	}
+
+	@Nonnull
+	@Override
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		return Optional.of(
 			OpenApiWriter.toYaml(restApiHandlingContext.getOpenApi())
@@ -53,7 +65,7 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Nonnull
 	@Override
-	protected String getContentType() {
+	protected String getSupportedContentType() {
 		return MimeTypes.APPLICATION_YAML;
 	}
 }

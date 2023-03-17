@@ -48,6 +48,7 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
+import io.undertow.util.HttpString;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -203,7 +204,7 @@ public abstract class RestBuildingContext {
 			endpoints.forEach((method, endpoint) ->
 				builtEndpoints.add(new Rest.Endpoint(
 					path,
-					endpoint.getMethod(),
+					new HttpString(endpoint.getMethod().name()),
 					endpoint.toHandler(objectMapper, evita, openApi)
 				))
 			)

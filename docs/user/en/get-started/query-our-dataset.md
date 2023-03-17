@@ -21,7 +21,8 @@ all of you, we had to make it read-only. So you cannot make any changes to it. B
 web APIs and all supported drivers.
 
 The next limitation is that the server is hosted on cheap shared infrastructure of  
-[Contabo hosting](https://contabo.com/en/vps/) with following specs:
+[Contabo hosting](https://contabo.com/en/vps/) (which has been known to buy old servers to provide low-cost hosting 
+services) with following specs:
 
 ![Server specs](assets/contabo-hosting.png)
 
@@ -30,25 +31,33 @@ If you experience slow responses, let us know and
 
 You can access all our APIs on these addresses:
 
-- `graphQL` API: [https://evitadb.io:5555/gql/](https://evitadb.io:5555/gql/)
-- `REST` API: [https://evitadb.io:5555/rest/](https://evitadb.io:5555/rest/)
-- `gRPC` API: [https://evitadb.io:5556/](https://evitadb.io:5556/)
+- `graphQL` API: [https://demo.evitadb.io:5555/gql/](https://demo.evitadb.io:5555/gql/)
+- `REST` API: [https://demo.evitadb.io:5555/rest/](https://demo.evitadb.io:5555/rest/)
+- `gRPC` API: [https://demo.evitadb.io:5556/](https://demo.evitadb.io:5556/)
 
 ## Run your own evitaDB server with our dataset
 
 This option requires more work, but you will have control over the performance, and you will be able to modify any data 
 in the set. To access the dataset on your hardware, you need to:
 
-1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-data.zip)
+1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-dataset.zip)
+   ```bash
+   wget https://evitadb.io/download/evita-demo-data.zip
+   ```
+
 2. unzip the contents to the `data` folder
+   ```bash
+   unzip -d data evita-demo-dataset.zip
+   ```
+
 3. pull the evitaDB docker image
    ```bash
    docker pull index.docker.io/evitadb/evitadb:latest
    ```
-4. start the evitaDB server (replace `__data_dir__` with the path to your data folder)
+4. start the evitaDB server
    ```bash
    docker run --name evitadb -i --net=host \
-          -v "__data_dir__:/evita/data" \
+          -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
    ```
 
@@ -110,48 +119,16 @@ thousands of products.
 Open your Java IDE and create an <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 instance:
 
-<CodeTabs>
-<CodeTabsBlock>
-```java
-new EvitaClient(
-	EvitaClientConfiguration.builder()
-		.host("replace-with-server-name")
-		.port(5556)
-		.build()
-);
-```
-</CodeTabsBlock>
-</CodeTabs>
+<SourceCodeTabs>
+[Connect the demo server](docs/user/en/get-started/example/connect-demo-server.java)
+</SourceCodeTabs>
 
 After that you can create a new session and try any of the evitaQL queries described in 
 [the reference documentation](../query/basics.md):
 
-<CodeTabs>
-<CodeTabsBlock>
-```java
-var entities = evita.queryCatalog(
-	"evita",
-	session -> {
-		return session.queryListOfSealedEntities(
-			query(
-				collection("brand"),
-				filterBy(
-					and(
-						attributeStartsWith("name", "A"),
-						entityLocaleEquals(Locale.ENGLISH)
-					)
-				),
-				orderBy(
-					attributeNatural("name", OrderDirection.ASC)
-				),
-				require(entityFetchAll())
-			)
-		);
-	}
-)
-```
-</CodeTabsBlock>
-</CodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
+[Query the demo server](docs/user/en/get-started/example/query-demo-server.java)
+</SourceCodeTabs>
 
 <Note type="info">
 

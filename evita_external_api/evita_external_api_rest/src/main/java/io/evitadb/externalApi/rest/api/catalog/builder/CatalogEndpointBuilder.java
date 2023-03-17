@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog.builder;
 
-import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.RestRootDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiCatalogEndpoint;
