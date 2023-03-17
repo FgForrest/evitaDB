@@ -581,6 +581,7 @@ that is annotated with following annotations:
         [associated data](#associated-data).
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Parent.java</SourceClass></dt>
+    <dd>
         Annotation can be placed on field / getter method / record component and marks an entity as 
         [hierarchical entity](#hierarchy-placement). It should point to another model class (interface / class / record) 
         that contains properties for `@ParentEntity' and @OrderAmongSiblings' annotations.
