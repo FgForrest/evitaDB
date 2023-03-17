@@ -168,8 +168,8 @@ Entity schema contains information about the `name`, `description` and the:
 - [enabling primary key generation](#primary-key-generation)
 - [evolution limits](#evolution)
 - [allowed locales and currencies](#locales-and-currencies)
-- enabling hierarchical structure
-- enabling price information
+- [enabling hierarchical structure](#hierarchy-placement)
+- [enabling price information](#prices)
 - [attributes](#attribute)
 - [associated data](#associated-data)
 - [references](#reference)
@@ -291,6 +291,63 @@ Within `ModifyEntitySchemaMutation` you can use mutations:
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowCurrencyInEntitySchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowLocaleInEntitySchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowLocaleInEntitySchemaMutation.java</SourceClass>**
+
+</Note>
+
+#### Hierarchy placement
+
+When hierarchy placement is enabled, entities of this type can form a tree structure. Each entity can have a maximum 
+of one parent node and zero or more child entities. Neither the depth of the tree nor the number of siblings at each 
+level is limited.
+
+Enabling hierarchy placement implies the creation of a new 
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/hierarchy/HierarchyIndex.java</SourceClass> for the involved 
+entity type. When another entity references a hierarchy entity and the reference is marked as *indexed*, the special 
+<SourceClass>io.evitadb.index.ReducedEntityIndex</SourceClass> is created for each hierarchical entity. This index will 
+hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of 
+[`referencedEntityHaving`](../query/filtering/references.md) filter conditions.
+
+##### Orphan hierarchy nodes
+
+The typical problem associated with creating a tree structure is the order in which nodes are attached to it. In
+order to have a consistent tree, one should start from the root nodes and gradually descend along the axis of their
+children. This isn't always easy to do when we need to copy an existing tree to an external system (for scripting
+purposes, it's much easier and more performance-effective to index in batch using the natural order of records). Similar
+situation is when the intermediate tree node needs to be removed, but its children do not. We can force developers to
+rewire children to different parents before removing their parent, but they often don't have direct control over the
+order of operations and can't easily do that.
+
+That's why evitaDB recognizes so-called **orphan hierarchy nodes**. An orphan node is a node that declares itself to be
+a child of a parent node with a certain primary key that evitaDB doesn't know yet (or the orphan node itself). Orphan
+nodes do not participate in the evaluation of [queries on hierarchical structures](../query/filtering/hierarchy.md),
+but are present in the index. If a node of a referenced primary key is appended to the main hierarchy tree, the 
+orphan nodes (sub-trees) are also appended. In this way, the hierarchy tree eventually becomes consistent.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of mutations related to hierarchy placement
+</NoteTitle>
+
+Within `ModifyEntitySchemaMutation` you can use mutation:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/SetEntitySchemaWithHierarchyMutation.java</SourceClass>**
+
+</Note>
+
+#### Prices
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of mutations related to hierarchy placement
+</NoteTitle>
+
+Within `ModifyEntitySchemaMutation` you can use mutation:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/SetEntitySchemaWithPriceMutation.java</SourceClass>**
 
 </Note>
 
