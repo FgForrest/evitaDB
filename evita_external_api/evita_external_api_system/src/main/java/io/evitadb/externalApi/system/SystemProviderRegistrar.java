@@ -28,10 +28,12 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.utils.CertificateUtils;
+import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.server.handlers.resource.FileResourceManager;
 import io.undertow.server.handlers.resource.ResourceHandler;
@@ -62,7 +64,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<SystemConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig externalApiConfiguration) {
+	public ExternalApiProvider<SystemConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig systemConfig) {
 		final File file;
 		final String fileName;
 		final CertificateSettings certificateSettings = apiOptions.certificate();
@@ -94,25 +96,26 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					} else {
 						return null;
 					}
-				},
-				new BlockingHandler(exchange -> {
-					exchange.setStatusCode(404);
-					exchange.endExchange();
-				})
+				}
 			);
 			return new SystemProvider(
-				externalApiConfiguration,
-				fileSystemHandler,
-				Arrays.stream(externalApiConfiguration.getBaseUrls())
+				systemConfig,
+				new BlockingHandler(
+					new CorsFilter(
+						fileSystemHandler,
+						systemConfig.getAllowedOrigins()
+					)
+				),
+				Arrays.stream(systemConfig.getBaseUrls())
 					.map(it -> it + fileName)
 					.toArray(String[]::new),
 				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(externalApiConfiguration.getBaseUrls())
+					Arrays.stream(systemConfig.getBaseUrls())
 						.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
 						.toArray(String[]::new) :
 					new String[0],
 				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(externalApiConfiguration.getBaseUrls())
+					Arrays.stream(systemConfig.getBaseUrls())
 						.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
 						.toArray(String[]::new) :
 					new String[0]
