@@ -204,6 +204,19 @@ If primary key generation is enabled, evitaDB assigns a unique
 The primary key always starts with `1` and is incremented by `1`. evitaDB guarantees its uniqueness within the same 
 entity type. The primary keys generated in this way are optimal for binary operations in the data structures used.
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of mutations related to primary key
+</NoteTitle>
+
+Within `ModifyEntitySchemaMutation` you can use mutation:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/SetEntitySchemaWithGeneratedPrimaryKeyMutation.java</SourceClass>**
+
+</Note>
+
 #### Evolution
 
 We recommend the schema-first approach, but there are cases where you don't want to bother with the schema and just want
@@ -230,6 +243,20 @@ There are several partial lax modes between strict and fully automatic evolution
 For example - you can strictly control the entire schema, except for new locale or currency definitions, which are
 allowed to be added automatically on first use.
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of mutations related to evolution mode
+</NoteTitle>
+
+Within `ModifyEntitySchemaMutation` you can use mutations:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowEvolutionModeInEntitySchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowEvolutionModeInEntitySchemaMutation.java</SourceClass>**
+
+</Note>
+
 #### Locales and currencies
 
 The schema specifies a list of allowed currencies and locales. We assume that the list of allowed currencies / locales 
@@ -249,6 +276,22 @@ invalid prices or localizations by mistake.
 The price lists are closer to "data" than locales or currencies. The set of price lists is expected to change very 
 often, and their numbers can reach high cardinality (thousands, tens of thousands). It wouldn't be practical to generate 
 enumeration values for them and change the Web API schemas every time a price list is added or removed.
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of mutations related to locales & currencies
+</NoteTitle>
+
+Within `ModifyEntitySchemaMutation` you can use mutations:
+
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowCurrencyInEntitySchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowCurrencyInEntitySchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowLocaleInEntitySchemaMutation.java</SourceClass>**
+- **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowLocaleInEntitySchemaMutation.java</SourceClass>**
+
 </Note>
 
 #### Attribute
