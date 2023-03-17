@@ -339,7 +339,10 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 #### Prices
 
 When prices are enabled, entities of this type can have a set prices associated with them and can be 
-[filtered](../query/filtering/price.md) and [sorted](../query/ordering/price.md) by price constraints.
+[filtered](../query/filtering/price.md) and [sorted](../query/ordering/price.md) by price constraints. Single entity
+may have zero or more prices (the system is designed for situation when entity has tens or hundreds prices attached 
+to it). For each combination of `priceList` and `currency` there is a special 
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/price/PriceListAndCurrencyPriceSuperIndex.java</SourceClass>.
 
 <Note type="info">
 
