@@ -1,5 +1,8 @@
 ---
 title: Query our dataset
+perex: |
+   This article will show you how to connect to our demo instance or spin up a demo instance on your own hardware and 
+   experiment with the evitaDB query language.  
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
