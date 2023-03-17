@@ -1,18 +1,201 @@
 ---
 title: Schema
-perex:
+perex: |
+    A schema is the logical representation of a catalog that specifies the types of entities that can be stored and 
+    the relationships between them. It allows you to maintain the consistency of your data and is very useful 
+    for automatic generation of the web APIs on top of it.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 ---
 
-**Work in progress**
+evitaDB internally maintains a schema for each [entity collection](data-model.md#collection) / [catalog](data-model.md#catalog), 
+although it supports a [relaxed approach](#evolution), where the schema is automatically built according to data 
+inserted into the database.
 
-This article will contain information from [schema API](https://evitadb.io/research/assignment/updating/schema_api),
-and additional information about schema.
+The schema is not only crucial for maintaining data consistency, but is also a key source for web API schema 
+generation. It allows us to create [Open API](connectors/rest.md) and [GraphQL](connectors/graphql.md) schemas. If you
+pay close attention to the schema definition, you'll be rewarded with nice, understandable, and self-documented APIs. 
+Every single piece of information in the schema affects the way the web APIs look. For example, relation cardinality 
+(zero or one, exactly one, zero or more, one or more) affects whether the API marks the relation as optional, returns 
+a single value/object, or returns an array of them. Filterable attributes are propagated to the documented query 
+language blocks, while non-filterable attributes are not. The data types of the attributes affect which query 
+constraints can be used in relation to this very attribute, and so on. The documentation you write in the evitaDB schema
+is propagated to all your APIs. You can read more about this projection in the dedicated Web API chapters of the 
+documentation.
 
-[//]: # (notes)
+## Mutations and versioning
 
-#### Allowed decimal places
+The schema can only be changed by what are called *mutations*. While this is a rather cumbersome approach, it has some
+big advantages for the system:
+
+- **mutation represents an isolated change to the schema** - this means that the client making the schema change 
+  only sends deltas to the server, which saves a lot of network traffic and also implies server-side logic that doesn't
+  need to resolve deltas internally
+- **mutation is directly used as a [WAL](../deep-dive/transactions.md#write-ahead-log) entry** - the mutation 
+  represents an atomic operation in the transactional log that is distributed across the cluster, and it also 
+  represents a place where conflict resolution takes place (if the server receives similar mutations from two 
+  parallel sessions, it easily decides whether to throw a concurrent change exception - if the mutations are equal,  
+  there is no conflict; if they are different, the first mutation is accepted and the second is rejected with an 
+  exception)
+
+The schema is versioned - each time a schema mutation is performed, its version number is incremented by one. If you 
+have two schema instances on the client side, you can easily tell if they're the same by comparing their version 
+number, and if not, which one is newer.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Do I really have to write all the mutations by hand?
+</NoteTitle>
+
+Hopefully not. We're aware that writing mutations is cumbersome, and provide better support in our drivers. The client
+drivers wrap the immutable schemas inside the builder objects, so you can just call alter methods on them and 
+the builder will generate the list of mutations at the end. See [the example](#schema-definition-example).
+
+However, if you want to use evitaDB on a platform that is not yet supported and covered by a specific client driver, 
+you have to work directly with our web APIs that only accept mutations, and you have no other options than to write 
+the mutations directly or to write your own client driver. But you can open source it and help the community. Let us 
+know about it!
+</Note>
+
+<LanguageSpecific to="java">
+All schema mutations implement interface 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/SchemaMutation.java</SourceClass>
+</LanguageSpecific>
+
+## Structure
+
+There are following types of schemas:
+
+- [catalog schema](#catalog)
+- [entity schema](#entity)
+- [attribute schema](#attribute)
+- [associated data schema](#associated-data)
+- [reference schema](#reference)
+
+### Catalog
+
+Catalog schema contains list of [entity schemas](#entity), the `name` and `description` of the catalog. It also keeps
+dictionary of [global attribute schemas](#global-attribute-schema) that can be shared among multiple 
+[entity schemas](#entity).
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Name requirements and name variants
+</NoteTitle>
+
+Each named data object - [catalog](#catalog), [entity](#entity), [attribute](#attribute), 
+[associated data](#associated-data) and [reference](#reference) must be uniquely identifiable by its name within its
+parent scope.
+
+The name validation logic and reserved words are present in the class 
+<SourceClass>evita_common/src/main/java/io/evitadb/utils/ClassifierUtils.java</SourceClass>.
+
+There is also a special property called `nameVariants` in the schema of each named object. It contains variants
+of the object name in different "developer" notations such as *camel case*, *pascal case*, *snake case* and so on. See
+<SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/catalog/schemaApi/model/NameVariantsDescriptor.java</SourceClass>
+for a complete listing.
+</Note>
+
+#### Global attribute schema
+
+Global attribute schema has the same structure as [attribute schema](#attribute) except for one additional 
+characteristic. A global attribute can be made `uniqueGlobally`, which means that values of such an attribute must be 
+unique across all entities and entity types in the entire catalog.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### What is the global uniqueness good for?
+</NoteTitle>
+
+Well, it is useful for entity URL that we naturally want to be unique among all entities in the catalog. The global 
+unique attribute allows us to ask evitaDB for an entity with a specific value without knowing its type in advance. 
+This solves the use case when a new request arrives in your application and you need to check if there is an entity 
+that matches it (no matter if it's a product, category, brand, group or whatever types you have in your project).
+</Note>
+
+A global attribute can also be used as a "dictionary definition" for an attribute that is used in multiple entity
+collections, and we want to make sure it's named and described the same in all of them. An entity collection cannot
+define an attribute with the same name as the global attribute. It can only "use" the global attribute with that name
+and thus share its complete definition.
+
+### Entity
+
+Entity schema contains information about the `name`, `description` and the:
+
+- [enabling primary key generation](#primary-key-generation)
+- [evolution limits](#evolution)
+- [allowed locales and currencies](#locales-and-currencies)
+- enabling hierarchical structure
+- enabling price information
+- [attributes](#attribute)
+- [associated data](#associated-data)
+- [references](#reference)
+
+Entity schema can be made *deprecated*, which will be propagated to generated web API documentation.
+
+#### Primary key generation
+
+If primary key generation is enabled, evitaDB assigns a unique
+[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) number to a newly inserted entity.
+The primary key always starts with `1` and is incremented by `1`. evitaDB guarantees its uniqueness within the same 
+entity type. The primary keys generated in this way are optimal for binary operations in the data structures used.
+
+#### Evolution
+
+We recommend the schema-first approach, but there are cases where you don't want to bother with the schema and just want
+to insert and query the data (e.g. rapid prototyping). When a new [catalog](data-model.md#catalog) is created, it is set up
+in "auto evolution" mode, where the schema adapts to the data on first insertion. If you want to control the schema
+strictly, you have to limit the evolution by changing the default schema. In strict mode, evitaDB throws an exception
+if the input data violates the schema.
+
+You still need to create [entity collections](data-model.md#collection) manually, but after that you can immediately insert
+your data and the schema will be built accordingly. The existing schemas will still be validated on each entity
+insertion/update - you will not be allowed to store the same attribute as a number type the first time and as a string
+the next time. The first use will set up the schema, which must be respected from that moment on.
+
+<Note type="info">
+If the first entity has its primary key, evitaDB expects all entities to have their primary key set when inserting. 
+If the first entity has its primary key set to `NULL`, evitaDB will generate primary keys for you and will reject 
+external primary keys. New attribute schemas are implicitly created as `nullable`, `filterable` and non-array data types 
+as `sortable`. This means that the client is immediately able to filter/sort on almost anything, but the database itself 
+will consume a lot of resources. The references will be created as `filterable` but not `faceted`.
+</Note>
+
+There are several partial lax modes between strict and fully automatic evolution mode - see
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EvolutionMode.java</SourceClass> for details.
+For example - you can strictly control the entire schema, except for new locale or currency definitions, which are
+allowed to be added automatically on first use.
+
+#### Locales and currencies
+
+The schema specifies a list of allowed currencies and locales. We assume that the list of allowed currencies / locales 
+will be relatively small (units, max lower tens of them) and if the system knows them in advance, it can generate enums 
+for each of them in a web APIs. This helps developers to write queries with auto-completion. There is another positive
+effect. E-commerce systems don't often extend the list of used currencies or locales (because there are usually a lot 
+of manual operations involved), and having the allowed set guarded by the system eliminates the possibility of inserting
+invalid prices or localizations by mistake.
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Why are price lists not listed in the schema if currencies are?
+</NoteTitle>
+
+The price lists are closer to "data" than locales or currencies. The set of price lists is expected to change very 
+often, and their numbers can reach high cardinality (thousands, tens of thousands). It wouldn't be practical to generate 
+enumeration values for them and change the Web API schemas every time a price list is added or removed.
+</Note>
+
+#### Attribute
+
+##### Allowed decimal places
 
 The allowed decimal places setting represents an optimization that allows converting rich numeric types (such as
 [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) for precise
@@ -23,3 +206,20 @@ attribute is part of is part of filter or sort conditions.
 
 If number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
 exception is thrown and the entity update is refused.
+
+### Associated data
+### Reference
+
+## Schema definition example
+
+<LanguageSpecific to="java">
+A schema can be programmatically defined this way:
+
+<SourceCodeTabs>
+[Define schema via Java API](docs/user/en/use/example/schema-definition.java)
+</SourceCodeTabs>
+</LanguageSpecific>
+
+<LanguageSpecific to="evitaQL">
+Currently it is not possible to define a schema using evitaQL.
+</LanguageSpecific>

@@ -119,4 +119,4 @@ For more complex examples and explanations, see the [write API chapter](../use/w
 If you don't want to fiddle with your own data, you [can play with our dataset](query-our-dataset.md).
 You can also go into detail in the following chapters on how to use specific parts of
 our [query API](../use/query-api.md), [write API](../use/write-api.md), or [schema API](../use/schema.md).
-You can also familiarize yourself with the [entity Data Structure](../use/entity.md) or other aspects of our database.
+You can also familiarize yourself with the [entity Data Structure](../use/data-model.md) or other aspects of our database.

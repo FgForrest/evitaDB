@@ -25,11 +25,8 @@
 	"children" : [
 	  {
 		"title": "Data model",
+		"path" : "/use/data-model.md",
 		"children" : [
-		  {
-			"title": "Entity",
-			"path" : "/use/entity.md"
-		  },
 		  {
 			"title": "Data types",
 			"path" : "/use/data-types.md"
