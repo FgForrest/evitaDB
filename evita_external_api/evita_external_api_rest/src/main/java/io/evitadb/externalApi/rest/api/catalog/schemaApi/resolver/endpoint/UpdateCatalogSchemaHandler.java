@@ -35,6 +35,7 @@ import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.Cat
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -61,6 +62,22 @@ public class UpdateCatalogSchemaHandler extends RestHandler<CatalogRestHandlingC
 			new RestMutationResolvingExceptionFactory()
 		);
 		this.catalogSchemaJsonSerializer = new CatalogSchemaJsonSerializer(restApiHandlingContext);
+	}
+
+	@Nonnull
+	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.PUT_STRING;
+	}
+
+	@Override
+	public boolean acceptsRequestBodies() {
+		return true;
+	}
+
+	@Override
+	public boolean returnsResponseBodies() {
+		return true;
 	}
 
 	@Override

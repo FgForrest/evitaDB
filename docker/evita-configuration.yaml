@@ -36,9 +36,11 @@ api:
     graphQL:
       enabled: ${api.endpoints.graphQL.enabled:true}
       host: ${api.endpoints.graphQL.host:localhost:5555}
+      allowedOrigins: ${api.endpoints.graphQL.allowedOrigins:null}
     rest:
       enabled: ${api.endpoints.rest.enabled:true}
       host: ${api.endpoints.rest.host:localhost:5555}
+      allowedOrigins: ${api.endpoints.rest.allowedOrigins:null}
     gRPC:
       enabled: ${api.endpoints.gRPC.enabled:true}
       host: ${api.endpoints.gRPC.host:localhost:5556}

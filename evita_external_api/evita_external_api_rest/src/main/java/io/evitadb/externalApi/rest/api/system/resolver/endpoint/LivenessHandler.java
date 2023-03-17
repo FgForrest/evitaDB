@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 import io.evitadb.externalApi.rest.api.system.dto.LivenessDto;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,6 +41,17 @@ public class LivenessHandler extends RestHandler<SystemRestHandlingContext> {
 
 	public LivenessHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
+	}
+
+	@Nonnull
+	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.GET_STRING;
+	}
+
+	@Override
+	public boolean returnsResponseBodies() {
+		return true;
 	}
 
 	@Nullable

@@ -37,8 +37,6 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
-
 /**
  * Transforms API-independent {@link EndpointDescriptor} to GraphQL field definition.
  *

@@ -27,6 +27,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.Collect
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.EntitySchemaJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -46,6 +47,17 @@ public class GetEntitySchemaHandler extends RestHandler<CollectionRestHandlingCo
 	public GetEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		entitySchemaJsonSerializer = new EntitySchemaJsonSerializer(restApiHandlingContext);
+	}
+
+	@Nonnull
+	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.GET_STRING;
+	}
+
+	@Override
+	public boolean returnsResponseBodies() {
+		return true;
 	}
 
 	@Override

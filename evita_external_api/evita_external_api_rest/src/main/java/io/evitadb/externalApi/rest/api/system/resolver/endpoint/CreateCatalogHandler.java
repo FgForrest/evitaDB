@@ -28,6 +28,7 @@ import io.evitadb.externalApi.rest.api.system.dto.CreateCatalogRequestDto;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandler;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
@@ -45,6 +46,22 @@ public class CreateCatalogHandler extends RestHandler<SystemRestHandlingContext>
 	public CreateCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
 		this.catalogJsonSerializer = new CatalogJsonSerializer(restApiHandlingContext);
+	}
+
+	@Nonnull
+	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.POST_STRING;
+	}
+
+	@Override
+	public boolean acceptsRequestBodies() {
+		return true;
+	}
+
+	@Override
+	public boolean returnsResponseBodies() {
+		return true;
 	}
 
 	@Nonnull

@@ -21,33 +21,22 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
+package io.evitadb.externalApi.configuration;
 
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.io.RestHandler;
-import io.undertow.server.HttpServerExchange;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Optional;
 
 /**
- * Handles create and update request for entity schema.
+ * This interface must be implemented by all API providers that support reading request HTTP origin and wishes
+ * to control which are allowed and which are not. Mainly used for <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS">CORS</a> handling.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@Slf4j
-public class DeleteEntitySchemaHandler extends RestHandler<CollectionRestHandlingContext> {
+public interface ApiWithOriginControl {
 
-	public DeleteEntitySchemaHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
-		super(restApiHandlingContext);
-	}
-
-	@Override
+	/**
+	 * Returns array of allowed origins. If null, all origins are allowed.
+	 */
 	@Nullable
-	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
-		restApiHandlingContext.updateCatalog(session -> session.deleteCollection(restApiHandlingContext.getEntityType()));
-		return null;
-	}
+	String[] getAllowedOrigins();
+
 }

@@ -35,6 +35,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Order
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -61,6 +62,22 @@ public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
 		this.orderByConstraintResolver = new OrderByConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
 		this.requireConstraintResolver = new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
+	}
+
+	@Nonnull
+	@Override
+	public String getSupportedHttpMethod() {
+		return Methods.DELETE_STRING;
+	}
+
+	@Override
+	public boolean acceptsRequestBodies() {
+		return true;
+	}
+
+	@Override
+	public boolean returnsResponseBodies() {
+		return true;
 	}
 
 	@Override
