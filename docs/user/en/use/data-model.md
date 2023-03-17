@@ -303,10 +303,10 @@ a single product has dozens of prices assigned to different customers.
 The price has the following structure:
 
 <dl>
-    <dd>
-        [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `priceId`
-    </dd>
     <dt>
+        [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `priceId`
+    </dt>
+    <dd>
 	    Contains the identification of the price in the external systems. This ID is expected to be used for 
         synchronization of the price in relation to the primary source of the prices. The price with the same ID must
         be unique within the same entity. The prices with the same ID in multiple entities should represent the same 
@@ -314,64 +314,64 @@ The price has the following structure:
         properties. These values can be different for a limited time (for example, the prices of Entity A and Entity B 
         can be the same, but Entity A is updated in a different session/transaction and at a different time than 
         Entity B).
-    </dt>
-    <dd>
-        [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) `priceList`
     </dd>
     <dt>
+        [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) `priceList`
+    </dt>
+    <dd>
         Contains the identification of the price list in the external system. Every price must refer to a price list. 
         The price list identification can refer to another Evita entity or contain any external price list
         identification (e.g. ID or unique name of the price list in the external system).
 		A single entity is expected to have a single price for the price list unless `validity' is specified. In other
         words, it makes no sense to have multiple concurrently valid prices for the same entity that are rooted in the 
         same price list.
-    </dt>
-    <dd>[Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) `currency`</dd>
-    <dt>
+    </dd>
+    <dt>[Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) `currency`</dt>
+    <dd>
         Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
-    </dt>
-    <dd>[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `innerRecordId`</dd>
-    <dt>
+    </dd>
+    <dt>[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `innerRecordId`</dt>
+    <dd>
         Some special products (such as master products or product sets) may contain prices of all "child" products so 
         that the aggregating product can display them in certain views of the product. In this case, it is necessary 
         to distinguish the projected prices of the subordinate products in the product that represents them.
-    </dt>
-    <dd>
+    </dd>
+    <dt>
         [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)
         `priceWithoutTax`
-    </dd>
-    <dt>
-        Price without tax.
     </dt>
     <dd>
+        Price without tax.
+    </dd>
+    <dt>
         [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)
         `priceWithTax`
-    </dd>
-    <dt>
-        Price with tax.
     </dt>
     <dd>
+        Price with tax.
+    </dd>
+    <dt>
         [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) 
         `taxRate`
-    </dd>
-    <dt>
+    </dt>
+    <dd>
         Tax percentage (i.e. for 19% it'll be 19.00)
-    </dt>
-    <dd>
+    </dd>
+    <dt>
         [DateTimeRange](data-types.md#datetimerange) `validity`
-    </dd>
-    <dt>
-        Date and time interval for which the price is valid (inclusive).
     </dt>
     <dd>
-        [boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `sellable`
+        Date and time interval for which the price is valid (inclusive).
     </dd>
     <dt>
+        [boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `sellable`
+    </dt>
+    <dd>
         Controls whether the price is subject to filtering/sorting logic, unindexed prices will be fetched along with 
         the entity, but will not be considered when evaluating the query. These prices can be used for "informational" 
         prices, such as the reference price (the crossed out price often found on e-commerce sites as the 
         "usual price"), but are not used as the "price for sale".
-    </dt>
+    </dd>
 </dl>
 
 <LanguageSpecific to="java">

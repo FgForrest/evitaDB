@@ -338,7 +338,8 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 
 #### Prices
 
-
+When prices are enabled, entities of this type can have a set prices associated with them and can be 
+[filtered](../query/filtering/price.md) and [sorted](../query/ordering/price.md) by price constraints.
 
 <Note type="info">
 
