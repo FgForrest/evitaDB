@@ -415,31 +415,37 @@ The attribute schema is described by:
 
 </Note>
 
+##### Default value
+
+An attribute may have a default value defined. The value is used when a new entity is created and no value has been 
+assigned to a particular attribute. There is no other situation where the default value matters.
+
 ##### Allowed decimal places
 
-The allowed decimal places setting represents an optimization that allows converting rich numeric types (such as
-[BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) for precise
-number representation) to the primitive [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
-type, which is much more compact and can be used for fast binary searches in array/bitset representation. The original
-rich format is still present in an attribute container, but internally the database uses the primitive form when an
-attribute is part of is part of filter or sort conditions.
+The allowed decimal places setting is an optimization that allows rich numeric types (such
+as [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) for precise
+number representation) to be converted to the
+primitive [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) type, which is much more
+compact and can be used for fast binary searches in array/bitset representation. The original rich format is still
+present in an attribute container, but internally the database uses the primitive form when an attribute is part of is
+part of filter or sort conditions.
 
 If number cannot be converted to a compact form (for example, it has more digits in the fractional part than expected),
-exception is thrown and the entity update is refused.
+an exception is thrown and the entity update is refused.
 
 ### Associated data
 ### Reference
 
-## Schema definition example
-
 <LanguageSpecific to="java">
+
+## Imperative schema definition
+
 A schema can be programmatically defined this way:
 
 <SourceCodeTabs>
 [Define schema via Java API](docs/user/en/use/example/schema-definition.java)
 </SourceCodeTabs>
-</LanguageSpecific>
 
-<LanguageSpecific to="evitaQL">
-Currently it is not possible to define a schema using evitaQL.
+## Declarative schema definition
+
 </LanguageSpecific>
