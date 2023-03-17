@@ -36,7 +36,7 @@ import java.util.Set;
 
 /**
  * Filters requests with CORS. Mainly, checks if request origin is allowed to access certain endpoint. Should be
- * used as filter for all standard endpoints.
+ * used as filter for all standard endpoints. Also, appends CORS header for standard requests.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -69,7 +69,13 @@ public class CorsFilter implements HttpHandler {
 				exchange.endExchange();
 				return;
 			}
+
+			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGINS, requestOrigin);
+			exchange.getResponseHeaders().put(Headers.VARY, "Origin");
+		} else {
+			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGINS, "*");
 		}
+
 		next.handleRequest(exchange);
 	}
 }
