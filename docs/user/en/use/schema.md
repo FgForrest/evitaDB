@@ -338,6 +338,8 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 
 #### Prices
 
+
+
 <Note type="info">
 
 <NoteTitle toggles="false">

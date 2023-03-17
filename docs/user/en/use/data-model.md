@@ -48,6 +48,9 @@ The catalog is a top-level isolation layer. It's equivalent to a *database* in o
 contains a set of entity collections that maintain data for a single tenant. evitaDB doesn't support queries that could 
 span multiple catalogs. The catalogs are completely isolated from each other on disk and in memory.
 
+A catalog is described by its [schema](schema.md#catalog). Changes to the catalog structure can only be made using 
+catalog schema mutations.
+
 ## Collection
 
 The collection is a storage unit for data related to the same [entity type](#entity-type). It's equivalent to 
@@ -57,6 +60,22 @@ in the relational world would be "a set of logically related linked tables".
 
 Collections in evitaDB are not isolated and entities in them can be related to entities in different collections.
 Currently, the relationships are only unidirectional.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Do I need to define schema prior to inserting data?
+</NoteTitle>
+
+Although evitaDB requires a schema for each entity type, it supports automatic evolution if you allow it. If you don't
+specify otherwise, evitaDB learns about entity attributes, their data types and all necessary relations as you add new
+data. Once the attributes, associated data or other contours of the entity are known, they are enforced by evitaDB. This
+mechanism is somewhat similar to the schema-less approach, but results in a much more consistent data store.
+</Note>
+
+A collection is described by its [schema](schema.md#entity). Changes to the entity type definition can only be made 
+using entity schema mutations.
 
 ## Entity
 
@@ -81,23 +100,6 @@ Entity type must be [String type](https://docs.oracle.com/en/java/javase/17/docs
 Entity type is the main business key (equivalent to a *table name* in relational database) - all data of entities of 
 the same type is stored in a separate index. Within the entity type the entity is uniquely represented by
 [the primary key](#primary-key).
-
-<Note type="info">
-
-<NoteTitle toggles="true">
-
-##### Is the entity type restricted by a schema?
-</NoteTitle>
-
-Yes, the entity type is described by its [schema](schema.md).
-
-Although evitaDB requires a schema for each entity type, it supports automatic evolution if you allow it. If you don't
-specify otherwise, evitaDB learns about entity attributes, their data types and all necessary relations as you add new
-data. Once the attributes, associated data or other contours of the entity are known, they are enforced by evitaDB. This
-mechanism is somewhat similar to the schema-less approach, but results in a much more consistent data store.
-
-The details about [schema definition](schema.md) are part of different document.
-</Note>
 
 ### Primary key
 
@@ -164,6 +166,8 @@ for the catalog menus and when the user examines the category content, he/she us
 category subtree of the category. That's why hierarchies are directly supported by evitaDB.
 </Note>
 
+More details about hierarchy placement are described in the [schema definition chapter](schema.md#hierarchy-placement).
+
 ### Attributes (unique, filterable, sortable, localized)
 
 The entity attributes allow you to define a set of data to be fetched in bulk along with the entity body.
@@ -190,6 +194,8 @@ The attribute schema is described by:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeSchemaContract.java</SourceClass>
 </Note>
 </LanguageSpecific>
+
+More details about attributes are described in the [schema definition chapter](schema.md#attribute).
 
 #### Localized attributes
 
@@ -243,6 +249,8 @@ Associated data schema is described by:
 </Note>
 </LanguageSpecific>
 
+More details about associated data are described in the [schema definition chapter](schema.md#associated-data).
+
 #### Localized associated data
 
 Associated data value can contain localized values. It means that different values should be returned along with entity 
@@ -283,12 +291,88 @@ Reference schema is described by:
 </Note>
 </LanguageSpecific>
 
+More details about references are described in the [schema definition chapter](schema.md#reference).
+
 ### Prices
 
 Prices are specific to very few entity types (usually products, shipping methods, and so on), but since correct price 
 calculation is a very complex and important part of e-commerce systems and highly affects the performance of entity 
 filtering and sorting, they deserve first-class support in the entity model. It is quite common in B2B systems that 
 a single product has dozens of prices assigned to different customers.
+
+The price has the following structure:
+
+<dl>
+    <dd>
+        [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `priceId`
+    </dd>
+    <dt>
+	    Contains the identification of the price in the external systems. This ID is expected to be used for 
+        synchronization of the price in relation to the primary source of the prices. The price with the same ID must
+        be unique within the same entity. The prices with the same ID in multiple entities should represent the same 
+        price in terms of other values - such as validity, currency, price list, the price itself, and all other 
+        properties. These values can be different for a limited time (for example, the prices of Entity A and Entity B 
+        can be the same, but Entity A is updated in a different session/transaction and at a different time than 
+        Entity B).
+    </dt>
+    <dd>
+        [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) `priceList`
+    </dd>
+    <dt>
+        Contains the identification of the price list in the external system. Every price must refer to a price list. 
+        The price list identification can refer to another Evita entity or contain any external price list
+        identification (e.g. ID or unique name of the price list in the external system).
+		A single entity is expected to have a single price for the price list unless `validity' is specified. In other
+        words, it makes no sense to have multiple concurrently valid prices for the same entity that are rooted in the 
+        same price list.
+    </dt>
+    <dd>[Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) `currency`</dd>
+    <dt>
+        Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
+    </dt>
+    <dd>[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `innerRecordId`</dd>
+    <dt>
+        Some special products (such as master products or product sets) may contain prices of all "child" products so 
+        that the aggregating product can display them in certain views of the product. In this case, it is necessary 
+        to distinguish the projected prices of the subordinate products in the product that represents them.
+    </dt>
+    <dd>
+        [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)
+        `priceWithoutTax`
+    </dd>
+    <dt>
+        Price without tax.
+    </dt>
+    <dd>
+        [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)
+        `priceWithTax`
+    </dd>
+    <dt>
+        Price with tax.
+    </dt>
+    <dd>
+        [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) 
+        `taxRate`
+    </dd>
+    <dt>
+        Tax percentage (i.e. for 19% it'll be 19.00)
+    </dt>
+    <dd>
+        [DateTimeRange](data-types.md#datetimerange) `validity`
+    </dd>
+    <dt>
+        Date and time interval for which the price is valid (inclusive).
+    </dt>
+    <dd>
+        [boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `sellable`
+    </dd>
+    <dt>
+        Controls whether the price is subject to filtering/sorting logic, unindexed prices will be fetched along with 
+        the entity, but will not be considered when evaluating the query. These prices can be used for "informational" 
+        prices, such as the reference price (the crossed out price often found on e-commerce sites as the 
+        "usual price"), but are not used as the "price for sale".
+    </dt>
+</dl>
 
 <LanguageSpecific to="java">
 <Note type="info">
@@ -313,3 +397,5 @@ Price schema is part of main entity schema:
 The algorithm is quite complex and needs a lot of examples to understand it. Therefore, there is 
 a [separate chapter on this subject](../query/filtering/price.md#price-for-sale-computation-algorithm).
 </Note>
+
+More details about prices are described in the [schema definition chapter](schema.md#prices).
