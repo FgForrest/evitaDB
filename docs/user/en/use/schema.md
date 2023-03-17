@@ -535,9 +535,7 @@ The reference schema is described by:
 
 A schema can be programmatically defined this way:
 
-<SourceCodeTabs>
-[Imperative schema definition via Java API](docs/user/en/use/example/imperative-schema-definition.java)
-</SourceCodeTabs>
+
 
 ## Declarative schema definition
 
@@ -546,9 +544,6 @@ annotations that describe the entity structure you want to work with in your pro
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> to define an entity schema 
 for you:
 
-<SourceCodeTabs>
-[Declarative schema definition via Java API](docs/user/en/use/example/schema-definition.java)
-</SourceCodeTabs>
 
 The model template can be:
 
