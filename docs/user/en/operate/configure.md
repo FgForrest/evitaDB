@@ -48,9 +48,11 @@ api:                                              # [see API configuration](#api
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: true
       host: localhost:5555
+      allowedOrigins: null
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: true
       host: localhost:5555
+      allowedOrigins: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: true
       host: localhost:5556
@@ -60,6 +62,7 @@ api:                                              # [see API configuration](#api
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: true
       host: localhost:5557
+      allowedOrigins: null
 ```
 
 <Note type="info">
@@ -439,6 +442,13 @@ provide an unsecured connection for security reasons.
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the REST 
         API, but not to the gRPC or System API.</p>
     </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
+        allowed automatically.</p>
+    </dd>
 </dl>
 
 ### REST API configuration
@@ -454,6 +464,13 @@ provide an unsecured connection for security reasons.
         <p>**Default:** `localhost:5555`</p>
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the GraphQL 
         API, but not to the gRPC or System API.</p>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
+        allowed automatically.</p>
     </dd>
 </dl>
 
@@ -513,5 +530,12 @@ more information.
         <p>The system endpoint allows anyone to view public <Term location="docs/user/en/operate/tls.md">certificate authority</Term> 
         <Term location="docs/user/en/operate/tls.md">certificate</Term> and it also provides information for 
         [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure).</p>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
+        allowed automatically.</p>
     </dd>
 </dl>
