@@ -1,6 +1,6 @@
 ---
 title: Configuration
-perex:
+perex: This article is a complete configuration guide for evitaDB instance.
 date: '1.3.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
