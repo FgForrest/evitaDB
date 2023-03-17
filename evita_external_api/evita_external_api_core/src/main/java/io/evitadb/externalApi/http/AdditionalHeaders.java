@@ -35,11 +35,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AdditionalHeaders {
 
-	public static final String ACCESS_CONTROL_ALLOW_ORIGINS_STRING = "Access-Control-Allow-Origins";
+	public static final String ACCESS_CONTROL_ALLOW_ORIGIN_STRING = "Access-Control-Allow-Origin";
 	public static final String ACCESS_CONTROL_ALLOW_METHODS_STRING = "Access-Control-Allow-Methods";
 	public static final String ACCESS_CONTROL_ALLOW_HEADERS_STRING = "Access-Control-Allow-Headers";
 
-	public static final HttpString ACCESS_CONTROL_ALLOW_ORIGINS = new HttpString(ACCESS_CONTROL_ALLOW_ORIGINS_STRING);
+	public static final HttpString ACCESS_CONTROL_ALLOW_ORIGIN = new HttpString(ACCESS_CONTROL_ALLOW_ORIGIN_STRING);
 	public static final HttpString ACCESS_CONTROL_ALLOW_METHODS = new HttpString(ACCESS_CONTROL_ALLOW_METHODS_STRING);
 	public static final HttpString ACCESS_CONTROL_ALLOW_HEADERS = new HttpString(ACCESS_CONTROL_ALLOW_HEADERS_STRING);
 }

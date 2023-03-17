@@ -67,7 +67,7 @@ public class CorsPreflightHandler implements HttpHandler {
 	@Override
 	public void handleRequest(HttpServerExchange exchange) throws Exception {
 		if (allowedOrigins == null) {
-			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGINS, "*");
+			exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
 		} else {
 			final String requestOrigin = exchange.getRequestHeaders().getFirst(Headers.ORIGIN);
 			if (requestOrigin == null || !allowedOrigins.contains(requestOrigin)) {
@@ -76,7 +76,7 @@ public class CorsPreflightHandler implements HttpHandler {
 				exchange.endExchange();
 				return;
 			} else {
-				exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGINS, requestOrigin);
+				exchange.getResponseHeaders().put(AdditionalHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, requestOrigin);
 				exchange.getResponseHeaders().put(Headers.VARY, "Origin");
 			}
 		}
