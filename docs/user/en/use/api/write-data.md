@@ -111,9 +111,23 @@ The version information serves two purposes:
 
 1. **fast hashing & equality check:** only the primaryKey + version information is enough to tell if two instances 
    are the same, and we can say this with enough confidence even in situation, when only 
-   [a part of the entity](query-data.md#lazy-loading) was actually loaded from persistent storage
+   [a part of the entity](query-data.md#lazy-fetching-enrichment) was actually loaded from persistent storage
 2. **optimistic locking:** if there is a concurrent update of the same entity, we could automatically resolve the 
    conflict, provided that the changes themselves do not overlap.
+
+<Note type="info">
+Since the entity is *immutable* and *versioned* the default implementation of the `hashCode` and `equals` takes these 
+three components into account:
+
+1. entity type
+2. primary key
+3. version
+
+If you need a thorough comparison that compares all model data, you must use the `differsFrom` method defined in the
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ContentComparator.java</SourceClass>
+interface and implemented by the 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass>.
+</Note>
 
 ## Session & transaction
 
