@@ -124,7 +124,7 @@ or class you use for declarative schema definition. This feature request is reco
 
 </LanguageSpecific>
 
-<LanguageSpecific to="graphQL">
+<LanguageSpecific to="graphql">
 **Work in progress**
 
 The procedure and documentation for schema definition from GraphQL will be added.
@@ -136,13 +136,13 @@ The procedure and documentation for schema definition from GraphQL will be added
 The procedure and documentation for schema definition from REST will be added.
 </LanguageSpecific>
 
-<LanguageSpecific to="c-sharp">
+<LanguageSpecific to="csharp">
 **Work in progress**
 
 The procedure and documentation for schema definition from C# will be added.
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaQL">
+<LanguageSpecific to="evitaql">
 Unfortunately, it is currently not possible to define a schema using EvitaQL. This extension is also not planned to be
 implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API) are sufficient 
 for schema definition.
