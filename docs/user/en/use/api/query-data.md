@@ -75,7 +75,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
 <SourceCodeTabs>
-[Java query example](docs/user/en/use/api/example/java-dirty-query-example.java)
+[Java dirty query example](docs/user/en/use/api/example/java-dirty-query-example.java)
 </SourceCodeTabs>
 
 The query is automatically cleaned and unnecessary constraints are removed before it is processed by the evitaDB engine.
