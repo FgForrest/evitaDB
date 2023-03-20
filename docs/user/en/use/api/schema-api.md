@@ -62,7 +62,6 @@ that is annotated with following annotations:
         Annotation can be placed on field / getter method / record component and marks an entity as 
         [hierarchical entity](#hierarchy-placement). It should point to another model class (interface / class / record) 
         that contains properties for `@ParentEntity' and @OrderAmongSiblings' annotations.
-    <dd>
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass></dt>
     <dd>
