@@ -52,27 +52,6 @@ We also try to preserve the "look & feel" of the original evitaQL in different l
 while respecting the conventions and capabilities of the respective language.
 
 <LanguageSpecific to="java">
-## Conversion of evitaQL from String to AST and back
-
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryParser.java</SourceClass> class allows to parse 
-the query from [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) to the AST
-form of the <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class. 
-The string notation of *evitaQL* can be created at any time by calling the `toString()` method on the 
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> object.
-
-The parser supports passing values by reference, copying the proven approach from a JDBC 
-[prepared statement](https://docs.oracle.com/javase/tutorial/jdbc/basics/prepared.html)
-which allows the use of the `?` character in the query and returns an array of correctly sorted input parameters.
-
-It also supports so-called [named queries](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/core/namedparam/NamedParameterJdbcTemplate.html), 
-which are widely used in the [Spring framework](https://spring.io/projects/spring-data-jdbc), using variables in the 
-query with the format `:name` and providing a [map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with 
-the named input parameters.
-
-In the opposite direction, it offers the `toStringWithParameterExtraction` method on the 
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class object, which allows to 
-create the string format for *evitaQL* in the form of a *prepared statement* and extract all parameters in a separate 
-array.
 
 ## Defining queries in Java code
 
@@ -142,3 +121,25 @@ are known prior to rendering. But different architectures might fetch thinner en
 they need more data in it. While this approach is not optimal performance-wise, it might make the life for developers
 easier, and it's much more optimal to just enrich existing query (using lookup by primary key and fetching only missing
 data) instead of re-fetching entire entity again.
+
+## Conversion of evitaQL from String to AST and back
+
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryParser.java</SourceClass> class allows to parse
+the query from [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) to the AST
+form of the <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class.
+The string notation of *evitaQL* can be created at any time by calling the `toString()` method on the
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> object.
+
+The parser supports passing values by reference, copying the proven approach from a JDBC
+[prepared statement](https://docs.oracle.com/javase/tutorial/jdbc/basics/prepared.html)
+which allows the use of the `?` character in the query and returns an array of correctly sorted input parameters.
+
+It also supports so-called [named queries](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/core/namedparam/NamedParameterJdbcTemplate.html),
+which are widely used in the [Spring framework](https://spring.io/projects/spring-data-jdbc), using variables in the
+query with the format `:name` and providing a [map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with
+the named input parameters.
+
+In the opposite direction, it offers the `toStringWithParameterExtraction` method on the
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class object, which allows to
+create the string format for *evitaQL* in the form of a *prepared statement* and extract all parameters in a separate
+array.
