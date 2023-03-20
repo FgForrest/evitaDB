@@ -303,7 +303,7 @@ logic of the `require` conditions [`page` or `strip`](../../query/requirements/p
 size of the defined paging, you should repeat the removal command.
 
 Massive entity removal is better to execute in multiple transactional rounds and not in one big transaction. This is a
-good practice at least, because large and long-lasting transactions introduce the occurrence of conflicts and lead to 
+good practice at least, because large and long-lasting transactions increase probability of conflicts that lead to 
 rollback of other transactions.
 </Note>
 
