@@ -100,8 +100,8 @@ All model classes are versioned - in other words, when a model instance is modif
 instance created from that modified state is incremented by one. Version information is available not only at 
 the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass> level, 
 but also at more granular levels (such as 
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AttributesContract.java</SourceClass>
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass>
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AttributesContract.java</SourceClass>,
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass>, or
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AssociatedDataContract.java</SourceClass>).
 
 All model classes that support versioning implement the
@@ -110,11 +110,8 @@ All model classes that support versioning implement the
 The version information serves two purposes:
 
 1. **fast hashing & equality check:** only the primaryKey + version information is enough to tell if two instances 
-   are the same, and we can say this with enough confidence even if only a part of the entity was actually loaded from 
-   persistent storage (if you need a thorough comparison that compares all model data, you need to take advantage of 
-   the `differsFrom` method in the 
-   <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ContentComparator.java</SourceClass> 
-   interface).
+   are the same, and we can say this with enough confidence even in situation, when only 
+   [a part of the entity](query-data.md#lazy-loading) was actually loaded from persistent storage
 2. **optimistic locking:** if there is a concurrent update of the same entity, we could automatically resolve the 
    conflict, provided that the changes themselves do not overlap.
 
@@ -134,8 +131,8 @@ The interval is set by default to `60 seconds` but
 [it can be changed](https://evitadb.io/documentation/operate/configure#server-configuration) to different value.
 The inactivity means that there is no activity recorded on the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface. If you need
-to artificially keep session alive you need to periodically call some side-effect method on the session interface,
-such as:
+to artificially keep session alive you need to periodically call some method without side-effects on the session 
+interface, such as:
 
 <dl>
     <dt>`isActive`</dt>
@@ -152,11 +149,11 @@ such as:
 
 <SourceClass>evita_api/src/main/java/io/evitadb/api/TransactionContract.java</SourceClass> is an envelope for a "unit 
 of work" with evitaDB. A transaction exists within a session and is guaranteed to have 
-[the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation) for reads and the changes in 
+[the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation) for reads. The changes in 
 a transaction are always isolated from other transactions and become visible only after the transaction has been 
-committed. If the transaction is marked as *rollback only*, all changes will be discarded and will never reach the 
-shared database state. There can be at most one active transaction in a session, but there can be multiple successor 
-transactions during the session's lifetime.
+committed. If the transaction is marked as *rollback only*, all changes will be discarded on transaction closing and 
+will never reach the shared database state. There can be at most one active transaction in a session, but there can 
+be multiple successor transactions during the session's lifetime.
 
 <Note type="warning">
 Parallel transaction handling hasn't been finalized yet, and is scheduled to be finalized in 
@@ -171,7 +168,7 @@ evitaDB recognizes two types of sessions:
 
 <dl>
     <dt>read-only (default)</dt>
-    <dd>Read-only sessions are opened by calling the `queryCatalog' method. No write operations are allowed in a 
+    <dd>Read-only sessions are opened by calling the `queryCatalog` method. No write operations are allowed in a 
     read-only session. This also allows evitaDB to optimize its behavior when working with the database.</dd>
     <dt>read-write</dt>
     <dd>Read-write sessions are opened by calling the `updateCatalog` method</dd>
