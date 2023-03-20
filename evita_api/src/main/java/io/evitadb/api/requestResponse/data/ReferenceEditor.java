@@ -61,7 +61,7 @@ public interface ReferenceEditor<W extends ReferenceEditor<W>> extends Reference
 	/**
 	 * Interface that simply combines writer and builder contracts together.
 	 */
-	interface ReferenceBuilder extends ReferenceEditor<ReferenceBuilder>, Builder<ReferenceContract> {
+	interface ReferenceBuilder extends ReferenceEditor<ReferenceBuilder>, BuilderContract<ReferenceContract> {
 
 		@Nonnull
 		Stream<? extends ReferenceMutation<?>> buildChangeSet();

@@ -68,7 +68,7 @@
 			"path" : "/use/api/schema-api.md"
 		  },
 		  {
-			"title": "Upsert data",
+			"title": "Write data",
 			"path" : "/use/api/write-data.md"
 		  },
 		  {

@@ -33,7 +33,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface Builder<T> {
+public interface BuilderContract<T> {
 
 	/**
 	 * Produces stream that can be used to create or alter existing instance of the class.

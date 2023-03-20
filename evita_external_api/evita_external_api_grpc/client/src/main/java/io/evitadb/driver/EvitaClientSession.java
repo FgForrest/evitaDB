@@ -894,7 +894,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Override
-	public int deleteEntityAndItsHierarchy(@Nonnull String entityType, @Nonnull Integer primaryKey) {
+	public int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final GrpcDeleteEntityAndItsHierarchyResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
@@ -912,7 +912,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, @Nonnull Integer primaryKey, EntityContentRequire... require) {
+	public DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
