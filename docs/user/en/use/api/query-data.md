@@ -52,15 +52,6 @@ We also try to preserve the "look & feel" of the original evitaQL in different l
 while respecting the conventions and capabilities of the respective language.
 
 <LanguageSpecific to="java">
-Use the static `query' methods in the
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class to create a query and then 
-compose inner constraints from the static methods in 
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
-
-When this class is imported statically, the Java query definition looks like the string form of the query. 
-Thanks to type inference, the IDE will help you with auto-completion of the constraints that make sense in a particular 
-context.
-
 ## Conversion of evitaQL from String to AST and back
 
 The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryParser.java</SourceClass> class allows to parse 
@@ -84,6 +75,15 @@ create the string format for *evitaQL* in the form of a *prepared statement* and
 array.
 
 ## Defining queries in Java code
+
+In order to create a query, use the static `query` methods in the
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class to create a query and then
+compose inner constraints from the static methods in
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
+
+When this class is imported statically, the Java query definition looks like the string form of the query.
+Thanks to type inference, the IDE will help you with auto-completion of the constraints that make sense in a particular
+context.
 
 This is an example of how the query is composed and how evitaDB is called. The example imports two classes statically:
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> and
