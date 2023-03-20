@@ -212,7 +212,7 @@ have all the business logic executable within the same block.
 For testing purposes, there is a special flag that can be used when opening a new session - a **dry run** flag:
 
 <SourceCodeTabs>
-[Opening dry-run session](docs/user/en/use/api/example/autocloseable-transaction-management.java)
+[Opening dry-run session](docs/user/en/use/api/example/dry-run-session.java)
 </SourceCodeTabs>
 
 In this session, all transactions will automatically have a *rollback* flag set when they are opened, without the need
