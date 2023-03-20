@@ -572,7 +572,6 @@ that is annotated with following annotations:
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass></dt>
     <dd>
         Annotation can be placed on field / getter method / record component and marks an entity [attribute](#attribute).
-
         Default values in case of interfaces can be provided using default method implementation (see the example 
         below).
     </dd>
