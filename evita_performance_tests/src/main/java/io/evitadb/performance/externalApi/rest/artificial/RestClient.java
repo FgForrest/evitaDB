@@ -26,11 +26,14 @@ package io.evitadb.performance.externalApi.rest.artificial;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -38,20 +41,41 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.X509Certificate;
 
 /**
  * Client for creating HTTP Rest requests and executing them.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class RestClient {
 
 	private static final ObjectMapper objectMapper = new ObjectMapper();
 
 	@SneakyThrows
+	public RestClient() {
+		// Create a trust manager that does not validate certificate chains
+		final TrustManager[] trustAllCerts = new TrustManager[] {
+			new X509TrustManager() {
+				public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+					return null;
+				}
+				public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+				public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+			}
+		};
+		// Install the all-trusting trust manager
+		SSLContext sc = SSLContext.getInstance("SSL");
+		sc.init(null, trustAllCerts, new java.security.SecureRandom());
+		HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+		// Install the all-trusting host verifier
+		HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
+	}
+
+	@SneakyThrows
 	public JsonNode call(@Nonnull String resource, @Nullable String body) {
-		final URL url = new URL("http://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/rest/test-catalog/" + resource);
+		final URL url = new URL("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/rest/test-catalog/" + resource);
 		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 		connection.setRequestProperty("Accept", "application/json");
 		connection.setRequestProperty("Content-Type", "application/json");
