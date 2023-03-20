@@ -44,7 +44,9 @@ in those arguments. An example of such a query might look like this:
 evitaQL is represented by a simple
 [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) which is parsed to
 an abstract syntax tree consisting of constraints 
-(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Constraint.java</SourceClass> encapsulated in <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> objects). 
+(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Constraint.java</SourceClass>) encapsulated in 
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> object.
+
 We have designed the *evitaQL* string representation to look similar to a query defined directly in the *Java* language. 
 We also try to preserve the "look & feel" of the original evitaQL in different languages / APIs like REST, GraphQL or C#
 while respecting the conventions and capabilities of the respective language.
