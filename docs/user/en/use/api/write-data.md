@@ -5,6 +5,7 @@ perex: |
     entity upsert and deletion and related recommendations.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
+proofreading: 'needed'
 ---
 
 ## Indexing modes
