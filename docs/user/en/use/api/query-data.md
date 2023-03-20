@@ -18,14 +18,14 @@ The query in evitaDB is represented by a tree of nested "constraints" divided in
     <dt>`orderBy`</dt>
     <dd>it specifies the order in which the results are returned</dd>
     <dt>`require`</dt>
-    <dd>it allows you to pass additional information about how much data the returned entities have, 
+    <dd>it allows you to pass additional information about how much data the returned entities should have, 
     how many of them are needed, and what other calculations should be performed on them</dd>
 </dl>
 
 The *evitaQL* (evitaDB Query Language) entry point is represented by 
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class, and looks like this 
 a [Lisp flavored language](https://en.wikipedia.org/wiki/Lisp_(programming_language)). It always starts with 
-the function name of the function, followed by a set of arguments in parentheses. You can even use other functions 
+the name of the function, followed by a set of arguments in parentheses. You can even use other functions 
 in those arguments. An example of such a query might look like this:
 
 <SourceCodeTabs>
@@ -34,13 +34,12 @@ in those arguments. An example of such a query might look like this:
 
 > The query will return the first page of 20 products in the category "local food" and its subcategories that have 
 > Czech localization and a valid price in one of the price lists "VIP", "loyal customer" or "regular prices" in the 
-> currency CZK. It also filters only products with a price between 600 and 1,600 CZK including VAT and with the 
+> currency CZK. It also filters only products with a selling price between 600 and 1,600 CZK including VAT and with the 
 > parameters "gluten-free" and "original recipe".
-
-> The result will therefore be all items with Czech localization and calculated selling prices. For the prices, a 
-> so-called price histogram will also be calculated with a maximum of 30 columns so that they can be displayed on the 
-> dedicated space. In addition, a summary of parametric filters will be calculated with an impact analysis of how  
-> the result would look if the user selected some other parameters in addition to the two selected ones.
+> The so-called price histogram will also be calculated for all matching products with a maximum of 30 columns so that 
+> they can be displayed on the dedicated space. In addition, a summary of parametric filters (facets )will be 
+> calculated with an impact analysis of how the result would look if the user selected some other parameters in addition 
+> to the two selected ones.
 
 evitaQL is represented by a simple
 [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) which is parsed to
