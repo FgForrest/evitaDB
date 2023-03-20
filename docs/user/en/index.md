@@ -37,7 +37,7 @@ in the separate part of this site.
 
 ## Use
 
-1. [Data model](use/entity.md)
+1. [Data model](use/data-model.md)
    1. [Data types](use/data-types.md)
    2. [Schema](use/schema.md)
 2. **Connectors**

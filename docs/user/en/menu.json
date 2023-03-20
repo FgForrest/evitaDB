@@ -25,20 +25,15 @@
 	"children" : [
 	  {
 		"title": "Data model",
-		"children" : [
-		  {
-			"title": "Entity",
-			"path" : "/use/entity.md"
-		  },
-		  {
-			"title": "Data types",
-			"path" : "/use/data-types.md"
-		  },
-		  {
-			"title": "Schema",
-			"path" : "/use/schema.md"
-		  }
-		]
+		"path" : "/use/data-model.md"
+	  },
+	  {
+		"title": "Data types",
+		"path" : "/use/data-types.md"
+	  },
+	  {
+		"title": "Schema",
+		"path" : "/use/schema.md"
 	  },
 	  {
 		"title": "Connectors",

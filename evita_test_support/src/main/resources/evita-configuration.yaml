@@ -36,6 +36,7 @@ api:
     system:
       enabled: ${api.endpoints.system.enabled:true}
       host: ${api.endpoints.system.host:localhost:5557}
+      allowedOrigins: ${api.endpoints.system.allowedOrigins:null}
     graphQL:
       enabled: ${api.endpoints.graphQL.enabled:true}
       host: ${api.endpoints.graphQL.host:localhost:5555}

@@ -50,3 +50,4 @@ api:
     system:
       enabled: ${api.endpoints.system.enabled:true}
       host: ${api.endpoints.system.host:localhost:5557}
+      allowedOrigins: ${api.endpoints.system.allowedOrigins:null}

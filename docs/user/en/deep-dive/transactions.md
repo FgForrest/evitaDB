@@ -8,3 +8,5 @@ author: 'Ing. Jan Novotný'
 **Work in progress**
 
 This article will contain copy of [research thesis](https://evitadb.io/research/in-memory/thesis#transactions).
+
+## Write Ahead Log
