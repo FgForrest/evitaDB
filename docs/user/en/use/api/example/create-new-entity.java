@@ -1,13 +1,13 @@
 evita.updateCatalog(
 	"testCatalog",
 	session -> {
-		session.createNewEntity(ENTITY_PRODUCT)
+		session.createNewEntity("product")
 			.setAttribute("name", Locale.ENGLISH, "ASUS Vivobook 16 X1605EA-MB044W Indie Black")
 			.setAttribute("name", Locale.GERMAN, "ASUS Vivobook 16 X1605EA-MB044W Indie Schwarz")
 			.setAttribute("catalogCode", "X1605EA-MB044W")
 			.setAttribute("stockQuantity", 1)
 			.setAssociatedData(
-				ASSOCIATED_DATA_GALLERY,
+				"gallery",
 				new String[] {
 					"https://cdn.alza.cz/ImgW.ashx?fd=f4&cd=NA579p8e0&i=1.jpg",
 					"https://cdn.alza.cz/ImgW.ashx?fd=FotoAddOrig&cd=NA579p8e0-04&i=1.jpg"
