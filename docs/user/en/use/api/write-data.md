@@ -182,7 +182,7 @@ talk to the master node.
 We recommend to open sessions using `queryCatalog` / `updateCatalog` methods that accept a lambda function to execute 
 your business logic. This way evitaDB can safely handle the lifecycle management of *sessions* & *transactions*. 
 This approach is not always acceptable - for example, if your application needs to be integrated into an existing 
-framework that only provides a lifecycle callback method, there is no way to "wrap" the entire business logic in 
+framework that only provides a lifecycle callback methods, there is no way to "wrap" the entire business logic in 
 the lambda function.
 
 That's why there is an alternative - not so secure - approach to handling sessions and transactions:
@@ -192,7 +192,7 @@ That's why there is an alternative - not so secure - approach to handling sessio
 </SourceCodeTabs>
 
 <Note type="warning">
-If you use manual *session*/ *transaction* handling, you must ensure that for every scope opening there is 
+If you use manual *session / transaction* handling, you must ensure that for every scope opening there is 
 a corresponding closing (even if an exception occurs during your business logic call).
 </Note>
 

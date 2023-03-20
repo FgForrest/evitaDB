@@ -11,3 +11,7 @@ This article will contain recommendation for writing application tests using evi
 DataGenerator classes / annotations we use for our own tests.
 
 The article should also mention testing evitaDB through specific APIs: GraphQL, gRPC, REST.
+
+[//]: # (Notes)
+
+[Dry-run session](write-data.md#dry-run-session)
