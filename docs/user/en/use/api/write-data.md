@@ -269,7 +269,7 @@ argument.
 
 #### Creating entities in detached mode
 
-Entities can be created even if no EvitaDB instance is available:
+Entity instances can be created even if no EvitaDB instance is available:
 
 <SourceCodeTabs>
 [Detached instantiation example](docs/user/en/use/api/example/detached-instantiation.java)

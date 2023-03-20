@@ -2,8 +2,14 @@ evita.updateCatalog(
 	"testCatalog",
 	session -> {
 		session.createNewEntity("product")
-			.setAttribute("name", Locale.ENGLISH, "ASUS Vivobook 16 X1605EA-MB044W Indie Black")
-			.setAttribute("name", Locale.GERMAN, "ASUS Vivobook 16 X1605EA-MB044W Indie Schwarz")
+			.setAttribute(
+				"name", Locale.ENGLISH,
+				"ASUS Vivobook 16 X1605EA-MB044W Indie Black"
+			)
+			.setAttribute(
+				"name", Locale.GERMAN,
+				"ASUS Vivobook 16 X1605EA-MB044W Indie Schwarz"
+			)
 			.setAttribute("catalogCode", "X1605EA-MB044W")
 			.setAttribute("stockQuantity", 1)
 			.setAssociatedData(
