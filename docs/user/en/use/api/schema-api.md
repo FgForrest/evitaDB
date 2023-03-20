@@ -14,7 +14,7 @@ author: 'Ing. Jan Novotný'
 A schema can be programmatically defined this way:
 
 <SourceCodeTabs>
-[Imperative schema definition via Java API](docs/user/en/use/example/imperative-schema-definition.java)
+[Imperative schema definition via Java API](docs/user/en/use/api/example/imperative-schema-definition.java)
 </SourceCodeTabs>
 
 ## Declarative schema definition
@@ -25,7 +25,7 @@ annotations that describe the entity structure you want to work with in your pro
 for you:
 
 <SourceCodeTabs>
-[Declarative schema definition via Java API](docs/user/en/use/example/declarative-schema-definition.java)
+[Declarative schema definition via Java API](docs/user/en/use/api/example/declarative-schema-definition.java)
 </SourceCodeTabs>
 
 The model template can be:
@@ -113,7 +113,7 @@ that is annotated with following annotations:
 For a better idea, let's demonstrate a sample of the interface design of the product entity.
 
 <SourceCodeTabs>
-[Example of the model interface](docs/user/en/use/example/declarative-model-example.java)
+[Example of the model interface](docs/user/en/use/api/example/declarative-model-example.java)
 </SourceCodeTabs>
 
 <Note type="info">
