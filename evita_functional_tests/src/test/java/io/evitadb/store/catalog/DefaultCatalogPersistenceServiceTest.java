@@ -75,6 +75,7 @@ import java.util.Map;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.any;
@@ -367,7 +368,7 @@ class DefaultCatalogPersistenceServiceTest implements TestFileSupport {
 			);
 			assertEquals(1, response.getRecordData().size());
 			final SealedEntity deserializedEntity = (SealedEntity) response.getRecordData().get(0);
-			assertFalse(originEntity.differsFrom(deserializedEntity));
+			assertExactlyEquals(originEntity, deserializedEntity);
 		}
 
 		outputKeeper.free();

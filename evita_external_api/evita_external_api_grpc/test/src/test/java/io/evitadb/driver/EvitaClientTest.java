@@ -76,6 +76,8 @@ import java.util.function.BiFunction;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.Assertions.assertDiffers;
+import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
@@ -417,7 +419,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertNotNull(sealedEntity);
 		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertFalse(PRODUCTS.get(1).differsFrom(sealedEntity));
+		assertExactlyEquals(PRODUCTS.get(1), sealedEntity);
 	}
 
 	@Test
@@ -442,7 +444,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 		).orElseThrow();
 
 		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertFalse(PRODUCTS.get(1).differsFrom(sealedEntity));
+		assertExactlyEquals(PRODUCTS.get(1), sealedEntity);
 	}
 
 	@Test
@@ -499,7 +501,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 			final SealedEntity sealedEntity = sealedEntities.get(i);
 			assertEquals(Entities.PRODUCT, sealedEntity.getType());
 			assertEquals(requestedIds[i], sealedEntity.getPrimaryKey());
-			assertFalse(PRODUCTS.get(requestedIds[i]).differsFrom(sealedEntity));
+			assertExactlyEquals(PRODUCTS.get(requestedIds[i]), sealedEntity);
 		}
 	}
 
@@ -521,7 +523,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 		sealedEntity.ifPresent(it -> {
 			assertEquals(Entities.PRODUCT, it.getType());
 			assertEquals(7, it.getPrimaryKey());
-			assertFalse(PRODUCTS.get(7).differsFrom(it));
+			assertEquals(PRODUCTS.get(7), it);
 		});
 	}
 
@@ -540,7 +542,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertEquals(Entities.PRODUCT, sealedEntity.getType());
 		assertEquals(7, sealedEntity.getPrimaryKey());
-		assertTrue(PRODUCTS.get(7).differsFrom(sealedEntity));
+		assertDiffers(PRODUCTS.get(7), sealedEntity);
 
 		final SealedEntity enrichedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -555,7 +557,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertEquals(Entities.PRODUCT, enrichedEntity.getType());
 		assertEquals(7, enrichedEntity.getPrimaryKey());
-		assertFalse(PRODUCTS.get(7).differsFrom(enrichedEntity));
+		assertExactlyEquals(PRODUCTS.get(7), enrichedEntity);
 	}
 
 	@Test
@@ -573,7 +575,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertEquals(Entities.PRODUCT, sealedEntity.getType());
 		assertEquals(7, sealedEntity.getPrimaryKey());
-		assertFalse(PRODUCTS.get(7).differsFrom(sealedEntity));
+		assertExactlyEquals(PRODUCTS.get(7), sealedEntity);
 
 		final SealedEntity limitedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -588,7 +590,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertEquals(Entities.PRODUCT, limitedEntity.getType());
 		assertEquals(7, limitedEntity.getPrimaryKey());
-		assertTrue(PRODUCTS.get(7).differsFrom(limitedEntity));
+		assertDiffers(PRODUCTS.get(7), limitedEntity);
 	}
 
 	@Test

@@ -76,13 +76,13 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.TestFileSupport;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -152,13 +152,19 @@ class EvitaTest implements TestFileSupport {
 	}
 
 	@BeforeEach
-	void setUp() throws IOException {
+	void setUp() {
 		SequenceService.reset();
-		cleanTestDirectory();
+		cleanTestDirectoryWithRethrow();
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
 		evita.defineCatalog(TEST_CATALOG);
+	}
+
+	@AfterEach
+	void tearDown() {
+		evita.close();
+		cleanTestDirectoryWithRethrow();
 	}
 
 	@Test

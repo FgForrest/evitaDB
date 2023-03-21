@@ -36,6 +36,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
 
+import static io.evitadb.test.TestConstants.DATA_FOLDER_ENV_VARIABLE;
+
 /**
  * This interface allows unit tests to easily prepare test directory, test file and also clean it up.
  *
@@ -65,6 +67,30 @@ public interface TestFileSupport {
 	default void cleanTestSubDirectory(String directory) throws IOException {
 		// clear evitaDB directory
 		FileUtils.deleteDirectory(BASE_PATH.resolve(directory).toFile());
+	}
+
+	/**
+	 * Returns pointer to the data directory. This method supports proper DATA folder resolution from different working
+	 * directories in evitaDB git repository.
+	 */
+	@Nonnull
+	default Path getDataDirectory() {
+		final String externallyDefinedPath = System.getProperty(DATA_FOLDER_ENV_VARIABLE);
+		final Path dataPath;
+		if (externallyDefinedPath == null) {
+			final Path workingDirPath = Path.of(System.getProperty("user.dir"));
+			if (workingDirPath.toString().contains(File.separator + "evita_")) {
+				dataPath = workingDirPath.resolve("../data");
+			} else {
+				dataPath = workingDirPath.resolve("data");
+			}
+		} else {
+			dataPath = Path.of(externallyDefinedPath);
+		}
+		if (!dataPath.toFile().exists()) {
+			throw new EvitaInternalError("Data directory `" + dataPath + "` does not exist!");
+		}
+		return dataPath;
 	}
 
 	/**
@@ -135,14 +161,14 @@ public interface TestFileSupport {
 	/**
 	 * Returns path to the file with specified name in the test directory.
 	 */
-	default Path getPathInTargetDirectory(String fileName) {
+	default Path getPathInTargetDirectory(@Nonnull String fileName) {
 		return BASE_PATH.resolve(fileName);
 	}
 
 	/**
 	 * Returns file reference to the file with specified name in the test directory.
 	 */
-	default File createFileInTargetDirectory(String fileName) {
+	default File createFileInTargetDirectory(@Nonnull String fileName) {
 		return getPathInTargetDirectory(fileName).toFile();
 	}
 

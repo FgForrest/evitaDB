@@ -115,7 +115,7 @@ Supply the certificate for production manually and set `useGeneratedCertificate`
 It means that your evitaDB server is up and running, and also that it has loaded the `evita` catalog dataset with some
 thousands of products.
 
-<LanguageSpecific to="evitaQL,java">
+<LanguageSpecific to="evitaql,java">
 
 ## Connect the Java client
 
@@ -147,7 +147,7 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 </LanguageSpecific>
 
-<LanguageSpecific to="c-sharp">
+<LanguageSpecific to="csharp">
 
 ## Connect the C# client
 
