@@ -36,6 +36,7 @@ in those arguments. An example of such a query might look like this:
 > Czech localization and a valid price in one of the price lists "VIP", "loyal customer" or "regular prices" in the 
 > currency CZK. It also filters only products with a selling price between 600 and 1,600 CZK including VAT and with the 
 > parameters "gluten-free" and "original recipe".
+
 > The so-called price histogram will also be calculated for all matching products with a maximum of 30 columns so that 
 > they can be displayed on the dedicated space. In addition, a summary of parametric filters (facets )will be 
 > calculated with an impact analysis of how the result would look if the user selected some other parameters in addition 
@@ -50,6 +51,10 @@ an abstract syntax tree consisting of constraints
 We have designed the *evitaQL* string representation to look similar to a query defined directly in the *Java* language. 
 We also try to preserve the "look & feel" of the original evitaQL in different languages / APIs like REST, GraphQL or C#
 while respecting the conventions and capabilities of the respective language.
+
+evitaQL is used in the gRPC protocol and can optionally be used for the embedded Java environment. It can also be used 
+in evitaDB console (once it's implemented). The GraphQL and REST Web API use a similar format, but adapted to 
+the protocol conventions (so that we can take advantage of the Open API / GQL schema).
 
 <LanguageSpecific to="java">
 
@@ -72,6 +77,8 @@ This is an example of how the query is composed and how evitaDB is called. The e
 [Java query example](docs/user/en/use/api/example/java-query-example.java)
 </SourceCodeTabs>
 
+### Automatic query cleaning
+
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
 <SourceCodeTabs>
@@ -80,61 +87,20 @@ The query may also contain "dirty" parts - that is, null constraints and unneces
 
 The query is automatically cleaned and unnecessary constraints are removed before it is processed by the evitaDB engine.
 
-There are several handy visitors (more will be added) that allow you to work with the query. They are placed in the package
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/visitor</SourceClass>, and some have shortcut methods in the
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryUtils.java</SourceClass> class.
-
-The query can be "pretty-printed" by using the `prettyPrint` method on the
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class.
-
-</LanguageSpecific>
-
-## Data fetching
-
-Only primary keys of the entities are returned to the query result by default. Each entity in this simplest case is
-represented by <SourceClass>[EntityReferenceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/EntityReferenceContract.java)</SourceClass>
-interface.
-
-Client application can request returning entity bodies instead, but this must be explicitly requested by using specific
-require constraint:
-
-- [entity fetch](querying/query_language#entity-body)
-- [attribute fetch](querying/query_language#attributes)
-- [associated data fetch](querying/query_language#associated-data)
-- [price fetch](querying/query_language#prices)
-
-When such a require constraint is used, data are fetched *greedily* during initial query. Response object will then
-contain entities in the form of <SourceClass>[EntityContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/EntityContract.java)</SourceClass>.
-
-### Lazy fetching (enrichment)
-
-Attributes, associated data and prices can be fetched separately by providing primary key of the entity. Initial entity
-loaded by [entity fetch](querying/query_language#entity-body) or by limited set of requirements can be lazily expanded (enriched)
-with additional data by so-called *lazy loading*.
-
-This process loads above-mentioned data separately and adds them to the entity object anytime after it was initially
-fetched from evitaDB. Due to immutability characteristics enforced by database design, the entity object enrichment
-leads to a new instance.
-
-Lazy fetching may not be necessary for frontend designed using MVC architecture, where all requirements for the page
-are known prior to rendering. But different architectures might fetch thinner entity forms and later discover that
-they need more data in it. While this approach is not optimal performance-wise, it might make the life for developers
-easier, and it's much more optimal to just enrich existing query (using lookup by primary key and fetching only missing
-data) instead of re-fetching entire entity again.
-
-## Conversion of evitaQL from String to AST and back
+### Query parsing
 
 The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryParser.java</SourceClass> class allows to parse
-the query from [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) to the AST
+[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) query to the AST
 form of the <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class.
 The string notation of *evitaQL* can be created at any time by calling the `toString()` method on the
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> object.
 
-The parser supports passing values by reference, copying the proven approach from a JDBC
+The parser supports passing values by reference, copying the proven approach of a JDBC
 [prepared statement](https://docs.oracle.com/javase/tutorial/jdbc/basics/prepared.html)
 which allows the use of the `?` character in the query and returns an array of correctly sorted input parameters.
 
-It also supports so-called [named queries](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/core/namedparam/NamedParameterJdbcTemplate.html),
+It also supports so-called 
+[named queries](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/jdbc/core/namedparam/NamedParameterJdbcTemplate.html),
 which are widely used in the [Spring framework](https://spring.io/projects/spring-data-jdbc), using variables in the
 query with the format `:name` and providing a [map](https://docs.oracle.com/javase/8/docs/api/java/util/Map.html) with
 the named input parameters.
@@ -143,3 +109,84 @@ In the opposite direction, it offers the `toStringWithParameterExtraction` metho
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class object, which allows to
 create the string format for *evitaQL* in the form of a *prepared statement* and extract all parameters in a separate
 array.
+
+### Query manipulation
+
+There are several handy visitors (more will be added) that allow you to work with the query. They are placed in the package
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/visitor</SourceClass>, and some have shortcut methods in the
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryUtils.java</SourceClass> class.
+
+The query can be "pretty-printed" by using the `prettyPrint` method on the
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class.
+
+### Data fetching
+
+By default, only primary keys of entities are returned in the query result. In this simplest case, each entity is 
+represented by the 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass> 
+interface.
+
+<SourceCodeTabs>
+[Default query example](docs/user/en/use/api/example/default-query-example.java)
+</SourceCodeTabs>
+
+The client application can request returning entity bodies instead, but this must be explicitly requested using 
+a specific require constraint (or their combination):
+
+- [entity fetch](../../query/requirements/fetching.md)
+- [attribute fetch](../../query/requirements/fetching.md#attributes)
+- [associated data fetch](../../query/requirements/fetching.md#associated-data)
+- [price fetch](../../query/requirements/fetching.md#prices)
+- [reference fetch](../../query/requirements/fetching.md#references)
+
+When such a require constraint is used, data will be fetched *greedily* during the initial request. The response object 
+will then contain entities in the form of 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>.
+
+<SourceCodeTabs>
+[Fetching example](docs/user/en/use/api/example/fetching-example.java)
+</SourceCodeTabs>
+
+#### Lazy fetching (enrichment)
+
+Attributes, associated data, prices and references can be fetched separately by providing the primary key of the entity.
+The initial entity loaded by [entity fetch](../../query/requirements/fetching.md) with a limited set of requirements 
+can be enriched later with missing data.
+
+To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass the existing entity to an `enrichEntity` 
+method and specify a set of additional require constraints that should be satisfied. Due to immutability properties 
+enforced by database design, enriching an entity object returns a new instance of the entity.
+
+<SourceCodeTabs>
+[Lazy loading example](docs/user/en/use/api/example/lazy-fetch-example.java)
+</SourceCodeTabs>
+
+Lazy fetching may not be necessary for a frontend designed using an MVC architecture, where all requirements for the 
+page are known before rendering. But different architectures might fetch thinner entity forms and later discover that 
+they need more data in them. While this approach is not optimal performance-wise, it may make life easier for 
+developers, and it's much more optimal to just enrich the existing query (using lookup by primary key and fetching only 
+missing data) instead of fetching the entire entity again.
+
+<Note type="warning">
+Lazy Fetching is currently only fully implemented for embedded evitaDB. If you are using evitaDB remotely via 
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
+you can still use the `enrichEntity` method on the 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface, but the entity
+will be fully fetched again. However, we plan to optimize this scenario in the future.
+</Note>
+
+### Caching considerations
+
+If you're using embedded evitaDB and [don't disable the feature](../../operate/configure.md#cache-configuration), 
+the evitaDB engine automatically caches intermediate calculation results and frequently used entity bodies up to the 
+defined memory limit. Details about caching are [described here](../../deep-dive/cache.md). For embedded environments
+the implementation of an own cache on top of the evitaDB cache is not recommended.
+
+If you are using 
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>, 
+implementing the local cache may save you network costs and give you better latency. The problem is related to cache 
+invalidation. You'd have to query only the entity references that contain version information and fetch the entities 
+that are not in the cache with a separate request. So instead of one network request, you have to make two. The benefit 
+of the local cache is therefore somewhat questionable.
+
+</LanguageSpecific>

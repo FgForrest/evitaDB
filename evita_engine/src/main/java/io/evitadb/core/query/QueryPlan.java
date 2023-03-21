@@ -193,6 +193,8 @@ public class QueryPlan {
 					primaryKeys.getTotalRecordCount(),
 					primaryKeys.stream()
 						// returns simple reference to the entity (i.e. primary key and type of the entity)
+						// TOBEDONE JNO - we should return a reference including the actual entity version information
+						// so that the client might implement its local cache
 						.map(queryContext::translateToEntityReference)
 						.collect(Collectors.toList())
 				);
