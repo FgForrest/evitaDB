@@ -33,15 +33,15 @@ in those arguments. An example of such a query might look like this:
 [EvitaQL example](docs/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
 
-> The query will return the first page of 20 products in the category "local food" and its subcategories that have 
-> Czech localization and a valid price in one of the price lists "VIP", "loyal customer" or "regular prices" in the 
-> currency CZK. It also filters only products with a selling price between 600 and 1,600 CZK including VAT and with the 
-> parameters "gluten-free" and "original recipe".
+> *The query will return the first page of 20 products in the category "local food" and its subcategories that have* 
+> *Czech localization and a valid price in one of the price lists "VIP", "loyal customer" or "regular prices" in the* 
+> *currency CZK. It also filters only products with a selling price between 600 and 1,600 CZK including VAT and with*  
+> *the parameters "gluten-free" and "original recipe".*
 
-> The so-called price histogram will also be calculated for all matching products with a maximum of 30 columns so that 
-> they can be displayed on the dedicated space. In addition, a summary of parametric filters (facets )will be 
-> calculated with an impact analysis of how the result would look if the user selected some other parameters in addition 
-> to the two selected ones.
+> *The so-called price histogram will also be calculated for all matching products with a maximum of 30 columns so* 
+> *that they can be displayed on the dedicated space. In addition, a summary of parametric filters (facets )will be* 
+> *calculated with an impact analysis of how the result would look if the user selected some other parameters in* 
+> *addition to the two selected ones.*
 
 evitaQL is represented by a simple
 [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) which is parsed to
