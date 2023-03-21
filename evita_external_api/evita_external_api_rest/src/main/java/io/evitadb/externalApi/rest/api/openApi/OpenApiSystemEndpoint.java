@@ -39,6 +39,7 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -80,11 +81,13 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 	@Override
 	public RestHandler<SystemRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
 	                                                        @Nonnull Evita evita,
-	                                                        @Nonnull OpenAPI openApi) {
+	                                                        @Nonnull OpenAPI openApi,
+	                                                        @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
 		final SystemRestHandlingContext context = new SystemRestHandlingContext(
 			objectMapper,
 			evita,
 			openApi,
+			enumMapping,
 			toOperation(),
 			localized
 		);

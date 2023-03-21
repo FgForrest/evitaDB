@@ -79,13 +79,14 @@ public class PriceContent extends AbstractRequireConstraintLeaf implements Price
 		this(PriceContentMode.RESPECTING_FILTER, priceLists);
 	}
 
-	@ConstraintCreatorDef
 	public PriceContent(@Nonnull @ConstraintValueParamDef PriceContentMode fetchMode) {
 		super(fetchMode);
 	}
 
-	public PriceContent(@Nonnull @ConstraintValueParamDef PriceContentMode fetchMode, @Nonnull String... priceLists) {
-		super(ArrayUtils.mergeArrays(new Serializable[] {fetchMode}, priceLists));
+	@ConstraintCreatorDef
+	public PriceContent(@Nonnull @ConstraintValueParamDef PriceContentMode contentMode,
+	                    @Nonnull @ConstraintValueParamDef String... priceLists) {
+		super(ArrayUtils.mergeArrays(new Serializable[] {contentMode}, priceLists));
 	}
 
 	/**

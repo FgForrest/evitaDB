@@ -33,12 +33,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.Operation;
-import io.swagger.v3.oas.models.media.Schema;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -80,6 +78,7 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 		return FilterConstraint.class;
 	}
 
+	@Nonnull
 	@Override
 	protected ConstraintType getConstraintType() {
 		return ConstraintType.FILTER;
@@ -104,10 +103,5 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 			() -> new OpenApiBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
 		);
 		return descriptors.iterator().next();
-	}
-
-	@Override
-	protected Schema getSchemaFromOperationProperty(@Nonnull String propertyName) {
-		return SchemaUtils.getSchemaFromFilterBy(restHandlingContext.getOpenApi(), operation, propertyName);
 	}
 }

@@ -24,9 +24,14 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.schema.SelectedField;
+import io.evitadb.api.query.require.AssociatedDataContent;
+import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.DataInLocales;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
+import io.evitadb.api.query.require.PriceContent;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -35,6 +40,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AttributesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceForSaleFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PricesFieldHeaderDescriptor;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -105,120 +113,218 @@ public class EntityFetchRequireBuilder {
             return null;
         }
 
-        final List<EntityContentRequire> entityContentRequires = new LinkedList<>();
+        if (!needsEntityBody(selectionSetWrapper, currentEntitySchema)) {
+            return null;
+        }
 
-        final boolean needsAttributes = selectionSetWrapper.contains(EntityDescriptor.ATTRIBUTES.name());
-        final boolean needsAssociatedData = selectionSetWrapper.contains(EntityDescriptor.ASSOCIATED_DATA.name());
-        final boolean needsPrices = selectionSetWrapper.contains(EntityDescriptor.PRICE.name() + "*");
-        final boolean needsReferences = currentEntitySchema.getReferences()
+        final List<EntityContentRequire> entityContentRequires = new LinkedList<>();
+        buildAttributeContentRequirement(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
+        buildAssociatedDataContentRequirement(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
+        buildPriceContentRequirement(selectionSetWrapper).ifPresent(entityContentRequires::add);
+        entityContentRequires.addAll(buildReferenceContentRequirement(selectionSetWrapper, desiredLocale, currentEntitySchema, entitySchemaFetcher));
+        buildDataInLocalesRequirement(selectionSetWrapper, desiredLocale, currentEntitySchema).ifPresent(entityContentRequires::add);
+
+        return entityContentRequires;
+    }
+
+    private static boolean needsEntityBody(@Nonnull SelectionSetWrapper selectionSetWrapper, @Nonnull EntitySchemaContract currentEntitySchema) {
+        return selectionSetWrapper.contains(EntityDescriptor.HIERARCHICAL_PLACEMENT.name()) ||
+            selectionSetWrapper.contains(EntityDescriptor.LOCALES.name()) ||
+            needsAttributes(selectionSetWrapper) ||
+            needsAssociatedData(selectionSetWrapper) ||
+            needsPrices(selectionSetWrapper) ||
+            needsReferences(selectionSetWrapper, currentEntitySchema);
+    }
+
+    private static boolean needsAttributes(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+        return selectionSetWrapper.contains(EntityDescriptor.ATTRIBUTES.name());
+    }
+
+    private static boolean needsAssociatedData(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+        return selectionSetWrapper.contains(EntityDescriptor.ASSOCIATED_DATA.name());
+    }
+
+    private static boolean needsPrices(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+        return selectionSetWrapper.contains(EntityDescriptor.PRICE.name() + "*");
+    }
+
+    private static boolean needsReferences(@Nonnull SelectionSetWrapper selectionSetWrapper, @Nonnull EntitySchemaContract currentEntitySchema) {
+        return currentEntitySchema.getReferences()
             .values()
             .stream()
             .map(it -> it.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
             .anyMatch(selectionSetWrapper::contains);
-        final boolean needsEntityBody =
-            selectionSetWrapper.contains(EntityDescriptor.HIERARCHICAL_PLACEMENT.name()) ||
-                selectionSetWrapper.contains(EntityDescriptor.LOCALES.name()) ||
-                needsAttributes ||
-                needsAssociatedData ||
-                needsPrices ||
-                needsReferences;
-        if (!needsEntityBody) {
-            return null;
+    }
+
+    @Nonnull
+    private static Optional<AttributeContent> buildAttributeContentRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
+                                                                               @Nonnull EntitySchemaContract currentEntitySchema) {
+        if (!needsAttributes(selectionSetWrapper)) {
+            return Optional.empty();
         }
 
-        if (needsAttributes) {
-            final String[] neededAttributes = selectionSetWrapper.getFields(EntityDescriptor.ATTRIBUTES.name())
-                .stream()
-                .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-                .map(f -> currentEntitySchema.getAttributeByName(f.getName(), FIELD_NAME_NAMING_CONVENTION))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .map(AttributeSchemaContract::getName)
-                .collect(Collectors.toUnmodifiableSet())
-                .toArray(String[]::new);
-            entityContentRequires.add(attributeContent(neededAttributes));
+        final String[] neededAttributes = selectionSetWrapper.getFields(EntityDescriptor.ATTRIBUTES.name())
+            .stream()
+            .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+            .map(f -> currentEntitySchema.getAttributeByName(f.getName(), FIELD_NAME_NAMING_CONVENTION))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .map(AttributeSchemaContract::getName)
+            .collect(Collectors.toUnmodifiableSet())
+            .toArray(String[]::new);
+
+        if (neededAttributes.length == 0) {
+            return Optional.empty();
         }
-        if (needsAssociatedData) {
-            final String[] neededAssociatedData = selectionSetWrapper.getFields(EntityDescriptor.ASSOCIATED_DATA.name())
-                .stream()
-                .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-                .map(f -> currentEntitySchema.getAssociatedDataByName(f.getName(), FIELD_NAME_NAMING_CONVENTION))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .map(AssociatedDataSchemaContract::getName)
-                .collect(Collectors.toUnmodifiableSet())
-                .toArray(String[]::new);
-            entityContentRequires.add(associatedDataContent(neededAssociatedData));
+        return Optional.of(attributeContent(neededAttributes));
+    }
+
+    @Nonnull
+    private static Optional<AssociatedDataContent> buildAssociatedDataContentRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
+                                                                                         @Nonnull EntitySchemaContract currentEntitySchema) {
+        if (!needsAssociatedData(selectionSetWrapper)) {
+            return Optional.empty();
         }
-        if (needsPrices) {
-            final boolean needsAllPrices = selectionSetWrapper.containsAnyOf(EntityDescriptor.PRICE.name(), EntityDescriptor.PRICES.name()) ||
-                selectionSetWrapper.getFields(EntityDescriptor.PRICE_FOR_SALE.name()).stream().anyMatch(f -> !f.getArguments().isEmpty());
-            entityContentRequires.add(needsAllPrices ? priceContentAll() : priceContent());
+
+        final String[] neededAssociatedData = selectionSetWrapper.getFields(EntityDescriptor.ASSOCIATED_DATA.name())
+            .stream()
+            .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+            .map(f -> currentEntitySchema.getAssociatedDataByName(f.getName(), FIELD_NAME_NAMING_CONVENTION))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .map(AssociatedDataSchemaContract::getName)
+            .collect(Collectors.toUnmodifiableSet())
+            .toArray(String[]::new);
+
+        if (neededAssociatedData.length == 0) {
+            return Optional.empty();
         }
-        if (needsReferences) {
-            currentEntitySchema.getReferences()
-                .values()
-                .stream()
-                .map(it -> new FieldsForReferenceHolder(
-                    it,
-                    selectionSetWrapper.getFields(it.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
-                ))
-                .filter(it -> !it.fields().isEmpty())
-                .map(it -> new RequirementForReferenceHolder(
-                    it.referenceSchema(),
-                    buildEntityRequirement(
-                        SelectionSetWrapper.from(
-                            it.fields()
-                                .stream()
-                                .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.REFERENCED_ENTITY.name()).stream())
-                                .map(SelectedField::getSelectionSet)
-                                .toList()
-                        ),
-                        desiredLocale,
-                        it.referenceSchema().isReferencedEntityTypeManaged() ? entitySchemaFetcher.apply(it.referenceSchema().getReferencedEntityType()) : null,
-                        entitySchemaFetcher
+        return Optional.of(associatedDataContent(neededAssociatedData));
+    }
+
+    @Nonnull
+    private static Optional<PriceContent> buildPriceContentRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+        if (!needsPrices(selectionSetWrapper)) {
+            return Optional.empty();
+        }
+
+        if (selectionSetWrapper.getFields(EntityDescriptor.PRICES.name())
+            .stream()
+            .anyMatch(f -> f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name()) == null)) {
+            return Optional.of(priceContentAll());
+        } else {
+            final Set<String> neededPriceLists = createHashSet(10);
+
+            // check price for sale fields
+            neededPriceLists.addAll(
+                selectionSetWrapper.getFields(EntityDescriptor.PRICE_FOR_SALE.name())
+                    .stream()
+                    .map(f -> (String) f.getArguments().get(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet())
+            );
+
+            // check price fields
+            neededPriceLists.addAll(
+                selectionSetWrapper.getFields(EntityDescriptor.PRICE.name())
+                    .stream()
+                    .map(f -> (String) f.getArguments().get(PriceFieldHeaderDescriptor.PRICE_LIST.name()))
+                    .collect(Collectors.toSet())
+            );
+
+            // check prices fields
+            //noinspection unchecked
+            neededPriceLists.addAll(
+                selectionSetWrapper.getFields(EntityDescriptor.PRICES.name())
+                    .stream()
+                    .flatMap(f -> ((List<String>) f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name())).stream())
+                    .collect(Collectors.toSet())
+            );
+
+            return Optional.of(priceContent(neededPriceLists.toArray(String[]::new)));
+        }
+    }
+
+
+    @Nonnull
+    private static List<ReferenceContent> buildReferenceContentRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
+                                                                           @Nullable Locale desiredLocale,
+                                                                           @Nonnull EntitySchemaContract currentEntitySchema,
+                                                                           @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
+        if (!needsReferences(selectionSetWrapper, currentEntitySchema)) {
+            return List.of();
+        }
+
+        return currentEntitySchema.getReferences()
+            .values()
+            .stream()
+            .map(it -> new FieldsForReferenceHolder(
+                it,
+                selectionSetWrapper.getFields(it.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+            ))
+            .filter(it -> !it.fields().isEmpty())
+            .map(it -> new RequirementForReferenceHolder(
+                it.referenceSchema(),
+                buildEntityRequirement(
+                    SelectionSetWrapper.from(
+                        it.fields()
+                            .stream()
+                            .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.REFERENCED_ENTITY.name()).stream())
+                            .map(SelectedField::getSelectionSet)
+                            .toList()
                     ),
-                    buildGroupEntityRequirement(
-                        SelectionSetWrapper.from(
-                            it.fields()
-                                .stream()
-                                .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.GROUP_ENTITY.name()).stream())
-                                .map(SelectedField::getSelectionSet)
-                                .toList()
-                        ),
-                        desiredLocale,
-                        it.referenceSchema().isReferencedGroupTypeManaged() ? entitySchemaFetcher.apply(it.referenceSchema().getReferencedGroupType()) : null,
-                        entitySchemaFetcher
-                    )
-                ))
-                .map(it -> referenceContent(it.referenceSchema().getName(), it.entityRequirement(), it.groupRequirement()))
-                .forEach(entityContentRequires::add);
-        }
-        if (needsAttributes || needsAssociatedData) {
-            final Set<Locale> neededLocales = createHashSet(currentEntitySchema.getLocales().size());
-            if (desiredLocale != null) {
-                neededLocales.add(desiredLocale);
-            }
-            neededLocales.addAll(
-                selectionSetWrapper.getFields(EntityDescriptor.ATTRIBUTES.name())
-                    .stream()
-                    .map(f -> (Locale) f.getArguments().get(AttributesFieldHeaderDescriptor.LOCALE.name()))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet())
-            );
-            neededLocales.addAll(
-                selectionSetWrapper.getFields(EntityDescriptor.ASSOCIATED_DATA.name())
-                    .stream()
-                    .map(f -> (Locale) f.getArguments().get(AssociatedDataFieldHeaderDescriptor.LOCALE.name()))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet())
-            );
-            if (!neededLocales.isEmpty()) {
-                entityContentRequires.add(dataInLocales(neededLocales.toArray(Locale[]::new)));
-            }
+                    desiredLocale,
+                    it.referenceSchema().isReferencedEntityTypeManaged() ? entitySchemaFetcher.apply(it.referenceSchema().getReferencedEntityType()) : null,
+                    entitySchemaFetcher
+                ),
+                buildGroupEntityRequirement(
+                    SelectionSetWrapper.from(
+                        it.fields()
+                            .stream()
+                            .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.GROUP_ENTITY.name()).stream())
+                            .map(SelectedField::getSelectionSet)
+                            .toList()
+                    ),
+                    desiredLocale,
+                    it.referenceSchema().isReferencedGroupTypeManaged() ? entitySchemaFetcher.apply(it.referenceSchema().getReferencedGroupType()) : null,
+                    entitySchemaFetcher
+                )
+            ))
+            .map(it -> referenceContent(it.referenceSchema().getName(), it.entityRequirement(), it.groupRequirement()))
+            .toList();
+    }
+
+    @Nonnull
+    private static Optional<DataInLocales> buildDataInLocalesRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
+                                                                         @Nullable Locale desiredLocale,
+                                                                         @Nonnull EntitySchemaContract currentEntitySchema) {
+        if (!needsAttributes(selectionSetWrapper) && !needsAssociatedData(selectionSetWrapper)) {
+            return Optional.empty();
         }
 
-        return entityContentRequires;
+        final Set<Locale> neededLocales = createHashSet(currentEntitySchema.getLocales().size());
+        if (desiredLocale != null) {
+            neededLocales.add(desiredLocale);
+        }
+        neededLocales.addAll(
+            selectionSetWrapper.getFields(EntityDescriptor.ATTRIBUTES.name())
+                .stream()
+                .map(f -> (Locale) f.getArguments().get(AttributesFieldHeaderDescriptor.LOCALE.name()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+        );
+        neededLocales.addAll(
+            selectionSetWrapper.getFields(EntityDescriptor.ASSOCIATED_DATA.name())
+                .stream()
+                .map(f -> (Locale) f.getArguments().get(AssociatedDataFieldHeaderDescriptor.LOCALE.name()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet())
+        );
+
+        if (neededLocales.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(dataInLocales(neededLocales.toArray(Locale[]::new)));
     }
 
     private record FieldsForReferenceHolder(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull List<SelectedField> fields) {}

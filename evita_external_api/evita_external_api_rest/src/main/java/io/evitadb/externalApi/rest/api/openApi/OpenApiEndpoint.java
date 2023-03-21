@@ -53,6 +53,7 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -110,12 +111,14 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	 * @param objectMapper for parsing request bodies and serializing responses
 	 * @param evita to query and update data
 	 * @param openApi final OpenAPI specs for parsing and validation
+	 * @param enumMapping custom enum mapping, because enums are not fixedly defined like scalars
 	 * @return ready-to-handle endpoint handler
 	 */
 	@Nonnull
 	public abstract RestHandler<HC> toHandler(@Nonnull ObjectMapper objectMapper,
 						                      @Nonnull Evita evita,
-                                              @Nonnull OpenAPI openApi);
+                                              @Nonnull OpenAPI openApi,
+	                                          @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping);
 
 	/**
 	 * Build {@link Operation} describing this endpoint in OpenAPI.

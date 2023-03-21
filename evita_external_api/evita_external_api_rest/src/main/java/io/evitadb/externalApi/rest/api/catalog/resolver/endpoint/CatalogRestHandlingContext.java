@@ -35,6 +35,7 @@ import io.swagger.v3.oas.models.Operation;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -51,9 +52,10 @@ public class CatalogRestHandlingContext extends RestHandlingContext {
 	                                  @Nonnull Evita evita,
 									  @Nonnull CatalogSchemaContract catalogSchema,
 	                                  @Nonnull OpenAPI openApi,
+									  @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
 	                                  @Nonnull Operation endpointOperation,
 	                                  boolean localized) {
-		super(objectMapper, evita, openApi, endpointOperation, localized);
+		super(objectMapper, evita, openApi, enumMapping, endpointOperation, localized);
 		this.catalogSchema = catalogSchema;
 	}
 

@@ -36,6 +36,7 @@ import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -52,6 +53,12 @@ import java.util.List;
 @ToString
 public class OpenApiEnum implements OpenApiComplexType {
 
+	/**
+	 * If enum created from Java enum, this Java enum will be placed here.
+	 */
+	@Nullable
+	private final Class<? extends Enum<?>> enumTemplate;
+
 	@Nonnull
 	private final String name;
 	@Nullable
@@ -65,14 +72,16 @@ public class OpenApiEnum implements OpenApiComplexType {
 
 	@Nonnull
 	public static OpenApiEnum enumFrom(@Nonnull Class<? extends Enum<?>> javaEnum) {
-		final Builder enumBuilder = newEnum()
-			.name(javaEnum.getSimpleName());
-
-		for (Enum<?> enumItem : javaEnum.getEnumConstants()) {
-			enumBuilder.item(enumItem.name());
-		}
-
-		return enumBuilder.build();
+		return new OpenApiEnum(
+			javaEnum,
+			javaEnum.getSimpleName(),
+			null,
+			null,
+			null,
+			Arrays.stream(javaEnum.getEnumConstants())
+				.map(Enum::name)
+				.toList()
+		);
 	}
 
 	/**
@@ -193,7 +202,7 @@ public class OpenApiEnum implements OpenApiComplexType {
 				!items.isEmpty(),
 				() -> new OpenApiBuildingError("Enum `" + name + "` is missing items.")
 			);
-			return new OpenApiEnum(name, description, deprecationNotice, format, items);
+			return new OpenApiEnum(null, name, description, deprecationNotice, format, items);
 		}
 	}
 }

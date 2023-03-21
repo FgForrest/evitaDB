@@ -31,6 +31,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Optional;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
@@ -47,9 +48,10 @@ public class SystemRestHandlingContext extends RestHandlingContext {
 	public SystemRestHandlingContext(@Nonnull ObjectMapper objectMapper,
 	                                 @Nonnull Evita evita,
 	                                 @Nonnull OpenAPI openApi,
+									 @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
 	                                 @Nonnull Operation endpointOperation,
 	                                 boolean localized) {
-		super(objectMapper, evita, openApi, endpointOperation, localized);
+		super(objectMapper, evita, openApi, enumMapping, endpointOperation, localized);
 	}
 
 	@Nonnull

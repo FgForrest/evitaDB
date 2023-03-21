@@ -36,6 +36,7 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.api.resolver.serializer.BigDecimalSerializer;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VersionUtils;
 import io.swagger.v3.oas.models.Components;
@@ -53,11 +54,16 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
@@ -85,7 +91,7 @@ public abstract class RestBuildingContext {
 	 * Holds all globally registered custom enums that will be inserted into GraphQL schema.
 	 */
 	@Nonnull
-	private final Set<String> registeredCustomEnums = createHashSet(32);
+	private final Map<String, Class<? extends Enum<?>>> registeredCustomEnums = createHashMap(32);
 
 	protected RestBuildingContext(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
 		this.restConfig = restConfig;
@@ -120,10 +126,10 @@ public abstract class RestBuildingContext {
 	 * Registers new custom enum if there is not enum with same name.
 	 */
 	public void registerCustomEnumIfAbsent(@Nonnull OpenApiEnum customEnum) {
-		if (registeredCustomEnums.contains(customEnum.getName())) {
+		if (registeredCustomEnums.containsKey(customEnum.getName())) {
 			return;
 		}
-		registeredCustomEnums.add(customEnum.getName());
+		registeredCustomEnums.put(customEnum.getName(), customEnum.getEnumTemplate());
 		registerType(customEnum);
 	}
 
@@ -162,7 +168,8 @@ public abstract class RestBuildingContext {
 	@Nonnull
 	public Rest buildRest() {
 		final OpenAPI openApi = buildOpenApi();
-		final List<Endpoint> endpoints = buildEndpoints(openApi);
+		final Map<String, Class<? extends Enum<?>>> enumMapping = buildEnumMapping();
+		final List<Endpoint> endpoints = buildEndpoints(openApi, enumMapping);
 
 		return new Rest(openApi, endpoints);
 	}
@@ -186,9 +193,7 @@ public abstract class RestBuildingContext {
 		final Paths paths = new Paths();
 		registeredEndpoints.forEach((path, endpoints) -> {
 			final PathItem pathItem = new PathItem();
-			endpoints.forEach((method, endpoint) -> {
-				pathItem.operation(method, endpoint.toOperation());
-			});
+			endpoints.forEach((method, endpoint) -> pathItem.operation(method, endpoint.toOperation()));
 			paths.addPathItem("/" + path.toString(), pathItem);
 		});
 		openApi.setPaths(paths);
@@ -198,18 +203,33 @@ public abstract class RestBuildingContext {
 	}
 
 	@Nonnull
-	private List<Rest.Endpoint> buildEndpoints(@Nonnull OpenAPI openApi) {
+	private Map<String, Class<? extends Enum<?>>> buildEnumMapping() {
+		final Map<String, Class<? extends Enum<?>>> enumMapping = registeredCustomEnums.entrySet()
+			.stream()
+			.filter(it -> it.getValue() != null) // we want mappings only for enums that have Java enum associated with it
+			.collect(Collectors.toMap(
+				Entry::getKey,
+				Entry::getValue,
+				(o, o2) -> { throw new RestInternalError("Enum items cannot merge."); },
+				LinkedHashMap::new
+			));
+
+		return Collections.unmodifiableMap(enumMapping);
+	}
+
+	@Nonnull
+	private List<Rest.Endpoint> buildEndpoints(@Nonnull OpenAPI openApi, @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
 		final List<Rest.Endpoint> builtEndpoints = new LinkedList<>();
 		registeredEndpoints.forEach((path, endpoints) ->
 			endpoints.forEach((method, endpoint) ->
 				builtEndpoints.add(new Rest.Endpoint(
 					path,
 					new HttpString(endpoint.getMethod().name()),
-					endpoint.toHandler(objectMapper, evita, openApi)
+					endpoint.toHandler(objectMapper, evita, openApi, enumMapping)
 				))
 			)
 		);
-		return builtEndpoints;
+		return Collections.unmodifiableList(builtEndpoints);
 	}
 
 	private void validateReferences(OpenAPI openApi) {
