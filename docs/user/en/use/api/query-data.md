@@ -19,7 +19,8 @@ The query in evitaDB is represented by a tree of nested "constraints" divided in
     <dd>it specifies the order in which the results are returned</dd>
     <dt>`require`</dt>
     <dd>it allows you to pass additional information about how much data the returned entities should have, 
-    how many of them are needed, and what other calculations should be performed on them</dd>
+    (how complete the returned entity should be) how many of them are needed, and what other calculations should be 
+    performed on them</dd>
 </dl>
 
 The *evitaQL* (evitaDB Query Language) entry point is represented by 
