@@ -113,8 +113,8 @@ array.
 ### Query manipulation
 
 There are several handy visitors (more will be added) that allow you to work with the query. They are placed in the package
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/visitor</SourceClass>, and some have shortcut methods in the
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryUtils.java</SourceClass> class.
+<SourceClass>evita_query/src/main/java/io/evitadb/api/query/visitor/</SourceClass>, and some have shortcut methods 
+in the <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryUtils.java</SourceClass> class.
 
 The query can be "pretty-printed" by using the `prettyPrint` method on the
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class.
@@ -164,8 +164,8 @@ enforced by database design, enriching an entity object returns a new instance o
 Lazy fetching may not be necessary for a frontend designed using an MVC architecture, where all requirements for the 
 page are known before rendering. But different architectures might fetch thinner entity forms and later discover that 
 they need more data in them. While this approach is not optimal performance-wise, it may make life easier for 
-developers, and it's much more optimal to just enrich the existing query (using lookup by primary key and fetching only 
-missing data) instead of fetching the entire entity again.
+developers, and it's much more optimal to just enrich the existing entity (using lookup by primary key and fetching 
+only missing data) instead of fetching the entire entity again.
 
 <Note type="warning">
 Lazy Fetching is currently only fully implemented for embedded evitaDB. If you are using evitaDB remotely via 
