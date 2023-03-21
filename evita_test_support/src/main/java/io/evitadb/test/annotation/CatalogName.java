@@ -49,7 +49,6 @@ public @interface CatalogName {
 	/**
 	 * Catalog name evitaDB should use.
 	 * Default is {@link TestConstants#TEST_CATALOG}.
-	 * @return
 	 */
 	String value() default TestConstants.TEST_CATALOG;
 
