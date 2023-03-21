@@ -96,7 +96,7 @@ requireConstraint
     | 'entityFetch'                     (emptyArgs | args = requireConstraintListArgs)          # entityFetchConstraint
     | 'entityGroupFetch'                (emptyArgs | args = requireConstraintListArgs)          # entityGroupFetchConstraint
     | 'attributeContent'                (emptyArgs | args = classifierListArgs)                 # attributeContentConstraint
-    | 'priceContent'                    (emptyArgs | args = valueArgs)                          # priceContentConstraint
+    | 'priceContent'                    (emptyArgs | args = valueListArgs)                      # priceContentConstraint
     | 'priceContentAll'                 emptyArgs                                               # priceContentAllConstraint
     | 'associatedDataContent'           (emptyArgs | args = classifierListArgs)                 # associatedDataContentConstraint
     | 'referenceContent'                (emptyArgs | args = allRefsReferenceContentArgs)        # allRefsReferenceContentConstraint

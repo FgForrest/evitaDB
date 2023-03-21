@@ -33,12 +33,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.Operation;
-import io.swagger.v3.oas.models.media.Schema;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
@@ -101,9 +99,5 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 	@Override
 	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
 		return true;
-	}
-
-	protected Schema getSchemaFromOperationProperty(@Nonnull String propertyName) {
-		return SchemaUtils.getSchemaFromRequire(restHandlingContext.getOpenApi(), operation, propertyName);
 	}
 }

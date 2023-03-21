@@ -549,7 +549,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     ],
 					"require": {
 					    "entity_fetch": {
-							"price_content": "RESPECTING_FILTER"
+							"price_content": {
+								"contentMode": "RESPECTING_FILTER"
+							}
 				        }
 					  }
 					}
@@ -571,7 +573,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 						},
 						"require": {
 							"entity_fetch": {
-								"price_content": "RESPECTING_FILTER"
+								"price_content": {
+									"contentMode": "RESPECTING_FILTER"
+								}
 							}
 					    }
 					}
@@ -606,7 +610,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     ],
 					"require": {
 					    "entity_fetch": {
-							"price_content": "RESPECTING_FILTER"
+							"price_content": {
+								"contentMode": "RESPECTING_FILTER"
+							}
 				        }
 					  }
 					}
@@ -627,7 +633,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					},
 					"require": {
 						"entity_fetch": {
-							"price_content": "RESPECTING_FILTER"
+							"price_content": {
+								"contentMode": "RESPECTING_FILTER"
+							}
 				        }
 					}
 				}
@@ -683,7 +691,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     ],
 					"require": {
 					    "entity_fetch": {
-					        "price_content": "RESPECTING_FILTER"
+					        "price_content": {
+					            "contentMode": "RESPECTING_FILTER"
+				            }
 				        }
 					  }
 					}
@@ -704,7 +714,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					},
 					"require": {
 						"entity_fetch": {
-							"price_content": "RESPECTING_FILTER"
+							"price_content": {
+								"contentMode": "RESPECTING_FILTER"
+							}
 				        }
 					}
 				}

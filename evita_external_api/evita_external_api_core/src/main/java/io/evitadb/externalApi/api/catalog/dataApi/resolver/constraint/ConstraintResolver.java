@@ -53,10 +53,13 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -102,7 +105,7 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public abstract class ConstraintResolver<C extends Constraint<?>, O> {
+public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 	@Nonnull
 	protected CatalogSchemaContract catalogSchema;
@@ -116,7 +119,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * @return resolved constraint with its possible children
 	 */
 	@Nullable
-	public C resolve(@Nonnull String key, @Nullable O value) {
+	public C resolve(@Nonnull String key, @Nullable Object value) {
 		return resolve(
 			new ResolveContext(getRootDataLocator()),
 			key,
@@ -170,7 +173,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * @return resolved constraint with its possible children
 	 */
 	@Nullable
-	protected C resolve(@Nonnull ResolveContext resolveContext, @Nonnull String key, @Nullable O value) {
+	protected C resolve(@Nonnull ResolveContext resolveContext, @Nonnull String key, @Nullable Object value) {
 		final ParsedKey parsedKey = parseKey(key);
 		final ConstraintDescriptor constraintDescriptor = findConstraintDescriptor(parsedKey);
 		return reconstructConstraint(resolveContext, parsedKey, constraintDescriptor, value);
@@ -248,7 +251,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	private C reconstructConstraint(@Nonnull ResolveContext resolveContext,
 	                                @Nonnull ParsedKey parsedKey,
 	                                @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                @Nullable O value) {
+	                                @Nullable Object value) {
 		final List<Object> instantiationArgs = resolveValueToInstantiationArgs(resolveContext, parsedKey, value, constraintDescriptor);
 		if (instantiationArgs == null) {
 			return null;
@@ -260,12 +263,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	@Nullable
 	private List<Object> resolveValueToInstantiationArgs(@Nonnull ResolveContext resolveContext,
 	                                                     @Nonnull ParsedKey parsedKey,
-	                                                     @Nullable O value,
+	                                                     @Nullable Object value,
 	                                                     @Nonnull ConstraintDescriptor constraintDescriptor) {
 		final ConstraintValueStructure valueStructure = ConstraintProcessingUtils.getValueStructureForConstraintCreator(constraintDescriptor.creator());
 
 		if (valueStructure == ConstraintValueStructure.NONE) {
-			return resolveNoneParameter(resolveContext, valueStructure, parsedKey, value) ? new ArrayList<>(0) : null;
+			return resolveNoneParameter(parsedKey, value) ? new ArrayList<>(0) : null;
 		}
 
 		final List<Object> instantiationArgs = new LinkedList<>();
@@ -277,7 +280,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 				instantiationArgs.add(originalClassifier);
 			} else if (parameter instanceof final ValueParameterDescriptor valueParameterDescriptor) {
 				instantiationArgs.add(
-					resolveValueParameter(resolveContext, valueParameterDescriptor, valueStructure, parsedKey, originalClassifier, value)
+					resolveValueParameter(valueParameterDescriptor, valueStructure, parsedKey, value)
 				);
 			} else if (parameter instanceof final ChildParameterDescriptor childParameterDescriptor) {
 				instantiationArgs.add(
@@ -289,10 +292,15 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 		return instantiationArgs;
 	}
 
-	protected abstract boolean resolveNoneParameter(@Nonnull ResolveContext resolveContext,
-	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
-	                                     @Nonnull ParsedKey parsedKey,
-	                                     @Nullable O value);
+	protected boolean resolveNoneParameter(@Nonnull ParsedKey parsedKey,
+	                                       @Nullable Object value) {
+		Assert.notNull(
+			value,
+			() -> createInvalidArgumentException("Constraint `" + parsedKey.originalKey() + "` requires non-null value.")
+		);
+
+		return (boolean) value;
+	}
 
 	/**
 	 * Tries to resolve {@link ClassifierParameterDescriptor} to single constraint instantiation arg.
@@ -390,59 +398,57 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * @return instantiation arg if possible
 	 */
 	@Nullable
-	private Object resolveValueParameter(@Nonnull ResolveContext resolveContext,
-	                                     @Nonnull ValueParameterDescriptor parameterDescriptor,
+	private Object resolveValueParameter(@Nonnull ValueParameterDescriptor parameterDescriptor,
 	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                     @Nonnull ParsedKey parsedKey,
-	                                     @Nullable String originalClassifier,
-	                                     @Nullable O value) {
-		final O argument = extractValueParameterFromValue(
+	                                     @Nullable Object value) {
+		final Object argument = extractValueParameterFromValue(
 			parsedKey,
 			value,
 			parameterDescriptor,
 			constraintValueStructure
 		);
-		return convertValueParameterArgumentToInstantiationArg(resolveContext, originalClassifier, argument, parsedKey, parameterDescriptor);
+		return convertValueParameterArgumentToInstantiationArg(argument, parsedKey, parameterDescriptor);
 	}
 
 	/**
 	 * Tries to extract raw argument for value descriptor from client value
 	 */
 	@Nullable
-	private O extractValueParameterFromValue(@Nonnull ParsedKey parsedKey,
-	                                         @Nullable O value,
+	private Object extractValueParameterFromValue(@Nonnull ParsedKey parsedKey,
+	                                         @Nullable Object value,
 	                                         @Nonnull ValueParameterDescriptor parameterDescriptor,
 	                                         @Nonnull ConstraintValueStructure constraintValueStructure) {
-		O argument;
+		Object argument;
 		final String parameterName = parameterDescriptor.name();
 
 		if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
 			argument = extractValueArgumentFromWrapperObject(parsedKey, value, parameterDescriptor);
 
 			// we want treat missing arrays as empty arrays for more client convenience
-			if (isNullValue(argument) && parameterDescriptor.type().isArray()) {
+			if (argument == null && parameterDescriptor.type().isArray()) {
 				//noinspection unchecked
-				argument = (O) createEmptyListObject();
+				argument = (Object) createEmptyListObject();
 			}
 
-			if (parameterDescriptor.required() && isNullValue(argument)) {
+			if (parameterDescriptor.required() && argument == null) {
 				throw createInvalidArgumentException(
 					"Constraint `" + parsedKey.originalKey() + "` requires parameter `" + parameterName + "` to be non-null."
 				);
 			}
 		} else if (constraintValueStructure == ConstraintValueStructure.WRAPPER_RANGE) {
 			if (parameterName.equals(ConstraintProcessingUtils.WRAPPER_RANGE_FROM_VALUE_PARAMETER)) {
-				argument = extractFromArgumentFromWrapperRange(parsedKey, value, parameterDescriptor);
+				argument = extractFromArgumentFromWrapperRange(parsedKey, value);
 
-				if (parameterDescriptor.required() && isNullValue(argument)) {
+				if (parameterDescriptor.required() && argument == null) {
 					throw createInvalidArgumentException(
 						"Constraint `" + parsedKey.originalKey() + "` requires `" + ConstraintProcessingUtils.WRAPPER_RANGE_FROM_VALUE_PARAMETER + "` argument of range to be non-null value."
 					);
 				}
 			} else if (parameterName.equals(ConstraintProcessingUtils.WRAPPER_RANGE_TO_VALUE_PARAMETER)) {
-				argument = extractToArgumentFromWrapperRange(parsedKey, value, parameterDescriptor);
+				argument = extractToArgumentFromWrapperRange(parsedKey, value);
 
-				if (parameterDescriptor.required() && isNullValue(argument)) {
+				if (parameterDescriptor.required() && argument == null) {
 					throw createInvalidArgumentException(
 						"Constraint `" + parsedKey.originalKey() + "` requires `" + ConstraintProcessingUtils.WRAPPER_RANGE_TO_VALUE_PARAMETER + "` argument of range to be non-null value."
 					);
@@ -453,7 +459,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 		} else if (constraintValueStructure == ConstraintValueStructure.PRIMITIVE) {
 			argument = value;
 
-			if (parameterDescriptor.required() && isNullValue(argument)) {
+			if (parameterDescriptor.required() && argument == null) {
 				throw createInvalidArgumentException(
 					"Constraint `" + parsedKey.originalKey() + "` requires non-null value."
 				);
@@ -470,35 +476,99 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * Should extract raw argument from wrapper object `value`.
 	 */
 	@Nullable
-	protected abstract O extractValueArgumentFromWrapperObject(@Nonnull ParsedKey parsedKey,
-	                                                           @Nullable O value,
-	                                                           @Nonnull ValueParameterDescriptor parameterDescriptor);
+	protected Object extractValueArgumentFromWrapperObject(@Nonnull ParsedKey parsedKey,
+	                                                       @Nullable Object value,
+	                                                       @Nonnull ValueParameterDescriptor parameterDescriptor) {
+		return extractArgumentFromWrapperObject(parsedKey, value, parameterDescriptor.name());
+	}
 
 	/**
 	 * Should extract raw `from` argument from wrapper range `value`.
 	 */
 	@Nullable
-	protected abstract O extractFromArgumentFromWrapperRange(@Nonnull ParsedKey parsedKey,
-	                                                         @Nullable O value,
-	                                                         @Nonnull ValueParameterDescriptor parameterDescriptor);
+	protected Object extractFromArgumentFromWrapperRange(@Nonnull ParsedKey parsedKey, @Nullable Object value) {
+		return extractRangeFromWrapperRange(parsedKey, value).get(0);
+	}
 
 	/**
 	 * Should extract raw `to` argument from wrapper range `value`.
 	 */
 	@Nullable
-	protected abstract O extractToArgumentFromWrapperRange(@Nonnull ParsedKey parsedKey,
-	                                                       @Nullable O value,
-	                                                       @Nonnull ValueParameterDescriptor parameterDescriptor);
+	protected Object extractToArgumentFromWrapperRange(@Nonnull ParsedKey parsedKey, @Nullable Object value) {
+		return extractRangeFromWrapperRange(parsedKey, value).get(1);
+	}
+
+	@Nullable
+	private Object extractArgumentFromWrapperObject(@Nonnull ParsedKey parsedKey,
+	                                                @Nullable Object value,
+	                                                @Nonnull String parameterName) {
+		final Map<String, Object> wrapperObject;
+		try {
+			//noinspection unchecked
+			wrapperObject = (Map<String, Object>) value;
+		} catch (ClassCastException e) {
+			throw createQueryResolvingInternalError(
+				"Constraint `" + parsedKey + "` expected to be wrapper object but found `" + value + "`."
+			);
+		}
+		if (wrapperObject == null) {
+			return null;
+		} else {
+			return wrapperObject.get(parameterName);
+		}
+	}
+
+	@Nonnull
+	private List<Object> extractRangeFromWrapperRange(@Nonnull ParsedKey parsedKey,
+	                                                  @Nullable Object value) {
+		final List<Object> range;
+		try {
+			//noinspection unchecked
+			range = (List<Object>) value;
+		} catch (ClassCastException e) {
+			throw createQueryResolvingInternalError(
+				"Constraint `" + parsedKey + "` expected to be wrapper range but found `" + value + "`."
+			);
+		}
+		Assert.notNull(
+			range,
+			() -> createInvalidArgumentException("Constraint `" + parsedKey.originalKey() + "` requires range value.")
+		);
+		Assert.isTrue(
+			range.size() == ConstraintProcessingUtils.WRAPPER_RANGE_PARAMETERS_COUNT,
+			() -> createInvalidArgumentException("Constraint `" + parsedKey.originalKey() + "` has invalid range format.")
+		);
+
+		return range;
+	}
 
 	/**
 	 * Converts extracted raw value parameter argument to target data type needed by value parameter descriptor.
 	 */
 	@Nullable
-	protected abstract Object convertValueParameterArgumentToInstantiationArg(@Nonnull ResolveContext resolveContext,
-	                                                                          @Nullable String originalClassifier,
-	                                                                          @Nullable O argument,
-	                                                                          @Nonnull ParsedKey parsedKey,
-	                                                                          @Nonnull ValueParameterDescriptor valueParameterDescriptor);
+	protected Object convertValueParameterArgumentToInstantiationArg(@Nullable Object argument,
+	                                                                 @Nonnull ParsedKey parsedKey,
+	                                                                 @Nonnull ValueParameterDescriptor valueParameterDescriptor) {
+		if (argument == null) {
+			// we can return null if parameter isn't required
+			return null;
+		} else if (valueParameterDescriptor.type().isArray()) {
+			final List<Object> listArgument;
+			try {
+				//noinspection unchecked
+				listArgument = (List<Object>) argument;
+			} catch (ClassCastException e) {
+				throw createQueryResolvingInternalError("Constraint `" + parsedKey.originalKey() + "` expected list value but found `" + argument + "`.");
+			}
+			//noinspection unchecked
+			return convertApiListToSpecificArray(
+				(Class<? extends Serializable>) valueParameterDescriptor.type().getComponentType(),
+				listArgument
+			);
+		} else {
+			return argument;
+		}
+	}
 
 	/**
 	 * Tries to resolve {@link ChildParameterDescriptor} to single constraint instantiation arg.
@@ -519,8 +589,8 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                     @Nullable String originalClassifier,
 	                                     @Nonnull ParsedKey parsedKey,
-	                                     @Nullable O value) {
-		final O argument = extractChildParameterFromValue(
+	                                     @Nullable Object value) {
+		final Object argument = extractChildParameterFromValue(
 			parsedKey,
 			value,
 			constraintValueStructure,
@@ -535,20 +605,20 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * Tries to extract raw argument for children descriptor from client value
 	 */
 	@Nullable
-	private O extractChildParameterFromValue(@Nonnull ParsedKey parsedKey,
-	                                         @Nullable O value,
-	                                         @Nonnull ConstraintValueStructure constraintValueStructure,
-	                                         @Nonnull ChildParameterDescriptor parameterDescriptor) {
-		O argument;
+	private Object extractChildParameterFromValue(@Nonnull ParsedKey parsedKey,
+                                                  @Nullable Object value,
+                                                  @Nonnull ConstraintValueStructure constraintValueStructure,
+                                                  @Nonnull ChildParameterDescriptor parameterDescriptor) {
+		Object argument;
 		if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
 			argument = extractChildArgumentFromWrapperObject(parsedKey, value, parameterDescriptor);
 			// we want treat missing arrays as empty arrays for more client convenience
-			if (isNullValue(argument) && parameterDescriptor.type().isArray()) {
+			if (argument == null && parameterDescriptor.type().isArray()) {
 				//noinspection unchecked
-				argument = (O) (parameterDescriptor.uniqueChildren() ? createEmptyWrapperObject() : createEmptyListObject());
+				argument = (Object) (parameterDescriptor.uniqueChildren() ? createEmptyWrapperObject() : createEmptyListObject());
 			}
 
-			if (parameterDescriptor.required() && isNullValue(argument)) {
+			if (parameterDescriptor.required() && argument == null) {
 				throw createInvalidArgumentException(
 					"Constraint `" + parsedKey.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-null."
 				);
@@ -556,7 +626,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 		} else if (constraintValueStructure == ConstraintValueStructure.CHILD) {
 			argument = value;
 
-			if (parameterDescriptor.required() && isNullValue(argument)) {
+			if (parameterDescriptor.required() && argument == null) {
 				throw createInvalidArgumentException(
 					"Constraint `" + parsedKey.originalKey() + "` requires non-null children."
 				);
@@ -573,9 +643,11 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * Should extract raw children argument from wrapper object `value`.
 	 */
 	@Nullable
-	protected abstract O extractChildArgumentFromWrapperObject(@Nonnull ParsedKey parsedKey,
-	                                                           @Nullable O value,
-	                                                           @Nonnull ChildParameterDescriptor parameterDescriptor);
+	protected Object extractChildArgumentFromWrapperObject(@Nonnull ParsedKey parsedKey,
+                                                           @Nullable Object value,
+                                                           @Nonnull ChildParameterDescriptor parameterDescriptor) {
+		return extractArgumentFromWrapperObject(parsedKey, value, parameterDescriptor.name());
+	}
 
 	/**
 	 * Converts extracted raw children parameter argument (children constraints) to target data type and structure
@@ -584,14 +656,14 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	@SuppressWarnings("unchecked")
 	@Nullable
 	private Object convertChildParameterArgumentToInstantiationArg(@Nonnull ResolveContext resolveContext,
-	                                                               @Nullable O argument,
+	                                                               @Nullable Object argument,
 	                                                               @Nonnull ParsedKey parsedKey,
 	                                                               @Nonnull ChildParameterDescriptor parameterDescriptor) {
-		if (isNullValue(argument)) {
+		if (argument == null) {
 			// we can return null if parameter isn't required
 			return null;
 		} else if (parameterDescriptor.type().isArray()) {
-			if (isBooleanValue(argument)) {
+			if (argument instanceof Boolean) {
 				// child containers doesn't have any usable children, therefore placeholder value is used
 				return convertConstraintStreamToSpecificArray((Class<C>) parameterDescriptor.type().getComponentType(), Stream.of());
 			}
@@ -605,7 +677,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 					resolveContainerInnerConstraints(resolveContext, parsedKey, argument)
 				);
 			} else {
-				final List<O> children = convertInputListToJavaList(argument, parsedKey);
+				final List<Object> children = convertInputListToJavaList(argument, parsedKey);
 				return convertConstraintStreamToSpecificArray(
 					(Class<C>) parameterDescriptor.type().getComponentType(),
 					children.stream()
@@ -616,7 +688,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 				);
 			}
 		} else {
-			if (isBooleanValue(argument)) {
+			if (argument instanceof Boolean) {
 				// child container doesn't have any usable children, therefore placeholder value is used
 				Assert.isPremiseValid(
 					!parameterDescriptor.required(),
@@ -650,35 +722,27 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	}
 
 	/**
-	 * Checks if argument is of boolean type which would indicate placeholder `none` value.
-	 */
-	protected abstract boolean isBooleanValue(@Nonnull O argument);
-
-	/**
-	 * Checks if argument is `NULL` value, or it's representation is equal to `NULL`.
-	 */
-	protected abstract boolean isNullValue(@Nullable O argument);
-
-	/**
 	 * Creates empty wrapper object
-	 * @return
 	 */
 	@Nonnull
-	protected abstract Object createEmptyWrapperObject();
+	protected Object createEmptyWrapperObject() {
+		return Map.of();
+	}
 
 	/**
 	 * Creates empty list object (object representing list)
-	 * @return
 	 */
 	@Nonnull
-	protected abstract Object createEmptyListObject();
+	protected Object createEmptyListObject() {
+		return List.of();
+	}
 
 	/**
 	 * Resolves constraint container represented by JSON object and containing inner child constraints
 	 * to the {@link #getWrapperContainer()} wrapping constraint container.
 	 */
 	@Nonnull
-	private C resolveWrapperContainer(@Nonnull ResolveContext resolveContext, @Nonnull ParsedKey parsedKey, @Nonnull O value) {
+	private C resolveWrapperContainer(@Nonnull ResolveContext resolveContext, @Nonnull ParsedKey parsedKey, @Nonnull Object value) {
 		final C[] innerConstraints = convertConstraintStreamToSpecificArray(
 			getConstraintClass(),
 			resolveContainerInnerConstraints(resolveContext, parsedKey, value)
@@ -692,9 +756,22 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * Tries to extract child constraints from constraint container represented by JSON object
 	 */
 	@Nonnull
-	protected abstract Stream<C> resolveContainerInnerConstraints(@Nonnull ResolveContext resolveContext,
-	                                                              @Nonnull ParsedKey parsedKey,
-	                                                              @Nonnull O value);
+	protected Stream<C> resolveContainerInnerConstraints(@Nonnull ResolveContext resolveContext,
+	                                                     @Nonnull ParsedKey parsedKey,
+	                                                     @Nonnull Object value) {
+		if (!(value instanceof Map<?, ?>)) {
+			throw createQueryResolvingInternalError(
+				"Constraint `" + parsedKey.originalKey() + "` expected to has container with nested constraints."
+			);
+		}
+
+		//noinspection unchecked
+		final Map<String, Object> innerConstraints = (Map<String, Object>) value;
+		return innerConstraints.entrySet()
+			.stream()
+			.map(c -> resolve(resolveContext, c.getKey(), c.getValue()))
+			.filter(Objects::nonNull);
+	}
 
 	@SuppressWarnings("unchecked")
 	@Nonnull
@@ -707,7 +784,16 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * Should convert input-specific list to Java-specific lis of inner raw input item.
 	 */
 	@Nonnull
-	protected abstract List<O> convertInputListToJavaList(@Nonnull O argument, @Nonnull ParsedKey parsedKey);
+	protected List<Object> convertInputListToJavaList(@Nonnull Object argument, @Nonnull ParsedKey parsedKey) {
+		try {
+			//noinspection unchecked
+			return (List<Object>) argument;
+		} catch (ClassCastException e) {
+			throw createQueryResolvingInternalError(
+				"Constraint `" + parsedKey.originalKey() + "` expected list value but found `" + argument + "`."
+			);
+		}
+	}
 
 	@Nonnull
 	protected Optional<EntitySchemaContract> findEntitySchema(@Nonnull DataLocator dataLocator) {
@@ -777,6 +863,18 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	protected EntitySchemaContract findRequiredEntitySchema(@Nonnull DataLocator dataLocator) {
 		return findEntitySchema(dataLocator)
 			.orElseThrow(() -> createQueryResolvingInternalError("Entity schema `" + dataLocator.entityType() + "` is required."));
+	}
+
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	protected  <V extends Serializable> V[] convertApiListToSpecificArray(@Nonnull Class<V> targetComponentType,
+	                                                                      @Nonnull List<Object> graphQLList) {
+		try {
+			//noinspection SuspiciousToArrayCall
+			return graphQLList.toArray(size -> (V[]) Array.newInstance(targetComponentType, size));
+		} catch (ClassCastException e) {
+			throw createQueryResolvingInternalError("Could not cast REST list to array of type `" + targetComponentType.getName() + "`");
+		}
 	}
 
 	@Nonnull

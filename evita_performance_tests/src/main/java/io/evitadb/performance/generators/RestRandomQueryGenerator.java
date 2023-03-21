@@ -210,7 +210,7 @@ public interface RestRandomQueryGenerator {
 			),
 			createRandomAttributeOrderBy(random, sortableAttributes),
 			new RestConstraint[] {
-				new RestConstraint(Page.class, Map.of("pageNumber", random.nextInt(5) + 1, "pageSize", 20))
+				new RestConstraint(Page.class, Map.of("number", random.nextInt(5) + 1, "size", 20))
 			}
 		);
 	}
@@ -263,7 +263,7 @@ public interface RestRandomQueryGenerator {
 			),
 			createRandomPriceOrderBy(random),
 			new RestConstraint[] {
-				new RestConstraint(Page.class, Map.of("pageNumber", random.nextInt(5) + 1, "pageSize", 20))
+				new RestConstraint(Page.class, Map.of("number", random.nextInt(5) + 1, "size", 20))
 			}
 		);
 	}
@@ -359,7 +359,7 @@ public interface RestRandomQueryGenerator {
 			),
 			null,
 			new RestConstraint[] {
-				new RestConstraint(Page.class, Map.of("pageNumber", random.nextInt(5) + 1, "pageSize", 20))
+				new RestConstraint(Page.class, Map.of("number", random.nextInt(5) + 1, "size", 20))
 			}
 		);
 	}
@@ -386,7 +386,7 @@ public interface RestRandomQueryGenerator {
 			null,
 			ArrayUtils.mergeArrays(
 				new RestConstraint[] {
-					new RestConstraint(Page.class, Map.of("pageNumber", 1, "pageSize", 20)),
+					new RestConstraint(Page.class, Map.of("number", 1, "size", 20)),
 				},
 				Arrays.stream(getRandomItems(random, referencedHierarchyEntities).toArray(String[]::new))
 					.map(it -> new RestConstraint(it, HierarchyParentsOfReference.class, true))
@@ -409,7 +409,7 @@ public interface RestRandomQueryGenerator {
 			),
 			null,
 			new RestConstraint[] {
-				new RestConstraint(Page.class, Map.of("pageNumber", 1, "pageSize", 20)),
+				new RestConstraint(Page.class, Map.of("number", 1, "size", 20)),
 				Optional.of(pickRandom(random, referencedHierarchyEntities))
 					.map(it -> new RestConstraint(it, HierarchyStatisticsOfReference.class, true))
 					.orElseThrow()
@@ -448,7 +448,7 @@ public interface RestRandomQueryGenerator {
 			}
 		}
 
-		requireConstraints.add(new RestConstraint(Page.class, Map.of("pageNumber", 1, "pageSize", 20)));
+		requireConstraints.add(new RestConstraint(Page.class, Map.of("number", 1, "size", 20)));
 		requireConstraints.add(new RestConstraint(FacetSummary.class, Map.of("statisticsDepth", depth)));
 
 		return new RestQuery(

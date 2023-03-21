@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.resolver.serializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -33,17 +34,19 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiScalar;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiConstants;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.exception.RestTooManyValuesPresentException;
+import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -68,8 +71,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@RequiredArgsConstructor
 public class DataDeserializer {
+
+	private final OpenAPI openApi;
+	private final Map<String, Class<? extends Enum<?>>> enumMapping;
 
 	/**
 	 * Deserializes value from string array. It can return single object, array or range object.
@@ -79,16 +85,16 @@ public class DataDeserializer {
 	 */
 	@SuppressWarnings({"rawtypes"})
 	@Nullable
-	public static Object deserializeValue(@Nonnull OpenAPI openAPI, @Nonnull Schema schema, @Nonnull String[] data) {
+	public Object deserializeValue(@Nonnull Schema schema, @Nonnull String[] data) {
 		if (data.length == 0) {
-			final Class schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI));
+			final Class schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi));
 			return Array.newInstance(schemaClass, 0);
 		}
-		if (OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
-			if(OpenApiScalar.FORMAT_RANGE.equals(schema.getFormat())) {
-				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI)), data, schema.getName());
+		if (OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
+			if(OpenApiConstants.FORMAT_RANGE.equals(schema.getFormat())) {
+				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi)), data, schema.getName());
 			}
-			return deserializeArray(openAPI, schema, data);
+			return deserializeArray(schema, data);
 		} else {
 			if (data.length > 1) {
 				throw new RestTooManyValuesPresentException("Expected one value of parameter " + schema.getName() + " but found: " + data.length);
@@ -100,16 +106,16 @@ public class DataDeserializer {
 	/**
 	 * Deserializes value from {@link JsonNode}. It can return single value, array or range object.
 	 */
-	public static Object deserializeValue(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
+	public Object deserializeValue(@Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
 		if((jsonNode.isArray() && jsonNode.isEmpty()) || jsonNode.asText() == null) {
-			final Class<?> schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI));
+			final Class<?> schemaClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi));
 			return Array.newInstance(schemaClass, 0);
 		}
-		if(OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
-			if(OpenApiScalar.FORMAT_RANGE.equals(schema.getFormat())) {
-				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI)), jsonNode, schema.getName());
+		if(OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
+			if(OpenApiConstants.FORMAT_RANGE.equals(schema.getFormat())) {
+				return deserializeRange(resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi)), jsonNode, schema.getName());
 			}
-			return deserializeArray(openAPI, schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
+			return deserializeArray(schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
 		} else {
 			return deserializeValue(schema, jsonNode.asText());
 		}
@@ -122,7 +128,7 @@ public class DataDeserializer {
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
-	public static <T extends Serializable> T deserializeValue(@Nonnull Class<T> targetClass, @Nullable JsonNode value) {
+	public <T extends Serializable> T deserializeValue(@Nonnull Class<T> targetClass, @Nullable JsonNode value) {
 		if (value == null || value.isNull()) {
 			return null;
 		}
@@ -165,15 +171,15 @@ public class DataDeserializer {
 	/**
 	 * Deserializes objects in array represented by {@link ArrayNode}
 	 * @throws RestInvalidArgumentException is thrown when JsonNode is not instance of ArrayNode or when schema type
-	 * is not {@link OpenApiScalar#TYPE_ARRAY}.
+	 * is not {@link OpenApiConstants#TYPE_ARRAY}.
 	 */
 	@Nonnull
-	public static Object[] deserializeArray(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
-		if(!OpenApiScalar.TYPE_ARRAY.equals(schema.getType())) {
+	public Object[] deserializeArray(@Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
+		if(!OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
 			throw new RestInvalidArgumentException("Can't deserialize value, schema type is not array. Name: " + schema.getName());
 		}
 
-		return deserializeArray(openAPI, schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
+		return deserializeArray(schema, getNodeValuesAsStringArray(jsonNode, schema.getName()));
 	}
 
 	/**
@@ -182,44 +188,44 @@ public class DataDeserializer {
 	 * @return single object or map of objects when as keys are used property names
 	 */
 	@Nullable
-	public static Object deserializeTree(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
+	public Object deserializeTree(@Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
 		if(jsonNode instanceof NullNode) {
 			return null;
 		}
 		if(jsonNode instanceof ArrayNode arrayNode) {
-			if(schema instanceof ArraySchema arraySchema) {
-				final ArrayList<Object> objects = new ArrayList<>(arrayNode.size());
-				for (JsonNode node : arrayNode) {
-					objects.add(deserializeTree(openAPI, SchemaUtils.getTargetSchemaFromRefOrOneOf(arraySchema.getItems(), openAPI), node));
-				}
-				return objects;
+			Assert.isTrue(
+				schema instanceof ArraySchema || OpenApiConstants.TYPE_ARRAY.equals(schema.getType()),
+				() -> new RestInvalidArgumentException("Can't parse data form an ArrayNode when schema is not an ArraySchema. " +
+					"Schema: " + schema.getName(), "Error when parsing data.")
+			);
+
+			final ArrayList<Object> objects = new ArrayList<>(arrayNode.size());
+			for (JsonNode node : arrayNode) {
+				objects.add(deserializeTree(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi), node));
 			}
-			else {
-				throw new RestInvalidArgumentException("Can't parse data form an ArrayNode when schema is not an ArraySchema. " +
-					"Schema: " + schema.getName(), "Error when parsing data.");
-			}
+			return objects;
 		} else {
-			if(schema instanceof ArraySchema) {
+			if(schema instanceof ArraySchema || OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
 				throw new RestInvalidArgumentException("Can't parse data form an JsonNode when schema is an ArraySchema but JsonNode " +
 					"is not an ArrayNode. Schema: " + schema.getName(), "Error when parsing data.");
 			}
 
-			if(schema.getType() == null || OpenApiScalar.TYPE_OBJECT.equals(schema.getType())) {
-				final Map<String, Object> dataMap = createHashMap(20);
+			if(schema.getType() == null || OpenApiConstants.TYPE_OBJECT.equals(schema.getType())) {
+				final Map<String, Object> dataMap = createHashMap(jsonNode.size());
 				final Iterator<String> namesIterator = jsonNode.fieldNames();
 				while (namesIterator.hasNext()) {
 					final String fieldName = namesIterator.next();
 					final Schema<?> propertySchema = schema.getProperties().get(fieldName);
 					if (propertySchema != null) {
-						final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, openAPI);
-						dataMap.put(fieldName, deserializeTree(openAPI, targetPropertySchema, jsonNode.get(fieldName)));
+						final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, openApi);
+						dataMap.put(fieldName, deserializeTree(targetPropertySchema, jsonNode.get(fieldName)));
 					} else {
 						throw new RestInvalidArgumentException("Invalid property name: " + fieldName);
 					}
 				}
 				return dataMap;
 			} else {
-				return DataDeserializer.deserializeValue(openAPI, schema, jsonNode);
+				return deserializeValue(schema, jsonNode);
 			}
 		}
 	}
@@ -228,29 +234,32 @@ public class DataDeserializer {
 
 	@Nullable
 	@SuppressWarnings({"rawtypes"})
-	private static Object deserializeValue(@Nonnull Schema schema, @Nonnull String data) {
+	private Object deserializeValue(@Nonnull Schema schema, @Nonnull String data) {
 		return deserializeValue(resolveDataClass(schema), data);
 	}
 
 	@Nullable
-	private static <T extends Serializable> T deserializeValue(@Nonnull Class<T> requestedType, @Nonnull String data) {
+	private <T extends Serializable> T deserializeValue(@Nonnull Class<T> requestedType, @Nonnull String data) {
+		if (requestedType.isEnum()) {
+			return deserializeEnum(requestedType, data);
+		}
 		return EvitaDataTypes.toTargetType(data, requestedType);
 	}
 
 
 	@Nonnull
-	private static Object[] deserializeArray(@Nonnull OpenAPI openAPI, @Nonnull Schema<?> schema, @Nonnull String[] data) {
-		final Class<?> arrayClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI));
+	private Object[] deserializeArray(@Nonnull Schema<?> schema, @Nonnull String[] data) {
+		final Class<?> arrayClass = resolveDataClass(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi));
 		final Object[] dataArray = (Object[]) Array.newInstance(arrayClass, data.length);
 		for (int i = 0; i < data.length; i++) {
-			dataArray[i] = deserializeValue(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openAPI), data[i]);
+			dataArray[i] = deserializeValue(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi), data[i]);
 		}
 		return dataArray;
 	}
 
 	@Nonnull
 	@SuppressWarnings("unchecked")
-	private static <T extends Serializable> T[] deserializeArray(@Nonnull Class<T> targetClass, @Nonnull ArrayNode arrayNode) {
+	private <T extends Serializable> T[] deserializeArray(@Nonnull Class<T> targetClass, @Nonnull ArrayNode arrayNode) {
 		final Object deserialized = Array.newInstance(targetClass, arrayNode.size());
 		for (int i = 0; i < arrayNode.size(); i++) {
 			 Array.set(deserialized, i, deserializeValue(targetClass, arrayNode.get(i)));
@@ -260,7 +269,7 @@ public class DataDeserializer {
 
 
 	@Nonnull
-	private static <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull JsonNode value, @Nonnull String attributeName) {
+	private <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull JsonNode value, @Nonnull String attributeName) {
 		if (value instanceof ArrayNode values && values.size() == 2) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
 				return deserializeRange(targetClass, deserializeValue(OffsetDateTime.class, values.get(0)), deserializeValue(OffsetDateTime.class, values.get(1)), attributeName);
@@ -281,7 +290,7 @@ public class DataDeserializer {
 	}
 
 	@Nonnull
-	private static <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull String[] values, @Nonnull String attributeName) {
+	private <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nonnull String[] values, @Nonnull String attributeName) {
 		if (values.length == 2) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
 				return deserializeRange(targetClass, deserializeValue(OffsetDateTime.class, values[0]), deserializeValue(OffsetDateTime.class, values[1]), attributeName);
@@ -304,7 +313,7 @@ public class DataDeserializer {
 
 	@Nonnull
 	@SuppressWarnings("unchecked")
-	private static <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nullable Object from, @Nullable Object to, @Nonnull String attributeName) {
+	private <T extends Serializable> T deserializeRange(@Nonnull Class<T> targetClass, @Nullable Object from, @Nullable Object to, @Nonnull String attributeName) {
 		if (from != null && to != null) {
 			if (OffsetDateTime.class.isAssignableFrom(targetClass)) {
 				return (T) DateTimeRange.between((OffsetDateTime) from, (OffsetDateTime) to);
@@ -359,12 +368,12 @@ public class DataDeserializer {
 
 
 	@Nullable
-	private static Byte deserializeByteNumber(@Nonnull JsonNode value) {
+	private Byte deserializeByteNumber(@Nonnull JsonNode value) {
 		return deserializeByteNumber(value.asText());
 	}
 
 	@Nullable
-	private static Byte deserializeByteNumber(@Nonnull String value) {
+	private Byte deserializeByteNumber(@Nonnull String value) {
 		final byte[] decoded = Base64.getDecoder().decode(value);
 		if(decoded.length == 1) {
 			return decoded[0];
@@ -377,51 +386,65 @@ public class DataDeserializer {
 
 
 	@Nonnull
-	private static <T extends Serializable, E extends Enum<E>> T deserializeEnum(@Nonnull Class<T> targetClass, @Nonnull JsonNode value) {
+	private <T extends Serializable, E extends Enum<E>> T deserializeEnum(@Nonnull Class<T> targetClass, @Nonnull JsonNode value) {
 		//noinspection unchecked
 		return (T) Enum.valueOf((Class<E>) targetClass, value.asText());
+	}
+
+	@Nonnull
+	private <T extends Serializable, E extends Enum<E>> T deserializeEnum(@Nonnull Class<T> targetClass, @Nonnull String value) {
+		//noinspection unchecked
+		return (T) Enum.valueOf((Class<E>) targetClass, value);
 	}
 
 
 	@Nonnull
 	@SuppressWarnings("rawtypes")
-	private static Class<? extends Serializable> resolveDataClass(@Nonnull Schema schema) {
-		if(OpenApiScalar.TYPE_STRING.equals(schema.getType())) {
+	private Class<? extends Serializable> resolveDataClass(@Nonnull Schema schema) {
+		if(OpenApiConstants.TYPE_STRING.equals(schema.getType())) {
 			if(schema.getFormat() == null) {
+				if (schema.getEnum() != null) {
+					final Class<? extends Enum<?>> enumTemplate = enumMapping.get(schema.getName());
+					Assert.isPremiseValid(
+						enumTemplate != null,
+						() -> new RestInternalError("No Java enum for enum `" + schema.getName() + "` found.")
+					);
+					return enumTemplate;
+				}
 				return String.class;
 			}
 			return switch (schema.getFormat()) {
-				case OpenApiScalar.FORMAT_DATE -> LocalDate.class;
-				case OpenApiScalar.FORMAT_DATE_TIME -> OffsetDateTime.class;
-				case OpenApiScalar.FORMAT_LOCAL_TIME -> LocalTime.class;
-				case OpenApiScalar.FORMAT_LOCAL_DATE_TIME -> LocalDateTime.class;
-				case OpenApiScalar.FORMAT_CURRENCY -> Currency.class;
-				case OpenApiScalar.FORMAT_LOCALE -> Locale.class;
-				case OpenApiScalar.FORMAT_CHAR -> Character.class;
-				case OpenApiScalar.FORMAT_DECIMAL -> BigDecimal.class;
-				case OpenApiScalar.FORMAT_INT_64 -> Long.class;
+				case OpenApiConstants.FORMAT_DATE -> LocalDate.class;
+				case OpenApiConstants.FORMAT_DATE_TIME -> OffsetDateTime.class;
+				case OpenApiConstants.FORMAT_LOCAL_TIME -> LocalTime.class;
+				case OpenApiConstants.FORMAT_LOCAL_DATE_TIME -> LocalDateTime.class;
+				case OpenApiConstants.FORMAT_CURRENCY -> Currency.class;
+				case OpenApiConstants.FORMAT_LOCALE -> Locale.class;
+				case OpenApiConstants.FORMAT_CHAR -> Character.class;
+				case OpenApiConstants.FORMAT_DECIMAL -> BigDecimal.class;
+				case OpenApiConstants.FORMAT_INT_64 -> Long.class;
 				default -> throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for String type.");
 			};
 		}
-		if(OpenApiScalar.TYPE_INTEGER.equals(schema.getType())) {
-			if(schema.getFormat().equals(OpenApiScalar.FORMAT_INT_32)) {
+		if(OpenApiConstants.TYPE_INTEGER.equals(schema.getType())) {
+			if(schema.getFormat().equals(OpenApiConstants.FORMAT_INT_32)) {
 				return Integer.class;
-			} else if(schema.getFormat().equals(OpenApiScalar.FORMAT_INT_16)) {
+			} else if(schema.getFormat().equals(OpenApiConstants.FORMAT_INT_16)) {
 				return Short.class;
-			} else if(schema.getFormat().equals(OpenApiScalar.FORMAT_BYTE)) {
+			} else if(schema.getFormat().equals(OpenApiConstants.FORMAT_BYTE)) {
 				return Byte.class;
 			} else {
 				throw new RestInternalError("Unknown schema format " + schema.getFormat() + " for Integer type.");
 			}
 		}
-		if(OpenApiScalar.TYPE_BOOLEAN.equals(schema.getType())) {
+		if(OpenApiConstants.TYPE_BOOLEAN.equals(schema.getType())) {
 			return Boolean.class;
 		}
 		throw new RestInternalError("Unknown schema type " + schema.getType());
 	}
 
 	@Nonnull
-	private static String[] getNodeValuesAsStringArray(@Nonnull JsonNode jsonNode, @Nonnull String attributeName) {
+	private String[] getNodeValuesAsStringArray(@Nonnull JsonNode jsonNode, @Nonnull String attributeName) {
 		if(jsonNode instanceof ArrayNode arrayNode) {
 			final String[] strings = new String[arrayNode.size()];
 			for (int i = 0; i < arrayNode.size(); i++) {

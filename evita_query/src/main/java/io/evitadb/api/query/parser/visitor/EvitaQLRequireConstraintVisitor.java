@@ -26,6 +26,7 @@ package io.evitadb.api.query.parser.visitor;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.parser.EnumWrapper;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.SingleRefWithFilterAndOrderReferenceContentConstraintContext;
@@ -36,6 +37,9 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -52,7 +56,6 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	private static final String ONLY_ENTITY_FETCH_CONSTRAINTS_ARE_SUPPORTED_ERROR_MESSAGE = "Only `entityFetch` and `entityGroupFetch` constraints are supported.";
 
 	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
-	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
 	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
@@ -66,6 +69,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
+
+	protected final EvitaQLValueTokenVisitor priceContentArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Enum.class, PriceContentMode.class);
 
 	protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();
 	protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
@@ -170,11 +175,33 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				if (ctx.args == null) {
 					return new PriceContent();
 				}
-				return new PriceContent(
-					ctx.args.value
-						.accept(priceContentModeValueTokenVisitor)
-						.asEnum(PriceContentMode.class)
-				);
+				PriceContentMode contentMode = null;
+				List<String> priceLists = new LinkedList<>();
+				final Serializable[] values = ctx.args.values
+					.accept(priceContentArgValueTokenVisitor)
+					.asSerializableArray();
+				for (int i = 0; i < values.length; i++) {
+					final Serializable value = values[i];
+					if (i == 0) {
+						if (value instanceof PriceContentMode mode) {
+							contentMode = mode;
+							continue;
+						} else if (value instanceof EnumWrapper enumWrapper) {
+							contentMode = enumWrapper.toEnum(PriceContentMode.class);
+							continue;
+						}
+					}
+					Assert.isTrue(
+						value instanceof String,
+						() -> new EvitaQLInvalidQueryError(ctx, "Values of `priceContent` constraint must be of type string.")
+					);
+					priceLists.add((String) value);
+				}
+				if (contentMode == null) {
+					return new PriceContent(priceLists.toArray(String[]::new));
+				} else {
+					return new PriceContent(contentMode, priceLists.toArray(String[]::new));
+				}
 			}
 		);
 	}

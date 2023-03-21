@@ -33,6 +33,7 @@ import io.swagger.v3.oas.models.Operation;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 
 /**
  * Context object specific to collection-related endpoints for handling and resolving those endpoints.
@@ -48,9 +49,10 @@ public class CollectionRestHandlingContext extends CatalogRestHandlingContext {
 	                                     @Nonnull CatalogSchemaContract catalogSchema,
 	                                     @Nonnull EntitySchemaContract entitySchema,
 	                                     @Nonnull OpenAPI openApi,
+										 @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
 	                                     @Nonnull Operation endpointOperation,
 	                                     boolean localized) {
-		super(objectMapper, evita, catalogSchema, openApi, endpointOperation, localized);
+		super(objectMapper, evita, catalogSchema, openApi, enumMapping, endpointOperation, localized);
 		this.entitySchema = entitySchema;
 	}
 

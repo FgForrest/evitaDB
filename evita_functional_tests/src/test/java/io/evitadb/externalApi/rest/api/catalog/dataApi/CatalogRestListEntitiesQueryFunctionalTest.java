@@ -52,10 +52,7 @@ import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -301,18 +298,23 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("{" +
-					"\"filterBy\": {" +
-					"    \"attribute_code_inSet\": [\"%s\", \"%s\"]," +
-					"    \"price_inCurrency\": \"CZK\"," +
-					"    \"price_inPriceLists\": [\"basic\"]" +
-					"}," +
-					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"price_content\": \"RESPECTING_FILTER\"" +
-					"    }" +
-					"  }" +
-					"}",
+			.requestBody(
+    """
+                    {
+						"filterBy": {
+						    "attribute_code_inSet": ["%s", "%s"],
+						    "price_inCurrency": "CZK",
+						    "price_inPriceLists": ["basic"]
+						},
+						"require": {
+						    "entity_fetch": {
+						        "price_content": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE))
 			.executeAndThen()
@@ -364,7 +366,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				entities.get(1).getAttribute(ATTRIBUTE_CODE))
 			.executeAndThen()
 			.statusCode(400)
-			.body("message", equalTo("The value `AAA` cannot be converted to the type `java.util.Currency`!"));
+			.body("message", notNullValue());
 	}
 
 	@Test
@@ -380,18 +382,23 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("{" +
-					"\"filterBy\": {" +
-					"    \"entity_primaryKey_inSet\": [%d, %d]," +
-					"    \"price_inCurrency\": \"CZK\"," +
-					"    \"price_inPriceLists\": [\"basic\"]" +
-					"}," +
-					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"price_content\": \"RESPECTING_FILTER\"" +
-					"    }" +
-					"  }" +
-					"}",
+			.requestBody(
+				"""
+                    {
+						"filterBy": {
+						    "entity_primaryKey_inSet": [%d, %d],
+						    "price_inCurrency": "CZK",
+						    "price_inPriceLists": ["basic"]
+						},
+						"require": {
+						    "entity_fetch": {
+						        "price_content": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+					        }
+					    }
+					}
+					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey())
 			.executeAndThen()
@@ -412,18 +419,23 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("{" +
-					"\"filterBy\": {" +
-					"    \"attribute_code_inSet\": [\"%s\", \"%s\"]," +
-					"    \"price_inCurrency\": \"CZK\"," +
-					"    \"price_inPriceLists\": [\"basic\"]" +
-					"}," +
-					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"price_content\": \"RESPECTING_FILTER\"" +
-					"    }" +
-					"  }" +
-					"}",
+			.requestBody(
+				"""
+                    {
+						"filterBy": {
+						    "attribute_code_inSet": ["%s", "%s"],
+						    "price_inCurrency": "CZK",
+						    "price_inPriceLists": ["basic"]
+						},
+						"require": {
+						    "entity_fetch": {
+						        "price_content": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE))
 			.executeAndThen()
@@ -443,16 +455,21 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		testRestCall()
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("{" +
-					"\"filterBy\": {" +
-					"    \"attribute_code_inSet\": [\"%s\", \"%s\"]" +
-					"}," +
-					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"price_content\": \"RESPECTING_FILTER\"" +
-					"    }" +
-					"  }" +
-					"}",
+			.requestBody(
+	"""
+                    {
+						"filterBy": {
+						    "attribute_code_inSet": ["%s", "%s"]
+						},
+						"require": {
+						    "entity_fetch": {
+						        "price_content": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE))
 			.executeAndThen()

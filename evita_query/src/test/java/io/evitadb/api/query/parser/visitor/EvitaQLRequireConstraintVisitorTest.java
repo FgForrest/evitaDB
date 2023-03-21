@@ -29,6 +29,7 @@ import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
+import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import org.junit.jupiter.api.Test;
@@ -228,6 +229,27 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint6 = parseRequireConstraint("priceContent(@mode)", Map.of("mode", PriceContentMode.ALL));
 		assertEquals(priceContentAll(), constraint6);
+
+		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("priceContent('vip')");
+		assertEquals(priceContent("vip"), constraint7);
+
+		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("priceContent (  'vip' )");
+		assertEquals(priceContent("vip"), constraint8);
+
+		final RequireConstraint constraint9 = parseRequireConstraint("priceContent(?)", "vip");
+		assertEquals(priceContent("vip"), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraint("priceContent(@pl)", Map.of("pl", "vip"));
+		assertEquals(priceContent("vip"), constraint10);
+
+		final RequireConstraint constraint11 = parseRequireConstraintUnsafe("priceContent(NONE, 'vip')");
+		assertEquals(new PriceContent(PriceContentMode.NONE, "vip"), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraint("priceContent(?)", List.of(PriceContentMode.NONE, "vip"));
+		assertEquals(new PriceContent(PriceContentMode.NONE, "vip"), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraint("priceContent(?, ?)", PriceContentMode.NONE, "vip");
+		assertEquals(new PriceContent(PriceContentMode.NONE, "vip"), constraint13);
 	}
 
 	@Test
@@ -235,8 +257,9 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent(ALL)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent(?)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent(@mode)"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent('a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceContent(ALL, 'a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContent"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContent('a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContent(AA)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceContent(ALL,1)"));
 	}

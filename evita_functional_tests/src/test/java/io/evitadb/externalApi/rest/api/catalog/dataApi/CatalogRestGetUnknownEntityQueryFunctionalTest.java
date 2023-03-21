@@ -174,25 +174,6 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			.body("message", equalTo("Requested resource wasn't found."));
 	}
 
-	//todo price for sale is not present in DATA at all
-	/*@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return custom price for sale for single entity")
-	void shouldReturnCustomPriceForSaleForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
-
-		testRESTCall()
-			.urlPathSuffix("/entity/get")
-			.httpMethod(Request.METHOD_GET)
-			.requestParams(map()
-				.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))
-				.e(ParamDescriptor.PRICE_CONTENT.name(), Boolean.TRUE)
-				.build())
-			.executeAndThen()
-			.statusCode(200)
-			.body("priceForSale", equalTo(createPriceForSaleDto(entity, CURRENCY_CZK, "basic")));
-	}*/
-
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for single entity")
