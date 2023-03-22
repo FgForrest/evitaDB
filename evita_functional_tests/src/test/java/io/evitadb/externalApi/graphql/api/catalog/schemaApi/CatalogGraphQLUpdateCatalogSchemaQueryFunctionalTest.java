@@ -51,9 +51,9 @@ import static org.hamcrest.Matchers.*;
 public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
 	private static final String ERRORS_PATH = "errors";
-	private static final String CATALOG_SCHEMA_PATH = "data.get_catalog";
-	private static final String UPDATE_CATALOG_SCHEMA_PATH = "data.update_catalog";
-	private static final String MY_NEW_COLLECTION_SCHEMA_PATH = "data.get_myNewCollection";
+	private static final String CATALOG_SCHEMA_PATH = "data.get_catalog_schema";
+	private static final String UPDATE_CATALOG_SCHEMA_PATH = "data.update_catalog_schema";
+	private static final String MY_NEW_COLLECTION_SCHEMA_PATH = "data.get_myNewCollection_schema";
 	private static final String NEW_COLLECTION_NAME = "myNewCollection";
 
 
@@ -65,7 +65,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				mutation {
-					update_catalog {
+					update_catalog_schema {
 						version
 					}
 				}
@@ -86,7 +86,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				mutation {
-					update_catalog (
+					update_catalog_schema (
 						mutations: []
 					) {
 						version
@@ -118,7 +118,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				mutation {
-					update_catalog (
+					update_catalog_schema (
 						mutations: [
 							{
 								modifyCatalogSchemaDescriptionMutation: {
@@ -158,7 +158,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				mutation {
-					update_catalog (
+					update_catalog_schema (
 						mutations: [
 							{
 								createGlobalAttributeSchemaMutation: {
@@ -196,7 +196,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
                 query {
-                    get_catalog {
+                    get_catalog_schema {
                         attributes {
                             mySpecialCode {
 								name
@@ -249,7 +249,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				mutation {
-					update_catalog (
+					update_catalog_schema (
 						mutations: [
 							{
 								removeAttributeSchemaMutation: {
@@ -287,7 +287,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				mutation {
-					update_catalog (
+					update_catalog_schema (
 						mutations: [
 							{
 								createEntitySchemaMutation: {
@@ -319,7 +319,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
                 query {
-                    get_myNewCollection {
+                    get_myNewCollection_schema {
                         name
 						version
 						allAttributes {
@@ -371,7 +371,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				mutation {
-					update_catalog (
+					update_catalog_schema (
 						mutations: [
 							{
 								createEntitySchemaMutation: {
@@ -429,7 +429,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
                 query {
-                    get_myNewCollection {
+                    get_myNewCollection_schema {
                         name
 						version
 						attributes {
@@ -526,7 +526,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				mutation {
-					update_catalog (
+					update_catalog_schema (
 						mutations: [
 							{
 								modifyEntitySchemaNameMutation: {
@@ -568,7 +568,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				mutation {
-					update_catalog (
+					update_catalog_schema (
 						mutations: [
 							{
 								modifyEntitySchemaNameMutation: {
@@ -611,7 +611,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
 				query {
-					get_catalog {
+					get_catalog_schema {
 						version
 					}
 				}
@@ -628,7 +628,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			.document(
 				"""
                 mutation {
-                    update_catalog (
+                    update_catalog_schema (
                         mutations: [
                             {
                                 removeEntitySchemaMutation: {
