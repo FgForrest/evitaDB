@@ -38,9 +38,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
@@ -95,7 +94,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	private static final String EVITA_CLIENT_DATA_SET = "evitaClientDataSet";
 
 	@DataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterClass = true, openWebApi = GrpcProvider.CODE)
-	static DataCarrier initDataSet() {
+	static DataCarrier initDataSet(EvitaServer evitaServer) {
 		final Map<Serializable, Integer> generatedEntities = new HashMap<>(2000);
 		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
 			final int entityCount = generatedEntities.computeIfAbsent(entityType, serializable -> 0);
@@ -103,9 +102,14 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			return primaryKey == 0 ? null : primaryKey;
 		};
 
+		final HostDefinition[] host = evitaServer.getExternalApiServer()
+			.getApiOptions()
+			.getEndpointConfiguration(GrpcProvider.CODE)
+			.getHost();
+
 		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
-			.host(AbstractApiConfiguration.LOCALHOST)
-			.port(GrpcConfig.DEFAULT_GRPC_PORT)
+			.host(host[0].hostName())
+			.port(host[0].port())
 			.systemApiPort(SystemConfig.DEFAULT_SYSTEM_PORT)
 			.mtlsEnabled(false)
 			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
@@ -206,8 +210,6 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 							);
 						});
 					products.set(theProducts);
-
-					session.goLiveAndClose();
 				}
 			);
 		}

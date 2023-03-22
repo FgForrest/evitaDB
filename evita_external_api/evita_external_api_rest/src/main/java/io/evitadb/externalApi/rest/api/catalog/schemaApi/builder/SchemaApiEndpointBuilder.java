@@ -63,7 +63,7 @@ public class SchemaApiEndpointBuilder {
 			.path(p -> p
 				.staticItem(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.urlPathItem()))
 			.method(HttpMethod.GET)
-			.operationId(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.operation())
+			.operationId(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.operation(entitySchema))
 			.description(CatalogSchemaApiRootDescriptor.GET_ENTITY_SCHEMA.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.successResponse(nonNull(typeRefTo(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema))))

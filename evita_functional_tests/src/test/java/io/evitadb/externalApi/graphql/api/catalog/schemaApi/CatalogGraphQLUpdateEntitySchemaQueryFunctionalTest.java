@@ -50,8 +50,8 @@ import static org.hamcrest.Matchers.*;
 public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
 	private static final String ERRORS_PATH = "errors";
-	private static final String EMPTY_SCHEMA_PATH = "data.get_empty";
-	private static final String UPDATE_EMPTY_SCHEMA_PATH = "data.update_empty";
+	private static final String EMPTY_SCHEMA_PATH = "data.get_empty_schema";
+	private static final String UPDATE_EMPTY_SCHEMA_PATH = "data.update_empty_schema";
 
 
 	@Test
@@ -62,7 +62,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty {
+					update_empty_schema {
 						version
 					}
 				}	
@@ -83,7 +83,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: []
 					) {
 						version
@@ -116,7 +116,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								allowLocaleInEntitySchemaMutation: {
@@ -149,7 +149,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								disallowLocaleInEntitySchemaMutation: {
@@ -189,7 +189,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								createAttributeSchemaMutation: {
@@ -227,7 +227,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
                 query {
-                    get_empty {
+                    get_empty_schema {
                         name
 						version
 						attributes {
@@ -282,7 +282,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								modifyAttributeSchemaDescriptionMutation: {
@@ -324,7 +324,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								removeAttributeSchemaMutation: {
@@ -370,7 +370,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								createAssociatedDataSchemaMutation: {
@@ -404,7 +404,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
                 query {
-                    get_empty {
+                    get_empty_schema {
                         name
 						version
 						associatedData {
@@ -449,7 +449,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								modifyAssociatedDataSchemaDescriptionMutation: {
@@ -491,7 +491,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								removeAssociatedDataSchemaMutation: {
@@ -532,7 +532,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								createReferenceSchemaMutation: {
@@ -568,7 +568,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
                 query {
-                    get_empty {
+                    get_empty_schema {
                         name
 						version
 						references {
@@ -621,7 +621,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								modifyReferenceAttributeSchemaMutation: {
@@ -671,7 +671,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty (
+					update_empty_schema (
 						mutations: [
 							{
 								removeReferenceSchemaMutation: {
@@ -707,7 +707,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				query {
-					get_%s {
+					get_%s_schema {
 						version
 					}
 				}
@@ -717,6 +717,6 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.executeAndThen()
 			.extract()
 			.jsonPath()
-			.get("data.get_" + entityType + "." + EntitySchemaDescriptor.VERSION.name());
+			.get("data.get_" + entityType + "_schema." + EntitySchemaDescriptor.VERSION.name());
 	}
 }

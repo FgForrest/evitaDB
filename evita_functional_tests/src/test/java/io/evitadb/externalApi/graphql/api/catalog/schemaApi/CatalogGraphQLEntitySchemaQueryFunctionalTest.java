@@ -72,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
 	private static final String ERRORS_PATH = "errors";
-	private static final String PRODUCT_SCHEMA_PATH = "data.get_product";
+	private static final String PRODUCT_SCHEMA_PATH = "data.get_product_schema";
 	private static final Function<String, EntitySchemaContract> FAIL_ON_CALL = s -> {
 		fail("Should not be called!");
 		return null;
@@ -93,7 +93,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							__typename
 							version
 							name
@@ -158,7 +158,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							reference
 						}
 					}
@@ -188,7 +188,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							attributes {
 								__typename
 								url {
@@ -288,7 +288,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							attributes {
 								__typename
 								code {
@@ -390,7 +390,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allAttributes {
 								... on AttributeSchema {
 									__typename
@@ -437,7 +437,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							associatedData {
 								__typename
 								labels {
@@ -516,7 +516,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allAssociatedData {
 								__typename
 								name
@@ -563,7 +563,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							references {
 								__typename
 								brand {
@@ -708,7 +708,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							references {
 								brand {
 									attributes {
@@ -799,7 +799,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							references {
 								brand {
 									allAttributes {
@@ -841,7 +841,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allReferences {
 								__typename
 								name
@@ -890,7 +890,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allReferences {
 								allAttributes {
 									__typename
@@ -918,7 +918,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allReferences {
 								attributes {
 									brandVisibleForB2C {

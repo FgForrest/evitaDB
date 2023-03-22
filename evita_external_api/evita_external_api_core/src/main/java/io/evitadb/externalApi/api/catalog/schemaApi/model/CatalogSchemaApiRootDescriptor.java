@@ -40,7 +40,7 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
 public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor GET_CATALOG_SCHEMA = EndpointDescriptor.builder()
-        .operation("get")
+        .operation("get*schema")
         .urlPathItem("schema")
         .classifier("catalog")
         .description("""
@@ -50,7 +50,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
         .type(nonNullRef(CatalogSchemaDescriptor.THIS))
         .build();
     EndpointDescriptor UPDATE_CATALOG_SCHEMA = EndpointDescriptor.builder()
-        .operation("update")
+        .operation("update*schema")
         .urlPathItem("schema")
         .classifier("catalog")
         .description("""
@@ -60,7 +60,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
         .build();
 
     EndpointDescriptor GET_ENTITY_SCHEMA = EndpointDescriptor.builder()
-        .operation("get")
+        .operation("get*schema")
         .urlPathItem("schema")
         .description("""
             Returns evitaDB's internal schema for entities from `%s` collection.
@@ -70,7 +70,7 @@ public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
         .build();
 
     EndpointDescriptor UPDATE_ENTITY_SCHEMA = EndpointDescriptor.builder()
-        .operation("update")
+        .operation("update*schema")
         .urlPathItem("schema")
         .description("""
             Updates evitaDB's internal schema for entities from `%s` collection.
