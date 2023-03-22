@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
 	private static final String ERRORS_PATH = "errors";
-	private static final String CATALOG_SCHEMA_PATH = "data.get_catalog";
+	private static final String CATALOG_SCHEMA_PATH = "data.get_catalog_schema";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -67,7 +67,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			.document(
 				"""
 					query {
-						get_catalog {
+						get_catalog_schema {
 							__typename
 							version
 							name
@@ -116,7 +116,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			.document(
 				"""
 					query {
-						get_catalog {
+						get_catalog_schema {
 							references {
 								name
 							}
@@ -141,7 +141,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			.document(
 				"""
 					query {
-						get_catalog {
+						get_catalog_schema {
 							attributes {
 								__typename
 								url {
@@ -218,7 +218,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			.document(
 				"""
 					query {
-						get_catalog {
+						get_catalog_schema {
 							attributes {
 								reference {
 									name
@@ -244,7 +244,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			.document(
 				"""
 					query {
-						get_catalog {
+						get_catalog_schema {
 							allAttributes {
 								__typename
 								name
@@ -278,7 +278,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			.document(
 				"""
 					query {
-						get_catalog {
+						get_catalog_schema {
 							entitySchemas {
 								__typename
 								product {
@@ -425,7 +425,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			.document(
 				"""
 					query {
-						get_catalog {
+						get_catalog_schema {
 							allEntitySchemas {
 								__typename
 								name
@@ -480,7 +480,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			.document(
 				"""
 					query {
-						get_catalog {
+						get_catalog_schema {
 							allEntitySchemas {
 								name
 								attributes {

@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
+import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUnion;
@@ -58,6 +59,7 @@ import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -86,6 +88,10 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 @RequiredArgsConstructor
 public class DataApiEndpointBuilder {
 
+	private static final String LOCALIZED_OPERATION_ID_SUFFIX = "localized";
+	private static final String GET_BY_ID_OPERATION_ID_SUFFIX = "byId";
+	private static final String DELETE_BY_QUERY_OPERATION_ID_SUFFIX = "byQuery";
+
 	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToOpenApiOperationQueryParameterTransformer operationQueryParameterBuilderTransformer;
@@ -94,12 +100,23 @@ public class DataApiEndpointBuilder {
 	public OpenApiCollectionEndpoint buildGetEntityEndpoint(@Nonnull EntitySchemaContract entitySchema,
 	                                                        boolean localized,
 	                                                        boolean withPkInPath) {
+		final String operationId;
+		if (withPkInPath) {
+			final String suffix = GET_BY_ID_OPERATION_ID_SUFFIX +
+				Optional.ofNullable(getLocalizedSuffix(localized))
+					.map(it -> CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER + it)
+					.orElse("");
+			operationId = CatalogDataApiRootDescriptor.GET_ENTITY.operation(entitySchema, suffix);
+		} else {
+			operationId = CatalogDataApiRootDescriptor.GET_ENTITY.operation(entitySchema, getLocalizedSuffix(localized));
+		}
+
 		return newCollectionEndpoint(buildingContext.getSchema(), entitySchema)
 			.path(localized, p -> p
 				.staticItem(CatalogDataApiRootDescriptor.GET_ENTITY.urlPathItem())
 				.paramItem(withPkInPath ? GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.to(operationPathParameterBuilderTransformer) : null))
 			.method(HttpMethod.GET)
-			.operationId(CatalogDataApiRootDescriptor.GET_ENTITY.operation(entitySchema))
+			.operationId(operationId)
 			.description(CatalogDataApiRootDescriptor.GET_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.queryParameters(buildGetEntityQueryParameters(entitySchema, localized, withPkInPath))
@@ -115,7 +132,7 @@ public class DataApiEndpointBuilder {
 			.path(localized, p -> p
 				.staticItem(CatalogDataApiRootDescriptor.LIST_ENTITY.urlPathItem()))
 			.method(HttpMethod.POST)
-			.operationId(CatalogDataApiRootDescriptor.LIST_ENTITY.operation(entitySchema))
+			.operationId(CatalogDataApiRootDescriptor.LIST_ENTITY.operation(entitySchema, getLocalizedSuffix(localized)))
 			.description(CatalogDataApiRootDescriptor.LIST_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(constructEntityListRequestBodyObjectName(entitySchema, localized)))
@@ -131,7 +148,7 @@ public class DataApiEndpointBuilder {
 			.path(localized, p -> p
 				.staticItem(CatalogDataApiRootDescriptor.QUERY_ENTITY.urlPathItem()))
 			.method(HttpMethod.POST)
-			.operationId(CatalogDataApiRootDescriptor.QUERY_ENTITY.operation(entitySchema))
+			.operationId(CatalogDataApiRootDescriptor.QUERY_ENTITY.operation(entitySchema, getLocalizedSuffix(localized)))
 			.description(CatalogDataApiRootDescriptor.QUERY_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(constructEntityQueryRequestBodyObjectName(entitySchema, localized)))
@@ -180,7 +197,7 @@ public class DataApiEndpointBuilder {
 					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION))
 					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.urlPathItem()))
 				.method(HttpMethod.GET)
-				.operationId(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.operation())
+				.operationId(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.operation(getLocalizedSuffix(localized)))
 				.description(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.description())
 				.queryParameters(queryParameters)
 				.successResponse(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name()))
@@ -215,7 +232,7 @@ public class DataApiEndpointBuilder {
 					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION))
 					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.urlPathItem()))
 				.method(HttpMethod.GET)
-				.operationId(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.operation())
+				.operationId(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.operation(getLocalizedSuffix(localized)))
 				.description(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.description())
 				.queryParameters(queryParameters)
 				.successResponse(nonNull(arrayOf(typeRefTo(localized ? EntityUnion.THIS_LOCALIZED.name() : EntityUnion.THIS.name()))))
@@ -265,7 +282,7 @@ public class DataApiEndpointBuilder {
 			.path(p -> p
 				.staticItem(CatalogDataApiRootDescriptor.DELETE_ENTITY.urlPathItem()))
 			.method(HttpMethod.DELETE)
-			.operationId(CatalogDataApiRootDescriptor.DELETE_ENTITY.operation(entitySchema))
+			.operationId(CatalogDataApiRootDescriptor.DELETE_ENTITY.operation(entitySchema, DELETE_BY_QUERY_OPERATION_ID_SUFFIX))
 			.description(CatalogDataApiRootDescriptor.DELETE_ENTITY.description(entitySchema.getName()))
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.requestBody(typeRefTo(FetchEntityRequestDescriptor.THIS_DELETE.name(entitySchema)))
@@ -376,5 +393,10 @@ public class DataApiEndpointBuilder {
 		}
 
 		return parameters;
+	}
+
+	@Nullable
+	private static String getLocalizedSuffix(boolean localized) {
+		return localized ? LOCALIZED_OPERATION_ID_SUFFIX : null;
 	}
 }
