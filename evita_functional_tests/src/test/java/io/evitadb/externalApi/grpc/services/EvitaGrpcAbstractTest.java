@@ -25,16 +25,16 @@ package io.evitadb.externalApi.grpc.services;
 
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
-import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.system.SystemProvider;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.OnDataSetTearDown;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.grpc.ManagedChannel;
 import org.junit.jupiter.api.AfterEach;
@@ -49,33 +49,22 @@ import java.util.List;
  */
 @ExtendWith(DbInstanceParameterResolver.class)
 public abstract class EvitaGrpcAbstractTest {
-	protected static final String THOUSAND_PRODUCTS = "ThousandProducts";
-	protected static ExternalApiServer EXTERNAL_API_SERVER;
-	protected static ManagedChannel CHANNEL;
+	protected static final String GRPC_THOUSAND_PRODUCTS = "GrpcThousandProducts";
 
-	@DataSet(THOUSAND_PRODUCTS)
-	List<SealedEntity> setUp(Evita evita) {
-		final ExternalApiServer externalApiServer = new ExternalApiServer(
-			evita,
-			ApiOptions.builder()
-				.enable(GrpcProvider.CODE)
-				.enable(SystemProvider.CODE)
-				.build()
+	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = GrpcProvider.CODE)
+	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		final ManagedChannel channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
+		SequenceService.reset();
+		final List<SealedEntity> entities = new TestDataProvider().generateEntities(evita);
+		return new DataCarrier(
+			"entities", entities,
+			"channel", channel
 		);
-
-		// open the API on configured ports
-		externalApiServer.start();
-
-		EXTERNAL_API_SERVER = externalApiServer;
-		CHANNEL = TestChannelCreator.getChannel(new ClientSessionInterceptor(), externalApiServer);
-
-		return new TestDataProvider().generateEntities(evita);
 	}
 
-	@OnDataSetTearDown(THOUSAND_PRODUCTS)
-	void onDataSetTearDown() {
-		CHANNEL.shutdown();
-		EXTERNAL_API_SERVER.close();
+	@OnDataSetTearDown(GRPC_THOUSAND_PRODUCTS)
+	void onDataSetTearDown(ManagedChannel channel) {
+		channel.shutdown();
 	}
 
 	@AfterEach

@@ -34,6 +34,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
@@ -57,11 +58,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class EvitaGrpcIntegrationTest extends EvitaGrpcAbstractTest {
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to get a session id from EvitaService and with its usage should be able to get valid response from EvitaSessionService")
-	void shouldBeAbleToGetSessionAndWithItCallSessionDependentMethods(Evita evita) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+	void shouldBeAbleToGetSessionAndWithItCallSessionDependentMethods(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 
 		final String entityType = Entities.PRODUCT;
 		final int primaryKey = 1;

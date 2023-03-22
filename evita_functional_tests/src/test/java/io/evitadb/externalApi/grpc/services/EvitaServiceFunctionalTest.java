@@ -33,6 +33,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.test.annotation.UseDataSet;
+import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
@@ -58,10 +59,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should throw an exception when sending non-existent catalog as parameter")
-	void shouldThrowWhenAskingForNonExistingCatalog(Evita evita) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
+	void shouldThrowWhenAskingForNonExistingCatalog(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		assertThrows(
 			StatusRuntimeException.class,
@@ -73,10 +74,10 @@ class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return sessionId when sending existing catalog as parameter")
-	void shouldReturnSessionIdWhenExistingCatalogPassed(Evita evita) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
+	void shouldReturnSessionIdWhenExistingCatalogPassed(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -91,10 +92,10 @@ class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get each time new session when asked")
-	void shouldEachTimeGetNewReadOnlySession(Evita evita) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
+	void shouldEachTimeGetNewReadOnlySession(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -119,10 +120,10 @@ class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return sessionId of ReadWrite session when sending existing catalog as parameter")
-	void shouldReturnSessionIdOfReadWriteSessionWhenExistingCatalogPassed(Evita evita) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
+	void shouldReturnSessionIdOfReadWriteSessionWhenExistingCatalogPassed(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -138,10 +139,10 @@ class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should be able concurrently create sessions and call SessionService using correct sessions specified by its id and type from multiple threads in parallel")
-	void shouldBeAbleConcurrentlyCreateSessionsAndCallSessionService(Evita evita) throws Exception {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
+	void shouldBeAbleConcurrentlyCreateSessionsAndCallSessionService(Evita evita, ManagedChannel channel) throws Exception {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final int numberOfThreads = 10;
 		final int iterations = 100;
@@ -164,7 +165,7 @@ class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 									.setCatalogName(TEST_CATALOG)
 									.build()
 							);
-						makeSessionCall(TEST_CATALOG, response.getSessionId());
+						makeSessionCall(TEST_CATALOG, response.getSessionId(), channel);
 					}
 					latch.countDown();
 				} catch (Exception ex) {
@@ -182,10 +183,10 @@ class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get each time new ReadWrite session when asked")
-	void shouldEachTimeGetNewReadWriteSession(Evita evita) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
+	void shouldEachTimeGetNewReadWriteSession(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -210,10 +211,10 @@ class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get BinaryReadOnly session when asked")
-	void shouldGetBinaryReadOnlySession(Evita evita) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
+	void shouldGetBinaryReadOnlySession(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -228,10 +229,10 @@ class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get BinaryReadWrite session when asked")
-	void shouldGetBinaryReadWriteSession(Evita evita) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
+	void shouldGetBinaryReadWriteSession(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
 
@@ -332,9 +333,9 @@ class EvitaServiceFunctionalTest extends EvitaGrpcAbstractTest {
 		assertArrayEquals(evita.getCatalogNames().toArray(), catalogNamesList.toArray());
 	}*/
 
-	private void makeSessionCall(@Nonnull String catalogName, @Nonnull String sessionId) {
+	private void makeSessionCall(@Nonnull String catalogName, @Nonnull String sessionId, @Nonnull ManagedChannel channel) {
 		SessionIdHolder.setSessionId(catalogName, sessionId);
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEntityTypesResponse> response = new AtomicReference<>();
 

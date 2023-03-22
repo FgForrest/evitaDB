@@ -455,6 +455,9 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		if (Evita.class.isAssignableFrom(requestedParam.getType())) {
 			// return initialized Evita instance
 			return dataSetInfo.evitaInstance();
+		} else if (EvitaServer.class.isAssignableFrom(requestedParam.getType())) {
+			// return initialized Evita server instance
+			return dataSetInfo.evitaServerInstance();
 		} else if ("catalogName".equals(requestedParam.getName())) {
 			// return catalog name
 			return dataSetInfo.catalogName();
