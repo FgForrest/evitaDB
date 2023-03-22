@@ -31,7 +31,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.FetchEntityEndpointHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
@@ -62,14 +62,14 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return unknown entity by globally unique attribute")
-	void shouldReturnUnknownEntityByGloballyUniqueAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnUnknownEntityByGloballyUniqueAttribute(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
 		final SealedEntity entityWithCode = findEntity(
 			originalProductEntities,
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute)
 		);
 
-		testRestCall(TEST_CATALOG)
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -92,14 +92,14 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return rich unknown entity by localized globally unique attribute")
-	void shouldReturnRichUnknownEntityByLocalizedGloballyUniqueAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnRichUnknownEntityByLocalizedGloballyUniqueAttribute(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
 		final SealedEntity entityWithUrl = findEntity(
 			originalProductEntities,
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		testRestCall(TEST_CATALOG)
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -126,14 +126,14 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return rich unknown entity by localized globally unique attribute with locale in URL")
-	void shouldReturnRichUnknownEntityByLocalizedGloballyUniqueAttributeWithLocaleInUrl(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnRichUnknownEntityByLocalizedGloballyUniqueAttributeWithLocaleInUrl(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
 		final SealedEntity entityWithUrl = findEntity(
 			originalProductEntities,
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		testRestCall(TEST_CATALOG)
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -160,8 +160,8 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when request contains no parameter")
-	void shouldReturnErrorWhenRequestContainsNoParameter(Evita evita) {
-		testRestCall(TEST_CATALOG)
+	void shouldReturnErrorWhenRequestContainsNoParameter(Evita evita, RestTester tester) {
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -172,10 +172,10 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for single entity")
-	void shouldReturnPriceForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall(TEST_CATALOG)
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -191,13 +191,13 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with custom locale for single entity")
-	void shouldReturnAssociatedDataWithCustomLocaleForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithCustomLocaleForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final SealedEntity entity = findEntity(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		testRestCall(TEST_CATALOG)
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

@@ -25,12 +25,11 @@ package io.evitadb.externalApi.rest.api.catalog;
 
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import javax.annotation.Nonnull;
 
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -46,8 +45,8 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return OpenAPI specs")
-	void shouldReturnOpenApiSpecs(Evita evita) {
-		testRestCall(TEST_CATALOG)
+	void shouldReturnOpenApiSpecs(Evita evita, RestTester tester) {
+		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_GET)
 			.acceptHeader("application/yaml")
 			.executeAndThen()

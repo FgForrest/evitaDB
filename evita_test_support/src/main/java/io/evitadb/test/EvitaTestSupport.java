@@ -24,7 +24,6 @@
 package io.evitadb.test;
 
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.utils.Assert;
 import org.apache.commons.io.FileUtils;
 
 import javax.annotation.Nonnull;
@@ -141,16 +140,6 @@ public interface EvitaTestSupport extends TestConstants {
 			throw new EvitaInternalError("Data directory `" + dataPath + "` does not exist!");
 		}
 		return dataPath;
-	}
-
-	/**
-	 * Removes test directory with its contents and creates new empty directory on its place.
-	 */
-	default void prepareEmptyTestDirectory() throws IOException {
-		cleanTestDirectory();
-		final File dirFile = BASE_PATH.toFile();
-		dirFile.mkdirs();
-		Assert.isTrue(dirFile.exists() && dirFile.isDirectory(), "Target directory cannot be created!");
 	}
 
 	/**

@@ -64,7 +64,7 @@ public class EmptyDataSetTest implements EvitaTestSupport, TestConstants {
 				.storage(
 					// point evitaDB to a test directory (temp directory)
 					StorageOptions.builder()
-						.storageDirectory(getTestDirectory())
+						.storageDirectory(getTestDirectory().resolve(DIR_EMPTY_DATA_SET_TEST))
 						.build()
 				)
 				.cache(

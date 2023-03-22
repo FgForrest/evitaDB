@@ -31,6 +31,7 @@ import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -62,25 +63,28 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
 class SchemaUtilsTest {
-	private static OpenAPI openAPI;
 	private static final String urlPathToProductList = "/product/list";
+	public static final String REST_THOUSAND_PRODUCTS_OPEN_API = REST_THOUSAND_PRODUCTS + "openApi";
 
-	@DataSet(value = REST_THOUSAND_PRODUCTS, destroyAfterClass = true)
-	List<SealedEntity> setUp(Evita evita) {
+	@DataSet(value = REST_THOUSAND_PRODUCTS_OPEN_API, destroyAfterClass = true)
+	DataCarrier setUp(Evita evita) {
 		TestDataGenerator.generateMockCatalogs(evita);
 		final List<SealedEntity> sealedEntities = TestDataGenerator.generateMainCatalogEntities(evita);
 
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		openAPI = new CatalogRestBuilder(new RestConfig(true, "localhost:5555", "rest", null), evita, catalog).build().openApi();
+		final OpenAPI openApi = new CatalogRestBuilder(new RestConfig(true, "localhost:5555", "rest", null), evita, catalog).build().openApi();
 
-		return sealedEntities;
+		return new DataCarrier(
+			"entities", sealedEntities,
+			"openApi", openApi
+		);
 	}
 
 	@SuppressWarnings("rawtypes")
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_OPEN_API)
 	@DisplayName("Should get and schema from filter by")
-	void shouldGetAndSchemaFromFilterBy(Evita evita) {
+	void shouldGetAndSchemaFromFilterBy(Evita evita, OpenAPI openAPI) {
 		final PathItem pathItem = openAPI.getPaths().get(urlPathToProductList);
 
 		final String andConstraintName = "and";
@@ -91,9 +95,9 @@ class SchemaUtilsTest {
 
 	@SuppressWarnings("rawtypes")
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_OPEN_API)
 	@DisplayName("Should get lessThan schema from filter by")
-	void shouldGetLessThanSchemaFromFilterBy(Evita evita) {
+	void shouldGetLessThanSchemaFromFilterBy(Evita evita, OpenAPI openAPI) {
 		final PathItem pathItem = openAPI.getPaths().get(urlPathToProductList);
 
 		final String quantityLessThanConstraintName = "attribute_quantity_lessThan";
@@ -104,9 +108,9 @@ class SchemaUtilsTest {
 
 	@SuppressWarnings("rawtypes")
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_OPEN_API)
 	@DisplayName("Should get dataInLocales schema from require")
-	void shouldGetDataInLocalesSchemaFromRequire(Evita evita) {
+	void shouldGetDataInLocalesSchemaFromRequire(Evita evita, OpenAPI openAPI) {
 		final PathItem pathItem = openAPI.getPaths().get(urlPathToProductList);
 
 		final String dataInLocalesConstraintName = "dataInLocales";
@@ -117,9 +121,9 @@ class SchemaUtilsTest {
 
 	@SuppressWarnings("rawtypes")
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_OPEN_API)
 	@DisplayName("Should get priorityNatural schema from orderBy")
-	void shouldGetPriorityNaturalSchemaFromOrderBy(Evita evita) {
+	void shouldGetPriorityNaturalSchemaFromOrderBy(Evita evita, OpenAPI openAPI) {
 		final PathItem pathItem = openAPI.getPaths().get(urlPathToProductList);
 
 		final String priorityNaturalConstraintName = "attribute_priority_natural";

@@ -338,12 +338,14 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			});
 
 		// close all closeable elements in data carrier
-		for (Entry<String, Object> entry : dataSetInfo.dataCarrier().entrySet()) {
-			if (entry.getValue() instanceof Closeable closeable) {
-				try {
-					closeable.close();
-				} catch (IOException e) {
-					log.error("Failed to close `" + entry.getKey() + "` at the data set finalization!", e);
+		if (dataSetInfo.dataCarrier() != null) {
+			for (Entry<String, Object> entry : dataSetInfo.dataCarrier().entrySet()) {
+				if (entry.getValue() instanceof Closeable closeable) {
+					try {
+						closeable.close();
+					} catch (IOException e) {
+						log.error("Failed to close `" + entry.getKey() + "` at the data set finalization!", e);
+					}
 				}
 			}
 		}
@@ -479,24 +481,30 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	@Override
 	public void afterEach(ExtensionContext context) {
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
-		for (Entry<String, DataSetInfo> entry : dataSetIndex.entrySet()) {
+		final Iterator<Entry<String, DataSetInfo>> it = dataSetIndex.entrySet().iterator();
+		while (it.hasNext()) {
+			final Entry<String, DataSetInfo> entry = it.next();
 			final DataSetInfo dataSetInfo = entry.getValue();
 			if (dataSetInfo.destroyAfterMethod() && dataSetInfo.evitaInstance() != null) {
 				destroyEvitaInstanceIfPresent(entry.getKey(), dataSetInfo, getPortManager());
-				entry.setValue(
-					new DataSetInfo(
-						dataSetInfo.catalogName(),
-						Long.toHexString(RANDOM.nextLong()),
-						dataSetInfo.initMethod(),
-						dataSetInfo.destroyMethods(),
-						dataSetInfo.webApi(),
-						dataSetInfo.destroyAfterMethod(),
-						dataSetInfo.destroyAfterClass(),
-						null,
-						null,
-						null
-					)
-				);
+				if (EVITA_ANONYMOUS_EVITA.equals(entry.getKey())) {
+					it.remove();
+				} else {
+					entry.setValue(
+						new DataSetInfo(
+							dataSetInfo.catalogName(),
+							Long.toHexString(RANDOM.nextLong()),
+							dataSetInfo.initMethod(),
+							dataSetInfo.destroyMethods(),
+							dataSetInfo.webApi(),
+							dataSetInfo.destroyAfterMethod(),
+							dataSetInfo.destroyAfterClass(),
+							null,
+							null,
+							null
+						)
+					);
+				}
 			}
 		}
 	}

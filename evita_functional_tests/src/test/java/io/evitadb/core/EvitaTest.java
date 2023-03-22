@@ -63,17 +63,22 @@ import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.rest.RestProvider;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.PortManager;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import org.junit.jupiter.api.AfterEach;
@@ -2108,7 +2113,7 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndRenameCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getTestDirectory()
+		final File theCollectionFile = getEvitaTestDirectory()
 			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
@@ -2137,7 +2142,7 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldFailToRenameCollectionToExistingCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getTestDirectory()
+		final File theCollectionFile = getEvitaTestDirectory()
 			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
@@ -2154,7 +2159,7 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndReplaceCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getTestDirectory()
+		final File theCollectionFile = getEvitaTestDirectory()
 			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
@@ -2567,7 +2572,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -2577,31 +2582,38 @@ class EvitaTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 
-		try (ExternalApiServer externalApiServer = new ExternalApiServer(
-			evita,
-			ApiOptions.builder()
-				.enable(GraphQLProvider.CODE)
-				.enable(GrpcProvider.CODE)
-				.enable(RestProvider.CODE)
-				.build()
-		)) {
-			externalApiServer.start();
-		}
-
-		final Set<String> catalogNames = evita.getCatalogNames();
-		assertEquals(3, catalogNames.size());
-
-		assertThrows(
-			CatalogCorruptedException.class,
-			() -> {
-				evita.updateCatalog(
-					TEST_CATALOG + "_1",
-					session -> {
-						session.getAllEntityTypes();
-					}
-				);
+		final PortManager portManager = getPortManager();
+		final String dataSetName = "evitaTest";
+		final int[] ports = portManager.allocatePorts(dataSetName, 3);
+		try {
+			try (ExternalApiServer externalApiServer = new ExternalApiServer(
+				evita,
+				ApiOptions.builder()
+					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
+					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.build()
+			)) {
+				externalApiServer.start();
 			}
-		);
+
+			final Set<String> catalogNames = evita.getCatalogNames();
+			assertEquals(3, catalogNames.size());
+
+			assertThrows(
+				CatalogCorruptedException.class,
+				() -> {
+					evita.updateCatalog(
+						TEST_CATALOG + "_1",
+						session -> {
+							session.getAllEntityTypes();
+						}
+					);
+				}
+			);
+		} finally {
+			portManager.releasePorts(dataSetName);
+		}
 	}
 
 	private void doRenameCatalog(@Nonnull CatalogState catalogState) {
@@ -2836,10 +2848,15 @@ class EvitaTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_TEST))
+					.storageDirectory(getEvitaTestDirectory())
 					.build()
 			)
 			.build();
+	}
+
+	@Nonnull
+	private Path getEvitaTestDirectory() {
+		return getTestDirectory().resolve(DIR_EVITA_TEST);
 	}
 
 }

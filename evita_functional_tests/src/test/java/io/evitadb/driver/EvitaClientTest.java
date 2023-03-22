@@ -38,9 +38,10 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.grpc.GrpcProvider;
-import io.evitadb.externalApi.system.configuration.SystemConfig;
+import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -93,7 +94,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "evitaClientDataSet";
 
-	@DataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterClass = true, openWebApi = GrpcProvider.CODE)
+	@DataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterClass = true, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE})
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
 		final Map<Serializable, Integer> generatedEntities = new HashMap<>(2000);
 		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
@@ -102,15 +103,19 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			return primaryKey == 0 ? null : primaryKey;
 		};
 
-		final HostDefinition[] host = evitaServer.getExternalApiServer()
-			.getApiOptions()
+		final ApiOptions apiOptions = evitaServer.getExternalApiServer()
+			.getApiOptions();
+		final HostDefinition grpcHost = apiOptions
 			.getEndpointConfiguration(GrpcProvider.CODE)
-			.getHost();
+			.getHost()[0];
+		final HostDefinition systemHost = apiOptions
+			.getEndpointConfiguration(SystemProvider.CODE)
+			.getHost()[0];
 
 		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
-			.host(host[0].hostName())
-			.port(host[0].port())
-			.systemApiPort(SystemConfig.DEFAULT_SYSTEM_PORT)
+			.host(grpcHost.hostName())
+			.port(grpcHost.port())
+			.systemApiPort(systemHost.port())
 			.mtlsEnabled(false)
 			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
 			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))

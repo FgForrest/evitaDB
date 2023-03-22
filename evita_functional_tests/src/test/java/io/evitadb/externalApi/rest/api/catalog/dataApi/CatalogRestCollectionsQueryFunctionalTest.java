@@ -27,13 +27,13 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.CollectionsEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
 
@@ -52,7 +52,7 @@ class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should returns all collections")
-	void shouldReturnAllCollections(Evita evita) {
+	void shouldReturnAllCollections(Evita evita, RestTester tester) {
 		final var expectedBody = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getAllEntityTypes).stream()
 			.map(entity ->
 				map()
@@ -61,7 +61,7 @@ class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestDataEndpointF
 			)
 			.toList();
 
-		testRestCall(TEST_CATALOG)
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/collections")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -72,7 +72,7 @@ class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should returns all collections with counts")
-	void shouldReturnAllCollectionsWithCounts(Evita evita) {
+	void shouldReturnAllCollectionsWithCounts(Evita evita, RestTester tester) {
 		final List<Map<String,Object>> expectedBody;
 		try(final EvitaSessionContract readOnlySession = evita.createReadOnlySession(TEST_CATALOG)) {
 			expectedBody = readOnlySession.getAllEntityTypes().stream()
@@ -85,7 +85,7 @@ class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestDataEndpointF
 				.toList();
 		}
 
-		testRestCall(TEST_CATALOG)
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/collections")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map().e(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name(), Boolean.TRUE).build())
