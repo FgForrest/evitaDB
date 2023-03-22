@@ -24,8 +24,6 @@
 package io.evitadb.test;
 
 import io.evitadb.core.Evita;
-import io.evitadb.test.annotation.DataSet;
-import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -40,16 +38,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
-public class EmptyDataSetAlternativeTest implements TestFileSupport, TestConstants {
-	private static final String EXAMPLE_DATASET = "exampleDataset";
-
-	@DataSet(EXAMPLE_DATASET)
-	void initEvita() {
-		log.info("Evita initialized ...");
-	}
+public class EmptyDataSetAlternativeTest implements EvitaTestSupport, TestConstants {
 
 	@Test
-	@UseDataSet(EXAMPLE_DATASET)
 	void shouldWriteTest(Evita evita) {
 		// here comes your test logic
 		assertNotNull(evita);

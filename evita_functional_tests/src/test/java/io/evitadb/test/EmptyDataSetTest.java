@@ -40,7 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class EmptyDataSetTest implements TestFileSupport, TestConstants {
+public class EmptyDataSetTest implements EvitaTestSupport, TestConstants {
+	private static final String DIR_EMPTY_DATA_SET_TEST = "emptyDataSetTest";
 	private Evita evita;
 
 	@BeforeEach
@@ -49,7 +50,7 @@ public class EmptyDataSetTest implements TestFileSupport, TestConstants {
 		// and want to have tests repeatable, you need to reset sequences
 		SequenceService.reset();
 		// clean test directory to start from scratch
-		cleanTestDirectoryWithRethrow();
+		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST);
 		// initialize the evitaDB server
 		evita = new Evita(
 			EvitaConfiguration.builder()
@@ -81,7 +82,7 @@ public class EmptyDataSetTest implements TestFileSupport, TestConstants {
 	@AfterEach
 	void tearDown() {
 		evita.close();
-		cleanTestDirectoryWithRethrow();
+		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST);
 	}
 
 	@Test

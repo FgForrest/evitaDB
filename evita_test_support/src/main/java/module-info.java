@@ -13,9 +13,13 @@ module evita.test.support {
 	requires org.junit.jupiter.api;
 	requires org.junit.jupiter.params;
 	requires javafaker;
+	requires org.slf4j;
+	requires ch.qos.logback.core;
 
 	requires evita.api;
 	requires evita.engine;
 	requires evita.common;
 	requires com.fasterxml.jackson.databind;
+	requires evita.server;
+	requires evita.external.api.core;
 }

@@ -52,8 +52,8 @@ import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogBootstrap;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.test.Entities;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
-import io.evitadb.test.TestFileSupport;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.AfterEach;
@@ -87,18 +87,18 @@ import static org.mockito.Mockito.when;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class DefaultCatalogPersistenceServiceTest implements TestFileSupport {
-	private static final String TEST_CATALOG_NAME = "test";
+class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private static final String RENAMED_CATALOG = "somethingElse";
-	public static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TEST_CATALOG_NAME, NamingConvention.generate(TestConstants.TEST_CATALOG), entityType -> null);
+	public static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), entityType -> null);
 	private static final SealedCatalogSchema SEALED_CATALOG_SCHEMA = new CatalogSchemaDecorator(CATALOG_SCHEMA);
+	public static final String DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST = "defaultCatalogPersistenceServiceTest";
 
 	private final DataGenerator dataGenerator = new DataGenerator();
 
 	@Nonnull
 	private StorageOptions getStorageOptions() {
 		return new StorageOptions(
-			getTestDirectory(), 60, 60,
+			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST), 60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1, true
 		);
 	}
@@ -110,7 +110,7 @@ class DefaultCatalogPersistenceServiceTest implements TestFileSupport {
 
 	@AfterEach
 	public void tearDown() throws IOException {
-		cleanTestDirectory();
+		cleanTestSubDirectory(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
 	}
 
 	@Test
@@ -197,11 +197,11 @@ class DefaultCatalogPersistenceServiceTest implements TestFileSupport {
 		assertThrows(
 			UnexpectedCatalogContentsException.class,
 			() -> {
-				final Path catalogPath = getTestDirectory().resolve(TEST_CATALOG_NAME);
+				final Path catalogPath = getTestDirectory().resolve(TEST_CATALOG);
 				final Path renamedCatalogPath = getTestDirectory().resolve(RENAMED_CATALOG);
-				assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogHeaderFileName(TEST_CATALOG_NAME)).toFile()
+				assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogHeaderFileName(TEST_CATALOG)).toFile()
 					.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogHeaderFileName(RENAMED_CATALOG)).toFile()));
-				assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG_NAME)).toFile()
+				assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG)).toFile()
 					.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(RENAMED_CATALOG)).toFile()));
 				assertTrue(catalogPath.toFile().renameTo(renamedCatalogPath.toFile()));
 				//noinspection EmptyTryBlock
@@ -282,9 +282,9 @@ class DefaultCatalogPersistenceServiceTest implements TestFileSupport {
 	void shouldDeleteCatalog() throws IOException {
 		shouldSerializeAndDeserializeCatalogHeader();
 
-		final Path catalogDirectory = getStorageOptions().storageDirectoryOrDefault().resolve(TEST_CATALOG_NAME);
+		final Path catalogDirectory = getStorageOptions().storageDirectoryOrDefault().resolve(TEST_CATALOG);
 		try (var cps = new DefaultCatalogPersistenceService(
-			TEST_CATALOG_NAME,
+			TEST_CATALOG,
 			catalogDirectory,
 			getStorageOptions()
 		)) {
@@ -304,7 +304,7 @@ class DefaultCatalogPersistenceServiceTest implements TestFileSupport {
 			final CatalogBootstrap header = cps.getCatalogBootstrap();
 			assertNotNull(header);
 			assertEquals(CatalogState.WARMING_UP, header.getCatalogState());
-			assertEquals(TEST_CATALOG_NAME, header.getCatalogHeader().getCatalogName());
+			assertEquals(TEST_CATALOG, header.getCatalogHeader().getCatalogName());
 			assertEquals(1L, header.getCatalogHeader().getVersion());
 		}
 	}

@@ -98,7 +98,7 @@ public class CombinedEntityFilteringFunctionalTest {
 		}
 	});
 
-	@DataSet(THREE_HUNDRED_PRODUCTS_WITH_ALL_DATA)
+	@DataSet(value = THREE_HUNDRED_PRODUCTS_WITH_ALL_DATA, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {

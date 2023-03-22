@@ -21,13 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.testUtils;
+package io.evitadb.externalApi.grpc;
 
 import io.evitadb.driver.certificate.ClientCertificateManager.Builder;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
-import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.SystemProvider;

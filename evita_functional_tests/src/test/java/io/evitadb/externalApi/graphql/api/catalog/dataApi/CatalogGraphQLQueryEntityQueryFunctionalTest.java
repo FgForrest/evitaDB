@@ -57,6 +57,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchySta
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
@@ -104,7 +105,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key")
-	void shouldReturnProductsByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKey(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null,
@@ -127,7 +128,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -166,7 +167,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by non-localized attribute")
-	void shouldReturnProductsByNonLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByNonLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null &&
@@ -190,7 +191,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -228,7 +229,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by range attribute from variables")
-	void shouldReturnProductsByRangeAttributeFromVariables(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByRangeAttributeFromVariables(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_SIZE) != null,
@@ -244,7 +245,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query ($size: IntegerNumberRange!) {
@@ -277,14 +278,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatted big decimal is missing locale")
-	void shouldReturnErrorWhenFormattedBigDecimalIsMissingLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattedBigDecimalIsMissingLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null,
 			2
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -318,7 +319,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return big decimal attribute variants for products")
-	void shouldReturnBigDecimalAttributeVariantsForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnBigDecimalAttributeVariantsForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null,
@@ -341,7 +342,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -381,7 +382,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by localized attribute")
-	void shouldReturnProductsByLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null &&
@@ -404,7 +405,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -443,10 +444,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid products fields")
-	void shouldReturnErrorForInvalidProductsFields(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForInvalidProductsFields(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 2);
 		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -469,8 +470,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid argument in products query")
-	void shouldReturnErrorForInvalidArgumentInProductsQuery(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidArgumentInProductsQuery(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -494,12 +495,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
-	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithPriceForSale);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -539,10 +540,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter products by non-existent price")
-	void shouldFilterProductsByNonExistentPrice(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFilterProductsByNonExistentPrice(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -576,10 +577,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for filtering products by unknown currency")
-	void shouldReturnErrorForFilteringProductsByUnknownCurrency(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForFilteringProductsByUnknownCurrency(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -613,7 +614,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
-	void shouldReturnCustomPriceForSaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnCustomPriceForSaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -621,7 +622,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithPriceForSale
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -659,12 +660,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale with entity locale")
-	void shouldReturnFormattedPriceForSaleWithEntityLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceForSaleWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithFormattedPriceForSale);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -700,12 +701,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale with custom locale")
-	void shouldReturnFormattedPriceForSaleWithCustomLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceForSaleWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithFormattedPriceForSale);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -740,12 +741,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale with custom locale")
-	void shouldReturnErrorWhenFormattingPriceForSaleWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPriceForSaleWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithFormattedPriceForSale);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -779,7 +780,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products with filter inheritance")
-	void shouldReturnPriceForProductsWithFilterInheritance(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForProductsWithFilterInheritance(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -787,7 +788,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithPrice
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -827,7 +828,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products")
-	void shouldReturnPriceForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -835,7 +836,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithPrice
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -873,7 +874,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price with entity locale")
-	void shouldReturnFormattedPriceWithEntityLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -881,7 +882,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithFormattedPrice
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -915,7 +916,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price with custom locale")
-	void shouldReturnFormattedPriceWithCustomLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -923,7 +924,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithFormattedPrice
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -956,10 +957,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return when formatting price without locale")
-	void shouldReturnErrorWhenFormattingPriceWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPriceWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -991,14 +992,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all prices for products")
-	void shouldReturnAllPricesForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAllPricesForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntities(
 			originalProductEntities,
 			it -> !it.getPrices().isEmpty(),
 			2
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1044,7 +1045,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for products")
-	void shouldReturnFilteredPricesForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFilteredPricesForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -1064,7 +1065,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1102,7 +1103,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for multiple price lists for products")
-	void shouldReturnFilteredPricesForMutliplePriceListsForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFilteredPricesForMutliplePriceListsForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2, PRICE_LIST_BASIC, PRICE_LIST_VIP);
 
 		final var expectedBody = createBasicPageResponse(
@@ -1120,7 +1121,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1153,7 +1154,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted prices with entity locale")
-	void shouldReturnFormattedPricesWithEntityLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPricesWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -1161,7 +1162,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithFormattedPrices
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1195,7 +1196,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted prices with custom locale")
-	void shouldReturnFormattedPricesWithCustomLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPricesWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -1203,7 +1204,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithFormattedPrices
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1236,10 +1237,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatting prices without locale")
-	void shouldReturnErrorWhenFormattingPricesWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPricesWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1271,7 +1272,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with inherited locale for products")
-	void shouldReturnAssociatedDataWithInheritedLocaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithInheritedLocaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
@@ -1284,7 +1285,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithAssociatedData
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1321,7 +1322,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with custom locale for products")
-	void shouldReturnAssociatedDataWithCustomLocaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithCustomLocaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null,
@@ -1333,7 +1334,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithAssociatedData
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1369,7 +1370,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single reference for products")
-	void shouldReturnSingleReferenceForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleReferenceForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.PARAMETER).size() == 1 &&
@@ -1424,7 +1425,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			}
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1479,7 +1480,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference list for products")
-	void shouldReturnReferenceListForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferenceListForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() > 1,
@@ -1507,7 +1508,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			}
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1544,7 +1545,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should find product by complex query")
-	void shouldFindProductByComplexQuery(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFindProductByComplexQuery(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final Random rnd = new Random(SEED);
 		final List<SealedEntity> withTrueAlias = originalProductEntities.stream()
 			.filter(it -> Objects.equals(Boolean.TRUE, it.getAttribute(ATTRIBUTE_ALIAS)) && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
@@ -1605,7 +1606,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		assertTrue(expectedEntities.length > 0);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 	                query {
@@ -1661,7 +1662,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should order entities by complex query")
-	void shouldOrderEntitiesByComplexQuery(Evita evita) {
+	void shouldOrderEntitiesByComplexQuery(Evita evita, GraphQLTester tester) {
 		final Integer[] expectedEntities = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1688,7 +1689,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			}
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -1722,7 +1723,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return page of entities")
-	void shouldReturnPageOfEntities(Evita evita) {
+	void shouldReturnPageOfEntities(Evita evita, GraphQLTester tester) {
 		final List<Integer> expectedEntities = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1746,7 +1747,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertTrue(expectedEntities.size() > 10);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -1781,7 +1782,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return strip of entities")
-	void shouldReturnStripOfEntities(Evita evita) {
+	void shouldReturnStripOfEntities(Evita evita, GraphQLTester tester) {
 		final List<Integer> expectedEntities = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1805,7 +1806,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertTrue(expectedEntities.size() > 10);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -1840,7 +1841,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return attribute histogram")
-	void shouldReturnAttributeHistogram(Evita evita) {
+	void shouldReturnAttributeHistogram(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1862,7 +1863,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -1919,7 +1920,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return multiple attribute histograms")
-	void shouldReturnMultipleAttributeHistograms(Evita evita) {
+	void shouldReturnMultipleAttributeHistograms(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1942,7 +1943,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final var expectedQuantityHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
 		final var expectedPriorityHistogram = createAttributeHistogramDto(response, ATTRIBUTE_PRIORITY);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2003,7 +2004,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return multiple same attribute histogram buckets")
-	void shouldReturnMultipleSameAttributeHistogramBuckets(Evita evita) {
+	void shouldReturnMultipleSameAttributeHistogramBuckets(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2025,7 +2026,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2087,8 +2088,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing attribute histogram buckets count")
-	void shouldReturnErrorForMissingAttributeHistogramBucketsCount(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMissingAttributeHistogramBucketsCount(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2129,8 +2130,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing attribute histogram buckets count")
-	void shouldReturnErrorForMissingAttributeHistogramBuckets(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMissingAttributeHistogramBuckets(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2166,8 +2167,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for multiple attribute histogram buckets count")
-	void shouldReturnErrorForMultipleAttributeHistogramBucketsCount(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMultipleAttributeHistogramBucketsCount(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2209,7 +2210,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price histogram")
-	void shouldReturnPriceHistogram(Evita evita) {
+	void shouldReturnPriceHistogram(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2234,7 +2235,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createPriceHistogramDto(response);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2285,7 +2286,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return multiple same price histograms")
-	void shouldReturnMultipleSamePriceHistograms(Evita evita) {
+	void shouldReturnMultipleSamePriceHistograms(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2310,7 +2311,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createPriceHistogramDto(response);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2372,8 +2373,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing price histogram buckets count")
-	void shouldReturnErrorForMissingPriceHistogramBucketsCount(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMissingPriceHistogramBucketsCount(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2413,8 +2414,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing price histogram buckets")
-	void shouldReturnErrorForMissingPriceHistogramBuckets(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMissingPriceHistogramBuckets(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2449,8 +2450,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for multiple price histogram buckets counts")
-	void shouldReturnErrorForMultiplePriceHistogramBucketsCounts(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMultiplePriceHistogramBucketsCounts(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2495,7 +2496,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return category parents for products")
-	void shouldReturnCategoryParentsForProducts(Evita evita) {
+	void shouldReturnCategoryParentsForProducts(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2518,7 +2519,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createHierarchyParentsDto(response);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2580,8 +2581,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return category parents for products")
-	void shouldReturnErrorForSelfParentsForProducts(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForSelfParentsForProducts(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2631,7 +2632,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return self parents for category")
-	void shouldReturnSelfParentsForCategory(Evita evita) {
+	void shouldReturnSelfParentsForCategory(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2651,7 +2652,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createSelfHierarchyParentsDto(response);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2703,8 +2704,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for references in self parents for category")
-	void shouldReturnErrorForReferencesInSelfParentsForCategory(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForReferencesInSelfParentsForCategory(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2740,7 +2741,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should pass locale to parents")
-	void shouldPassLocaleToParents(Evita evita) {
+	void shouldPassLocaleToParents(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2766,7 +2767,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createAttributeOfHierarchyParentsDto(response);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2813,7 +2814,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return two levels of category statistics for products")
-	void shouldReturnTwoLevelsOfCategoryStatisticsForProducts(Evita evita) {
+	void shouldReturnTwoLevelsOfCategoryStatisticsForProducts(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2839,7 +2840,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createHierarchyStatisticsDto(response);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2907,7 +2908,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return two levels of self statistics for category")
-	void shouldReturnTwoLevelsOfSelfStatisticsForCategory(Evita evita) {
+	void shouldReturnTwoLevelsOfSelfStatisticsForCategory(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2932,7 +2933,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createSelfHierarchyStatisticsDto(response);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -2999,8 +3000,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for self statistics of product")
-	void shouldReturnErrorForSelfStatisticsOfProduct(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForSelfStatisticsOfProduct(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -3034,7 +3035,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should pass locale to hierarchy statistics entities")
-	void shouldPassLocaleToHierarchyStatisticsEntities(Evita evita) {
+	void shouldPassLocaleToHierarchyStatisticsEntities(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3064,7 +3065,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.map(it -> ((SealedEntity) it.entity()).getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
 			.toList();
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -3107,7 +3108,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return facet summary with counts for products")
-	void shouldReturnFacetSummaryWithCountsForProducts(Evita evita) {
+	void shouldReturnFacetSummaryWithCountsForProducts(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3126,7 +3127,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {
@@ -3180,7 +3181,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return facet summary with impacts and entities for products")
-	void shouldReturnFacetSummaryWithImpactsAndEntitiesForProducts(Evita evita) {
+	void shouldReturnFacetSummaryWithImpactsAndEntitiesForProducts(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3203,7 +3204,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createFacetSummaryWithImpactsDto(response);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 		            query {

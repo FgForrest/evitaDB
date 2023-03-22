@@ -25,6 +25,7 @@ package io.evitadb.server;
 
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
@@ -32,17 +33,23 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
-import io.evitadb.externalApi.grpc.testUtils.TestChannelCreator;
+import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.utils.CollectionUtils.Property;
 import io.grpc.ManagedChannel;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.property;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -50,14 +57,36 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class EvitaServerTest implements TestConstants, TestFileSupport {
+class EvitaServerTest implements TestConstants, EvitaTestSupport {
+	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
 
 	@Test
 	void shouldStartAndStopServerCorrectly() throws IOException {
-		cleanTestDirectory();
-		final Path configFilePath = TestFileSupport.bootstrapEvitaServerConfigurationFile();
+		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
+		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile();
 
-		final EvitaServer evitaServer = new EvitaServer(configFilePath, Collections.singletonMap("cache.enabled", "false"));
+		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
+			.stream()
+			.map(ExternalApiProviderRegistrar::getExternalApiCode)
+			.collect(Collectors.toSet());
+
+		final int[] ports = getPortManager().allocatePorts(DIR_EVITA_SERVER_TEST, apis.size());
+		final AtomicInteger index = new AtomicInteger();
+		//noinspection unchecked
+		final EvitaServer evitaServer = new EvitaServer(
+			configFilePath,
+			createHashMap(
+				Stream.concat(
+					Stream.of(
+						property("storage.storageDirectory", getTestDirectory().resolve(DIR_EVITA_SERVER_TEST).toString()),
+						property("cache.enabled", "false")
+					),
+					apis.stream()
+						.map(it -> property("api.endpoints." + it + ".host", "localhost:" + ports[index.getAndIncrement()]))
+				)
+				.toArray(Property[]::new)
+			)
+		);
 		try {
 			evitaServer.run();
 

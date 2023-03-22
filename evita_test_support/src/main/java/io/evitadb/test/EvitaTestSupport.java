@@ -36,14 +36,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
 
-import static io.evitadb.test.TestConstants.DATA_FOLDER_ENV_VARIABLE;
-
 /**
  * This interface allows unit tests to easily prepare test directory, test file and also clean it up.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface TestFileSupport {
+public interface EvitaTestSupport extends TestConstants {
 	/**
 	 * Default name of the evita configuration file.
 	 */
@@ -52,46 +50,10 @@ public interface TestFileSupport {
 	 * Default data folder for evita data in tests.
 	 */
 	Path BASE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita" + File.separator);
-
 	/**
-	 * Removes test directory with its contents.
+	 * Shared instance of port manager.
 	 */
-	default void cleanTestDirectory() throws IOException {
-		// clear evitaDB directory
-		FileUtils.deleteDirectory(BASE_PATH.toFile());
-	}
-
-	/**
-	 * Removes test directory with its contents.
-	 */
-	default void cleanTestSubDirectory(String directory) throws IOException {
-		// clear evitaDB directory
-		FileUtils.deleteDirectory(BASE_PATH.resolve(directory).toFile());
-	}
-
-	/**
-	 * Returns pointer to the data directory. This method supports proper DATA folder resolution from different working
-	 * directories in evitaDB git repository.
-	 */
-	@Nonnull
-	default Path getDataDirectory() {
-		final String externallyDefinedPath = System.getProperty(DATA_FOLDER_ENV_VARIABLE);
-		final Path dataPath;
-		if (externallyDefinedPath == null) {
-			final Path workingDirPath = Path.of(System.getProperty("user.dir"));
-			if (workingDirPath.toString().contains(File.separator + "evita_")) {
-				dataPath = workingDirPath.resolve("../data");
-			} else {
-				dataPath = workingDirPath.resolve("data");
-			}
-		} else {
-			dataPath = Path.of(externallyDefinedPath);
-		}
-		if (!dataPath.toFile().exists()) {
-			throw new EvitaInternalError("Data directory `" + dataPath + "` does not exist!");
-		}
-		return dataPath;
-	}
+	PortManager PORT_MANAGER = new PortManager();
 
 	/**
 	 * Method copies `evita-configuration.yaml` from the classpath to the temporary directory on the filesystem so that
@@ -122,6 +84,22 @@ public interface TestFileSupport {
 	/**
 	 * Removes test directory with its contents.
 	 */
+	default void cleanTestDirectory() throws IOException {
+		// clear evitaDB directory
+		FileUtils.deleteDirectory(BASE_PATH.toFile());
+	}
+
+	/**
+	 * Removes test directory with its contents.
+	 */
+	default void cleanTestSubDirectory(String directory) throws IOException {
+		// clear evitaDB directory
+		FileUtils.deleteDirectory(BASE_PATH.resolve(directory).toFile());
+	}
+
+	/**
+	 * Removes test directory with its contents.
+	 */
 	default void cleanTestDirectoryWithRethrow() {
 		try {
 			cleanTestDirectory();
@@ -139,6 +117,30 @@ public interface TestFileSupport {
 		} catch (IOException e) {
 			throw new EvitaInternalError("Cannot empty target directory!", e);
 		}
+	}
+
+	/**
+	 * Returns pointer to the data directory. This method supports proper DATA folder resolution from different working
+	 * directories in evitaDB git repository.
+	 */
+	@Nonnull
+	default Path getDataDirectory() {
+		final String externallyDefinedPath = System.getProperty(DATA_FOLDER_ENV_VARIABLE);
+		final Path dataPath;
+		if (externallyDefinedPath == null) {
+			final Path workingDirPath = Path.of(System.getProperty("user.dir"));
+			if (workingDirPath.toString().contains(File.separator + "evita_")) {
+				dataPath = workingDirPath.resolve("../data");
+			} else {
+				dataPath = workingDirPath.resolve("data");
+			}
+		} else {
+			dataPath = Path.of(externallyDefinedPath);
+		}
+		if (!dataPath.toFile().exists()) {
+			throw new EvitaInternalError("Data directory `" + dataPath + "` does not exist!");
+		}
+		return dataPath;
 	}
 
 	/**
@@ -170,6 +172,14 @@ public interface TestFileSupport {
 	 */
 	default File createFileInTargetDirectory(@Nonnull String fileName) {
 		return getPathInTargetDirectory(fileName).toFile();
+	}
+
+	/**
+	 * Returns singleton instance of port manager that keeps track of allocated ports during test runs.
+	 */
+	@Nonnull
+	default PortManager getPortManager() {
+		return PORT_MANAGER;
 	}
 
 }

@@ -28,7 +28,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.core.sequence.SequenceService;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.test.EvitaTestSupport;
 import org.apache.commons.io.FileUtils;
 
 import javax.annotation.Nonnull;
@@ -39,7 +39,7 @@ import java.io.File;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EvitaCatalogReusableSetup extends EvitaCatalogSetup, TestFileSupport {
+public interface EvitaCatalogReusableSetup extends EvitaCatalogSetup, EvitaTestSupport {
 
 	@Override
 	default Evita createEvitaInstanceFromExistingData(@Nonnull String catalogName) {

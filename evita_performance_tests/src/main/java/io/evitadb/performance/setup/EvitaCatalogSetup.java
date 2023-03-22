@@ -29,7 +29,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
 import io.evitadb.core.sequence.SequenceService;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.test.EvitaTestSupport;
 
 import javax.annotation.Nonnull;
 
@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EvitaCatalogSetup extends CatalogSetup, TestFileSupport {
+public interface EvitaCatalogSetup extends CatalogSetup, EvitaTestSupport {
 
 	@Override
 	default Evita createEmptyEvitaInstance(@Nonnull String catalogName) {

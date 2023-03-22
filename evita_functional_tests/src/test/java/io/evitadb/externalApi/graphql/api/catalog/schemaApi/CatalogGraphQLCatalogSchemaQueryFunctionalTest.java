@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
+import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.utils.NamingConvention;
@@ -60,10 +61,10 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return basic properties from catalog schema")
-	void shouldReturnBasicPropertiesFromCatalogSchema(Evita evita) {
+	void shouldReturnBasicPropertiesFromCatalogSchema(Evita evita, GraphQLTester tester) {
 		final SealedCatalogSchema catalogSchema = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					query {
@@ -111,8 +112,8 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid basic property")
-	void shouldReturnErrorForInvalidBasicProperty(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidBasicProperty(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 					query {
@@ -132,12 +133,12 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific attribute schema")
-	void shouldReturnSpecificAttributeSchema(Evita evita) {
+	void shouldReturnSpecificAttributeSchema(Evita evita, GraphQLTester tester) {
 		final SealedCatalogSchema catalogSchema = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema);
 
 		final GlobalAttributeSchemaContract urlSchema = catalogSchema.getAttribute(ATTRIBUTE_URL).orElseThrow();
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					query {
@@ -213,8 +214,8 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid specific attribute schema")
-	void shouldReturnErrorForInvalidSpecificAttributeSchema(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidSpecificAttributeSchema(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 					query {
@@ -236,11 +237,11 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attribute schemas")
-	void shouldReturnAllAttributeSchemas(Evita evita) {
+	void shouldReturnAllAttributeSchemas(Evita evita, GraphQLTester tester) {
 		final SealedCatalogSchema catalogSchema = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema);
 		assertFalse(catalogSchema.getAttributes().isEmpty());
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					query {
@@ -269,12 +270,12 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific entity schema")
-	void shouldReturnSpecificEntitySchema(Evita evita) {
+	void shouldReturnSpecificEntitySchema(Evita evita, GraphQLTester tester) {
 		final SealedCatalogSchema catalogSchema = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema);
 
 		final EntitySchemaContract productSchema = catalogSchema.getEntitySchemaOrThrowException(Entities.PRODUCT);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					query {
@@ -409,7 +410,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all entity schemas")
-	void shouldReturnAllAEntitySchemas(Evita evita) {
+	void shouldReturnAllAEntitySchemas(Evita evita, GraphQLTester tester) {
 		final List<SealedEntitySchema> entitySchemas = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -421,7 +422,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			}
 		);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					query {
@@ -475,8 +476,8 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid field in all entity schemas")
-	void shouldReturnErrorForInvalidFieldInAllAEntitySchemas(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidFieldInAllAEntitySchemas(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 					query {

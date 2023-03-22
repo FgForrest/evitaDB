@@ -192,7 +192,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 		return -1;
 	}
 
-	@DataSet(HUNDRED_PRODUCTS)
+	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
 	List<SealedEntity> setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			session.updateCatalogSchema(

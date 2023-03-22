@@ -33,13 +33,13 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
-import io.evitadb.externalApi.grpc.testUtils.TestChannelCreator;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.SystemProvider;
@@ -69,7 +69,7 @@ import static org.wildfly.common.Assert.assertTrue;
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
 class EvitaSessionServiceWarmupCatalogTest {
-	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
+	private static final String THOUSAND_PRODUCTS = "ThousandProductsInWarmUpState";
 	private static ExternalApiServer EXTERNAL_API_SERVER;
 	private static ManagedChannel CHANNEL;
 

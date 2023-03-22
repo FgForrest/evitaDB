@@ -24,6 +24,7 @@
 package io.evitadb.test.annotation;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.test.TestConstants;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -33,7 +34,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * This annotation bootstraps shared dataset to be used among multiple classes in single test class.
+ * This annotation bootstraps shared dataset to be used among multiple methods in entire test suite.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -49,7 +50,30 @@ public @interface DataSet {
 	String value();
 
 	/**
-	 * Defines the state the catalog is expected to be in.
+	 * Defines catalog name for this dataset. If annotation is not used, catalog name defaults to
+	 * {@link TestConstants#TEST_CATALOG}.
+	 */
+	String catalogName() default TestConstants.TEST_CATALOG;
+
+	/**
+	 * Defines list of web API that should be started along with the evita server instance. Use one of the following
+	 * codes:
+	 *
+	 * - {@link io.evitadb.externalApi.grpc.GrpcProvider#CODE}
+	 * - {@link io.evitadb.externalApi.graphql.GraphQLProvider#CODE}
+	 * - {@link io.evitadb.externalApi.rest.RestProvider#CODE}
+	 */
+	String[] openWebApi() default {};
+
+	/**
+	 * If set to true the evitaDB server instance is closed and deleted after all test methods of the set where
+	 * {@link DataSet} annotation is used were executed.
+	 */
+	boolean destroyAfterClass() default false;
+
+	/**
+	 * Defines the state the catalog is expected to be in. By default, evita is automatically switched to
+	 * the transactional {@link CatalogState#ALIVE} mode.
 	 */
 	CatalogState expectedCatalogState() default CatalogState.ALIVE;
 

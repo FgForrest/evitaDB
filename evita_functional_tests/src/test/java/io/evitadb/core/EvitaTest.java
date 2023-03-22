@@ -73,7 +73,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.test.Entities;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import org.junit.jupiter.api.AfterEach;
@@ -107,7 +107,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class EvitaTest implements TestFileSupport {
+class EvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
 	public static final String ATTRIBUTE_DESCRIPTION = "description";
@@ -117,7 +117,7 @@ class EvitaTest implements TestFileSupport {
 	public static final String ATTRIBUTE_BRAND_DESCRIPTION = "brandDescription";
 	public static final String ATTRIBUTE_BRAND_EAN = "brandEan";
 	public static final String ATTRIBUTE_CATEGORY_PRIORITY = "categoryPriority";
-	private static final String TEST_CATALOG = "testCatalog";
+	public static final String DIR_EVITA_TEST = "evitaTest";
 	private static final Locale LOCALE_CZ = new Locale("cs", "CZ");
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
@@ -154,7 +154,7 @@ class EvitaTest implements TestFileSupport {
 	@BeforeEach
 	void setUp() {
 		SequenceService.reset();
-		cleanTestDirectoryWithRethrow();
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -164,7 +164,7 @@ class EvitaTest implements TestFileSupport {
 	@AfterEach
 	void tearDown() {
 		evita.close();
-		cleanTestDirectoryWithRethrow();
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 	}
 
 	@Test
@@ -2830,10 +2830,14 @@ class EvitaTest implements TestFileSupport {
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
 		return EvitaConfiguration.builder()
 			.server(
-				ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds).build()
+				ServerOptions.builder()
+					.closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds)
+					.build()
 			)
 			.storage(
-				StorageOptions.builder().storageDirectory(getTestDirectory()).build()
+				StorageOptions.builder()
+					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_TEST))
+					.build()
 			)
 			.build();
 	}

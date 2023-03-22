@@ -59,6 +59,8 @@ as `@ExtendWith(DbInstanceParameterResolver.class)`:
 [Alternative test example](docs/user/en/use/api/example/test-with-empty-dataset-alternative.java)
 </SourceCodeTabs>
 
+[//]: # (TODO JNO - toto už je jinak)
+
 As you can see the test defines an initialization method with `@DataSet` annotation, and one or more test methods
 annotated with `@UseDataSet` annotation and works the exactly same way as the previous more complex example.
 The `DbInstanceParameterResolver` performs all necessary operations instead of you:

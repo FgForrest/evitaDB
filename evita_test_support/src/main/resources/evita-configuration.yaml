@@ -7,7 +7,7 @@ server:
   readOnly: ${server.readOnly:false}
 
 storage:
-  storageDirectory: ${java.io.tmpdir}/evita
+  storageDirectory: ${storage.storageDirectory}
   lockTimeoutSeconds: ${storage.lockTimeoutSeconds:50}
   waitOnCloseSeconds: ${storage.waitOnCloseSeconds:50}
   outputBufferSize: ${storage.outputBufferSize:4MB}

@@ -36,33 +36,31 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
-import org.apache.commons.io.FileUtils;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -91,22 +89,13 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class EvitaClientTest implements TestConstants, TestFileSupport {
+@ExtendWith(DbInstanceParameterResolver.class)
+class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	private final static int SEED = 42;
-	private static EvitaServer EVITA_SERVER;
-	private static Map<Integer, SealedEntity> PRODUCTS;
-	private static EvitaClientConfiguration EVITA_CLIENT_CONFIGURATION;
-	private EvitaClient evitaClient;
+	private static final String EVITA_CLIENT_DATA_SET = "evitaClientDataSet";
 
-	@BeforeAll
-	static void beforeAll() throws IOException {
-		FileUtils.deleteDirectory(BASE_PATH.toFile());
-		SequenceService.reset();
-
-		final Path configFilePath = TestFileSupport.bootstrapEvitaServerConfigurationFile();
-		EVITA_SERVER = new EvitaServer(configFilePath, Collections.singletonMap("cache.enabled", "false"));
-		EVITA_SERVER.run();
-
+	@DataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterClass = true, openWebApi = GrpcProvider.CODE)
+	static DataCarrier initDataSet() {
 		final Map<Serializable, Integer> generatedEntities = new HashMap<>(2000);
 		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
 			final int entityCount = generatedEntities.computeIfAbsent(entityType, serializable -> 0);
@@ -114,7 +103,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 			return primaryKey == 0 ? null : primaryKey;
 		};
 
-		EVITA_CLIENT_CONFIGURATION = EvitaClientConfiguration.builder()
+		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
 			.host(AbstractApiConfiguration.LOCALHOST)
 			.port(GrpcConfig.DEFAULT_GRPC_PORT)
 			.systemApiPort(SystemConfig.DEFAULT_SYSTEM_PORT)
@@ -123,7 +112,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
 			.build();
 
-		try (final EvitaClient setupClient = new EvitaClient(EVITA_CLIENT_CONFIGURATION)) {
+		AtomicReference<Map<Integer, SealedEntity>> products = new AtomicReference<>();
+		try (final EvitaClient setupClient = new EvitaClient(evitaClientConfiguration)) {
 			final DataGenerator dataGenerator = new DataGenerator();
 			setupClient.defineCatalog(TEST_CATALOG);
 			// create bunch or entities for referencing in products
@@ -197,7 +187,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 						}
 					);
 
-					final Map<Integer, SealedEntity> products = CollectionUtils.createHashMap(10);
+					final Map<Integer, SealedEntity> theProducts = CollectionUtils.createHashMap(10);
 					dataGenerator.generateEntities(
 							productSchema,
 							randomEntityPicker,
@@ -206,7 +196,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 						.limit(10)
 						.forEach(it -> {
 							final EntityReference upsertedProduct = session.upsertEntity(it);
-							products.put(
+							theProducts.put(
 								upsertedProduct.getPrimaryKey(),
 								session.getEntity(
 									productSchema.getName(),
@@ -215,18 +205,17 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 								).orElseThrow()
 							);
 						});
-					PRODUCTS = products;
+					products.set(theProducts);
 
 					session.goLiveAndClose();
 				}
 			);
 		}
-	}
 
-	@AfterAll
-	static void afterAll() {
-		EVITA_SERVER.stop();
-		EVITA_SERVER = null;
+		return new DataCarrier(
+			"evitaClient", new EvitaClient(evitaClientConfiguration),
+			"products", products.get()
+		);
 	}
 
 	/**
@@ -273,18 +262,9 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 		assertEquals("New product", loadedEntity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
 	}
 
-	@BeforeEach
-	void setUp() {
-		evitaClient = new EvitaClient(EVITA_CLIENT_CONFIGURATION);
-	}
-
-	@AfterEach
-	void tearDown() {
-		evitaClient.close();
-	}
-
 	@Test
-	void shouldAllowCreatingCatalogAlongWithTheSchema() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldAllowCreatingCatalogAlongWithTheSchema(EvitaClient evitaClient) {
 		final String someCatalogName = "differentCatalog";
 		try {
 			evitaClient.defineCatalog(someCatalogName)
@@ -297,14 +277,16 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldListCatalogNames() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldListCatalogNames(EvitaClient evitaClient) {
 		final Set<String> catalogNames = evitaClient.getCatalogNames();
 		assertEquals(1, catalogNames.size());
 		assertTrue(catalogNames.contains(TEST_CATALOG));
 	}
 
 	@Test
-	void shouldCreateCatalog() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldCreateCatalog(EvitaClient evitaClient) {
 		final String newCatalogName = "newCatalog";
 		try {
 			final CatalogSchemaContract newCatalog = evitaClient.defineCatalog(newCatalogName);
@@ -319,7 +301,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldRemoveCatalog() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRemoveCatalog(EvitaClient evitaClient) {
 		final String newCatalogName = "newCatalog";
 		evitaClient.defineCatalog(newCatalogName).updateViaNewSession(evitaClient);
 		final boolean removed = evitaClient.deleteCatalogIfExists(newCatalogName);
@@ -331,7 +314,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldReplaceCatalog() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldReplaceCatalog(EvitaClient evitaClient) {
 		final String newCatalog = "newCatalog";
 		try {
 			evitaClient.defineCatalog(newCatalog);
@@ -367,7 +351,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldQueryCatalog() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldQueryCatalog(EvitaClient evitaClient) {
 		final CatalogSchemaContract catalogSchema = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			EvitaSessionContract::getCatalogSchema
@@ -378,7 +363,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldQueryOneEntityReference() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldQueryOneEntityReference(EvitaClient evitaClient) {
 		final EntityReference entityReference = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -399,7 +385,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldQueryOneSealedEntity() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldQueryOneSealedEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final SealedEntity sealedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -419,12 +406,13 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertNotNull(sealedEntity);
 		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertExactlyEquals(PRODUCTS.get(1), sealedEntity);
+		assertExactlyEquals(products.get(1), sealedEntity);
 	}
 
 	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	@Disabled("Not working (yet)")
-	void shouldQueryOneSealedBinaryEntity() {
+	void shouldQueryOneSealedBinaryEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final SealedEntity sealedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -444,11 +432,12 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 		).orElseThrow();
 
 		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertExactlyEquals(PRODUCTS.get(1), sealedEntity);
+		assertExactlyEquals(products.get(1), sealedEntity);
 	}
 
 	@Test
-	void shouldQueryListOfEntityReferences() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldQueryListOfEntityReferences(EvitaClient evitaClient) {
 		final Integer[] requestedIds = {1, 2, 5};
 		final List<EntityReference> entityReferences = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -475,7 +464,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldQueryListOfSealedEntities() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldQueryListOfSealedEntities(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final Integer[] requestedIds = {1, 2, 5};
 		final List<SealedEntity> sealedEntities = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -501,12 +491,13 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 			final SealedEntity sealedEntity = sealedEntities.get(i);
 			assertEquals(Entities.PRODUCT, sealedEntity.getType());
 			assertEquals(requestedIds[i], sealedEntity.getPrimaryKey());
-			assertExactlyEquals(PRODUCTS.get(requestedIds[i]), sealedEntity);
+			assertExactlyEquals(products.get(requestedIds[i]), sealedEntity);
 		}
 	}
 
 	@Test
-	void shouldGetSingleEntity() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldGetSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
  		final Optional<SealedEntity> sealedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -523,12 +514,13 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 		sealedEntity.ifPresent(it -> {
 			assertEquals(Entities.PRODUCT, it.getType());
 			assertEquals(7, it.getPrimaryKey());
-			assertEquals(PRODUCTS.get(7), it);
+			assertEquals(products.get(7), it);
 		});
 	}
 
 	@Test
-	void shouldEnrichSingleEntity() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldEnrichSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final SealedEntity sealedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -542,7 +534,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertEquals(Entities.PRODUCT, sealedEntity.getType());
 		assertEquals(7, sealedEntity.getPrimaryKey());
-		assertDiffers(PRODUCTS.get(7), sealedEntity);
+		assertDiffers(products.get(7), sealedEntity);
 
 		final SealedEntity enrichedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -557,11 +549,12 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertEquals(Entities.PRODUCT, enrichedEntity.getType());
 		assertEquals(7, enrichedEntity.getPrimaryKey());
-		assertExactlyEquals(PRODUCTS.get(7), enrichedEntity);
+		assertExactlyEquals(products.get(7), enrichedEntity);
 	}
 
 	@Test
-	void shouldLimitSingleEntity() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldLimitSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final SealedEntity sealedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -575,7 +568,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertEquals(Entities.PRODUCT, sealedEntity.getType());
 		assertEquals(7, sealedEntity.getPrimaryKey());
-		assertExactlyEquals(PRODUCTS.get(7), sealedEntity);
+		assertExactlyEquals(products.get(7), sealedEntity);
 
 		final SealedEntity limitedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -590,11 +583,12 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 
 		assertEquals(Entities.PRODUCT, limitedEntity.getType());
 		assertEquals(7, limitedEntity.getPrimaryKey());
-		assertDiffers(PRODUCTS.get(7), limitedEntity);
+		assertDiffers(products.get(7), limitedEntity);
 	}
 
 	@Test
-	void shouldRetrieveCollectionSize() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveCollectionSize(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final Integer productCount = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -602,11 +596,12 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 			}
 		);
 
-		assertEquals(PRODUCTS.size(), productCount);
+		assertEquals(products.size(), productCount);
 	}
 
 	@Test
-	void shouldFailGracefullyQueryingListOfSealedEntitiesWithoutProperRequirements() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldFailGracefullyQueryingListOfSealedEntitiesWithoutProperRequirements(EvitaClient evitaClient) {
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> evitaClient.queryCatalog(
@@ -626,7 +621,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldCallTerminationCallbackWhenClientClosesSession() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldCallTerminationCallbackWhenClientClosesSession(EvitaClient evitaClient) {
 		final AtomicReference<UUID> terminatedSessionId = new AtomicReference<>();
 		final EvitaSessionContract theSession = evitaClient.createSession(
 			new SessionTraits(
@@ -639,20 +635,23 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldCallTerminationCallbackWhenClientIsClosed() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldCallTerminationCallbackWhenClientIsClosed(EvitaClient evitaClient) {
+		final EvitaClient newEvitaClient = new EvitaClient(evitaClient.getConfiguration());
 		final AtomicReference<UUID> terminatedSessionId = new AtomicReference<>();
-		evitaClient.createSession(
+		newEvitaClient.createSession(
 			new SessionTraits(
 				TEST_CATALOG,
 				session -> terminatedSessionId.set(session.getId())
 			)
 		);
-		evitaClient.close();
+		newEvitaClient.close();
 		assertNotNull(terminatedSessionId.get());
 	}
 
 	@Test
-	void shouldCallTerminationCallbackWhenServerClosesTheSession() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldCallTerminationCallbackWhenServerClosesTheSession(EvitaClient evitaClient, EvitaServer evitaServer) {
 		final AtomicReference<UUID> terminatedSessionId = new AtomicReference<>();
 		final EvitaSessionContract clientSession = evitaClient.createSession(
 			new SessionTraits(
@@ -660,7 +659,7 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 				session -> terminatedSessionId.set(session.getId())
 			)
 		);
-		final EvitaSessionContract serverSession = EVITA_SERVER.getEvita()
+		final EvitaSessionContract serverSession = evitaServer.getEvita()
 			.getSessionById(TEST_CATALOG, clientSession.getId())
 			.orElseThrow(() -> new IllegalStateException("Server doesn't know the session!"));
 
@@ -680,7 +679,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldTranslateErrorCorrectlyAndLeaveSessionOpen() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldTranslateErrorCorrectlyAndLeaveSessionOpen(EvitaClient evitaClient) {
 		final EvitaSessionContract clientSession = evitaClient.createReadOnlySession(TEST_CATALOG);
 		try {
 			clientSession.getEntity("nonExisting", 1, entityFetchAll().getRequirements());
@@ -695,7 +695,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldCreateAndDropEntityCollection() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldCreateAndDropEntityCollection(EvitaClient evitaClient) {
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -712,7 +713,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldUpsertNewEntity() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldUpsertNewEntity(EvitaClient evitaClient) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
@@ -745,7 +747,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldUpsertAndFetchNewEntity() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldUpsertAndFetchNewEntity(EvitaClient evitaClient) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
@@ -772,7 +775,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldDeleteExistingEntity() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldDeleteExistingEntity(EvitaClient evitaClient) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
@@ -798,7 +802,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldDeleteAndFetchExistingEntity() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldDeleteAndFetchExistingEntity(EvitaClient evitaClient) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
@@ -830,7 +835,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldDeleteEntityByQuery() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldDeleteEntityByQuery(EvitaClient evitaClient) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
@@ -865,7 +871,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldDeleteEntitiesAndFetchByQuery() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldDeleteEntitiesAndFetchByQuery(EvitaClient evitaClient) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
@@ -902,7 +909,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldDeleteHierarchy() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldDeleteHierarchy(EvitaClient evitaClient) {
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -931,7 +939,8 @@ class EvitaClientTest implements TestConstants, TestFileSupport {
 	}
 
 	@Test
-	void shouldDeleteHierarchyAndFetchRoot() {
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldDeleteHierarchyAndFetchRoot(EvitaClient evitaClient) {
 		evitaClient.updateCatalog(
 			TEST_CATALOG,
 			session -> {

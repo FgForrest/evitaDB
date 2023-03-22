@@ -65,7 +65,7 @@ class SchemaUtilsTest {
 	private static OpenAPI openAPI;
 	private static final String urlPathToProductList = "/product/list";
 
-	@DataSet(REST_THOUSAND_PRODUCTS)
+	@DataSet(value = REST_THOUSAND_PRODUCTS, destroyAfterClass = true)
 	List<SealedEntity> setUp(Evita evita) {
 		TestDataGenerator.generateMockCatalogs(evita);
 		final List<SealedEntity> sealedEntities = TestDataGenerator.generateMainCatalogEntities(evita);

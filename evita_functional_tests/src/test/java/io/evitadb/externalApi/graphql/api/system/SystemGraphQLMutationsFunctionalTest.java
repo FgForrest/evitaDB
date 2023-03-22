@@ -25,7 +25,12 @@ package io.evitadb.externalApi.graphql.api.system;
 
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
+import io.evitadb.server.EvitaServer;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -47,13 +52,19 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 	private static final String RENAME_CATALOG_PATH = "data.renameCatalog";
 	private static final String REPLACE_CATALOG_PATH = "data.replaceCatalog";
 	private static final String DELETE_CATALOG_PATH = "data.deleteCatalogIfExists";
+	public static final String GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE = GRAPHQL_THOUSAND_PRODUCTS + "forReplace";
 
+	@Override
+	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE, openWebApi = GraphQLProvider.CODE, destroyAfterClass = true)
+	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		return super.setUp(evita, evitaServer);
+	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
 	@DisplayName("Should create rename and delete catalog")
-	void shouldCreateRenameAndDeleteCatalog(Evita evita) {
-		testGraphQLCall()
+	void shouldCreateRenameAndDeleteCatalog(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 					mutation {
@@ -75,7 +86,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 				)
 			);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					mutation {
@@ -97,7 +108,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 				)
 			);
 
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					mutation {
@@ -112,10 +123,10 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
 	@DisplayName("Should not delete unknown catalog")
-	void shouldNotDeleteUnknownCatalog(Evita evita) {
-		testGraphQLCall()
+	void shouldNotDeleteUnknownCatalog(GraphQLTester tester) {
+		tester.test()
 			.document(
 				"""
 					mutation {
@@ -130,11 +141,11 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
 	@DisplayName("Should replace catalog")
-	void shouldReplaceCatalog(Evita evita) {
+	void shouldReplaceCatalog(GraphQLTester tester) {
 		// create new temporary catalog
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					mutation {
@@ -157,7 +168,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			);
 
 		// replace test catalog to temporary catalog
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					mutation {
@@ -181,7 +192,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			);
 
 		// recreate test catalog
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					mutation {
@@ -205,7 +216,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			);
 
 		// replace temporary catalog back to test catalog
-		testGraphQLCall()
+		tester.test()
 			.document(
 				"""
 					mutation {
