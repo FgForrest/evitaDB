@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -42,17 +43,11 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
-	}
-
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return OpenAPI specs")
 	void shouldReturnOpenApiSpecs(Evita evita) {
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.httpMethod(Request.METHOD_GET)
 			.acceptHeader("application/yaml")
 			.executeAndThen()

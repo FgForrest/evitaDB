@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,17 +59,11 @@ import static org.hamcrest.Matchers.nullValue;
  */
 class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
 
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
-	}
-
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return full catalog schema")
 	void shouldReturnFullCatalogSchema(Evita evita) {
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -85,7 +80,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing mutations when updating catalog schema")
 	void shouldReturnErrorForMissingMutationsWhenUpdatingCatalogSchema(Evita evita) {
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("{}")
@@ -99,7 +94,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 	void shouldNotUpdateCatalogSchemaWhenNoMutations(Evita evita) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion();
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -119,7 +114,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 	void shouldChangeDescriptionOfCatalogSchema(Evita evita) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion();
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -151,7 +146,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 	void shouldCreateNewCatalogAttributeSchema(Evita evita) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion();
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -184,7 +179,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 			);
 
 		// verify attribute
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -223,7 +218,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 			);
 
 		// revert
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -259,7 +254,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion();
 
 		// create collection
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -286,7 +281,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 			);
 
 		// verify new collection schema
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -337,7 +332,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion();
 
 		// create collection
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -388,7 +383,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 			);
 
 		// verify new collection schema
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -413,7 +408,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion();
 
 		// rename existing collection
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -439,7 +434,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 			.body(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name() + ".product", nullValue());
 
 		// rename collection back
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -466,7 +461,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 	}
 
 	private int getCatalogSchemaVersion() {
-		return testRestCall()
+		return testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -476,7 +471,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 	}
 
 	private void removeCollection(@Nonnull String entityType, int expectedCatalogVersion) {
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""

@@ -83,7 +83,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.findFirst()
 			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -136,7 +136,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.findFirst()
 			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -190,7 +190,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid argument in unknown entity list query")
 	void shouldReturnErrorForInvalidArgumentInUnknownEntityListQuery(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -218,7 +218,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
 		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 7);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -257,7 +257,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -307,7 +307,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -345,7 +345,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			it -> !it.getPrices().isEmpty()
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -396,7 +396,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -446,7 +446,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -494,7 +494,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -577,7 +577,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			})
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -652,7 +652,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			})
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {

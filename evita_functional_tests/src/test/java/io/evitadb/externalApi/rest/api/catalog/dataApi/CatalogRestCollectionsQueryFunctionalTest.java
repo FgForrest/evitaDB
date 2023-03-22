@@ -61,7 +61,8 @@ class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestDataEndpointF
 			)
 			.toList();
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
+			.urlPathSuffix("/collections")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(200)
@@ -84,17 +85,12 @@ class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestDataEndpointF
 				.toList();
 		}
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
+			.urlPathSuffix("/collections")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map().e(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name(), Boolean.TRUE).build())
 			.executeAndThen()
 			.statusCode(200)
 			.body("", equalTo(expectedBody));
-	}
-
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog/collections";
 	}
 }

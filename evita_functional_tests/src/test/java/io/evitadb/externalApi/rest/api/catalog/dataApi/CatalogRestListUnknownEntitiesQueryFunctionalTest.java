@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,12 +59,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
-
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
-	}
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
@@ -80,7 +75,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			.findFirst()
 			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -122,7 +117,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			.findFirst()
 			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -175,7 +170,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			)
 			.toList();
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -204,7 +199,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			)
 			.toList();
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -234,7 +229,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			)
 			.toList();
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -263,7 +258,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			)
 			.toList();
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/list")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

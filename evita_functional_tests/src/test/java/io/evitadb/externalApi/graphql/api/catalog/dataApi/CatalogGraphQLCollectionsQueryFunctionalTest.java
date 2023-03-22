@@ -52,7 +52,7 @@ public class CatalogGraphQLCollectionsQueryFunctionalTest extends CatalogGraphQL
 		final String[] expectedCollections = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getAllEntityTypes)
 			.toArray(String[]::new);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 					query {

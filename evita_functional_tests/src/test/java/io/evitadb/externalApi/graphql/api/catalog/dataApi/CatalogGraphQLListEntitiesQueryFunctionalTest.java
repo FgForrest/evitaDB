@@ -99,7 +99,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -155,7 +155,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -193,7 +193,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -243,7 +243,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -299,7 +299,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -335,7 +335,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	void shouldReturnErrorForInvalidProductsFields(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 2);
 		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -361,7 +361,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid argument in products query")
 	void shouldReturnErrorForInvalidArgumentInProductsQuery(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -387,7 +387,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithPriceForSale)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -425,7 +425,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	void shouldFilterProductsByNonExistentPrice(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -456,7 +456,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	void shouldReturnErrorForFilteringProductsByUnknownCurrency(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -491,7 +491,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithPriceForSale)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -530,7 +530,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithFormattedPriceForSale)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -567,7 +567,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithFormattedPriceForSale)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -599,7 +599,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	void shouldReturnErrorWhenFormattingPriceForSaleWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -634,7 +634,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithPrice)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -675,7 +675,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithPrice)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -714,7 +714,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithFormattedPrice)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -745,7 +745,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	void shoudReturnErrorWhenFormattingPriceWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -780,7 +780,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			it -> !it.getPrices().isEmpty()
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -831,7 +831,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -881,7 +881,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -915,7 +915,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithFormattedPrices)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -950,7 +950,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithFormattedPrices)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -984,7 +984,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithFormattedPrices)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -1023,7 +1023,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithAssociatedData)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -1064,7 +1064,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithAssociatedData)
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -1147,7 +1147,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			})
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -1222,7 +1222,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			})
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -1314,7 +1314,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 
 		assertTrue(expectedEntities.length > 0);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -1391,7 +1391,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			}
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
@@ -1443,7 +1443,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 		);
 		assertTrue(expectedEntities.size() > 5);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {

@@ -61,7 +61,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing mutations when updating catalog schema")
 	void shouldReturnErrorForMissingMutationsWhenUpdatingCatalogSchema(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				mutation {
@@ -82,7 +82,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	void shouldNotUpdateCatalogSchemaWhenNoMutations(GraphQLTester tester) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion(tester);
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				mutation {
@@ -114,7 +114,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	void shouldChangeDescriptionOfCatalogSchema(GraphQLTester tester) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion(tester);
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				mutation {
@@ -154,7 +154,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	void shouldCreateNewCatalogAttributeSchema(GraphQLTester tester) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion(tester);
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				mutation {
@@ -192,7 +192,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				)
 			);
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
                 query {
@@ -245,7 +245,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 
 		// revert
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				mutation {
@@ -283,7 +283,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
 
 		// create collection
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				mutation {
@@ -315,7 +315,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 
 		// verify new collection schema
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
                 query {
@@ -367,7 +367,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
 
 		// create collection
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				mutation {
@@ -425,7 +425,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 
 		// verify new collection schema
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
                 query {
@@ -522,7 +522,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
 
 		// rename existing collection
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				mutation {
@@ -564,7 +564,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 
 		// rename collection back
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				mutation {
@@ -607,7 +607,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	private int getCatalogSchemaVersion(@Nonnull GraphQLTester tester) {
-		return tester.test()
+		return tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 				query {
@@ -624,7 +624,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	private void removeCollection(@Nonnull GraphQLTester tester, @Nonnull String entityType, int expectedCatalogVersion) {
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
                 mutation {

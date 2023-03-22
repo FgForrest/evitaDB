@@ -64,7 +64,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
 	@DisplayName("Should create rename and delete catalog")
 	void shouldCreateRenameAndDeleteCatalog(GraphQLTester tester) {
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {
@@ -86,7 +86,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 				)
 			);
 
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {
@@ -108,7 +108,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 				)
 			);
 
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {
@@ -126,7 +126,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE)
 	@DisplayName("Should not delete unknown catalog")
 	void shouldNotDeleteUnknownCatalog(GraphQLTester tester) {
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {
@@ -145,7 +145,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 	@DisplayName("Should replace catalog")
 	void shouldReplaceCatalog(GraphQLTester tester) {
 		// create new temporary catalog
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {
@@ -168,7 +168,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			);
 
 		// replace test catalog to temporary catalog
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {
@@ -192,7 +192,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			);
 
 		// recreate test catalog
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {
@@ -216,7 +216,7 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 			);
 
 		// replace temporary catalog back to test catalog
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					mutation {

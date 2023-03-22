@@ -64,7 +64,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should be alive")
 	void shouldBeAlive(GraphQLTester tester) {
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					query {
@@ -84,7 +84,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	void shouldReturnSpecificCatalog(Evita evita, GraphQLTester tester) {
 		final CatalogContract testCatalog = evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					query {
@@ -120,7 +120,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all catalogs")
 	void shouldReturnAllCatalogs(Evita evita, GraphQLTester tester) {
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					query {
@@ -164,7 +164,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error if specific Evita catalog doesn't exist")
 	void shouldReturnErrorIfSpecificCatalogDoesntExist(GraphQLTester tester) {
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
                 query {
@@ -183,7 +183,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return errors query schema is invalid")
 	void shouldReturnNullIfSpecificCatalogDoesntExist(GraphQLTester tester) {
-		tester.test()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
                 query {

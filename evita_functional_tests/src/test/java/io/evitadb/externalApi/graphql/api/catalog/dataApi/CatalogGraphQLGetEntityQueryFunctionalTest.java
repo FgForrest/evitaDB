@@ -72,7 +72,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -125,7 +125,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 				it.getAllLocales().contains(Locale.ENGLISH)
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -172,7 +172,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -201,7 +201,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -251,7 +251,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -292,7 +292,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	@DisplayName("Should return error for invalid single product fields")
 	void shouldReturnErrorForInvalidSingleProductFields(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -314,7 +314,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid argument in single product query")
 	void shouldReturnErrorForInvalidArgumentInSingleProductQuery(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -336,7 +336,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldFilterByAndReturnPriceForSaleForSingleProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -370,7 +370,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldFilterSingleProductByNonExistentPrice(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -398,7 +398,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnErrorForFilteringProductByNonExistentCurrency(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -426,7 +426,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnCustomPriceForSaleForSingleProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -456,7 +456,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnFormattedPriceForSaleWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -486,7 +486,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnFormattedPriceForSaleWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -518,7 +518,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 		final NumberFormat priceFormatter = NumberFormat.getCurrencyInstance(CZECH_LOCALE);
 		priceFormatter.setCurrency(CURRENCY_CZK);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -546,7 +546,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnPriceForSingleProductWithFilterInheritance(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -580,7 +580,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnPriceForSingleProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -610,7 +610,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnFormattedPriceWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -635,7 +635,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnFormattedPriceWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -663,7 +663,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 		final NumberFormat priceFormatter = NumberFormat.getCurrencyInstance(CZECH_LOCALE);
 		priceFormatter.setCurrency(CURRENCY_CZK);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -690,7 +690,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			it -> !it.getPrices().isEmpty()
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -720,7 +720,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnFilteredPricesForSingleProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -766,7 +766,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnFilteredPricesForMutliplePriceListsForSingleProduct(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities, PRICE_LIST_BASIC, PRICE_LIST_VIP);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -805,7 +805,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnFormattedPricesWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -830,7 +830,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	void shouldReturnFormattedPricesWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -858,7 +858,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 		final NumberFormat priceFormatter = NumberFormat.getCurrencyInstance(CZECH_LOCALE);
 		priceFormatter.setCurrency(CURRENCY_CZK);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -885,7 +885,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -916,7 +916,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -962,7 +962,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			}
 		).orElseThrow();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -1037,7 +1037,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			it -> it.getReferences(Entities.STORE).size() > 1
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {

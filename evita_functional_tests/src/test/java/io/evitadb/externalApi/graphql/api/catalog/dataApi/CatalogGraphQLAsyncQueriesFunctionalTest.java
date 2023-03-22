@@ -35,6 +35,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,7 +82,7 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 			});
 		queryBuilder.append("}");
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(queryBuilder.toString())
 			.executeAndThen()
 			.statusCode(200)

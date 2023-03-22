@@ -59,9 +59,6 @@ public abstract class GraphQLEndpointFunctionalTest {
 		return EntitySchema._internalBuild(entityType);
 	}
 
-	@Nonnull
-	protected abstract String getEndpointPath();
-
 	@DataSet(value = TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS, openWebApi = GraphQLProvider.CODE)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		TestDataGenerator.generateMockCatalogs(evita);
@@ -74,7 +71,7 @@ public abstract class GraphQLEndpointFunctionalTest {
 			"entities", entities,
 			"tester",
 			new GraphQLTester(
-				"https://" + host[0].hostName() + ":" + host[0].port() + "/gql" + getEndpointPath()
+				"https://" + host[0].hostName() + ":" + host[0].port() + "/gql"
 			)
 		);
 	}

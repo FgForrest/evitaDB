@@ -64,7 +64,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	void shouldReturnBasicPropertiesFromCatalogSchema(Evita evita, GraphQLTester tester) {
 		final SealedCatalogSchema catalogSchema = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema);
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -113,7 +113,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid basic property")
 	void shouldReturnErrorForInvalidBasicProperty(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -138,7 +138,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 
 		final GlobalAttributeSchemaContract urlSchema = catalogSchema.getAttribute(ATTRIBUTE_URL).orElseThrow();
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -215,7 +215,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid specific attribute schema")
 	void shouldReturnErrorForInvalidSpecificAttributeSchema(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -241,7 +241,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 		final SealedCatalogSchema catalogSchema = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogSchema);
 		assertFalse(catalogSchema.getAttributes().isEmpty());
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -275,7 +275,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 
 		final EntitySchemaContract productSchema = catalogSchema.getEntitySchemaOrThrowException(Entities.PRODUCT);
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -422,7 +422,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 			}
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -477,7 +477,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid field in all entity schemas")
 	void shouldReturnErrorForInvalidFieldInAllAEntitySchemas(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {

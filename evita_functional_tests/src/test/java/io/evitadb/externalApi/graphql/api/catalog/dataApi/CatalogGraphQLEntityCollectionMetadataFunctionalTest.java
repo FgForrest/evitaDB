@@ -29,6 +29,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -46,7 +47,7 @@ public class CatalogGraphQLEntityCollectionMetadataFunctionalTest extends Catalo
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return correct collection size")
 	void shouldReturnCorrectCollectionSize(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {

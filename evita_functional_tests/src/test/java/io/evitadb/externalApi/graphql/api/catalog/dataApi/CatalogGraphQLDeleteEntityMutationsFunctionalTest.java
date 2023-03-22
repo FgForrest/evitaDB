@@ -103,7 +103,7 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 				.build())
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -152,7 +152,7 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 		);
 		assertTrue(entitiesToDelete.isEmpty());
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -174,7 +174,7 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 	}
 
 	private void assertProductDeleted(int primaryKey, GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {

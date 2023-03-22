@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.testSuite;
 
 import io.evitadb.externalApi.graphql.io.GraphQLMimeTypes;
+import io.evitadb.utils.StringUtils;
 import io.restassured.http.Header;
 import io.restassured.response.ValidatableResponse;
 import io.undertow.util.Headers;
@@ -49,13 +50,13 @@ import static io.restassured.RestAssured.given;
 @RequiredArgsConstructor
 public class GraphQLTester {
 
-	private final String url;
+	private final String baseUrl;
 
 	/**
 	 * Test single request to GraphQL API.
 	 */
-	public Request test() {
-		return new Request(this);
+	public Request test(@Nonnull String catalogName) {
+		return new Request(this, catalogName);
 	}
 
 	@SneakyThrows
@@ -72,17 +73,17 @@ public class GraphQLTester {
 				.log()
 				.ifValidationFails().
 			when()
-				.post(url).
+				.post(baseUrl + "/" + StringUtils.toKebabCase(request.getCatalogName())).
 			then()
 				.log()
 				.ifError();
 	}
 
-	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	@Getter(AccessLevel.PRIVATE)
 	public static class Request {
 
 		private final GraphQLTester tester;
+		private final String catalogName;
 
 		@Nonnull
 		private String document;
@@ -91,8 +92,9 @@ public class GraphQLTester {
 
 		private final Map<String, Header> headers = new HashMap<>();
 
-		private Request(@Nonnull GraphQLTester tester) {
+		public Request(@Nonnull GraphQLTester tester, @Nonnull String catalogName) {
 			this.tester = tester;
+			this.catalogName = catalogName;
 		}
 
 		public Request document(@Nonnull String document, @Nonnull Object... arguments) {

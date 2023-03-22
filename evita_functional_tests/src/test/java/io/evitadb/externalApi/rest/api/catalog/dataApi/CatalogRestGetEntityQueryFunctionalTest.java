@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,12 +57,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
-	}
-
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by primary key")
@@ -71,7 +66,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -114,7 +109,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -165,7 +160,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/" + CZECH_LOCALE.toLanguageTag() + "/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -204,7 +199,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -250,7 +245,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -289,7 +284,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	void shouldFilterSingleProductByNonExistentPrice(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -308,7 +303,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	void shouldReturnErrorForFilteringProductByNonExistentCurrency(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -327,7 +322,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	void shouldReturnCustomPriceForSaleForSingleProduct(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -348,7 +343,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	void shouldReturnFilteredPricesForSingleProduct(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -374,7 +369,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -397,7 +392,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -419,7 +414,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 			it -> it.getReferences(Entities.STORE).size() > 1
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

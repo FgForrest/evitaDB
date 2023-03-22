@@ -89,7 +89,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			}
 		).orElseThrow();
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -154,7 +154,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid basic property")
 	void shouldReturnErrorForInvalidBasicProperty(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -184,7 +184,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final AttributeSchemaContract quantitySchema = productSchema.getAttribute(ATTRIBUTE_QUANTITY).orElseThrow();
 		final AttributeSchemaContract deprecatedSchema = productSchema.getAttribute(ATTRIBUTE_DEPRECATED).orElseThrow();
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -284,7 +284,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 
 		final GlobalAttributeSchemaContract codeSchema = (GlobalAttributeSchemaContract) productSchema.getAttribute(ATTRIBUTE_CODE).orElseThrow();
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -386,7 +386,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			})
 			.toList();
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -433,7 +433,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final AssociatedDataSchemaContract labelsSchema = productSchema.getAssociatedData(ASSOCIATED_DATA_LABELS).orElseThrow();
 		final AssociatedDataSchemaContract localizationSchema = productSchema.getAssociatedData(ASSOCIATED_DATA_LOCALIZATION).orElseThrow();
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -512,7 +512,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getAssociatedData().isEmpty());
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -559,7 +559,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			}
 		).orElseThrow();
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -704,7 +704,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final ReferenceSchemaContract brandReferenceSchema = productSchema.getReference(Entities.BRAND).orElseThrow();
 		final AttributeSchemaContract brandVisibleForB2CAttributeSchema = brandReferenceSchema.getAttribute(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C).orElseThrow();
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -795,7 +795,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final ReferenceSchemaContract brandReferenceSchema = productSchema.getReference(Entities.BRAND).orElseThrow();
 		assertFalse(brandReferenceSchema.getAttributes().isEmpty());
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -837,7 +837,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getReferences().isEmpty());
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -886,7 +886,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 				.toList())
 			.collect(Collectors.toList());
 
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {
@@ -914,7 +914,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid field in all reference schemas")
 	void shouldReturnErrorForInvalidFieldInAllReferenceSchemas(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG_SCHEMA)
 			.document(
 				"""
 					query {

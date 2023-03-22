@@ -78,11 +78,8 @@ public abstract class RestEndpointFunctionalTest {
 	@SneakyThrows
 	@BeforeEach
 	void setUp() {
-		 tester = new RestTester("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/rest" + getEndpointPath());
+		 tester = new RestTester("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/rest");
 	}
-
-	@Nonnull
-	protected abstract String getEndpointPath();
 
 	@DataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	List<SealedEntity> setUp(Evita evita) {
@@ -110,8 +107,8 @@ public abstract class RestEndpointFunctionalTest {
 	/**
 	 * Test single request to REST API.
 	 */
-	protected Request testRestCall() {
-		return tester.test();
+	protected Request testRestCall(@Nonnull String catalogName) {
+		return tester.test(catalogName);
 	}
 
 	@Nonnull

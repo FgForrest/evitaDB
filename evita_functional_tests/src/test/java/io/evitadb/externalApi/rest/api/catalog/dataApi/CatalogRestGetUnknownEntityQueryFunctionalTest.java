@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,12 +59,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
-	}
-
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return unknown entity by globally unique attribute")
@@ -74,7 +69,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute)
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -104,7 +99,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -138,7 +133,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -166,7 +161,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when request contains no parameter")
 	void shouldReturnErrorWhenRequestContainsNoParameter(Evita evita) {
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -180,7 +175,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	void shouldReturnPriceForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -202,7 +197,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/entity/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

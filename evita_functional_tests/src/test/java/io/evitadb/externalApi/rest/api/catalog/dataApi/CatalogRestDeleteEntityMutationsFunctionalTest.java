@@ -59,12 +59,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
-	}
-
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should delete entity by query")
@@ -107,7 +101,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 			)
 			.toList();
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.httpMethod(Request.METHOD_DELETE)
 			.urlPathSuffix("/product")
 			.requestBody("""
@@ -156,7 +150,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 		);
 		assertTrue(entitiesToDelete.isEmpty());
 
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.httpMethod(Request.METHOD_DELETE)
 			.urlPathSuffix("/product")
 			.requestBody("""
@@ -178,7 +172,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 	}
 
 	private void assertProductDeleted(int primaryKey) {
-		testRestCall()
+		testRestCall(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

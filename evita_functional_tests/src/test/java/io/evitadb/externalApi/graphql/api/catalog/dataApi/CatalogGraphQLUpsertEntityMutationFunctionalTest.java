@@ -88,7 +88,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should insert single empty product without PK")
 	void shouldInsertSingleEmptyProductWithoutPK(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -117,7 +117,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should insert single empty product with PK")
 	void shouldInsertSingleEmptyProductWithPK(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -144,7 +144,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update product with no mutations")
 	void shouldUpdateProductWithNoMutations(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -171,7 +171,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should return error when missing arguments for product upsert")
 	void shouldReturnErrorWhenMissingArgumentsForProductUpsert(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -190,7 +190,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should return error when missing mutations for product update")
 	void shouldReturnErrorWhenMissingMutationsForProductUpdate(GraphQLTester tester) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -223,7 +223,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				.build())
 			.build();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -268,7 +268,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBody));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -309,7 +309,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				.build())
 			.build();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -349,7 +349,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBody));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -414,7 +414,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				.build())
 			.build();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -455,7 +455,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.e(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), null)
 			.build();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -512,7 +512,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			))
 			.build();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -555,7 +555,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBodyWithNewPrice));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -587,7 +587,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.e(EntityDescriptor.PRICES.name(), List.of())
 			.build();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -618,7 +618,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBodyWithoutNewPrice));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -652,7 +652,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM")
 			.build();
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -679,7 +679,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBody));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -729,7 +729,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				.build())
 			.build());
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -776,7 +776,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH + ".store", containsInAnyOrder(expectedBody.toArray()));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -800,7 +800,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(GET_PRODUCT_PATH + ".store", containsInAnyOrder(expectedBody.toArray()));
 
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -831,7 +831,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH + ".store." + ReferenceDescriptor.REFERENCED_ENTITY.name() + "." + EntityDescriptor.PRIMARY_KEY.name(), not(containsInRelativeOrder(1_000_000_000)));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -870,7 +870,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			}
 		);
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -900,7 +900,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		assertReferenceGroup(evita, entity.getPrimaryKey(), new GroupEntityReference(ENTITY_BRAND_GROUP, 100, 1, false));
 
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
@@ -957,7 +957,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 
 	private void assertHierarchicalPlacement(@Nonnull GraphQLTester tester, int primaryKey, @Nonnull Map<String, Object> expectedBodyAfterRemoving) {
-		tester.test()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
