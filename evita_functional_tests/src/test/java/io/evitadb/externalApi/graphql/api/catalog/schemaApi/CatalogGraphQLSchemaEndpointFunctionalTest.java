@@ -33,6 +33,4 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public abstract class CatalogGraphQLSchemaEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
-
-	protected static final String TEST_CATALOG_SCHEMA = "test-catalog/schema";
 }

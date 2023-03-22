@@ -39,6 +39,7 @@ import java.util.List;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENTITY_EMPTY;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 
@@ -58,7 +59,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing mutations when updating entity schema")
 	void shouldReturnErrorForMissingMutationsWhenUpdatingEntitySchema(GraphQLTester tester) {
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -79,7 +81,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	void shouldNotUpdateCatalogSchemaWhenNoMutations(GraphQLTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -112,7 +115,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
 		// allow new locales
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -145,7 +149,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// revert
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -185,7 +190,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
 		// add new attribute
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -223,7 +229,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// verify new attribute schema
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
                 query {
@@ -278,7 +285,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// update attribute schema
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -320,7 +328,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// remove attribute
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -366,7 +375,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
 		// add new associated data
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -400,7 +410,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// verify new associated data schema
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
                 query {
@@ -445,7 +456,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// update associated data schema
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -487,7 +499,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// remove associated data
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -528,7 +541,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
 		// add new reference
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -564,7 +578,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// verify new reference schema
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
                 query {
@@ -617,7 +632,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// update reference schema
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -667,7 +683,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			);
 
 		// remove reference
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -703,7 +720,8 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 
 
 	private int getEntitySchemaVersion(@Nonnull GraphQLTester tester, @Nonnull String entityType) {
-		return tester.test(TEST_CATALOG_SCHEMA)
+		return tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				query {

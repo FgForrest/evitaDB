@@ -39,6 +39,7 @@ import javax.annotation.Nonnull;
 import java.util.List;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.hamcrest.Matchers.*;
@@ -61,7 +62,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing mutations when updating catalog schema")
 	void shouldReturnErrorForMissingMutationsWhenUpdatingCatalogSchema(GraphQLTester tester) {
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -82,7 +84,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	void shouldNotUpdateCatalogSchemaWhenNoMutations(GraphQLTester tester) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion(tester);
 
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -114,7 +117,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	void shouldChangeDescriptionOfCatalogSchema(GraphQLTester tester) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion(tester);
 
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -154,7 +158,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	void shouldCreateNewCatalogAttributeSchema(GraphQLTester tester) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion(tester);
 
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -192,7 +197,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				)
 			);
 
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
                 query {
@@ -245,7 +251,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 
 		// revert
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -283,7 +290,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
 
 		// create collection
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -315,7 +323,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 
 		// verify new collection schema
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
                 query {
@@ -367,7 +376,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
 
 		// create collection
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -425,7 +435,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 
 		// verify new collection schema
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
                 query {
@@ -522,7 +533,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
 
 		// rename existing collection
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -564,7 +576,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 			);
 
 		// rename collection back
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				mutation {
@@ -607,7 +620,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	private int getCatalogSchemaVersion(@Nonnull GraphQLTester tester) {
-		return tester.test(TEST_CATALOG_SCHEMA)
+		return tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 				query {
@@ -624,7 +638,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	private void removeCollection(@Nonnull GraphQLTester tester, @Nonnull String entityType, int expectedCatalogVersion) {
-		tester.test(TEST_CATALOG_SCHEMA)
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
                 mutation {

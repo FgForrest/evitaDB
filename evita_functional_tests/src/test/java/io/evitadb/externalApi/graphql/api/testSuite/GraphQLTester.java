@@ -73,7 +73,7 @@ public class GraphQLTester {
 				.log()
 				.ifValidationFails().
 			when()
-				.post(baseUrl + "/" + StringUtils.toKebabCase(request.getCatalogName())).
+				.post(baseUrl + "/" + StringUtils.toKebabCase(request.getCatalogName()) + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
 			then()
 				.log()
 				.ifError();
@@ -85,6 +85,8 @@ public class GraphQLTester {
 		private final GraphQLTester tester;
 		private final String catalogName;
 
+		@Nullable
+		private String urlPathSuffix;
 		@Nonnull
 		private String document;
 
@@ -95,6 +97,11 @@ public class GraphQLTester {
 		public Request(@Nonnull GraphQLTester tester, @Nonnull String catalogName) {
 			this.tester = tester;
 			this.catalogName = catalogName;
+		}
+
+		public Request urlPathSuffix(String urlPathSuffix) {
+			this.urlPathSuffix = urlPathSuffix;
+			return this;
 		}
 
 		public Request document(@Nonnull String document, @Nonnull Object... arguments) {
