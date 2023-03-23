@@ -307,12 +307,13 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 
 					if (STORAGE_PATH.toFile().exists()) {
 						try {
-							FileUtils.deleteDirectory(STORAGE_PATH.toFile());
+							FileUtils.cleanDirectory(STORAGE_PATH.toFile());
 						} catch (IOException e) {
 							fail("Failed to empty directory: " + STORAGE_PATH, e);
 						}
+					} else {
+						Assert.isTrue(STORAGE_PATH.toFile().mkdirs(), "Fail to create directory: " + STORAGE_PATH);
 					}
-					Assert.isTrue(STORAGE_PATH.toFile().mkdirs(), "Fail to create directory: " + STORAGE_PATH);
 					return newDataSets;
 				});
 		}
