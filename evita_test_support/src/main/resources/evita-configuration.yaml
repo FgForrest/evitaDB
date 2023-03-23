@@ -27,7 +27,7 @@ api:
   ioThreads: ${api.ioThreads:4}
   certificate:
     generateAndUseSelfSigned: ${api.certificate.generateAndUseSelfSigned:true}
-    folderPath: ${java.io.tmpdir}/evita-server-certificates
+    folderPath: ${storage.storageDirectory}-certificates
     custom:
       certificate: ${api.certificate.custom.certificate:null}
       privateKey: ${api.certificate.custom.privateKey:null}

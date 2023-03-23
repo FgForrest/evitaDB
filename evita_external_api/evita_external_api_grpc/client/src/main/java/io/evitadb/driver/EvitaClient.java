@@ -145,6 +145,7 @@ public class EvitaClient implements EvitaContract {
 			.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
 			.usingTrustedRootCaCertificate(configuration.trustCertificate())
 			.mtls(configuration.mtlsEnabled())
+			.certificateClientFolderPath(configuration.certificateFolderPath())
 			.clientCertificateFilePath(configuration.certificateFileName())
 			.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
 			.build();

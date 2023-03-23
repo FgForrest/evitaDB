@@ -64,6 +64,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -2587,6 +2588,11 @@ class EvitaTest implements EvitaTestSupport {
 			try (ExternalApiServer externalApiServer = new ExternalApiServer(
 				evita,
 				ApiOptions.builder()
+					.certificate(
+						CertificateSettings.builder()
+							.folderPath(getEvitaTestDirectory() + "-certificates")
+							.build()
+					)
 					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
 					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
 					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))

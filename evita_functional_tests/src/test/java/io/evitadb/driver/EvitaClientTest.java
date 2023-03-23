@@ -112,11 +112,16 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			.getEndpointConfiguration(SystemProvider.CODE)
 			.getHost()[0];
 
+		final String serverCertificates = evitaServer.getExternalApiServer().getApiOptions().certificate().getFolderPath().toString();
+		final int lastDash = serverCertificates.lastIndexOf('-');
+		assertTrue(lastDash > 0, "Dash not found! Look at the evita-configuration.yml in test resources!");
+		final Path clientCertificates = Path.of(serverCertificates.substring(0, lastDash) + "-client");
 		final EvitaClientConfiguration evitaClientConfiguration = EvitaClientConfiguration.builder()
 			.host(grpcHost.hostName())
 			.port(grpcHost.port())
 			.systemApiPort(systemHost.port())
 			.mtlsEnabled(false)
+			.certificateFolderPath(clientCertificates)
 			.certificateFileName(Path.of(CertificateUtils.getGeneratedClientCertificateFileName()))
 			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
 			.build();

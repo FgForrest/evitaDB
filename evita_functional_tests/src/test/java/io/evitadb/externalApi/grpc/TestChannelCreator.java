@@ -38,6 +38,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.nio.file.Path;
 
 /**
  * Class used in tests for creating and storing instance of {@link ManagedChannel} upon which will gRPC stubs be created.
@@ -57,7 +58,8 @@ public class TestChannelCreator {
 		final ApiOptions apiOptions = externalApiServer.getApiOptions();
 		final int grpcPort = apiOptions.getEndpointConfiguration(GrpcProvider.CODE).getHost()[0].port();
 		final CertificateSettings certificate = apiOptions.certificate();
-		final Builder builder = new Builder();
+		final Builder builder = new Builder()
+			.certificateClientFolderPath(Path.of(externalApiServer.getApiOptions().certificate().folderPath()));
 		if (certificate.generateAndUseSelfSigned()) {
 			final AbstractApiConfiguration systemEndpoint = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
 			Assert.notNull(systemEndpoint, "System endpoint is not enabled!");

@@ -45,6 +45,13 @@ public record CertificateSettings(
 	@Nullable CertificatePath custom
 ) {
 
+	/**
+	 * Builder for the certificate options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	public static CertificateSettings.Builder builder() {
+		return new CertificateSettings.Builder();
+	}
+
 	public CertificateSettings() {
 		this(true, null, null);
 	}

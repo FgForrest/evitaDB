@@ -544,7 +544,11 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 								extensionContext.getRequiredTestMethod(),
 								evita, evitaServer, dataCarrier,
 								(terminationContext, dataSetState) -> {
-									if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
+									if (useDataSet.destroyAfterTest()) {
+										return terminationContext.getTestMethod()
+											.map(m -> m.equals(dataSetState.testMethod()))
+											.orElse(false);
+									} else if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
 										return terminationContext.getRequiredTestClass()
 											.equals(dataSetState.testInstance().getClass());
 									} else {
