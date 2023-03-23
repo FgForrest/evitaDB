@@ -65,7 +65,6 @@ import java.lang.reflect.Parameter;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
@@ -302,7 +301,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			//noinspection unchecked
 			return ofNullable((Map<String, DataSetInfo>) store.get(EVITA_DATA_SET_INDEX))
 				.orElseGet(() -> {
-					final Map<String, DataSetInfo> newDataSets = new ConcurrentHashMap<>(32);
+					final Map<String, DataSetInfo> newDataSets = new HashMap<>(32);
 					store.put(EVITA_DATA_SET_INDEX, newDataSets);
 
 					if (STORAGE_PATH.toFile().exists()) {
@@ -663,7 +662,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			@Nonnull DataSetInfo dataSetInfo,
 			@Nonnull PortManager portManager,
 			@Nonnull ExtensionContext extensionContext
-			) {
+		) {
 			final DataSetState state = this.dataSetInfoAtomicReference.get();
 			return ofNullable(state)
 				.filter(it -> it.destroyPredicate().test(extensionContext, it))
