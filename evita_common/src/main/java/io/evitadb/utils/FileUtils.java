@@ -53,7 +53,7 @@ public class FileUtils {
 	@Nonnull
 	public static Path[] listDirectories(@Nonnull Path directory) {
 		if (directory.toFile().exists()) {
-			try (final DirectoryStream<Path> dirStream = Files.newDirectoryStream(directory)) {
+			try (final DirectoryStream<Path> dirStream = Files.newDirectoryStream(directory, entry -> entry.toFile().isDirectory())) {
 				return StreamSupport.stream(dirStream.spliterator(), false).toArray(Path[]::new);
 			} catch (IOException ex) {
 				throw new UnexpectedIOException(

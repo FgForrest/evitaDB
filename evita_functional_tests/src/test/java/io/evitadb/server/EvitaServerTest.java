@@ -39,6 +39,8 @@ import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.CollectionUtils.Property;
 import io.grpc.ManagedChannel;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -60,9 +62,18 @@ import static org.junit.jupiter.api.Assertions.*;
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
 
+	@BeforeEach
+	void setUp() throws IOException {
+		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
+	}
+
+	@AfterEach
+	void tearDown() throws IOException {
+		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
+	}
+
 	@Test
 	void shouldStartAndStopServerCorrectly() throws IOException {
-		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
 		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
 
 		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()

@@ -64,6 +64,7 @@ public interface EvitaTestSupport extends TestConstants {
 	@Nonnull
 	static Path bootstrapEvitaServerConfigurationFile(@Nonnull String folderName) {
 		final Path dir = Path.of(System.getProperty("java.io.tmpdir"))
+			.resolve("evita")
 			.resolve(folderName);
 		if (!dir.toFile().exists()) {
 			Assert.isTrue(dir.toFile().mkdirs(), "Cannot set up folder: " + dir);
