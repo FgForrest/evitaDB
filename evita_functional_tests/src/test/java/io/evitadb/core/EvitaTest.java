@@ -1918,7 +1918,7 @@ class EvitaTest implements EvitaTestSupport {
 
 		evita.defineCatalog("newCatalog");
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getCatalogCreated("newCatalog"));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getOrInitializeCollectionMonitor("newCatalog"));
 	}
 
 	@Test

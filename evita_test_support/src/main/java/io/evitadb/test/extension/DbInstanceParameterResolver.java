@@ -45,6 +45,7 @@ import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 import org.junit.jupiter.api.extension.ExtensionContext.Store;
@@ -66,6 +67,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -93,7 +95,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DbInstanceParameterResolver implements ParameterResolver, BeforeAllCallback, AfterAllCallback, AfterEachCallback, EvitaTestSupport {
+public class DbInstanceParameterResolver implements ParameterResolver, BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback, EvitaTestSupport {
 	protected static final Path STORAGE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita");
 	private static final Set<String> AVAILABLE_PROVIDERS = ExternalApiServer.gatherExternalApiProviders()
 		.stream()
@@ -345,6 +347,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 
 	@Override
 	public void beforeAll(ExtensionContext context) {
+		log.info("Before all `" + context.getRequiredTestClass().toString() + "`");
 		// index data set bootstrap methods
 		final Map<String, DataSetInfo> dataSets = getDataSetIndex(context);
 		final Class<?> testClass = context.getRequiredTestClass();
@@ -352,25 +355,31 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	}
 
 	@Override
+	public void beforeEach(ExtensionContext context) throws Exception {
+		log.info("Before each `" + context.getRequiredTestMethod().toString() + "`");
+	}
+
+	@Override
 	public void afterAll(ExtensionContext context) {
+		log.info("After all `" + context.getRequiredTestClass().toString() + "`");
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		for (Entry<String, DataSetInfo> entry : dataSetIndex.entrySet()) {
 			final DataSetInfo dataSetInfo = entry.getValue();
-			if (dataSetInfo.destroyAfterClass()) {
-				dataSetInfo.destroy(entry.getKey(), dataSetInfo, getPortManager());
-			}
+			dataSetInfo.destroyIfPredicateMatches(
+				entry.getKey(), dataSetInfo, getPortManager(), context
+			);
 		}
 	}
 
 	@Override
 	public void afterEach(ExtensionContext context) {
+		log.info("After each `" + context.getRequiredTestMethod().toString() + "`");
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		final Iterator<Entry<String, DataSetInfo>> it = dataSetIndex.entrySet().iterator();
 		while (it.hasNext()) {
 			final Entry<String, DataSetInfo> entry = it.next();
 			final DataSetInfo dataSetInfo = entry.getValue();
-			if (dataSetInfo.destroyAfterMethod()) {
-				dataSetInfo.destroy(entry.getKey(), dataSetInfo, getPortManager());
+			if (dataSetInfo.destroyIfPredicateMatches(entry.getKey(), dataSetInfo, getPortManager(), context)) {
 				if (entry.getKey().startsWith(EVITA_ANONYMOUS_EVITA)) {
 					it.remove();
 				}
@@ -453,10 +462,13 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					new AtomicReference<>(
 						new DataSetState(
 							extensionContext.getRequiredTestInstance(),
+							extensionContext.getRequiredTestMethod(),
 							evita,
 							null,
 							null,
-							true
+							(terminationContext, dataSetState) -> terminationContext.getTestMethod()
+								.map(m -> m.equals(dataSetState.testMethod()))
+								.orElse(false)
 						)
 					)
 				);
@@ -480,7 +492,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					// fill in the reference to the test instance, that is known only now
 					dataSetInfo.init(
 						() -> {
-							log.info(Thread.currentThread().getName() + ": start `" + dataSetToUse + "` initialization (`" + dataSetInfo.randomFolderName() + "`)");
+							log.info("Dataset start `" + dataSetToUse + "` initialization (`" + dataSetInfo.randomFolderName() + "`)");
 							final Evita evita;
 							final EvitaServer evitaServer;
 							if (ArrayUtils.isEmpty(dataSetInfo.webApi())) {
@@ -525,12 +537,19 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 									evitaSessionBase.goLiveAndClose();
 								});
 							}
-							log.info(Thread.currentThread().getName() + ": end `" + dataSetToUse + "` initialization");
 
 							return new DataSetState(
 								extensionContext.getRequiredTestInstance(),
+								extensionContext.getRequiredTestMethod(),
 								evita, evitaServer, dataCarrier,
-								useDataSet.destroyAfterTest()
+								(terminationContext, dataSetState) -> {
+									if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
+										return terminationContext.getRequiredTestClass()
+											.equals(dataSetState.testInstance().getClass());
+									} else {
+										return false;
+									}
+								}
 							);
 						}
 					);
@@ -594,7 +613,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		@Nonnull List<Method> destroyMethods,
 		@Nonnull String[] webApi,
 		boolean destroyAfterClass,
-		AtomicReference<DataSetState> dataSetInfoAtomicReference
+		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 	) {
 
 		private DataSetInfo(@Nonnull String catalogName, @Nonnull String randomFolderName, @Nullable CatalogInitMethod initMethod, @Nonnull List<Method> destroyMethods, @Nonnull String[] webApi, boolean destroyAfterClass, AtomicReference<DataSetState> dataSetInfoAtomicReference) {
@@ -629,12 +648,6 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				.orElse(null);
 		}
 
-		public boolean destroyAfterMethod() {
-			return ofNullable(this.dataSetInfoAtomicReference.get())
-				.map(DataSetState::destroyAfterMethod)
-				.orElse(false);
-		}
-
 		public void init(@Nonnull Supplier<DataSetState> stateCreator) {
 			final DataSetState previousState = this.dataSetInfoAtomicReference.compareAndExchange(
 				null,
@@ -645,13 +658,21 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			}
 		}
 
-		public void destroy(
+		public boolean destroyIfPredicateMatches(
 			@Nonnull String dataSetName,
 			@Nonnull DataSetInfo dataSetInfo,
-			@Nonnull PortManager portManager
-		) {
-			final DataSetState state = this.dataSetInfoAtomicReference.getAndSet(null);
-			ofNullable(state).ifPresent(it -> it.destroy(dataSetName, dataSetInfo, portManager));
+			@Nonnull PortManager portManager,
+			@Nonnull ExtensionContext extensionContext
+			) {
+			final DataSetState state = this.dataSetInfoAtomicReference.get();
+			return ofNullable(state)
+				.filter(it -> it.destroyPredicate().test(extensionContext, it))
+				.map(it -> {
+					this.dataSetInfoAtomicReference.set(null);
+					it.destroy(dataSetName, dataSetInfo, portManager);
+					return true;
+				})
+				.orElse(false);
 		}
 	}
 
@@ -660,10 +681,11 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 
 	private record DataSetState(
 		@Nonnull Object testInstance,
+		@Nonnull Method testMethod,
 		@Nullable Evita evitaInstance,
 		@Nullable EvitaServer evitaServerInstance,
 		@Nullable DataCarrier dataCarrier,
-		boolean destroyAfterMethod
+		@Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate
 	) {
 
 		/**
@@ -674,6 +696,8 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			@Nonnull DataSetInfo dataSetInfo,
 			@Nonnull PortManager portManager
 		) {
+			log.info("Dataset `" + dataSetName + "` cleared");
+
 			// call destroy methods
 			for (Method destroyMethod : dataSetInfo.destroyMethods()) {
 				try {

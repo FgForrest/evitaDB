@@ -92,7 +92,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(DbInstanceParameterResolver.class)
 class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	private final static int SEED = 42;
-	private static final String EVITA_CLIENT_DATA_SET = "evitaClientDataSet";
+	private static final String EVITA_CLIENT_DATA_SET = "EvitaClientDataSet";
 
 	@DataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterClass = true, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE})
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
