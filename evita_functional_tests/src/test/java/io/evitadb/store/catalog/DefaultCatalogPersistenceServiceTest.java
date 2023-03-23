@@ -42,6 +42,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.cache.NoCacheSupervisor;
+import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
@@ -94,6 +95,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	public static final String DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST = "defaultCatalogPersistenceServiceTest";
 
 	private final DataGenerator dataGenerator = new DataGenerator();
+	private final SequenceService sequenceService = new SequenceService();
 
 	@Nonnull
 	private StorageOptions getStorageOptions() {
@@ -328,7 +330,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			entityTypePrimaryKey,
 			entitySchema.getName(),
 			ioService,
-			NoCacheSupervisor.INSTANCE
+			NoCacheSupervisor.INSTANCE,
+			sequenceService
 		);
 
 		dataGenerator.generateEntities(
@@ -351,7 +354,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		final EntityCollection collection = new EntityCollection(
 			getMockCatalog(catalogSchema, schema),
 			entityCollection.getEntityTypePrimaryKey(),
-			schema.getName(), ioService, NoCacheSupervisor.INSTANCE
+			schema.getName(), ioService, NoCacheSupervisor.INSTANCE, sequenceService
 		);
 
 		final Iterator<Entity> it = entityCollection.entityIterator();

@@ -28,7 +28,6 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.test.EvitaTestSupport;
 
 import javax.annotation.Nonnull;
@@ -42,7 +41,6 @@ public interface EvitaCatalogSetup extends CatalogSetup, EvitaTestSupport {
 
 	@Override
 	default Evita createEmptyEvitaInstance(@Nonnull String catalogName) {
-		SequenceService.reset();
 		cleanTestSubDirectoryWithRethrow(catalogName);
 		// create new empty database
 		final Evita evita = new Evita(

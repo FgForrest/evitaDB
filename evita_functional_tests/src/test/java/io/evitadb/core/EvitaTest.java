@@ -60,7 +60,6 @@ import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
@@ -158,7 +157,6 @@ class EvitaTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		SequenceService.reset();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 		evita = new Evita(
 			getEvitaConfiguration()

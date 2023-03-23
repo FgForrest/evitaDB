@@ -30,7 +30,6 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.ReadOnlyException;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +54,6 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() throws IOException {
-		SequenceService.reset();
 		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
 		evita = new Evita(
 			getEvitaConfiguration(false)

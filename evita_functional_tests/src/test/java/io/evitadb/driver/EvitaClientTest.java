@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -122,7 +121,6 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			.certificateKeyFileName(Path.of(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()))
 			.build();
 
-		SequenceService.reset();
 		AtomicReference<Map<Integer, SealedEntity>> products = new AtomicReference<>();
 		try (final EvitaClient setupClient = new EvitaClient(evitaClientConfiguration)) {
 			final DataGenerator dataGenerator = new DataGenerator();

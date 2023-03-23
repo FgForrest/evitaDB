@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.builder.CopyExistingEntityBuilder;
@@ -142,7 +141,6 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 
 	@BeforeEach
 	void setUp() throws IOException {
-		SequenceService.reset();
 		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST);
 		this.dataGenerator.clear();
 		this.generatedEntities.clear();

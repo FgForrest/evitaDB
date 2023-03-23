@@ -27,7 +27,6 @@ import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.test.EvitaTestSupport;
 import org.apache.commons.io.FileUtils;
 
@@ -43,7 +42,6 @@ public interface EvitaCatalogReusableSetup extends EvitaCatalogSetup, EvitaTestS
 
 	@Override
 	default Evita createEvitaInstanceFromExistingData(@Nonnull String catalogName) {
-		SequenceService.reset();
 		// create new empty database
 		return new Evita(
 			EvitaConfiguration.builder()

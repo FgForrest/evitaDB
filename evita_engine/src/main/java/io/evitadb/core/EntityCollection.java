@@ -228,7 +228,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		int entityTypePrimaryKey,
 		@Nonnull String entityType,
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
-		@Nonnull CacheSupervisor cacheSupervisor
+		@Nonnull CacheSupervisor cacheSupervisor,
+		@Nonnull SequenceService sequenceService
 	) {
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
 		this.catalogPersistenceService = catalogPersistenceService;
@@ -236,10 +237,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		this.cacheSupervisor = cacheSupervisor;
 
 		final EntityCollectionHeader entityHeader = this.persistenceService.getCatalogEntityHeader();
-		this.pkSequence = SequenceService.getOrCreateSequence(
+		this.pkSequence = sequenceService.getOrCreateSequence(
 			catalog.getName(), SequenceType.ENTITY, entityType, entityHeader.getLastPrimaryKey()
 		);
-		this.indexPkSequence = SequenceService.getOrCreateSequence(
+		this.indexPkSequence = sequenceService.getOrCreateSequence(
 			catalog.getName(), SequenceType.INDEX, entityType, entityHeader.getLastEntityIndexPrimaryKey()
 		);
 		this.catalogAccessor = new AtomicReference<>(catalog);

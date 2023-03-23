@@ -31,7 +31,6 @@ import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -79,7 +78,6 @@ class EvitaSessionServiceWarmupCatalogTest {
 			evitaServer.getExternalApiServer()
 		);
 
-		SequenceService.reset();
 		final List<SealedEntity> entities = new TestDataProvider().generateEntities(evita);
 
 		return new DataCarrier(

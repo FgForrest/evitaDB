@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
@@ -95,7 +94,6 @@ public class TestDataGenerator {
 
 	@Nullable
 	public static List<SealedEntity> generateMainCatalogEntities(@Nonnull Evita evita) {
-		SequenceService.reset();
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema()
 				.openForWrite()
