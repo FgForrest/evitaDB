@@ -24,14 +24,19 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -56,10 +61,16 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	private static final String UPDATE_CATALOG_SCHEMA_PATH = "data.update_catalog_schema";
 	private static final String MY_NEW_COLLECTION_SCHEMA_PATH = "data.get_myNewCollection_schema";
 	private static final String NEW_COLLECTION_NAME = "myNewCollection";
+	public static final String GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE = GRAPHQL_THOUSAND_PRODUCTS + "forCatalogSchemaChange";
 
+	@Override
+	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE, openWebApi = GraphQLProvider.CODE, destroyAfterClass = true)
+	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		return super.setUp(evita, evitaServer);
+	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
 	@DisplayName("Should return error for missing mutations when updating catalog schema")
 	void shouldReturnErrorForMissingMutationsWhenUpdatingCatalogSchema(GraphQLTester tester) {
 		tester.test(TEST_CATALOG)
@@ -79,7 +90,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
 	@DisplayName("Should not update catalog schema when no mutations")
 	void shouldNotUpdateCatalogSchemaWhenNoMutations(GraphQLTester tester) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion(tester);
@@ -112,7 +123,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
 	@DisplayName("Should change description of catalog schema")
 	void shouldChangeDescriptionOfCatalogSchema(GraphQLTester tester) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion(tester);
@@ -153,7 +164,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
 	@DisplayName("Should create new catalog attribute schema")
 	void shouldCreateNewCatalogAttributeSchema(GraphQLTester tester) {
 		final int initialCatalogSchemVersion = getCatalogSchemaVersion(tester);
@@ -284,7 +295,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
 	@DisplayName("Should create and remove new empty entity schema")
 	void shouldCreateAndRemoveNewEmptyEntitySchema(GraphQLTester tester) {
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
@@ -370,7 +381,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
 	@DisplayName("Should create and remove new filled entity schema")
 	void shouldCreateAndRemoveNewFilledEntitySchema(GraphQLTester tester) {
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);
@@ -527,7 +538,7 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
 	@DisplayName("Should rename entity schema")
 	void shouldRenameEntitySchema(GraphQLTester tester) {
 		final int initialCatalogSchemaVersion = getCatalogSchemaVersion(tester);

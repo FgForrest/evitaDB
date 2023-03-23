@@ -24,13 +24,18 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
+import io.evitadb.server.EvitaServer;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -53,10 +58,16 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	private static final String ERRORS_PATH = "errors";
 	private static final String EMPTY_SCHEMA_PATH = "data.get_empty_schema";
 	private static final String UPDATE_EMPTY_SCHEMA_PATH = "data.update_empty_schema";
+	public static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE = GRAPHQL_THOUSAND_PRODUCTS + "forEntitySchemaChange";
 
+	@Override
+	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE, openWebApi = GraphQLProvider.CODE, destroyAfterClass = true)
+	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		return super.setUp(evita, evitaServer);
+	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
 	@DisplayName("Should return error for missing mutations when updating entity schema")
 	void shouldReturnErrorForMissingMutationsWhenUpdatingEntitySchema(GraphQLTester tester) {
 		tester.test(TEST_CATALOG)
@@ -76,7 +87,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
 	@DisplayName("Should not update entity schema when no mutations")
 	void shouldNotUpdateCatalogSchemaWhenNoMutations(GraphQLTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
@@ -109,7 +120,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
 	@DisplayName("Should change entity schema itself")
 	void shouldChangeEntitySchemaItself(GraphQLTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
@@ -184,7 +195,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
 	@DisplayName("Should change attribute schema")
 	void shouldChangeAttributeSchema(GraphQLTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
@@ -369,7 +380,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
 	@DisplayName("Should change associated data schema")
 	void shouldChangeAssociatedDataSchema(GraphQLTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
@@ -535,7 +546,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
 	@DisplayName("Should change reference schema")
 	void shouldChangeReferenceSchema(GraphQLTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
