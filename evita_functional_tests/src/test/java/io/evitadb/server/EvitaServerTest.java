@@ -63,7 +63,7 @@ class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	@Test
 	void shouldStartAndStopServerCorrectly() throws IOException {
 		cleanTestSubDirectory(DIR_EVITA_SERVER_TEST);
-		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile();
+		final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(DIR_EVITA_SERVER_TEST);
 
 		final Set<String> apis = ExternalApiServer.gatherExternalApiProviders()
 			.stream()

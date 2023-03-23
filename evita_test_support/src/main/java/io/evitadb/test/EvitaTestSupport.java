@@ -24,6 +24,7 @@
 package io.evitadb.test;
 
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.Assert;
 import org.apache.commons.io.FileUtils;
 
 import javax.annotation.Nonnull;
@@ -61,9 +62,13 @@ public interface EvitaTestSupport extends TestConstants {
 	 * @return path of the exported configuration file
 	 */
 	@Nonnull
-	static Path bootstrapEvitaServerConfigurationFile() {
-		final Path configFilePath = Path.of(System.getProperty("java.io.tmpdir") + File.separator + DEFAULT_EVITA_CONFIGURATION_FILE);
-		//TODO JNO: fix that "/", since File.separator does not work on Windows in this case
+	static Path bootstrapEvitaServerConfigurationFile(@Nonnull String folderName) {
+		final Path dir = Path.of(System.getProperty("java.io.tmpdir"))
+			.resolve(folderName);
+		if (!dir.toFile().exists()) {
+			Assert.isTrue(dir.toFile().mkdirs(), "Cannot set up folder: " + dir);
+		}
+		final Path configFilePath = dir.resolve(DEFAULT_EVITA_CONFIGURATION_FILE);
 		try (final InputStream sourceIs = TestConstants.class.getResourceAsStream("/" + DEFAULT_EVITA_CONFIGURATION_FILE)) {
 			Files.copy(
 				Objects.requireNonNull(sourceIs),

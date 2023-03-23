@@ -23,6 +23,7 @@
 
 package io.evitadb.server;
 
+import ch.qos.logback.classic.util.ContextInitializer;
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.ContextBase;
 import ch.qos.logback.core.spi.ContextAwareBase;
@@ -135,6 +136,9 @@ public class EvitaServer {
 		// somehow the -D arguments are not propagated to system properties, so we need to do it manually
 		for (Entry<String, String> argEntry : options.entrySet()) {
 			System.setProperty(argEntry.getKey(), argEntry.getValue());
+		}
+		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
+			System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
 		}
 		// and then initialize logger so that `logback.configurationFile` argument might apply
 		log = LoggerFactory.getLogger(EvitaServer.class);

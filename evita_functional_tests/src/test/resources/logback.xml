@@ -46,9 +46,25 @@
 		</encoder>
 	</appender>
 
+	<appender name="FILE" class="ch.qos.logback.core.FileAppender">
+		<file>/tmp/testFile.log</file>
+		<append>true</append>
+		<!-- set immediateFlush to false for much higher logging throughput -->
+		<immediateFlush>true</immediateFlush>
+		<!-- encoders are assigned the type
+			 ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
+		<encoder>
+			<pattern>%-4relative [%thread] %-5level %logger{35} -%kvp- %msg%n</pattern>
+		</encoder>
+	</appender>
+
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />
 		<appender-ref ref="STDERR" />
 	</root>
+
+	<logger name="io.evitadb.test.extension" level="INFO">
+		<appender-ref ref="FILE" />
+	</logger>
 
 </configuration>

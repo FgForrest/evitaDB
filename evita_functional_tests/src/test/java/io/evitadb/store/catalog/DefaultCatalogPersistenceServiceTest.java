@@ -198,8 +198,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		assertThrows(
 			UnexpectedCatalogContentsException.class,
 			() -> {
-				final Path catalogPath = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST).resolve(TEST_CATALOG);
-				final Path renamedCatalogPath = getTestDirectory().resolve(RENAMED_CATALOG);
+				final Path dataDirectory = getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST);
+				final Path catalogPath = dataDirectory.resolve(TEST_CATALOG);
+				final Path renamedCatalogPath = dataDirectory.resolve(RENAMED_CATALOG);
 				assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogHeaderFileName(TEST_CATALOG)).toFile()
 					.renameTo(catalogPath.resolve(CatalogPersistenceService.getCatalogHeaderFileName(RENAMED_CATALOG)).toFile()));
 				assertTrue(catalogPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(TEST_CATALOG)).toFile()

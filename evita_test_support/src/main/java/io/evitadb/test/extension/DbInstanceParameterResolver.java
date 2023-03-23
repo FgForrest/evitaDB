@@ -66,6 +66,8 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -119,11 +121,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 							new CatalogInitMethod(declaredMethod, it.expectedCatalogState()),
 							new LinkedList<>(),
 							it.openWebApi(),
-							false,
-							it.destroyAfterClass(),
-							null,
-							null,
-							null
+							it.destroyAfterClass()
 						)
 					);
 				});
@@ -132,7 +130,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					declaredMethod.setAccessible(true);
 					final DataSetInfo dataSetInfo = dataSetsInThisClass.get(it.value());
 					Assert.notNull(dataSetInfo, "There is no set up method for dataset `" + it.value() + "` in this class!");
-					dataSetInfo.destroyMethods().add(new CatalogDestroyMethod(declaredMethod, null));
+					dataSetInfo.destroyMethods().add(declaredMethod);
 				});
 		}
 
@@ -297,82 +295,29 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	}
 
 	/**
-	 * Destroys the data set and closes the evitaDB server.
-	 */
-	private static void destroyEvitaInstanceIfPresent(
-		@Nonnull String dataSetName,
-		@Nonnull DataSetInfo dataSetInfo,
-		@Nonnull PortManager portManager
-	) {
-		// call destroy methods
-		for (CatalogDestroyMethod destroyMethod : dataSetInfo.destroyMethods()) {
-			try {
-				final Object testClassInstance = destroyMethod.testInstance();
-				Assert.notNull(testClassInstance, "Test instance was not initialized!");
-				final Method theMethod = destroyMethod.method();
-				final HashMap<String, Object> availableParameters = createLinkedHashMap(
-					property("evita", dataSetInfo.evitaInstance()),
-					property("catalogName", dataSetInfo.catalogName())
-				);
-				for (Entry<String, Object> entry : dataSetInfo.dataCarrier().entrySet()) {
-					availableParameters.put(entry.getKey(), entry.getValue());
-				}
-				final Object[] arguments = placeArguments(
-					theMethod,
-					availableParameters
-				);
-				theMethod.invoke(testClassInstance, arguments);
-			} catch (InvocationTargetException | IllegalAccessException e) {
-				throw new ParameterResolutionException("Failed to tear down data set " + dataSetName, e);
-			}
-		}
-
-		// close evita and clear data
-		dataSetInfo.evitaInstance().close();
-
-		// close the server instance and free ports
-		ofNullable(dataSetInfo.evitaServerInstance())
-			.ifPresent(it -> {
-				it.stop();
-				portManager.releasePorts(dataSetName);
-			});
-
-		// close all closeable elements in data carrier
-		if (dataSetInfo.dataCarrier() != null) {
-			for (Entry<String, Object> entry : dataSetInfo.dataCarrier().entrySet()) {
-				if (entry.getValue() instanceof Closeable closeable) {
-					try {
-						closeable.close();
-					} catch (IOException e) {
-						log.error("Failed to close `" + entry.getKey() + "` at the data set finalization!", e);
-					}
-				}
-			}
-		}
-	}
-
-	/**
 	 * Retrieves dataset index from store.
 	 */
 	@Nonnull
 	private static Map<String, DataSetInfo> getDataSetIndex(@Nonnull ExtensionContext context) {
 		final Store store = context.getRoot().getStore(Namespace.GLOBAL);
-		//noinspection unchecked
-		return ofNullable((Map<String, DataSetInfo>) store.get(EVITA_DATA_SET_INDEX))
-			.orElseGet(() -> {
-				final Map<String, DataSetInfo> newDataSets = new ConcurrentHashMap<>(32);
-				store.put(EVITA_DATA_SET_INDEX, newDataSets);
+		synchronized (store) {
+			//noinspection unchecked
+			return ofNullable((Map<String, DataSetInfo>) store.get(EVITA_DATA_SET_INDEX))
+				.orElseGet(() -> {
+					final Map<String, DataSetInfo> newDataSets = new ConcurrentHashMap<>(32);
+					store.put(EVITA_DATA_SET_INDEX, newDataSets);
 
-				if (STORAGE_PATH.toFile().exists()) {
-					try {
-						FileUtils.deleteDirectory(STORAGE_PATH.toFile());
-					} catch (IOException e) {
-						fail("Failed to empty directory: " + STORAGE_PATH, e);
+					if (STORAGE_PATH.toFile().exists()) {
+						try {
+							FileUtils.deleteDirectory(STORAGE_PATH.toFile());
+						} catch (IOException e) {
+							fail("Failed to empty directory: " + STORAGE_PATH, e);
+						}
 					}
-				}
-				Assert.isTrue(STORAGE_PATH.toFile().mkdirs(), "Fail to create directory: " + STORAGE_PATH);
-				return newDataSets;
-			});
+					Assert.isTrue(STORAGE_PATH.toFile().mkdirs(), "Fail to create directory: " + STORAGE_PATH);
+					return newDataSets;
+				});
+		}
 	}
 
 	/**
@@ -413,13 +358,26 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	@Override
 	public void afterAll(ExtensionContext context) {
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
+		for (Entry<String, DataSetInfo> entry : dataSetIndex.entrySet()) {
+			final DataSetInfo dataSetInfo = entry.getValue();
+			if (dataSetInfo.destroyAfterClass()) {
+				dataSetInfo.destroy(entry.getKey(), dataSetInfo, getPortManager());
+			}
+		}
+	}
+
+	@Override
+	public void afterEach(ExtensionContext context) {
+		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		final Iterator<Entry<String, DataSetInfo>> it = dataSetIndex.entrySet().iterator();
 		while (it.hasNext()) {
 			final Entry<String, DataSetInfo> entry = it.next();
 			final DataSetInfo dataSetInfo = entry.getValue();
-			if (dataSetInfo.destroyAfterClass() && dataSetInfo.evitaInstance() != null) {
-				destroyEvitaInstanceIfPresent(entry.getKey(), dataSetInfo, getPortManager());
-				it.remove();
+			if (dataSetInfo.destroyAfterMethod()) {
+				dataSetInfo.destroy(entry.getKey(), dataSetInfo, getPortManager());
+				if (entry.getKey().startsWith(EVITA_ANONYMOUS_EVITA)) {
+					it.remove();
+				}
 			}
 		}
 	}
@@ -478,37 +436,6 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		}
 	}
 
-	@Override
-	public void afterEach(ExtensionContext context) {
-		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
-		final Iterator<Entry<String, DataSetInfo>> it = dataSetIndex.entrySet().iterator();
-		while (it.hasNext()) {
-			final Entry<String, DataSetInfo> entry = it.next();
-			final DataSetInfo dataSetInfo = entry.getValue();
-			if (dataSetInfo.destroyAfterMethod() && dataSetInfo.evitaInstance() != null) {
-				destroyEvitaInstanceIfPresent(entry.getKey(), dataSetInfo, getPortManager());
-				if (EVITA_ANONYMOUS_EVITA.equals(entry.getKey())) {
-					it.remove();
-				} else {
-					entry.setValue(
-						new DataSetInfo(
-							dataSetInfo.catalogName(),
-							Long.toHexString(RANDOM.nextLong()),
-							dataSetInfo.initMethod(),
-							dataSetInfo.destroyMethods(),
-							dataSetInfo.webApi(),
-							dataSetInfo.destroyAfterMethod(),
-							dataSetInfo.destroyAfterClass(),
-							null,
-							null,
-							null
-						)
-					);
-				}
-			}
-		}
-	}
-
 	@Nonnull
 	public DataSetInfo getInitializedDataSetInfo(@Nullable UseDataSet useDataSet, @Nonnull Map<String, DataSetInfo> dataSetIndex, @Nonnull ExtensionContext extensionContext) {
 		if (useDataSet == null) {
@@ -526,14 +453,19 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					null,
 					Collections.emptyList(),
 					new String[0],
-					true,
 					false,
-					evita,
-					null,
-					null
+					new AtomicReference<>(
+						new DataSetState(
+							extensionContext.getRequiredTestInstance(),
+							evita,
+							null,
+							null,
+							true
+						)
+					)
 				);
 				dataSetIndex.put(
-					EVITA_ANONYMOUS_EVITA,
+					EVITA_ANONYMOUS_EVITA + "_" + dataSetInfo.randomFolderName(),
 					dataSetInfo
 				);
 				return dataSetInfo;
@@ -546,75 +478,70 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			if (dataSetInfo == null) {
 				throw new ParameterResolutionException("Requested data set " + dataSetToUse + " has no initialization method within the class (Method with @DataSet annotation)!");
 			}
-			//noinspection resource
-			if (dataSetInfo.evitaInstance() == null) {
-				final Evita evita;
-				final EvitaServer evitaServer;
-				if (ArrayUtils.isEmpty(dataSetInfo.webApi())) {
-					evitaServer = null;
-					evita = createEvita(dataSetInfo.catalogName(), dataSetInfo.randomFolderName());
-				} else {
-					evitaServer = openWebApi(dataSetToUse, dataSetInfo, getPortManager());
-					evita = evitaServer.getEvita();
-				}
-				// call method that initializes the dataset
-				final Object testClassInstance = extensionContext.getRequiredTestInstance();
-				final Object methodResult;
-				try {
-					final Method initMethod = dataSetInfo.initMethod().method();
-					final Object[] arguments = placeArguments(
-						initMethod,
-						createLinkedHashMap(
-							property("evita", evita),
-							property("evitaServer", evitaServer),
-							property("catalogName", dataSetInfo.catalogName())
-						)
+			synchronized (dataSetInfo) {
+				//noinspection resource
+				if (dataSetInfo.evitaInstance() == null) {
+					// fill in the reference to the test instance, that is known only now
+					dataSetInfo.init(
+						() -> {
+							log.info(Thread.currentThread().getName() + ": start `" + dataSetToUse + "` initialization (`" + dataSetInfo.randomFolderName() + "`)");
+							final Evita evita;
+							final EvitaServer evitaServer;
+							if (ArrayUtils.isEmpty(dataSetInfo.webApi())) {
+								evitaServer = null;
+								evita = createEvita(dataSetInfo.catalogName(), dataSetInfo.randomFolderName());
+							} else {
+								evitaServer = openWebApi(dataSetToUse, dataSetInfo, getPortManager());
+								evita = evitaServer.getEvita();
+							}
+							// call method that initializes the dataset
+							final Object testClassInstance = extensionContext.getRequiredTestInstance();
+							final Object methodResult;
+							try {
+								final Method initMethod = dataSetInfo.initMethod().method();
+								final Object[] arguments = placeArguments(
+									initMethod,
+									createLinkedHashMap(
+										property("evita", evita),
+										property("evitaServer", evitaServer),
+										property("catalogName", dataSetInfo.catalogName())
+									)
+								);
+								if (arguments == null) {
+									throw new ParameterResolutionException("Data set init method may have only these arguments: evita instance, catalog name, evita server instance. Failed to init " + dataSetToUse + ".");
+								} else {
+									methodResult = initMethod.invoke(testClassInstance, arguments);
+								}
+							} catch (InvocationTargetException | IllegalAccessException e) {
+								throw new ParameterResolutionException("Failed to set up data set " + dataSetToUse, e);
+							}
+
+							final DataCarrier dataCarrier;
+							if (methodResult != null) {
+								dataCarrier = methodResult instanceof DataCarrier dc ? dc : new DataCarrier(methodResult);
+							} else {
+								dataCarrier = null;
+							}
+
+							// switch to alive state if required
+							if (dataSetInfo.initMethod().expectedState() == CatalogState.ALIVE) {
+								evita.updateCatalog(dataSetInfo.catalogName(), evitaSessionBase -> {
+									evitaSessionBase.goLiveAndClose();
+								});
+							}
+							log.info(Thread.currentThread().getName() + ": end `" + dataSetToUse + "` initialization");
+
+							return new DataSetState(
+								extensionContext.getRequiredTestInstance(),
+								evita, evitaServer, dataCarrier,
+								useDataSet.destroyAfterTest()
+							);
+						}
 					);
-					if (arguments == null) {
-						throw new ParameterResolutionException("Data set init method may have only these arguments: evita instance, catalog name, evita server instance. Failed to init " + dataSetToUse + ".");
-					} else {
-						methodResult = initMethod.invoke(testClassInstance, arguments);
-					}
-				} catch (InvocationTargetException | IllegalAccessException e) {
-					throw new ParameterResolutionException("Failed to set up data set " + dataSetToUse, e);
-				}
-
-				final DataCarrier dataCarrier;
-				if (methodResult != null) {
-					dataCarrier = methodResult instanceof DataCarrier dc ? dc : new DataCarrier(methodResult);
+					return dataSetInfo;
 				} else {
-					dataCarrier = null;
+					return dataSetInfo;
 				}
-
-				// fill in the reference to the test instance, that is known only now
-				final DataSetInfo initializedDataSetInfo = new DataSetInfo(
-					dataSetInfo.catalogName(),
-					dataSetInfo.randomFolderName(),
-					dataSetInfo.initMethod(),
-					dataSetInfo.destroyMethods()
-						.stream()
-						.map(it -> new CatalogDestroyMethod(it.method(), testClassInstance))
-						.toList(),
-					dataSetInfo.webApi(),
-					useDataSet.destroyAfterTest(),
-					dataSetInfo.destroyAfterClass(),
-					evita,
-					evitaServer,
-					dataCarrier
-				);
-				dataSetIndex.put(
-					dataSetToUse,
-					initializedDataSetInfo
-				);
-				// switch to alive state if required
-				if (dataSetInfo.initMethod().expectedState() == CatalogState.ALIVE) {
-					evita.updateCatalog(dataSetInfo.catalogName(), evitaSessionBase -> {
-						evitaSessionBase.goLiveAndClose();
-					});
-				}
-				return initializedDataSetInfo;
-			} else {
-				return dataSetInfo;
 			}
 		}
 	}
@@ -631,7 +558,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				.toArray(String[]::new);
 			if (ArrayUtils.isEmpty(unknownApis)) {
 				final int[] ports = portManager.allocatePorts(datasetName, requestedApis.size());
-				final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile();
+				final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(dataSetInfo.randomFolderName());
 				final Map<String, String> configurationOverride = createHashMap(
 					property(
 						"storage.storageDirectory",
@@ -668,20 +595,142 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		@Nonnull String catalogName,
 		@Nonnull String randomFolderName,
 		@Nullable CatalogInitMethod initMethod,
-		@Nonnull List<CatalogDestroyMethod> destroyMethods,
+		@Nonnull List<Method> destroyMethods,
 		@Nonnull String[] webApi,
-		boolean destroyAfterMethod,
 		boolean destroyAfterClass,
-		@Nullable Evita evitaInstance,
-		@Nullable EvitaServer evitaServerInstance,
-		@Nullable DataCarrier dataCarrier
+		AtomicReference<DataSetState> dataSetInfoAtomicReference
 	) {
+
+		private DataSetInfo(@Nonnull String catalogName, @Nonnull String randomFolderName, @Nullable CatalogInitMethod initMethod, @Nonnull List<Method> destroyMethods, @Nonnull String[] webApi, boolean destroyAfterClass, AtomicReference<DataSetState> dataSetInfoAtomicReference) {
+			this.catalogName = catalogName;
+			this.randomFolderName = randomFolderName;
+			this.initMethod = initMethod;
+			this.destroyMethods = destroyMethods;
+			this.webApi = webApi;
+			this.destroyAfterClass = destroyAfterClass;
+			this.dataSetInfoAtomicReference = dataSetInfoAtomicReference;
+		}
+
+		public DataSetInfo(@Nonnull String catalogName, @Nonnull String randomFolderName, @Nullable CatalogInitMethod initMethod, @Nonnull List<Method> destroyMethods, @Nonnull String[] webApi, boolean destroyAfterClass) {
+			this(catalogName, randomFolderName, initMethod, destroyMethods, webApi, destroyAfterClass, new AtomicReference<>());
+		}
+
+		public Evita evitaInstance() {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::evitaInstance)
+				.orElse(null);
+		}
+
+		public EvitaServer evitaServerInstance() {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::evitaServerInstance)
+				.orElse(null);
+		}
+
+		public DataCarrier dataCarrier() {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::dataCarrier)
+				.orElse(null);
+		}
+
+		public boolean destroyAfterMethod() {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::destroyAfterMethod)
+				.orElse(false);
+		}
+
+		public void init(@Nonnull Supplier<DataSetState> stateCreator) {
+			final DataSetState previousState = this.dataSetInfoAtomicReference.compareAndExchange(
+				null,
+				stateCreator.get()
+			);
+			if (previousState != null) {
+				throw new IllegalStateException("Previous state should be null!");
+			}
+		}
+
+		public void destroy(
+			@Nonnull String dataSetName,
+			@Nonnull DataSetInfo dataSetInfo,
+			@Nonnull PortManager portManager
+		) {
+			final DataSetState state = this.dataSetInfoAtomicReference.getAndSet(null);
+			ofNullable(state).ifPresent(it -> it.destroy(dataSetName, dataSetInfo, portManager));
+		}
 	}
 
 	private record CatalogInitMethod(@Nonnull Method method, @Nonnull CatalogState expectedState) {
 	}
 
-	private record CatalogDestroyMethod(@Nonnull Method method, @Nullable Object testInstance) {
+	private record DataSetState(
+		@Nonnull Object testInstance,
+		@Nullable Evita evitaInstance,
+		@Nullable EvitaServer evitaServerInstance,
+		@Nullable DataCarrier dataCarrier,
+		boolean destroyAfterMethod
+	) {
+
+		/**
+		 * Destroys the data set and closes the evitaDB server.
+		 */
+		public void destroy(
+			@Nonnull String dataSetName,
+			@Nonnull DataSetInfo dataSetInfo,
+			@Nonnull PortManager portManager
+		) {
+			// call destroy methods
+			for (Method destroyMethod : dataSetInfo.destroyMethods()) {
+				try {
+					final HashMap<String, Object> availableParameters = createLinkedHashMap(
+						property("evita", evitaInstance),
+						property("evitaServer", evitaServerInstance),
+						property("catalogName", dataSetInfo.catalogName())
+					);
+					for (Entry<String, Object> entry : dataCarrier.entrySet()) {
+						availableParameters.put(entry.getKey(), entry.getValue());
+					}
+					final Object[] arguments = placeArguments(
+						destroyMethod,
+						availableParameters
+					);
+					destroyMethod.invoke(testInstance, arguments);
+				} catch (InvocationTargetException | IllegalAccessException e) {
+					throw new ParameterResolutionException("Failed to tear down data set " + dataSetName, e);
+				}
+			}
+
+			// close evita and clear data
+			evitaInstance.close();
+
+			// close the server instance and free ports
+			ofNullable(evitaServerInstance)
+				.ifPresent(it -> {
+					it.stop();
+					portManager.releasePorts(dataSetName);
+				});
+
+			// close all closeable elements in data carrier
+			if (dataCarrier != null) {
+				for (Entry<String, Object> entry : dataCarrier.entrySet()) {
+					if (entry.getValue() instanceof Closeable closeable) {
+						try {
+							closeable.close();
+						} catch (IOException e) {
+							log.error("Failed to close `" + entry.getKey() + "` at the data set finalization!", e);
+						}
+					}
+				}
+			}
+
+			// delete the directory
+			final Path evitaDataPath = STORAGE_PATH.resolve(dataSetInfo.randomFolderName());
+			try {
+				FileUtils.deleteDirectory(evitaDataPath.toFile());
+			} catch (IOException e) {
+				fail("Failed to empty directory: " + evitaDataPath, e);
+			}
+		}
+
 	}
 
 }

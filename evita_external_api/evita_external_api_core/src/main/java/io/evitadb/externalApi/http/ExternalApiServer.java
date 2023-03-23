@@ -109,6 +109,8 @@ public class ExternalApiServer implements AutoCloseable {
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
 
+	private final Object monitor = new Object();
+
 	/**
 	 * Finds all implementations of {@link ExternalApiProviderRegistrar} using {@link ServiceLoader} from the classpath.
 	 */

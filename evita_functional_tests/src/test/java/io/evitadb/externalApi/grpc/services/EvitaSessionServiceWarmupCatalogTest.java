@@ -41,6 +41,7 @@ import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionI
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
+import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -71,7 +72,7 @@ import static org.wildfly.common.Assert.assertTrue;
 class EvitaSessionServiceWarmupCatalogTest {
 	private static final String GRPC_THOUSAND_PRODUCTS_WARM_UP = "GrpcThousandProductsInWarmUpState";
 
-	@DataSet(value = GRPC_THOUSAND_PRODUCTS_WARM_UP, expectedCatalogState = CatalogState.WARMING_UP, openWebApi = GrpcProvider.CODE, destroyAfterClass = true)
+	@DataSet(value = GRPC_THOUSAND_PRODUCTS_WARM_UP, expectedCatalogState = CatalogState.WARMING_UP, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		final ManagedChannel channel = TestChannelCreator.getChannel(
 			new ClientSessionInterceptor(),
