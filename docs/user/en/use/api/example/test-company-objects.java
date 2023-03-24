@@ -7,7 +7,8 @@ public class PrefilledDataSetAndCustomDataTest implements EvitaTestSupport {
 	DataCarrier setUpData(EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_BRAND);
 		final String testBrandName = "Siemens";
-		final EntityReference brandReference = session.createNewEntity(ENTITY_BRAND)
+		final EntityReference brandReference = session
+			.createNewEntity(ENTITY_BRAND)
 			.setAttribute(
 				"name", Locale.ENGLISH, testBrandName
 			)
@@ -25,7 +26,11 @@ public class PrefilledDataSetAndCustomDataTest implements EvitaTestSupport {
 
 	@Test
 	@UseDataSet(DATA_SET_WITH_A_FEW_DATA)
-	void shouldWriteTest(EvitaSessionContract session, SealedEntity brand, String expectedBrandName) {
+	void shouldWriteTest(
+		EvitaSessionContract session,
+		SealedEntity brand,
+		String expectedBrandName
+	) {
 		assertEquals(1, session.getEntityCollectionSize(ENTITY_BRAND));
 
 		final SealedEntity theBrand = session.getEntity(
