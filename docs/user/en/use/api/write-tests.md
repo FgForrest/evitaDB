@@ -66,7 +66,7 @@ annotations <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annota
 and <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annotation/UseDataSet.java</SourceClass>:
 
 <SourceCodeTabs>
-[Named and filled dataset test example](evita_functional_tests/src/test/java/io/evitadb/test/PrefilledDataSetTest.java)
+[Named and filled dataset test example](docs/user/en/use/api/example/test-with-prefilled-dataset.java)
 </SourceCodeTabs>
 
 As you can see in the example, the `setUpData` method declares that it will initialize a data set named 
@@ -106,6 +106,8 @@ and talk to the *embedded evitaDB* over the wire.
 
 ### Init shared data objects
 
+
+
 ### Test isolation
 
 The data set support allows to run multiple isolated evitaDB instances in parallel - completely isolated one from 
@@ -131,7 +133,29 @@ been used successfully for a long time in
 
 ### Annotations reference
 
+All methods annotated with the evitaDB test annotations can declare the following arguments, which will be "autowired" 
+by our test support:
+
+<dl>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass></dt>
+    <dd>A reference to active instance of the evitaDB instance.</dd>
+    <dt>`String` catalogName</dt>
+    <dd>Name of the initial catalog inside evitaDB instance.</dd>    
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></dt>
+    <dd>A reference to an open read-write evitaDB session. The session is marked as dry-only in the test method where 
+    the `@UseDataSet' annotation is used.</dd>
+    <dt><SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass></dt>
+    <dd>A reference to active instance of the evitaDB "web" server instance.</dd>
+</dl>
+
+In methods annotated with `@UseDataSet` or `@OnDataSetTearDown` (other than the initialization method), you can also use
+any [shared objects](#init-shared-data-objects) initialized and returned by a method annotated with the `@DataSet` 
+annotation.
+
 #### @DataSet
+
+Annotation is expected to be placed on non-test method that prepares new evitaDB instance with a sample dataset to be
+used in tests. It's an analogy to the JUnit `@BeforeEach` method.
 
 <dl>
     <dt>`value`</dt>
@@ -153,7 +177,7 @@ been used successfully for a long time in
         <p>**Default:** `none`</p>
         <p>Specifies a set of web APIs to open for this dataset. Valid values are:</p>
         <ul>
-            <li>`gRPC` (`GrpcProvider.CODE`) - for gRPC web API (the system API must be opened as well)</li>
+            <li>`gRPC` (`GrpcProvider.CODE`) - for gRPC web API (requires the system API)</li>
             <li>`system` (`SystemProvider.CODE`) - system API that provides access to the certificates</li>
             <li>`rest` (`RestProvider.CODE`) - for REST web API</li>
             <li>`graphQL` (`GraphQLProvider.CODE`) - for GraphQL web API</li>
@@ -185,9 +209,41 @@ been used successfully for a long time in
 </dl>
 
 #### @UseDataSet
+
+Annotation is expected to be places on `@Test` method or an argument of this method. It connects the argument / method
+with the data set initialized by the [`@DataSet`](#dataset) method.
+
+<dl>
+    <dt>`value`</dt>
+    <dd>Defines name of the dataset.</dd>
+    <dt>`destroyAfterTest`</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>If set to true, the evitaDB server instance will be closed and deleted after this test method finishes.</p>
+        <p>It's better to share a single dataset between multiple test methods, but if you know you're going to damage 
+        the dataset significantly by writing to it within the test method, it's better to discard it completely and let 
+        the system prepare a new one.</p>
+    </dd>
+</dl>
+
+Besides the standard [autowired arguments](#annotations-reference) you can also inject 
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass> 
+to any of the defined arguments. The client will open a gRPC connection to the web API of 
+<SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating 
+with the server over the network even if the server is running locally as an embedded database.
+
 #### @OnDataSetTearDown
 
-[Dry-run session](write-data.md#dry-run-session)
+Annotation is expected to be placed on non-test method that is destroyed before new evitaDB instance is created. It's
+an analogy to the JUnit `@AfterEach` method. Usually you don't need to do anything, since we take care of proper closing
+of all things related to evitaDB, and we also call `close` method on all [shared objects](#init-shared-data-objects) 
+that implement Java's `AutoCloseable` interface. But sometimes you'd need a special cleanup procedure, and you might 
+appreciate this destroy callback support.
+
+<dl>
+    <dt>`value`</dt>
+    <dd>Defines name of the dataset.</dd>
+</dl>
 
 </LanguageSpecific>
 
