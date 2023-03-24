@@ -114,7 +114,7 @@ can actually be used to query data (which also changes based on context of neste
 the internal data. This helps with the self-documentation because you don't necessarily need to know about 
 the domain model, since most of GraphQL IDEs will auto-complete the available constraints from the GraphQL API schema.
 
-<Include>docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md</Include>
+<Include><a href="docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md">Syntax of query and constraints</a></Include>
 
 ## Recommended usage
 
