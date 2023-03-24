@@ -24,6 +24,7 @@
 package io.evitadb.test;
 
 import io.evitadb.utils.CollectionUtils;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
@@ -40,6 +41,8 @@ public class PortManager {
 	private final Object monitor = new Object();
 	private final Map<String, int[]> portAllocationTable = CollectionUtils.createHashMap(64);
 	private final Set<Integer> allocatedPorts = CollectionUtils.createLinkedHashSet(64);
+	@Getter private int counter;
+	@Getter private int peak;
 
 	/**
 	 * Allocates new set of port for particular `dataSetName`.
@@ -47,6 +50,9 @@ public class PortManager {
 	@Nonnull
 	public int[] allocatePorts(@Nonnull String dataSetName, int count) {
 		synchronized (monitor) {
+			this.counter += count;
+			this.peak = Math.max(this.peak, this.allocatedPorts.size());
+
 			final int[] ports = new int[count];
 			int index = 0;
 			int port = 5555;

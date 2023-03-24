@@ -78,7 +78,7 @@ class EvitaSessionServiceWarmupCatalogTest {
 			evitaServer.getExternalApiServer()
 		);
 
-		final List<SealedEntity> entities = new TestDataProvider().generateEntities(evita);
+		final List<SealedEntity> entities = new TestDataProvider().generateEntities(evita, 10);
 
 		return new DataCarrier(
 			"entities", entities,

@@ -52,22 +52,35 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
+import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
+import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
+import io.evitadb.externalApi.system.SystemProvider;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.evitadb.utils.CollectionUtils;
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.opentest4j.AssertionFailedError;
 
@@ -96,9 +109,31 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("EvitaSessionService gRPC functional test")
+@ExtendWith(DbInstanceParameterResolver.class)
 @Tag(FUNCTIONAL_TEST)
 @Slf4j
-class EvitaSessionServiceFunctionalTest extends EvitaGrpcAbstractTest {
+class EvitaSessionServiceFunctionalTest {
+	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaSessionServiceFunctionalTest";
+
+	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
+	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		final ManagedChannel channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
+		final List<SealedEntity> entities = new TestDataProvider().generateEntities(evita, 1000);
+		return new DataCarrier(
+			"entities", entities,
+			"channel", channel
+		);
+	}
+
+	@AfterEach
+	public void afterEach() {
+		SessionIdHolder.reset();
+	}
+
+	@OnDataSetTearDown(GRPC_THOUSAND_PRODUCTS)
+	void onDataSetTearDown(ManagedChannel channel) {
+		channel.shutdown();
+	}
 
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)

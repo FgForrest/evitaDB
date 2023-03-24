@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.grpc.services;
 
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityRequest;
@@ -31,15 +33,24 @@ import io.evitadb.externalApi.grpc.generated.GrpcEntityResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
+import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
+import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
+import io.evitadb.externalApi.system.SystemProvider;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -53,9 +64,27 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("Evita gRPC integration test")
+@ExtendWith(DbInstanceParameterResolver.class)
 @Tag(INTEGRATION_TEST)
 @Slf4j
-public class EvitaGrpcIntegrationTest extends EvitaGrpcAbstractTest {
+public class EvitaGrpcIntegrationTest {
+	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaGrpcIntegrationTest";
+
+	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
+	ManagedChannel setUp(Evita evita, EvitaServer evitaServer) {
+		new TestDataProvider().generateEntities(evita, 1);
+		return TestChannelCreator.getChannel(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
+	}
+
+	@AfterEach
+	public void afterEach() {
+		SessionIdHolder.reset();
+	}
+
+	@OnDataSetTearDown(GRPC_THOUSAND_PRODUCTS)
+	void onDataSetTearDown(ManagedChannel channel) {
+		channel.shutdown();
+	}
 
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)

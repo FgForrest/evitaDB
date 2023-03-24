@@ -24,6 +24,7 @@
 package io.evitadb.test.extension;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
@@ -74,11 +75,13 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static io.evitadb.utils.CollectionUtils.property;
@@ -105,6 +108,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Slf4j
 public class DbInstanceParameterResolver implements ParameterResolver, BeforeAllCallback, AfterAllCallback, AfterEachCallback, EvitaTestSupport {
 	protected static final Path STORAGE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita");
+	protected final static AtomicInteger CREATED_EVITA_ENTITIES = new AtomicInteger();
+	protected final static AtomicInteger CREATED_EVITA_INSTANCES = new AtomicInteger();
+	protected final static AtomicInteger PEAK_EVITA_INSTANCES = new AtomicInteger();
 	private static final Map<String, ExternalApiProviderRegistrar> AVAILABLE_PROVIDERS = ExternalApiServer.gatherExternalApiProviders()
 		.stream()
 		.collect(Collectors.toMap(
@@ -308,22 +314,12 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	@Nonnull
 	private static Map<String, DataSetInfo> getDataSetIndex(@Nonnull ExtensionContext context) {
 		final Store store = context.getRoot().getStore(Namespace.GLOBAL);
-		synchronized (store) {
+		synchronized (RANDOM) {
 			//noinspection unchecked
 			return ofNullable((Map<String, DataSetInfo>) store.get(EVITA_DATA_SET_INDEX))
 				.orElseGet(() -> {
 					final Map<String, DataSetInfo> newDataSets = new ConcurrentHashMap<>(32);
 					store.put(EVITA_DATA_SET_INDEX, newDataSets);
-
-					if (STORAGE_PATH.toFile().exists()) {
-						try {
-							FileUtils.cleanDirectory(STORAGE_PATH.toFile());
-						} catch (IOException e) {
-							fail("Failed to empty directory: " + STORAGE_PATH, e);
-						}
-					} else {
-						Assert.isTrue(STORAGE_PATH.toFile().mkdirs(), "Fail to create directory: " + STORAGE_PATH);
-					}
 					return newDataSets;
 				});
 		}
@@ -542,6 +538,8 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					EVITA_ANONYMOUS_EVITA + "_" + randomFolderName,
 					dataSetInfo
 				);
+				CREATED_EVITA_INSTANCES.incrementAndGet();
+				PEAK_EVITA_INSTANCES.set((int) Math.max(PEAK_EVITA_INSTANCES.get(), dataSetIndex.values().stream().filter(it -> it.evitaInstance() != null).count()));
 				return dataSetInfo;
 			} else {
 				return alreadyExistingAnonymousInstance;
@@ -626,6 +624,22 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 							);
 						}
 					);
+
+					CREATED_EVITA_INSTANCES.incrementAndGet();
+					PEAK_EVITA_INSTANCES.set((int) Math.max(PEAK_EVITA_INSTANCES.get(), dataSetIndex.values().stream().filter(it -> it.evitaInstance() != null).count() + 1));
+					CREATED_EVITA_ENTITIES.addAndGet(
+						dataSetInfo.evitaInstance()
+							.getCatalogs()
+							.stream()
+							.flatMapToInt(
+								it -> it.getEntityTypes()
+									.stream()
+									.map(it::getCollectionForEntityOrThrowException)
+									.mapToInt(EntityCollectionContract::size)
+							)
+							.sum()
+					);
+
 					return dataSetInfo;
 				} else {
 					return dataSetInfo;
@@ -785,6 +799,10 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					for (Entry<String, Object> entry : dataCarrier.entrySet()) {
 						availableParameters.put(entry.getKey(), entry.getValue());
 					}
+					int counter = 0;
+					for (Object anonymousValue : dataCarrier.anonymousValues()) {
+						availableParameters.put("__anonymousValue_" + counter++, anonymousValue);
+					}
 					final Object[] arguments = placeArguments(
 						destroyMethod,
 						availableParameters
@@ -810,15 +828,18 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 
 			// close all closeable elements in data carrier
 			if (dataCarrier != null) {
-				for (Entry<String, Object> entry : dataCarrier.entrySet()) {
-					if (entry.getValue() instanceof Closeable closeable) {
+				Stream.concat(
+					dataCarrier.entrySet().stream().filter(Objects::nonNull).map(Entry::getValue),
+					dataCarrier.anonymousValues().stream()
+				)
+					.filter(it -> it instanceof Closeable)
+					.forEach(it -> {
 						try {
-							closeable.close();
+							((Closeable)it).close();
 						} catch (IOException e) {
-							log.error("Failed to close `" + entry.getKey() + "` at the data set finalization!", e);
+							log.error("Failed to close `" + it.getClass() + "` at the data set finalization!", e);
 						}
-					}
-				}
+					});
 			}
 
 			// delete the directory

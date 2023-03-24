@@ -25,6 +25,8 @@ package io.evitadb.test.extension;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -100,6 +102,11 @@ public class DataCarrier {
 	@Nonnull
 	public Set<Entry<String, Object>> entrySet() {
 		return valuesByName.entrySet();
+	}
+
+	@Nonnull
+	public Collection<Object> anonymousValues() {
+		return valuesByName.isEmpty() ? valuesByType.values() : Collections.emptySet();
 	}
 
 }

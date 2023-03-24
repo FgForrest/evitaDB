@@ -22,4 +22,5 @@ module evita.test.support {
 	requires com.fasterxml.jackson.databind;
 	requires evita.server;
 	requires evita.external.api.core;
+	requires org.junit.platform.launcher;
 }

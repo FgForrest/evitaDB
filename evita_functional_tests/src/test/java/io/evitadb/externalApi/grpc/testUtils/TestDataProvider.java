@@ -76,7 +76,7 @@ public class TestDataProvider {
 	 * @param evita instance
 	 * @return list of {@link SealedEntity} instances inserted into Evita
 	 */
-	public List<SealedEntity> generateEntities(@Nonnull Evita evita) {
+	public List<SealedEntity> generateEntities(@Nonnull Evita evita, int productCount) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			System.out.println("Generating dataset...");
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
@@ -137,7 +137,7 @@ public class TestDataProvider {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(200)
+				.limit(Math.min(Math.max(10, productCount / 5), 100))
 				.forEach(session::upsertEntity);
 
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
@@ -214,7 +214,7 @@ public class TestDataProvider {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(1000)
+				.limit(productCount)
 				.map(session::upsertEntity)
 				.toList();
 

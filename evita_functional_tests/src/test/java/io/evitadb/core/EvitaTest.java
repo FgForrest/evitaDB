@@ -1820,7 +1820,7 @@ class EvitaTest implements EvitaTestSupport {
 		final long start = System.currentTimeMillis();
 		do {
 			assertNotNull(sessionActive.getCatalogSchema());
-		} while (System.currentTimeMillis() - start < 2001);
+		} while (!(System.currentTimeMillis() - start > 5000 || !sessionInactive.isActive()));
 
 		assertFalse(sessionInactive.isActive());
 		assertTrue(sessionActive.isActive());
