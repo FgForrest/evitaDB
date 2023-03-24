@@ -80,7 +80,7 @@ with its own relevant GraphQL schema:
 
 ## Structure of APIs
 
-### Structure of <Term name="data API">data APIs</Term>
+### Structure of data APIs
 
 A single <Term>data API</Term> for a single catalog contains only a few types of queries and mutations, but most of them are "duplicated" for 
 each [collection](https://evitadb.io/documentation/use/data-model#collection) within that catalog. 
@@ -104,7 +104,7 @@ However, in addition to user-defined collections, there is a "virtual" simplifie
 that allows users to retrieve entities by global attributes without knowing the target collection. For this `entity` "collection", 
 only `get` and `list` queries are available.
 
-### Structure of <Term name="schema API">schema APIs</Term>
+### Structure of schema APIs
 
 A single <Term>schema API</Term> for a single catalog contains one query and one mutation for each [collection](https://evitadb.io/documentation/use/data-model#collection):
 
@@ -116,7 +116,7 @@ and one query and one mutation for catalog schema specified by the URL:
 - `getCatalogSchema` - returns the [internal evitaDB catalog schema](https://evitadb.io/documentation/use/schema#catalog) of the catalog
 - `updateCatalogSchema` - updates the existing [internal evitaDB catalog schema](https://evitadb.io/documentation/use/schema#catalog) of the catalog
 
-### Structure of <Term name="system API">system API</Term>
+### Structure of system API
 
 There is nothing special about the <Term>system API</Term>, just a set of basic queries and mutations.
 
@@ -165,6 +165,9 @@ Therefore, we have come up with the following syntax for constraints: each const
 - `value` - an object/value of that property
   - a scalar, an array or an object of arguments
 
+Thanks to the GraphQL API schemas, you don't need to worry about details the individual parts of the syntax, because the GraphQL API
+will hand you only those constraint that are valid.
+
 <Note type="info">
 
 <NoteTitle toggles="true">
@@ -172,6 +175,7 @@ Therefore, we have come up with the following syntax for constraints: each const
 ##### Constraint key syntax in detail
 </NoteTitle>
 
+However, if you want to know more about the underlying syntax, read on.
 Each key consists of 3 parts as mentioned above:
 
 - a property type
@@ -179,6 +183,7 @@ Each key consists of 3 parts as mentioned above:
 - a constraint name
 
 Only the constraint name is required for all the supported constraints, the rest depends on the context and the type of constraint.
+
 
 The **property type** defines where the query processor will look for data to compare. There is a finite set of possible property types:
 
@@ -198,8 +203,10 @@ for attributes, where simply defining the property type doesn't tell us which at
 we don't know what the classifier represents. Therefore, we need *both* the property type and the classifier. But in cases like price comparison,
 these constraints operate on single computed price so the evitaDB query processor implicitly knows which price we want to compare.
 
+
 Finally, the **constraint name** actually defines what the query processor will do with the target data (i.e., how to compare the passed
 data with data in the database).
+
 
 All possible parts combinations are:
 ```
@@ -298,7 +305,7 @@ filterBy: {
 
 <NoteTitle toggles="true">
 
-##### Want to know more about the   behind the query language design?
+##### Want to know more about the decisions behind the query language design?
 </NoteTitle>
 
 We have written a whole [blog post](https://evitadb.io/blog/02-designing-evita-query-language-for-graphql-api) about how we
@@ -331,6 +338,6 @@ Altair has, like many others, has a code-completion in its editor based on the r
 
 ### Recommended client libraries
 
-You can find all the available libraries on the [official GraphQL website](https://graphql.org/code/) for you to
+You can find all the available libraries on the [official GraphQL website](https://graphql.org/code/#language-support) for you to
 choose from for your own client language. Some can even generate classes/types based on the API schema for you to use in
 your codebase.
