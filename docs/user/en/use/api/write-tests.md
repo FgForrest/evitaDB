@@ -89,7 +89,7 @@ A similar approach is possible with the evitaDB Web APIs. When setting up your d
 want to initialize the web server and open the named set of web APIs:
 
 <SourceCodeTabs>
-[Web API test example](evita_functional_tests/src/test/java/io/evitadb/test/test-with-prefilled-dataset-and-web-api.java)
+[Web API test example](docs/user/en/use/api/example/test-with-prefilled-dataset-and-web-api.java)
 </SourceCodeTabs>
 
 The example test is identical to the previous example with the only significant difference - instead of communicating 
