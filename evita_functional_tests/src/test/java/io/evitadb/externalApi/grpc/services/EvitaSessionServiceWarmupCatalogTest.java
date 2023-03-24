@@ -71,7 +71,7 @@ import static org.wildfly.common.Assert.assertTrue;
 class EvitaSessionServiceWarmupCatalogTest {
 	private static final String GRPC_THOUSAND_PRODUCTS_WARM_UP = "GrpcThousandProductsInWarmUpState";
 
-	@DataSet(value = GRPC_THOUSAND_PRODUCTS_WARM_UP, expectedCatalogState = CatalogState.WARMING_UP, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE})
+	@DataSet(value = GRPC_THOUSAND_PRODUCTS_WARM_UP, expectedCatalogState = CatalogState.WARMING_UP, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		final ManagedChannel channel = TestChannelCreator.getChannel(
 			new ClientSessionInterceptor(),

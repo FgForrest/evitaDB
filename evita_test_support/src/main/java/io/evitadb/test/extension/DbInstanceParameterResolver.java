@@ -29,6 +29,10 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.ApiOptions.Builder;
+import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.server.EvitaServer;
@@ -59,6 +63,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -68,10 +73,10 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static io.evitadb.utils.CollectionUtils.property;
 import static java.util.Optional.ofNullable;
@@ -97,10 +102,12 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Slf4j
 public class DbInstanceParameterResolver implements ParameterResolver, BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback, EvitaTestSupport {
 	protected static final Path STORAGE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita");
-	private static final Set<String> AVAILABLE_PROVIDERS = ExternalApiServer.gatherExternalApiProviders()
+	private static final Map<String, ExternalApiProviderRegistrar> AVAILABLE_PROVIDERS = ExternalApiServer.gatherExternalApiProviders()
 		.stream()
-		.map(ExternalApiProviderRegistrar::getExternalApiCode)
-		.collect(Collectors.toSet());
+		.collect(Collectors.toMap(
+			ExternalApiProviderRegistrar::getExternalApiCode,
+			Function.identity()
+		));
 	private static final String EVITA_DATA_SET_INDEX = "__dataSetIndex";
 	private static final String EVITA_ANONYMOUS_EVITA = "__anonymousEvita";
 	private static final Random RANDOM = new Random();
@@ -122,6 +129,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 							new CatalogInitMethod(declaredMethod, it.expectedCatalogState()),
 							new LinkedList<>(),
 							it.openWebApi(),
+							it.readOnly(),
 							it.destroyAfterClass()
 						)
 					);
@@ -346,6 +354,53 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			result : null;
 	}
 
+	/**
+	 * Creates {@link ApiOptions} for {@link EvitaServer}.
+	 */
+	@Nonnull
+	private static ApiOptions createApiOptions(
+		@Nonnull String datasetName,
+		@Nonnull DataSetInfo dataSetInfo,
+		@Nonnull Evita evita,
+		@Nonnull PortManager portManager
+	) {
+		final String[] unknownApis = Arrays.stream(dataSetInfo.webApi())
+			.filter(it -> !AVAILABLE_PROVIDERS.containsKey(it))
+			.toArray(String[]::new);
+		if (ArrayUtils.isEmpty(unknownApis)) {
+			final Builder apiOptionsBuilder = ApiOptions.builder()
+				.certificate(
+					CertificateSettings.builder()
+						.folderPath(evita.getConfiguration().storage().storageDirectory().toString() + "-certificates")
+						.build()
+				);
+			final int[] ports = portManager.allocatePorts(datasetName, dataSetInfo.webApi().length);
+			int portIndex = 0;
+			for (String webApiCode : dataSetInfo.webApi()) {
+				final AbstractApiConfiguration webApiConfig;
+				final Class<?> configurationClass = AVAILABLE_PROVIDERS.get(webApiCode).getConfigurationClass();
+				try {
+					final Constructor<?> hostConstructor = configurationClass.getConstructor(String.class);
+					webApiConfig = (AbstractApiConfiguration) hostConstructor.newInstance(
+						"localhost:" + ports[portIndex++]
+					);
+				} catch (InvocationTargetException | NoSuchMethodException | InstantiationException |
+				         IllegalAccessException e) {
+					throw new IllegalStateException(
+						"Cannot initialize web api config `" + webApiCode + "` with host name. " +
+							"Each config class (`" + configurationClass +  "`) needs to have a constructor with " +
+							"a single String argument accepting web api host configuration!", e);
+				}
+				apiOptionsBuilder.enable(webApiCode, webApiConfig);
+			}
+			return apiOptionsBuilder.build();
+		} else {
+			throw new ParameterResolutionException(
+				"Unknown web API identification: " + String.join(", ", unknownApis)
+			);
+		}
+	}
+
 	@Override
 	public void beforeAll(ExtensionContext context) {
 		log.info("Before all `" + context.getRequiredTestClass().toString() + "`");
@@ -460,6 +515,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					Collections.emptyList(),
 					new String[0],
 					false,
+					false,
 					new AtomicReference<>(
 						new DataSetState(
 							extensionContext.getRequiredTestInstance(),
@@ -494,28 +550,27 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					dataSetInfo.init(
 						() -> {
 							log.info("Dataset start `" + dataSetToUse + "` initialization (`" + dataSetInfo.randomFolderName() + "`)");
-							final Evita evita;
+							final Evita evita = createEvita(dataSetInfo.catalogName(), dataSetInfo.randomFolderName());
 							final EvitaServer evitaServer;
 							if (ArrayUtils.isEmpty(dataSetInfo.webApi())) {
 								evitaServer = null;
-								evita = createEvita(dataSetInfo.catalogName(), dataSetInfo.randomFolderName());
 							} else {
-								evitaServer = openWebApi(dataSetToUse, dataSetInfo, getPortManager());
-								evita = evitaServer.getEvita();
+								final ApiOptions apiOptions = createApiOptions(dataSetToUse, dataSetInfo, evita, getPortManager());
+								evitaServer = openWebApi(evita, apiOptions);
 							}
 							// call method that initializes the dataset
 							final Object testClassInstance = extensionContext.getRequiredTestInstance();
 							final Object methodResult;
 							try {
 								final Method initMethod = dataSetInfo.initMethod().method();
-								final Object[] arguments = placeArguments(
-									initMethod,
-									createLinkedHashMap(
-										property("evita", evita),
-										property("evitaServer", evitaServer),
-										property("catalogName", dataSetInfo.catalogName())
-									)
+								final LinkedHashMap<String, Object> argumentDictionary = createLinkedHashMap(
+									property("evita", evita),
+									property("catalogName", dataSetInfo.catalogName())
 								);
+								if (evitaServer != null) {
+									argumentDictionary.put("evitaServer", evitaServer);
+								}
+								final Object[] arguments = placeArguments(initMethod, argumentDictionary);
 								if (arguments == null) {
 									throw new ParameterResolutionException("Data set init method may have only these arguments: evita instance, catalog name, evita server instance. Failed to init " + dataSetToUse + ".");
 								} else {
@@ -537,6 +592,10 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 								evita.updateCatalog(dataSetInfo.catalogName(), evitaSessionBase -> {
 									evitaSessionBase.goLiveAndClose();
 								});
+							}
+
+							if (dataSetInfo.readOnly()) {
+								evita.setReadOnly();
 							}
 
 							return new DataSetState(
@@ -566,49 +625,14 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		}
 	}
 
-	@Nullable
-	private EvitaServer openWebApi(@Nonnull String datasetName, @Nonnull DataSetInfo dataSetInfo, PortManager portManager) {
-		if (ArrayUtils.isEmpty(dataSetInfo.webApi())) {
-			return null;
-		} else {
-			final Set<String> requestedApis = Arrays.stream(dataSetInfo.webApi()).collect(Collectors.toSet());
-			final String[] unknownApis = requestedApis
-				.stream()
-				.filter(it -> !AVAILABLE_PROVIDERS.contains(it))
-				.toArray(String[]::new);
-			if (ArrayUtils.isEmpty(unknownApis)) {
-				final int[] ports = portManager.allocatePorts(datasetName, requestedApis.size());
-				final Path configFilePath = EvitaTestSupport.bootstrapEvitaServerConfigurationFile(dataSetInfo.randomFolderName());
-				final Map<String, String> configurationOverride = createHashMap(
-					property(
-						"storage.storageDirectory",
-						STORAGE_PATH.resolve(dataSetInfo.randomFolderName()).toString()
-					),
-					property("cache.enabled", "false")
-				);
-
-				int portIndex = 0;
-				for (String webApiCode : dataSetInfo.webApi()) {
-					configurationOverride.put("api.endpoints." + webApiCode + ".enabled", "true");
-					configurationOverride.put("api.endpoints." + webApiCode + ".host", "localhost:" + ports[portIndex++]);
-				}
-				AVAILABLE_PROVIDERS.stream()
-					.filter(it -> !requestedApis.contains(it))
-					.forEach(webApiCode -> configurationOverride.put("api.endpoints." + webApiCode + ".enabled", "false"));
-
-				final EvitaServer evitaServer = new EvitaServer(
-					configFilePath,
-					configurationOverride
-				);
-				evitaServer.run();
-				evitaServer.getEvita().defineCatalog(dataSetInfo.catalogName());
-				return evitaServer;
-			} else {
-				throw new ParameterResolutionException(
-					"Unknown web API identification: " + String.join(", ", unknownApis)
-				);
-			}
-		}
+	@Nonnull
+	private EvitaServer openWebApi(
+		@Nonnull Evita evita,
+		@Nonnull ApiOptions apiOptions
+	) {
+		final EvitaServer evitaServer = new EvitaServer(evita, apiOptions);
+		evitaServer.run();
+		return evitaServer;
 	}
 
 	private record DataSetInfo(
@@ -617,22 +641,33 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		@Nullable CatalogInitMethod initMethod,
 		@Nonnull List<Method> destroyMethods,
 		@Nonnull String[] webApi,
+		boolean readOnly,
 		boolean destroyAfterClass,
 		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 	) {
 
-		private DataSetInfo(@Nonnull String catalogName, @Nonnull String randomFolderName, @Nullable CatalogInitMethod initMethod, @Nonnull List<Method> destroyMethods, @Nonnull String[] webApi, boolean destroyAfterClass, AtomicReference<DataSetState> dataSetInfoAtomicReference) {
+		private DataSetInfo(
+			@Nonnull String catalogName, @Nonnull String randomFolderName, @Nullable CatalogInitMethod initMethod,
+			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
+			boolean readOnly, boolean destroyAfterClass,
+			@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
+		) {
 			this.catalogName = catalogName;
 			this.randomFolderName = randomFolderName;
 			this.initMethod = initMethod;
 			this.destroyMethods = destroyMethods;
 			this.webApi = webApi;
+			this.readOnly = readOnly;
 			this.destroyAfterClass = destroyAfterClass;
 			this.dataSetInfoAtomicReference = dataSetInfoAtomicReference;
 		}
 
-		public DataSetInfo(@Nonnull String catalogName, @Nonnull String randomFolderName, @Nullable CatalogInitMethod initMethod, @Nonnull List<Method> destroyMethods, @Nonnull String[] webApi, boolean destroyAfterClass) {
-			this(catalogName, randomFolderName, initMethod, destroyMethods, webApi, destroyAfterClass, new AtomicReference<>());
+		public DataSetInfo(
+			@Nonnull String catalogName, @Nonnull String randomFolderName, @Nullable CatalogInitMethod initMethod,
+			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
+			boolean readOnly, boolean destroyAfterClass
+		) {
+			this(catalogName, randomFolderName, initMethod, destroyMethods, webApi, readOnly, destroyAfterClass, new AtomicReference<>());
 		}
 
 		public Evita evitaInstance() {

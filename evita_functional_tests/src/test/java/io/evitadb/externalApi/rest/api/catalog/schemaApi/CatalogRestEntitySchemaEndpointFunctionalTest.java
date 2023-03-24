@@ -34,10 +34,14 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -60,8 +64,16 @@ import static org.hamcrest.Matchers.nullValue;
  */
 class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
 
+	private static final String REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE = REST_THOUSAND_PRODUCTS + "forEntitySchemaUpdate";
+
+	@Override
+	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
+	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		return super.setUp(evita, evitaServer);
+	}
+
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should return full product schema")
 	void shouldReturnFullProductSchema(Evita evita, RestTester tester) {
 		final EntitySchemaContract productSchema = getEntitySchemaFromTestData(evita, Entities.PRODUCT);
@@ -76,7 +88,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should return error for missing mutations when updating entity schema")
 	void shouldReturnErrorForMissingMutationsWhenUpdatingEntitySchema(RestTester tester) {
 		tester.test(TEST_CATALOG)
@@ -88,7 +100,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should not update entity schema when no mutations")
 	void shouldNotUpdateCatalogSchemaWhenNoMutations(Evita evita, RestTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
@@ -113,7 +125,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change entity schema itself")
 	void shouldChangeEntitySchemaItself(Evita evita, RestTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
@@ -172,7 +184,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change attribute schema")
 	void shouldChangeAttributeSchema(Evita evita, RestTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
@@ -326,7 +338,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change associated data schema")
 	void shouldChangeAssociatedDataSchema(Evita evita, RestTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
@@ -466,7 +478,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change reference schema")
 	void shouldChangeReferenceSchema(Evita evita, RestTester tester) {
 		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);

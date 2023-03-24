@@ -64,7 +64,7 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 	public static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE = GRAPHQL_THOUSAND_PRODUCTS + "forDelete";
 
 	@Override
-	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE, openWebApi = GraphQLProvider.CODE, destroyAfterClass = true)
+	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		return super.setUp(evita, evitaServer);
 	}

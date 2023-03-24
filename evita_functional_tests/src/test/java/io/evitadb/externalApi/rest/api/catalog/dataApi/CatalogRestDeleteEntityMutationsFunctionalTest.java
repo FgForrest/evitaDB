@@ -67,7 +67,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 	public static final String REST_THOUSAND_PRODUCTS_FOR_DELETE = REST_THOUSAND_PRODUCTS + "forDelete";
 
 	@Override
-	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_DELETE, openWebApi = RestProvider.CODE, destroyAfterClass = true)
+	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_DELETE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		return super.setUp(evita, evitaServer);
 	}

@@ -33,7 +33,6 @@ import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
-import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.grpc.ManagedChannel;
@@ -51,7 +50,7 @@ import java.util.List;
 public abstract class EvitaGrpcAbstractTest {
 	protected static final String GRPC_THOUSAND_PRODUCTS = "GrpcThousandProducts";
 
-	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE})
+	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		final ManagedChannel channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
 		final List<SealedEntity> entities = new TestDataProvider().generateEntities(evita);
@@ -61,13 +60,8 @@ public abstract class EvitaGrpcAbstractTest {
 		);
 	}
 
-	@OnDataSetTearDown(GRPC_THOUSAND_PRODUCTS)
-	void onDataSetTearDown(ManagedChannel channel) {
-		channel.shutdown();
-	}
-
 	@AfterEach
-	public void afterEach(Evita evita, String catalogName) {
+	public void afterEach() {
 		SessionIdHolder.reset();
 	}
 

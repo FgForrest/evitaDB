@@ -94,7 +94,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaClientDataSet";
 
-	@DataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterClass = true, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE})
+	@DataSet(value = EVITA_CLIENT_DATA_SET, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	static DataCarrier initDataSet(EvitaServer evitaServer) {
 		final Map<Serializable, Integer> generatedEntities = new HashMap<>(2000);
 		final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {

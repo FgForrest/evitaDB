@@ -66,6 +66,19 @@ public @interface DataSet {
 	String[] openWebApi() default {};
 
 	/**
+	 * Marks the dataset as read-only after the initialization method has been finished. This is a safety lock.
+	 * When you need to write to a data set from the unit test methods, you'd probably don't want it to be shared with
+	 * other tests or only a controlled sub-set of them.
+	 *
+	 * If you disable readOnly safety lock, you should probably enable {@link #destroyAfterClass()} or
+	 * {@link UseDataSet#destroyAfterTest()} attributes to true.
+	 *
+	 * That's why readOnly is set to true by default, we want you to think about it before you switch off this safety
+	 * lock.
+	 */
+	boolean readOnly() default true;
+
+	/**
 	 * If set to true the evitaDB server instance is closed and deleted after all test methods of the set where
 	 * {@link DataSet} annotation is used were executed.
 	 */
