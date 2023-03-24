@@ -34,12 +34,16 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
+import io.evitadb.driver.EvitaClient;
+import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions.Builder;
 import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.PortManager;
@@ -133,6 +137,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					dataSetsInThisClass.computeIfAbsent(
 						it.value(),
 						dsName -> new DataSetInfo(
+							it.value(),
 							it.catalogName(),
 							new CatalogInitMethod(declaredMethod, it.expectedCatalogState()),
 							new LinkedList<>(),
@@ -336,17 +341,35 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		for (int i = 0; i < parameters.length; i++) {
 			final Parameter parameter = parameters[i];
 			final Object possibleValue = availableArguments.get(parameter.getName());
-			if (parameter.getType().isInstance(possibleValue)) {
+			final Class<?> possibleValueClass;
+			if (possibleValue instanceof LazyParameter<?> lazyParameter) {
+				possibleValueClass = lazyParameter.type();
+			} else if (possibleValue != null) {
+				possibleValueClass = possibleValue.getClass();
+			} else {
+				possibleValueClass = null;
+			}
+			final Object matchingValue;
+			if (possibleValueClass != null && parameter.getType().isAssignableFrom(possibleValueClass)) {
 				// find by name
-				result[i] = possibleValue;
+				matchingValue = possibleValue;
 			} else {
 				// find by type
-				result[i] = availableArguments.values()
+				matchingValue = availableArguments.values()
 					.stream()
-					.filter(it -> parameter.getType().isInstance(it))
+					.filter(it -> {
+						if (it instanceof LazyParameter<?> lazyParameter) {
+							return parameter.getType().isAssignableFrom(lazyParameter.type());
+						} else {
+							return parameter.getType().isInstance(it);
+						}
+					})
 					.findFirst()
 					.orElse(null);
 			}
+
+			result[i] = matchingValue instanceof LazyParameter<?> lazyParameter ?
+				lazyParameter.factory().get() : matchingValue;
 		}
 		return Arrays.stream(result).allMatch(Objects::nonNull) ?
 			result : null;
@@ -480,13 +503,40 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		}
 
 		// now resolve the default types
-		if (EvitaContract.class.isAssignableFrom(requestedParam.getType())) {
-			// return initialized Evita instance
-			return dataSetInfo.evitaInstance();
-		} else if (EvitaServer.class.isAssignableFrom(requestedParam.getType())) {
+		if (EvitaServer.class.isAssignableFrom(requestedParam.getType())) {
 			// return initialized Evita server instance
 			return dataSetInfo.evitaServerInstance();
+		} else if (EvitaClient.class.isAssignableFrom(requestedParam.getType())) {
+			// return new evita client
+			return dataSetInfo.evitaClient(
+				evitaServer -> {
+					final AbstractApiConfiguration grpcConfig = evitaServer.getExternalApiServer()
+						.getApiOptions()
+						.getEndpointConfiguration(GrpcProvider.CODE);
+					if (grpcConfig == null) {
+						throw new ParameterResolutionException("gRPC web API was not opened for the dataset `" + useDataSet.value() + "`!");
+					}
+					final AbstractApiConfiguration systemConfig = evitaServer.getExternalApiServer()
+						.getApiOptions()
+						.getEndpointConfiguration(SystemProvider.CODE);
+					if (systemConfig == null) {
+						throw new ParameterResolutionException("System web API was not opened for the dataset `" + useDataSet.value() + "`!");
+					}
+					return new EvitaClient(
+						EvitaClientConfiguration.builder()
+							.certificateFolderPath(Path.of(evitaServer.getEvita().getConfiguration().storage().storageDirectory().toString() + "-client"))
+							.host(grpcConfig.getHost()[0].hostName())
+							.port(grpcConfig.getHost()[0].port())
+							.systemApiPort(systemConfig.getHost()[0].port())
+							.build()
+					);
+				}
+			);
+		} else if (EvitaContract.class.isAssignableFrom(requestedParam.getType())) {
+			// return initialized Evita instance
+			return dataSetInfo.evitaInstance();
 		} else if (EvitaSessionContract.class.isAssignableFrom(requestedParam.getType())) {
+			// return new read-write session in dry run mode
 			return dataSetInfo.evitaSession(
 				evita -> evita.createSession(
 					new SessionTraits(
@@ -514,7 +564,9 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				evita.updateCatalog(TestConstants.TEST_CATALOG, session -> {
 					session.goLiveAndClose();
 				});
+				final String anonymousEvita = EVITA_ANONYMOUS_EVITA + "_" + randomFolderName;
 				final DataSetInfo dataSetInfo = new DataSetInfo(
+					anonymousEvita,
 					TestConstants.TEST_CATALOG,
 					null,
 					Collections.emptyList(),
@@ -535,7 +587,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					)
 				);
 				dataSetIndex.put(
-					EVITA_ANONYMOUS_EVITA + "_" + randomFolderName,
+					anonymousEvita,
 					dataSetInfo
 				);
 				CREATED_EVITA_INSTANCES.incrementAndGet();
@@ -572,7 +624,14 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 								final Method initMethod = dataSetInfo.initMethod().method();
 								final LinkedHashMap<String, Object> argumentDictionary = createLinkedHashMap(
 									property("evita", evita),
-									property("catalogName", dataSetInfo.catalogName())
+									property("catalogName", dataSetInfo.catalogName()),
+									property(
+										"evitaSession",
+										new LazyParameter<>(
+											EvitaSessionContract.class,
+											() -> evita.createReadWriteSession(dataSetInfo.catalogName())
+										)
+									)
 								);
 								if (evitaServer != null) {
 									argumentDictionary.put("evitaServer", evitaServer);
@@ -583,7 +642,12 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 								} else {
 									methodResult = initMethod.invoke(testClassInstance, arguments);
 								}
-							} catch (InvocationTargetException | IllegalAccessException e) {
+								for (Object argument : arguments) {
+									if (argument instanceof AutoCloseable closeable) {
+										closeable.close();
+									}
+								}
+							} catch (Exception e) {
 								throw new ParameterResolutionException("Failed to set up data set " + dataSetToUse, e);
 							}
 
@@ -626,7 +690,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					);
 
 					CREATED_EVITA_INSTANCES.incrementAndGet();
-					PEAK_EVITA_INSTANCES.set((int) Math.max(PEAK_EVITA_INSTANCES.get(), dataSetIndex.values().stream().filter(it -> it.evitaInstance() != null).count() + 1));
+					PEAK_EVITA_INSTANCES.set((int) Math.max(PEAK_EVITA_INSTANCES.get(), dataSetIndex.values().stream().filter(it -> it.evitaInstance() != null).count()));
 					CREATED_EVITA_ENTITIES.addAndGet(
 						dataSetInfo.evitaInstance()
 							.getCatalogs()
@@ -659,6 +723,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	}
 
 	private record DataSetInfo(
+		@Nonnull String name,
 		@Nonnull String catalogName,
 		@Nullable CatalogInitMethod initMethod,
 		@Nonnull List<Method> destroyMethods,
@@ -669,11 +734,12 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	) {
 
 		private DataSetInfo(
-			@Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
+			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
 			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
 			boolean readOnly, boolean destroyAfterClass,
 			@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 		) {
+			this.name = name;
 			this.catalogName = catalogName;
 			this.initMethod = initMethod;
 			this.destroyMethods = destroyMethods;
@@ -684,11 +750,11 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		}
 
 		public DataSetInfo(
-			@Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
+			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
 			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
 			boolean readOnly, boolean destroyAfterClass
 		) {
-			this(catalogName, initMethod, destroyMethods, webApi, readOnly, destroyAfterClass, new AtomicReference<>());
+			this(name, catalogName, initMethod, destroyMethods, webApi, readOnly, destroyAfterClass, new AtomicReference<>());
 		}
 
 		@Nullable
@@ -730,6 +796,24 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				.orElse(null);
 		}
 
+		@Nullable
+		public EvitaClient evitaClient(@Nonnull Function<EvitaServer, EvitaClient> factory) {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::client)
+				.map(it -> ofNullable(it.get())
+					.orElseGet(
+						() -> ofNullable(evitaServerInstance())
+							.map(evitaServer -> {
+								final EvitaClient newSession = factory.apply(evitaServer);
+								it.set(newSession);
+								return newSession;
+							})
+							.orElseThrow(() -> new ParameterResolutionException("gRPC web API was not opened for the dataset `" + name + "`!"))
+					)
+				)
+				.orElse(null);
+		}
+
 		public void init(@Nonnull Supplier<DataSetState> stateCreator) {
 			final DataSetState previousState = this.dataSetInfoAtomicReference.compareAndExchange(
 				null,
@@ -766,6 +850,12 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	private record CatalogInitMethod(@Nonnull Method method, @Nonnull CatalogState expectedState) {
 	}
 
+	private record LazyParameter<T>(
+		@Nonnull Class<T> type,
+		@Nonnull Supplier<T> factory
+	) {
+	}
+
 	private record DataSetState(
 		@Nonnull Object testInstance,
 		@Nonnull Method testMethod,
@@ -773,11 +863,12 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		@Nullable EvitaServer evitaServerInstance,
 		@Nullable DataCarrier dataCarrier,
 		@Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate,
-		@Nonnull AtomicReference<EvitaSessionContract> session
+		@Nonnull AtomicReference<EvitaSessionContract> session,
+		@Nonnull AtomicReference<EvitaClient> client
 	) {
 
 		private DataSetState(@Nonnull Object testInstance, @Nonnull Method testMethod, @Nullable Evita evitaInstance, @Nullable EvitaServer evitaServerInstance, @Nullable DataCarrier dataCarrier, @Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate) {
-			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>());
+			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>(), new AtomicReference<>());
 		}
 
 		/**
@@ -829,13 +920,13 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			// close all closeable elements in data carrier
 			if (dataCarrier != null) {
 				Stream.concat(
-					dataCarrier.entrySet().stream().filter(Objects::nonNull).map(Entry::getValue),
-					dataCarrier.anonymousValues().stream()
-				)
+						dataCarrier.entrySet().stream().filter(Objects::nonNull).map(Entry::getValue),
+						dataCarrier.anonymousValues().stream()
+					)
 					.filter(it -> it instanceof Closeable)
 					.forEach(it -> {
 						try {
-							((Closeable)it).close();
+							((Closeable) it).close();
 						} catch (IOException e) {
 							log.error("Failed to close `" + it.getClass() + "` at the data set finalization!", e);
 						}

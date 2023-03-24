@@ -51,7 +51,7 @@ Example of a test that starts with an empty evitaDB instance:
 [JUnit5 test example](docs/user/en/use/api/example/test-with-empty-dataset-example.java)
 </SourceCodeTabs>
 
-That's quite a lot of work and therefore there is a better support for evitaDB server initialization using 
+That's quite a lot of work, so we provide better support for evitaDB server initialization using 
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
 as `@ExtendWith(DbInstanceParameterResolver.class)`:
 
@@ -59,38 +59,84 @@ as `@ExtendWith(DbInstanceParameterResolver.class)`:
 [Alternative test example](docs/user/en/use/api/example/test-with-empty-dataset-alternative.java)
 </SourceCodeTabs>
 
-[//]: # (TODO JNO - toto už je jinak)
+This example class will create *an anonymous instance* of an empty embedded evitaDB server and destroy it immediately 
+after the test is finished. If you want to name the evitaDB server instance and use it in multiple tests (and possibly 
+with some initial data fixture), you need to define a new initialization function in your test and use two new 
+annotations <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annotation/DataSet.java</SourceClass>
+and <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annotation/UseDataSet.java</SourceClass>:
 
-As you can see the test defines an initialization method with `@DataSet` annotation, and one or more test methods
-annotated with `@UseDataSet` annotation and works the exactly same way as the previous more complex example.
-The `DbInstanceParameterResolver` performs all necessary operations instead of you:
+<SourceCodeTabs>
+[Named and filled dataset test example](evita_functional_tests/src/test/java/io/evitadb/test/PrefilledDataSetTest.java)
+</SourceCodeTabs>
 
-1. when it encounters a test with `@UseDataSet`, it tries to locate instance of the evitaDB server named according 
-   to annotation value
-2. if no existing evitaDB server instance is found, it tries to find method annotated with `@DataSet` and if it's 
-   successful it:
-    - creates new empty evitaDB instance in a random system temporary directory
-    - invokes the method annotated with `@DataSet` annotation to init the contents of the evitaDB instance
-3. passes the evitaDB server instance as a parameter of the test method and the test is executed
+As you can see in the example, the `setUpData` method declares that it will initialize a data set named 
+`dataSetWithAFewData`, creates a new collection `Brand` with a single entity containing the attribute `name` with
+the value `Siemens`. The set up method allows the
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
+to automatically create a reference 
+to an evitaDB session object that allows to talk to the evitaDB instance (see [reference](#test-annotations-reference)
+for more options of the `@DataSet` annotation).
+
+Additionally, there is a test method `shouldWriteTest` which declares that it uses the dataset with the name
+`dataSetWithAFewData` by using the annotation `@UseDataSet` and lets the
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
+automatically create a reference to another evitaDB session object which it uses to query and assert the results of 
+the data in the database.
+
+### Test web APIs
+
+A similar approach is possible with the evitaDB Web APIs. When setting up your dataset, simply declare that you also 
+want to initialize the web server and open the named set of web APIs:
+
+<SourceCodeTabs>
+[Web API test example](evita_functional_tests/src/test/java/io/evitadb/test/test-with-prefilled-dataset-and-web-api.java)
+</SourceCodeTabs>
+
+The example test is identical to the previous example with the only significant difference - instead of communicating 
+with the embedded evitaDB server, you use
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>,
+which communicates with gRPC server via HTTP/2 protocol. The server opens a free port, generates self-signed
+certificates, the 
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
+creates a
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass> 
+instance that is properly configured to communicate with this gRPC server, downloads the self-signed server certificate
+and the generic client certificate to pass [mTLS verification](../../operate/tls.md#default-mtls-behaviour-not-secure),
+and talk to the *embedded evitaDB* over the wire.
+
+### Test isolation
+
+The data set support allows to run multiple isolated evitaDB instances in parallel - completely isolated one from 
+another. This approach allows you to run integration tests in parallel. You can read more about this technique in
+our blog post [about blazing fast integration testing](/blog/04-blazing-fast-integration-tests).
+
+Each dataset targets a directory with randomized name in OS temporary folder. When the dataset provides web API, 
+the opened ports are consulted with <SourceClass>evita_test_support/src/main/java/io/evitadb/test/PortManager.java</SourceClass>
+that provides it with information about free ports that can be used for web APIs of the data set. When the dataset
+is destroyed the ports are closed and returned back to 
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/PortManager.java</SourceClass>.
+
+All datasets are switched to read-only mode after they are initially filled, so that the data from the test cannot be 
+modified inadvertently and cause problems in different tests running simultaneously or reusing the same dataset 
+afterwards. You can switch the dataset to read-write mode, but it's recommended to consider this fact and mark the 
+dataset to be destroyed after the test or test class. All evita session objects that are created and injected into 
+the arguments of the test method are created as read-write sessions with 
+[dry-run flag enabled](write-data.md#dry-run-session), which means that they never affect the data in the dataset 
+outside the scope of this very session. This pattern is known as the
+[transaction rollback teardown pattern](http://xunitpatterns.com/Transaction%20Rollback%20Teardown.html), and it has 
+been used successfully for a long time in 
+[Spring Framework Tests](https://relentlesscoding.com/posts/automatic-rollback-of-transactions-in-spring-tests/).
 
 ### Test annotations reference
 
 <dl>
-    <dt>`@CatalogName`</dt>
-    <dd></dd>
     <dt>`@DataSet`</dt>
-    <dd></dd>
-    <dt>`@OnDataSetTearDown`</dt>
     <dd></dd>
     <dt>`@UseDataSet`</dt>
     <dd></dd>
+    <dt>`@OnDataSetTearDown`</dt>
+    <dd></dd>
 </dl>
-
-## Test class using a client
-
-### Random data generator
-
-## Rollback on test teardown pattern
 
 [Dry-run session](write-data.md#dry-run-session)
 

@@ -1,4 +1,4 @@
-public class EmptyDataSetTest implements TestFileSupport, TestConstants {
+public class EmptyDataSetTest implements EvitaTestSupport {
 	private Evita evita;
 
 	@BeforeEach

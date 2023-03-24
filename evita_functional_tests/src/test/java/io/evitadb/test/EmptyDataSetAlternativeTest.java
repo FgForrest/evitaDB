@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
-public class EmptyDataSetAlternativeTest implements EvitaTestSupport, TestConstants {
+public class EmptyDataSetAlternativeTest implements EvitaTestSupport {
 
 	@Test
 	void shouldWriteTest(EvitaContract evita, EvitaSessionContract session) {

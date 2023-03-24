@@ -1,11 +1,11 @@
 @ExtendWith(DbInstanceParameterResolver.class)
-@Slf4j
-public class EmptyDataSetAlternativeTest implements TestFileSupport, TestConstants {
+public class EmptyDataSetAlternativeTest implements EvitaTestSupport {
 
 	@Test
-	void shouldWriteTest(Evita evita) {
+	void shouldWriteTest(EvitaContract evita, EvitaSessionContract session) {
 		// here comes your test logic
 		assertNotNull(evita);
+		assertNotNull(session);
 	}
 
 }

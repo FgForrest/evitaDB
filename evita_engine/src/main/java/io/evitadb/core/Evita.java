@@ -165,7 +165,7 @@ public final class Evita implements EvitaContract {
 	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
-	private boolean readOnly;
+	@Getter private boolean readOnly;
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
@@ -378,7 +378,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	public <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags... flags) {
 		assertActive();
-		if (readOnly) {
+		if (readOnly && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw new ReadOnlyException();
 		}
 		final SessionTraits traits = new SessionTraits(
@@ -685,7 +685,7 @@ public final class Evita implements EvitaContract {
 				new NonTransactionalCatalogDescriptor(catalog, structuralChangeObservers) : null;
 
 		if (readOnly) {
-			isTrue(!sessionTraits.isReadWrite() , ReadOnlyException::new);
+			isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
 		}
 
 		final EvitaSessionTerminationCallback terminationCallback = session -> {

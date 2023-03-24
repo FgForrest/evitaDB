@@ -49,4 +49,5 @@ module evita.external.api.system {
 	requires com.fasterxml.jackson.databind;
 
 	exports io.evitadb.externalApi.system.configuration;
+	exports io.evitadb.externalApi.system;
 }
