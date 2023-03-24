@@ -81,7 +81,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return super.setUp(evita, evitaServer);
+		return super.setUpData(evita, evitaServer, 50);
 	}
 
 	@Test
@@ -107,7 +107,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				equalTo(
 					map()
 						.e(TYPENAME_FIELD, "Empty")
-						.e(EntityDescriptor.PRIMARY_KEY.name(), 101)
+						.e(EntityDescriptor.PRIMARY_KEY.name(), 11)
 						.build()
 				)
 			);
@@ -148,7 +148,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(primaryKey: 100, entityExistence: MUST_EXIST) {
+	                    upsert_product(primaryKey: 10, entityExistence: MUST_EXIST) {
 	                        primaryKey
 	                    }
 	                }
@@ -161,7 +161,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				UPSERT_PRODUCT_PATH,
 				equalTo(
 					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), 100)
+						.e(EntityDescriptor.PRIMARY_KEY.name(), 10)
 						.build()
 				)
 			);

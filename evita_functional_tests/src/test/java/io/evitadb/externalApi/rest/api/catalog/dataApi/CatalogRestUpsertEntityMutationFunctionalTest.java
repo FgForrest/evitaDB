@@ -85,7 +85,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	@Override
 	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return super.setUp(evita, evitaServer);
+		return super.setUpData(evita, evitaServer, 50);
 	}
 
 	@Test
@@ -107,7 +107,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 				"",
 				equalTo(
 					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), 101)
+						.e(EntityDescriptor.PRIMARY_KEY.name(), 11)
 						.e(EntityDescriptor.TYPE.name(), "empty")
 						.e(EntityDescriptor.LOCALES.name(), Collections.emptyList())
 						.e(EntityDescriptor.ALL_LOCALES.name(), Collections.emptyList())
@@ -152,7 +152,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	void shouldUpdateProductWithNoMutations(RestTester tester) {
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/100")
+			.urlPathSuffix("/product/10")
 			.requestBody("""
                     {
                         "entityExistence": "MUST_EXIST",
@@ -165,7 +165,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 				"",
 				equalTo(
 					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), 100)
+						.e(EntityDescriptor.PRIMARY_KEY.name(), 10)
 						.e(EntityDescriptor.TYPE.name(), "PRODUCT")
 						.e(EntityDescriptor.LOCALES.name(), Collections.emptyList())
 						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))

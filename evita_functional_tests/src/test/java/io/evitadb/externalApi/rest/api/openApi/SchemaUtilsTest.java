@@ -69,7 +69,7 @@ class SchemaUtilsTest {
 	@DataSet(value = REST_THOUSAND_PRODUCTS_OPEN_API, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		final List<SealedEntity> sealedEntities = TestDataGenerator.generateMainCatalogEntities(evita);
+		final List<SealedEntity> sealedEntities = TestDataGenerator.generateMainCatalogEntities(evita,20);
 
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final OpenAPI openApi = new CatalogRestBuilder(new RestConfig(true, "localhost:5555", "rest", null), evita, catalog).build().openApi();

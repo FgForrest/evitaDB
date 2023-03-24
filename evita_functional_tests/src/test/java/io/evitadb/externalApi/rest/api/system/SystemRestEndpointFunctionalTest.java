@@ -63,7 +63,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 	@Override
 	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_REPLACE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return super.setUp(evita, evitaServer);
+		return super.setUpData(evita, evitaServer, 20);
 	}
 
 	@Test

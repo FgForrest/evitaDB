@@ -53,7 +53,6 @@ import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
-import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 import org.junit.jupiter.api.extension.ExtensionContext.Store;
@@ -104,7 +103,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DbInstanceParameterResolver implements ParameterResolver, BeforeAllCallback, AfterAllCallback, BeforeEachCallback, AfterEachCallback, EvitaTestSupport {
+public class DbInstanceParameterResolver implements ParameterResolver, BeforeAllCallback, AfterAllCallback, AfterEachCallback, EvitaTestSupport {
 	protected static final Path STORAGE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita");
 	private static final Map<String, ExternalApiProviderRegistrar> AVAILABLE_PROVIDERS = ExternalApiServer.gatherExternalApiProviders()
 		.stream()
@@ -129,7 +128,6 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 						it.value(),
 						dsName -> new DataSetInfo(
 							it.catalogName(),
-							Long.toHexString(RANDOM.nextLong()),
 							new CatalogInitMethod(declaredMethod, it.expectedCatalogState()),
 							new LinkedList<>(),
 							it.openWebApi(),
@@ -407,7 +405,6 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 
 	@Override
 	public void beforeAll(ExtensionContext context) {
-		log.info("Before all `" + context.getRequiredTestClass().toString() + "`");
 		// index data set bootstrap methods
 		final Map<String, DataSetInfo> dataSets = getDataSetIndex(context);
 		final Class<?> testClass = context.getRequiredTestClass();
@@ -415,13 +412,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	}
 
 	@Override
-	public void beforeEach(ExtensionContext context) throws Exception {
-		log.info("Before each `" + context.getRequiredTestMethod().toString() + "`");
-	}
-
-	@Override
 	public void afterAll(ExtensionContext context) {
-		log.info("After all `" + context.getRequiredTestClass().toString() + "`");
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		for (Entry<String, DataSetInfo> entry : dataSetIndex.entrySet()) {
 			final DataSetInfo dataSetInfo = entry.getValue();
@@ -433,7 +424,6 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 
 	@Override
 	public void afterEach(ExtensionContext context) {
-		log.info("After each `" + context.getRequiredTestMethod().toString() + "`");
 		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(context);
 		final Iterator<Entry<String, DataSetInfo>> it = dataSetIndex.entrySet().iterator();
 		while (it.hasNext()) {
@@ -530,7 +520,6 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				});
 				final DataSetInfo dataSetInfo = new DataSetInfo(
 					TestConstants.TEST_CATALOG,
-					randomFolderName,
 					null,
 					Collections.emptyList(),
 					new String[0],
@@ -550,7 +539,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					)
 				);
 				dataSetIndex.put(
-					EVITA_ANONYMOUS_EVITA + "_" + dataSetInfo.randomFolderName(),
+					EVITA_ANONYMOUS_EVITA + "_" + randomFolderName,
 					dataSetInfo
 				);
 				return dataSetInfo;
@@ -569,8 +558,8 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					// fill in the reference to the test instance, that is known only now
 					dataSetInfo.init(
 						() -> {
-							log.info("Dataset start `" + dataSetToUse + "` initialization (`" + dataSetInfo.randomFolderName() + "`)");
-							final Evita evita = createEvita(dataSetInfo.catalogName(), dataSetInfo.randomFolderName());
+							final String randomFolderName = Long.toHexString(RANDOM.nextLong());
+							final Evita evita = createEvita(dataSetInfo.catalogName(), randomFolderName);
 							final EvitaServer evitaServer;
 							if (ArrayUtils.isEmpty(dataSetInfo.webApi())) {
 								evitaServer = null;
@@ -657,7 +646,6 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 
 	private record DataSetInfo(
 		@Nonnull String catalogName,
-		@Nonnull String randomFolderName,
 		@Nullable CatalogInitMethod initMethod,
 		@Nonnull List<Method> destroyMethods,
 		@Nonnull String[] webApi,
@@ -667,13 +655,12 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	) {
 
 		private DataSetInfo(
-			@Nonnull String catalogName, @Nonnull String randomFolderName, @Nullable CatalogInitMethod initMethod,
+			@Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
 			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
 			boolean readOnly, boolean destroyAfterClass,
 			@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 		) {
 			this.catalogName = catalogName;
-			this.randomFolderName = randomFolderName;
 			this.initMethod = initMethod;
 			this.destroyMethods = destroyMethods;
 			this.webApi = webApi;
@@ -683,11 +670,11 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		}
 
 		public DataSetInfo(
-			@Nonnull String catalogName, @Nonnull String randomFolderName, @Nullable CatalogInitMethod initMethod,
+			@Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
 			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
 			boolean readOnly, boolean destroyAfterClass
 		) {
-			this(catalogName, randomFolderName, initMethod, destroyMethods, webApi, readOnly, destroyAfterClass, new AtomicReference<>());
+			this(catalogName, initMethod, destroyMethods, webApi, readOnly, destroyAfterClass, new AtomicReference<>());
 		}
 
 		@Nullable
@@ -787,8 +774,6 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			@Nonnull DataSetInfo dataSetInfo,
 			@Nonnull PortManager portManager
 		) {
-			log.info("Dataset `" + dataSetName + "` cleared");
-
 			// call destroy methods
 			for (Method destroyMethod : dataSetInfo.destroyMethods()) {
 				try {
@@ -809,6 +794,9 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					throw new ParameterResolutionException("Failed to tear down data set " + dataSetName, e);
 				}
 			}
+
+			// get the storage directory from evita configuration
+			final Path storageDirectory = evitaInstance.getConfiguration().storage().storageDirectory();
 
 			// close evita and clear data
 			evitaInstance.close();
@@ -834,7 +822,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			}
 
 			// delete the directory
-			final Path evitaDataPath = STORAGE_PATH.resolve(dataSetInfo.randomFolderName());
+			final Path evitaDataPath = STORAGE_PATH.resolve(storageDirectory);
 			try {
 				FileUtils.deleteDirectory(evitaDataPath.toFile());
 			} catch (IOException e) {
