@@ -43,6 +43,8 @@ implementation 'io.evitadb:evita_test_support:0.5-SNAPSHOT'
 Our testing support requires and is written for the [JUnit 5](https://junit.org/junit5/docs/current/user-guide/) testing
 framework.
 
+![https://evitadb.io/download/automated_testing.mp4](Tests)
+
 ## JUnit test class
 
 Example of a test that starts with an empty evitaDB instance:
