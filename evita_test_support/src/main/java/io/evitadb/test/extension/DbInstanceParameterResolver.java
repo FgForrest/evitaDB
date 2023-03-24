@@ -643,8 +643,8 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 									methodResult = initMethod.invoke(testClassInstance, arguments);
 								}
 								for (Object argument : arguments) {
-									if (argument instanceof AutoCloseable closeable) {
-										closeable.close();
+									if (argument instanceof EvitaSessionContract session) {
+										session.close();
 									}
 								}
 							} catch (Exception e) {
@@ -802,13 +802,17 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				.map(DataSetState::client)
 				.map(it -> ofNullable(it.get())
 					.orElseGet(
-						() -> ofNullable(evitaServerInstance())
-							.map(evitaServer -> {
-								final EvitaClient newSession = factory.apply(evitaServer);
-								it.set(newSession);
-								return newSession;
-							})
-							.orElseThrow(() -> new ParameterResolutionException("gRPC web API was not opened for the dataset `" + name + "`!"))
+						() -> {
+							return ofNullable(evitaServerInstance())
+								.map(evitaServer -> {
+									final EvitaClient newSession = factory.apply(evitaServer);
+									it.set(newSession);
+									return newSession;
+								})
+								.orElseThrow(() -> {
+									return new ParameterResolutionException("gRPC web API was not opened for the dataset `" + name + "`!");
+								});
+						}
 					)
 				)
 				.orElse(null);

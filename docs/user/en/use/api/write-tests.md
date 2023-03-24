@@ -106,7 +106,13 @@ and talk to the *embedded evitaDB* over the wire.
 
 ### Init shared data objects
 
+In the initialization method marked with the `@DataSet` annotation, you can create a set of additional objects that will 
+be associated with the test dataset of such name and will be available for "autowiring" in any of your tests along with 
+evitaDB references. Let's have a look at the following example:
 
+<SourceCodeTabs>
+[Company objects initialization](docs/user/en/use/api/example/test-company-objects.java)
+</SourceCodeTabs>
 
 ### Test isolation
 

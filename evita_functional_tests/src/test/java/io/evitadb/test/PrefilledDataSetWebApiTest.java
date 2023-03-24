@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 @ExtendWith(DbInstanceParameterResolver.class)
 public class PrefilledDataSetWebApiTest implements EvitaTestSupport {
-	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWithAFewData";
+	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWebApiWithAFewData";
 	private static final String ENTITY_BRAND = "Brand";
 
 	@DataSet(
