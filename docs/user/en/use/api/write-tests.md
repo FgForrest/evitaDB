@@ -114,6 +114,18 @@ evitaDB references. Let's have a look at the following example:
 [Company objects initialization](docs/user/en/use/api/example/test-company-objects.java)
 </SourceCodeTabs>
 
+In the initial method we return a special object
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DataCarrier.java</SourceClass>, this is 
+a wrapper around Map that carries the object *name* and the *value*. All named objects returned in a 
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DataCarrier.java</SourceClass> become available 
+for autowiring in input arguments of a test method. The arguments are autowired primarily by their name (and matching 
+type), secondarily by type compatibility. If you only need to propagate a single shared object, it can be returned as 
+the return value of the initialization method without the need to wrap it in a 
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DataCarrier.java</SourceClass> wrapper.
+
+You can see that in the test method, we accept `SealedEntity brand` and `String expectedBrandName`'` arguments that 
+exactly match the named values provided in a data carrier of the initialization method.
+
 ### Test isolation
 
 The data set support allows to run multiple isolated evitaDB instances in parallel - completely isolated one from 
