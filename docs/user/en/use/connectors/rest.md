@@ -42,7 +42,7 @@ You can download [OpenAPI schema](https://swagger.io/specification/v3/) of each 
 HTTP request to that base URL which then lists all available endpoints. 
 
 URLs of these REST API instances with above-mentioned base URLs are then further suffixed with specific resources.
-In case of <Term>systemAPI</Term> those are typically catalogs. In case of <Term>catalog API</Term> 
+In case of <Term>system API</Term> those are typically catalogs. In case of <Term>catalog API</Term> 
 there are resources for individual [collections](https://evitadb.io/documentation/use/data-model#collection)
 and their actions.
 
@@ -67,12 +67,12 @@ with its own relevant [OpenAPI schema](https://swagger.io/specification/v3/):
 ### Structure of catalog APIs
 
 A single <Term>catalog API</Term> for a single catalog contains only a few types of endpoints to retrieve and update data or its
-internal structure, but most of them are "duplicated" for
+internal schema, but most of them are "duplicated" for
 each [collection](https://evitadb.io/documentation/use/data-model#collection) within that catalog.
 Also, there is a set of endpoints for retrieving and updating schema of the parent [catalog](https://evitadb.io/documentation/use/data-model#catalog).
 Each endpoint then takes arguments and returns data specific to a given collection and [its schema](https://evitadb.io/documentation/use/schema#entity).
 
-In addition to user-defined collections, there is a "virtual" simplified collection in for each catalog in the REST API called `entity`
+In addition to user-defined collections, there is a "virtual" simplified collection for each catalog in the REST API called `entity`
 that allows users to retrieve entities by global attributes without knowing the target collection. However, the `entity` "collection",
 has only limited set of endpoints available.
 
@@ -94,7 +94,7 @@ can actually be used to query data (which also changes based on context of neste
 the internal data. This helps with the self-documentation because you don't necessarily need to know about
 the domain model, since the [OpenAPI](https://swagger.io/specification/v3/) schema can be used to auto-complete the available constraints.
 
-<Include>./assets/dynamic-api-query-language-syntax.md</Include>
+<Include>docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md</Include>
 
 ## Recommended usage
 
