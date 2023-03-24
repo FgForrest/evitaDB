@@ -24,6 +24,10 @@
 package io.evitadb.test.extension;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.SessionTraits;
+import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
@@ -388,7 +392,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				         IllegalAccessException e) {
 					throw new IllegalStateException(
 						"Cannot initialize web api config `" + webApiCode + "` with host name. " +
-							"Each config class (`" + configurationClass +  "`) needs to have a constructor with " +
+							"Each config class (`" + configurationClass + "`) needs to have a constructor with " +
 							"a single String argument accepting web api host configuration!", e);
 				}
 				apiOptionsBuilder.enable(webApiCode, webApiConfig);
@@ -451,7 +455,9 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		final Optional<DataSetInfo> dataSetInfo = ofNullable(useDataSet)
 			.map(it -> getDataSetIndex(extensionContext).get(it.value()));
 
-		return Evita.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
+		return EvitaContract.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
+			EvitaSessionContract.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
+			EvitaServer.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			dataSetInfo.isPresent();
 	}
 
@@ -473,17 +479,9 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		final UseDataSet useDataSet = ofNullable(methodUseDataSet).orElse(parameterUseDataSet);
 		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, dataSetIndex, extensionContext);
 
-		if (Evita.class.isAssignableFrom(requestedParam.getType())) {
-			// return initialized Evita instance
-			return dataSetInfo.evitaInstance();
-		} else if (EvitaServer.class.isAssignableFrom(requestedParam.getType())) {
-			// return initialized Evita server instance
-			return dataSetInfo.evitaServerInstance();
-		} else if ("catalogName".equals(requestedParam.getName())) {
-			// return catalog name
-			return dataSetInfo.catalogName();
-		} else {
-			final DataCarrier dataCarrier = dataSetInfo.dataCarrier();
+		// prefer the data created by the test itself
+		final DataCarrier dataCarrier = dataSetInfo.dataCarrier();
+		if (dataCarrier != null) {
 			final Object valueByName = dataCarrier.getValueByName(requestedParam.getName());
 			if (valueByName != null && requestedParam.getType().isInstance(valueByName)) {
 				return valueByName;
@@ -493,6 +491,28 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					return valueByType;
 				}
 			}
+		}
+
+		// now resolve the default types
+		if (EvitaContract.class.isAssignableFrom(requestedParam.getType())) {
+			// return initialized Evita instance
+			return dataSetInfo.evitaInstance();
+		} else if (EvitaServer.class.isAssignableFrom(requestedParam.getType())) {
+			// return initialized Evita server instance
+			return dataSetInfo.evitaServerInstance();
+		} else if (EvitaSessionContract.class.isAssignableFrom(requestedParam.getType())) {
+			return dataSetInfo.evitaSession(
+				evita -> evita.createSession(
+					new SessionTraits(
+						dataSetInfo.catalogName(),
+						SessionFlags.READ_WRITE, SessionFlags.DRY_RUN
+					)
+				)
+			);
+		} else if ("catalogName".equals(requestedParam.getName())) {
+			// return catalog name
+			return dataSetInfo.catalogName();
+		} else {
 			throw new ParameterResolutionException("Unrecognized parameter " + parameterContext + "!");
 		}
 	}
@@ -670,21 +690,42 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			this(catalogName, randomFolderName, initMethod, destroyMethods, webApi, readOnly, destroyAfterClass, new AtomicReference<>());
 		}
 
+		@Nullable
 		public Evita evitaInstance() {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
 				.map(DataSetState::evitaInstance)
 				.orElse(null);
 		}
 
+		@Nullable
 		public EvitaServer evitaServerInstance() {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
 				.map(DataSetState::evitaServerInstance)
 				.orElse(null);
 		}
 
+		@Nullable
 		public DataCarrier dataCarrier() {
 			return ofNullable(this.dataSetInfoAtomicReference.get())
 				.map(DataSetState::dataCarrier)
+				.orElse(null);
+		}
+
+		@Nullable
+		public EvitaSessionContract evitaSession(@Nonnull Function<Evita, EvitaSessionContract> factory) {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::session)
+				.map(it -> ofNullable(it.get())
+					.orElseGet(
+						() -> ofNullable(evitaInstance())
+							.map(evita -> {
+								final EvitaSessionContract newSession = factory.apply(evita);
+								it.set(newSession);
+								return newSession;
+							})
+							.orElse(null)
+					)
+				)
 				.orElse(null);
 		}
 
@@ -706,7 +747,12 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		) {
 			final DataSetState state = this.dataSetInfoAtomicReference.get();
 			return ofNullable(state)
-				.filter(it -> it.destroyPredicate().test(extensionContext, it))
+				.filter(it -> {
+					// if session has been opened, close it and liquidate
+					ofNullable(it.session().getAndSet(null))
+						.ifPresent(EvitaSessionContract::close);
+					return it.destroyPredicate().test(extensionContext, it);
+				})
 				.map(it -> {
 					this.dataSetInfoAtomicReference.set(null);
 					it.destroy(dataSetName, dataSetInfo, portManager);
@@ -725,8 +771,13 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		@Nullable Evita evitaInstance,
 		@Nullable EvitaServer evitaServerInstance,
 		@Nullable DataCarrier dataCarrier,
-		@Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate
+		@Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate,
+		@Nonnull AtomicReference<EvitaSessionContract> session
 	) {
+
+		private DataSetState(@Nonnull Object testInstance, @Nonnull Method testMethod, @Nullable Evita evitaInstance, @Nullable EvitaServer evitaServerInstance, @Nullable DataCarrier dataCarrier, @Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate) {
+			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>());
+		}
 
 		/**
 		 * Destroys the data set and closes the evitaDB server.
