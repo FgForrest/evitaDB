@@ -104,6 +104,8 @@ instance that is properly configured to communicate with this gRPC server, downl
 and the generic client certificate to pass [mTLS verification](../../operate/tls.md#default-mtls-behaviour-not-secure),
 and talk to the *embedded evitaDB* over the wire.
 
+### Init shared data objects
+
 ### Test isolation
 
 The data set support allows to run multiple isolated evitaDB instances in parallel - completely isolated one from 
@@ -127,16 +129,63 @@ outside the scope of this very session. This pattern is known as the
 been used successfully for a long time in 
 [Spring Framework Tests](https://relentlesscoding.com/posts/automatic-rollback-of-transactions-in-spring-tests/).
 
-### Test annotations reference
+### Annotations reference
+
+#### @DataSet
 
 <dl>
-    <dt>`@DataSet`</dt>
-    <dd></dd>
-    <dt>`@UseDataSet`</dt>
-    <dd></dd>
-    <dt>`@OnDataSetTearDown`</dt>
-    <dd></dd>
+    <dt>`value`</dt>
+    <dd>Defines name of the dataset.</dd>
+    <dt>`catalogName`</dt>
+    <dd>
+        <p>**Default:** `testCatalog`</p>
+        <p>Defines the catalog name for the initial catalog created in a new evitaDB instance.</p>
+    </dd>
+    <dt>`expectedCatalogState`</dt>
+    <dd>
+        <p>**Default:** `ALIVE`</p>
+        <p>Defines the state of the initial catalog. By default, when the initial dataset is set up, the catalog is 
+        switched to transactional mode so that multiple sessions can be opened in this catalog (multiple tests can 
+        access the contents of this catalog).</p>
+    </dd>
+    <dt>`openWebApi`</dt>
+    <dd>
+        <p>**Default:** `none`</p>
+        <p>Specifies a set of web APIs to open for this dataset. Valid values are:</p>
+        <ul>
+            <li>`gRPC` (`GrpcProvider.CODE`) - for gRPC web API (the system API must be opened as well)</li>
+            <li>`system` (`SystemProvider.CODE`) - system API that provides access to the certificates</li>
+            <li>`rest` (`RestProvider.CODE`) - for REST web API</li>
+            <li>`graphQL` (`GraphQLProvider.CODE`) - for GraphQL web API</li>
+        </ul>
+    </dd>
+    <dt>`readOnly`</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Marks the record as read-only after the initialization method completes. This is a security lock. If you need
+        to write to a dataset from the unit test methods, you probably don't want to share it with other tests, or only 
+        a controlled subset of them.</p>
+	    <p>If you disable the readOnly security lock, you should probably set the `destroyAfterClass` or 
+        `destroyAfterTest` attributes to `true`.</p>
+	    <p>That's why `readOnly` is set to true by default, we want you to think about it before you turn off this 
+        safety lock.</p>
+    </dd>
+    <dt>`destroyAfterClass`</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>If set to true, the evitaDB server instance will be closed and deleted after all test methods of the set 
+        where the `@DataSet` annotation is used have been executed.</p>
+        <p>By default, the dataset remains active so that other test classes can reuse it. Please make sure that there
+        are not multiple (different) versions of the dataset initialization methods that execute the dataset 
+        differently. The recommended approach is to have an abstract class with a setup method implementation and 
+        multiple tests that extend from it and use the same dataset.</p>
+        <p>If you have different implementations of the record initialization method, there's no guarantee which version
+        will be called first and which will be skipped (due to the existence of the initialized record).</p>
+    </dd>
 </dl>
+
+#### @UseDataSet
+#### @OnDataSetTearDown
 
 [Dry-run session](write-data.md#dry-run-session)
 

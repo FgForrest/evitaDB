@@ -50,7 +50,7 @@ public @interface DataSet {
 	String value();
 
 	/**
-	 * Defines catalog name for this dataset. If annotation is not used, catalog name defaults to
+	 * Defines catalog name for the initial catalog. If annotation is not used, catalog name defaults to
 	 * {@link TestConstants#TEST_CATALOG}.
 	 */
 	String catalogName() default TestConstants.TEST_CATALOG;
