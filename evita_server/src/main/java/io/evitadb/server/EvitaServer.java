@@ -23,6 +23,7 @@
 
 package io.evitadb.server;
 
+import ch.qos.logback.classic.util.ContextInitializer;
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.ContextBase;
 import ch.qos.logback.core.spi.ContextAwareBase;
@@ -86,10 +87,6 @@ import static java.util.Optional.ofNullable;
  */
 public class EvitaServer {
 	/**
-	 * Logger.
-	 */
-	private static Logger log;
-	/**
 	 * Name of the argument for specification of evita configuration file path.
 	 */
 	public static final String OPTION_EVITA_CONFIGURATION_FILE = "configFile";
@@ -105,6 +102,10 @@ public class EvitaServer {
 	 * Pattern for matching Unix like arguments `--name=value`
 	 */
 	private static final Pattern OPTION_GNU_ARGUMENT = Pattern.compile("--(\\S+)=(\\S+)");
+	/**
+	 * Logger.
+	 */
+	private static Logger log;
 	/**
 	 * Instance of the {@link EvitaConfiguration} initialized from the evita configuration file.
 	 */
@@ -136,8 +137,11 @@ public class EvitaServer {
 		for (Entry<String, String> argEntry : options.entrySet()) {
 			System.setProperty(argEntry.getKey(), argEntry.getValue());
 		}
+		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
+			System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
+		}
 		// and then initialize logger so that `logback.configurationFile` argument might apply
-		log = LoggerFactory.getLogger(EvitaServer.class);
+		getLog();
 
 		ConsoleWriter.write(
 			"""
@@ -148,7 +152,7 @@ public class EvitaServer {
 				 \\___| \\_/ |_|\\__\\__,_|____/|____/\s\n\n""",
 			ConsoleColor.DARK_GREEN
 		);
-		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[] {VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
+		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io\n\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 
@@ -201,6 +205,17 @@ public class EvitaServer {
 	}
 
 	/**
+	 * Returns and lazily initializes logger.
+	 */
+	@Nonnull
+	private static Logger getLog() {
+		if (log == null) {
+			log = LoggerFactory.getLogger(EvitaServer.class);
+		}
+		return log;
+	}
+
+	/**
 	 * Constructor that initializes the EvitaServer.
 	 */
 	public EvitaServer(@Nonnull Path configFileLocation, @Nonnull Map<String, String> arguments) {
@@ -214,14 +229,32 @@ public class EvitaServer {
 		this.apiOptions = evitaServerConfig.api();
 	}
 
+	/**
+	 * Constructor that initializes EvitaServer on top of existing and running Evita server.
+	 */
+	public EvitaServer(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions) {
+		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
+		this.evita = evita;
+		this.evitaConfiguration = evita.getConfiguration();
+		this.apiOptions = apiOptions;
+	}
+
+	/**
+	 * Method starts the {@link ExternalApiServer} and opens ports for all web APIs.
+	 */
 	public void run() {
-		this.evita = new Evita(evitaConfiguration);
+		if (this.evita == null) {
+			this.evita = new Evita(evitaConfiguration);
+		}
 		this.externalApiServer = new ExternalApiServer(
 			this.evita, this.apiOptions, this.externalApiProviders
 		);
 		externalApiServer.start();
 	}
 
+	/**
+	 * Method stops {@link ExternalApiServer} and closes all opened ports.
+	 */
 	public void stop() {
 		if (externalApiServer != null) {
 			externalApiServer.close();
@@ -282,17 +315,6 @@ public class EvitaServer {
 	}
 
 	/**
-	 * Returns and lazily initializes logger.
-	 */
-	@Nonnull
-	private static Logger getLog() {
-		if (log == null) {
-			log = LoggerFactory.getLogger(EvitaServer.class);
-		}
-		return log;
-	}
-
-	/**
 	 * The shutdown sequence first stops the {@link EvitaServer} and then it shuts down logger instance correctly.
 	 */
 	static class ShutdownSequence extends ContextAwareBase implements Runnable {
@@ -311,10 +333,9 @@ public class EvitaServer {
 
 		protected void stop() {
 			this.addInfo("Logback context being closed via shutdown hook");
-			Context hookContext = this.getContext();
-			if (hookContext instanceof ContextBase) {
-				ContextBase context = (ContextBase)hookContext;
-				context.stop();
+			final Context hookContext = this.getContext();
+			if (hookContext instanceof ContextBase theContext) {
+				theContext.stop();
 			}
 
 		}

@@ -32,9 +32,8 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.test.Entities;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.builder.CopyExistingEntityBuilder;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -62,7 +61,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static java.util.Optional.ofNullable;
 import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
 import static org.apache.commons.io.FileUtils.sizeOfDirectory;
@@ -75,9 +73,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @CommonsLog
-class EvitaGenerationalTest implements TestFileSupport, TimeBoundedTestSupport {
+class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport {
 	public static final String ATTRIBUTE_CODE = "code";
-	private static final String TEST_CATALOG = "testCatalog";
 	/**
 	 * Seed for data generation.
 	 */
@@ -86,6 +83,7 @@ class EvitaGenerationalTest implements TestFileSupport, TimeBoundedTestSupport {
 	 * Count of the product that will exist in the database BEFORE the test starts.
 	 */
 	private static final int INITIAL_COUNT_OF_PRODUCTS = 1000;
+	public static final String DIRECTORY_EVITA_GENERATIONAL_TEST = "evitaGenerationalTest";
 	/**
 	 * Instance of the data generator that is used for randomizing artificial test data.
 	 */
@@ -143,8 +141,7 @@ class EvitaGenerationalTest implements TestFileSupport, TimeBoundedTestSupport {
 
 	@BeforeEach
 	void setUp() throws IOException {
-		SequenceService.reset();
-		cleanTestDirectory();
+		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST);
 		this.dataGenerator.clear();
 		this.generatedEntities.clear();
 		final String catalogName = "testCatalog";
@@ -340,7 +337,7 @@ class EvitaGenerationalTest implements TestFileSupport, TimeBoundedTestSupport {
 		return EvitaConfiguration.builder()
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getTestDirectory())
+					.storageDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST))
 					.build()
 			)
 			.build();

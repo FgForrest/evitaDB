@@ -93,6 +93,7 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
         final Optional<Object> result = doHandleRequest(exchange);
         if (result == null) {
             sendSuccessResponse(exchange);
+            return;
         }
 
         final Object resultObject = result

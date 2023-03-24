@@ -32,6 +32,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
@@ -70,7 +71,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return unknown entity list by multiple globally unique attribute")
-	void shouldReturnUnknownEntityListByMultipleGloballyUniqueAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnUnknownEntityListByMultipleGloballyUniqueAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
 		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 7);
 		final SealedEntity entityWithCode1 = originalProductEntities.stream()
@@ -82,7 +83,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.findFirst()
 			.orElseThrow(() -> new EvitaInternalError("Missing entity with code attribute"));
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -121,7 +122,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return rich unknown entity list by multiple localized globally unique attribute")
-	void shouldReturnRichUnknownEntityListByMultipleLocalizedGloballyUniqueAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnRichUnknownEntityListByMultipleLocalizedGloballyUniqueAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String urlAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH, 5);
 		final String urlAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH, 7);
 		final SealedEntity entityWithUrl1 = originalProductEntities.stream()
@@ -135,7 +136,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.findFirst()
 			.orElseThrow(() -> new EvitaInternalError("Missing entity with url attribute"));
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -188,8 +189,8 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid argument in unknown entity list query")
-	void shouldReturnErrorForInvalidArgumentInUnknownEntityListQuery(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidArgumentInUnknownEntityListQuery(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -213,11 +214,11 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return rich unknown entity list by multiple globally unique attribute")
-	void shouldReturnErrorForInvalidUnknownEntityListFields(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForInvalidUnknownEntityListFields(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
 		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 7);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -238,7 +239,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
-	void shouldReturnCustomPriceForSaleForEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnCustomPriceForSaleForEntities(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String,Object>> expectedBody = entities.stream()
@@ -256,7 +257,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -288,7 +289,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for entities")
-	void shouldReturnPriceForEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForEntities(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
@@ -306,7 +307,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -338,13 +339,13 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all prices for entities")
-	void shouldReturnAllPricesForEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAllPricesForEntities(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntities(
 			originalProductEntities,
 			it -> !it.getPrices().isEmpty()
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -375,7 +376,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for entities")
-	void shouldReturnFilteredPricesForEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFilteredPricesForEntities(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
@@ -395,7 +396,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -427,7 +428,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for multiple price lists for entities")
-	void shouldReturnFilteredPricesForMultiplePriceListsForEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFilteredPricesForMultiplePriceListsForEntities(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, PRICE_LIST_BASIC, PRICE_LIST_VIP);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
@@ -445,7 +446,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -473,7 +474,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with custom locale for entities")
-	void shouldReturnAssociatedDataWithCustomLocaleForEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithCustomLocaleForEntities(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
@@ -493,7 +494,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -523,7 +524,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single reference for entities")
-	void shouldReturnSingleReferenceForEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleReferenceForEntities(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.PARAMETER).size() == 1 &&
@@ -576,7 +577,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			})
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
@@ -625,7 +626,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference list for entities")
-	void shouldReturnReferenceListForEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferenceListForEntities(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() > 1
@@ -651,7 +652,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			})
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {

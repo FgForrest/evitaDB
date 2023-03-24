@@ -62,6 +62,7 @@ import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -106,6 +107,7 @@ public class EvitaClient implements EvitaContract {
 	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
 		new DelegatingTopLevelCatalogSchemaMutationConverter();
 
+	@Getter private final EvitaClientConfiguration configuration;
 	private final ChannelPool channelPool;
 	private final AtomicBoolean active = new AtomicBoolean(true);
 	private final ReflectionLookup reflectionLookup;
@@ -138,10 +140,12 @@ public class EvitaClient implements EvitaContract {
 		@Nonnull EvitaClientConfiguration configuration,
 		@Nullable Consumer<NettyChannelBuilder> grpcConfigurator
 	) {
+		this.configuration = configuration;
 		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
 			.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
 			.usingTrustedRootCaCertificate(configuration.trustCertificate())
 			.mtls(configuration.mtlsEnabled())
+			.certificateClientFolderPath(configuration.certificateFolderPath())
 			.clientCertificateFilePath(configuration.certificateFileName())
 			.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
 			.build();

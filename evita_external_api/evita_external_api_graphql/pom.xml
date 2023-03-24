@@ -66,13 +66,5 @@
             <version>19.2</version>
         </dependency>
 
-        <!-- TESTING -->
-
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>evita_test_support</artifactId>
-            <version>${project.parent.version}</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 </project>

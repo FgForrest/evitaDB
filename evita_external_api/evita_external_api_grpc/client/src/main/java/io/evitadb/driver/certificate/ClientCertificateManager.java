@@ -212,13 +212,6 @@ public class ClientCertificateManager {
 	private TrustManager getTrustManager(@Nonnull Path usedCertificatePath) {
 		final TrustManager trustManagerTrustingProvidedRootCertificate;
 		try {
-			if (!getDefaultClientCertificateFolderPath().toFile().exists()) {
-				Assert.isPremiseValid(
-					getDefaultClientCertificateFolderPath().toFile().mkdirs(),
-					() -> "Cannot create path `" + getDefaultClientCertificateFolderPath() + "`!"
-				);
-			}
-
 			if (useGeneratedCertificate && !usedCertificatePath.toFile().exists()) {
 				getCertificatesFromServer(host, port);
 			}

@@ -23,15 +23,16 @@
 
 package io.evitadb.test;
 
-import io.evitadb.core.Evita;
-import io.evitadb.test.annotation.DataSet;
-import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Example of the test with empty database.
@@ -40,19 +41,18 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
-public class EmptyDataSetAlternativeTest implements TestFileSupport, TestConstants {
-	private static final String EXAMPLE_DATASET = "exampleDataset";
-
-	@DataSet(EXAMPLE_DATASET)
-	void initEvita() {
-		log.info("Evita initialized ...");
-	}
+public class EmptyDataSetAlternativeTest implements EvitaTestSupport, TestConstants {
 
 	@Test
-	@UseDataSet(EXAMPLE_DATASET)
-	void shouldWriteTest(Evita evita) {
+	void shouldWriteTest(EvitaContract evita, EvitaSessionContract session) {
 		// here comes your test logic
 		assertNotNull(evita);
+		assertNotNull(session);
+		assertTrue(session.isActive());
+		assertFalse(session.isReadOnly());
+		assertTrue(session.isDryRun());
+		session.openTransaction();
+		assertTrue(session.isRollbackOnly());
 	}
 
 }

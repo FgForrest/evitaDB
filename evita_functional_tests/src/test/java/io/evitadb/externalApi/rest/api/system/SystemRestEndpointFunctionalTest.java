@@ -27,10 +27,15 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
+import io.evitadb.server.EvitaServer;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,7 +47,8 @@ import java.util.Map;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for REST system management endpoints.
@@ -51,17 +57,20 @@ import static org.hamcrest.Matchers.*;
  */
 class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
-	@Nonnull
+	private static final String SYSTEM_URL = "system";
+	public static final String REST_THOUSAND_PRODUCTS_FOR_REPLACE = REST_THOUSAND_PRODUCTS + "forReplace";
+
 	@Override
-	protected String getEndpointPath() {
-		return "/system";
+	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_REPLACE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
+	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		return super.setUpData(evita, evitaServer, 20);
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
 	@DisplayName("Should return OpenAPI specs")
-	void shouldReturnOpenApiSpecs(Evita evita) {
-		testRestCall()
+	void shouldReturnOpenApiSpecs(Evita evita, RestTester tester) {
+		tester.test(SYSTEM_URL)
 			.httpMethod(Request.METHOD_GET)
 			.acceptHeader("application/yaml")
 			.executeAndThen()
@@ -70,10 +79,10 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
 	@DisplayName("Should be alive")
-	void shouldBeAlive(Evita evita) {
-		testRestCall()
+	void shouldBeAlive(Evita evita, RestTester tester) {
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/liveness")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -89,13 +98,13 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
 	@DisplayName("Should return specific catalog")
-	void shouldReturnSpecificCatalog(Evita evita) {
+	void shouldReturnSpecificCatalog(Evita evita, RestTester tester) {
 		final CatalogContract testCatalog = evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 		createCatalogDto(testCatalog);
 
-		testRestCall()
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs/test-catalog")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -104,10 +113,10 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
 	@DisplayName("Should return all catalogs")
-	void shouldReturnAllCatalogs(Evita evita) {
-		testRestCall()
+	void shouldReturnAllCatalogs(Evita evita, RestTester tester) {
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -124,10 +133,10 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
 	@DisplayName("Should return error if specific Evita catalog doesn't exist")
-	void shouldReturnErrorIfSpecificCatalogDoesntExist(Evita evita) {
-		testRestCall()
+	void shouldReturnErrorIfSpecificCatalogDoesntExist(Evita evita, RestTester tester) {
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs/something-else")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -136,11 +145,11 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
 	@DisplayName("Should create, rename and delete catalog")
-	void shouldCreateRenameAndDeleteCatalog(Evita evita) {
+	void shouldCreateRenameAndDeleteCatalog(Evita evita, RestTester tester) {
 		// prepare temp catalog
-		testRestCall()
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
@@ -155,7 +164,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 			.body("", equalTo(createCatalogDto(evita.getCatalogInstanceOrThrowException("temporaryCatalog"))));
 
 		// rename
-		testRestCall()
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs/temporary-catalog")
 			.httpMethod(Request.METHOD_PATCH)
 			.requestBody(
@@ -175,7 +184,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 			);
 
 		// delete
-		testRestCall()
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs/temporary-catalog2")
 			.httpMethod(Request.METHOD_DELETE)
 			.executeAndThen()
@@ -183,10 +192,10 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
 	@DisplayName("Should not delete unknown catalog")
-	void shouldNotDeleteUnknownCatalog(Evita evita) {
-		testRestCall()
+	void shouldNotDeleteUnknownCatalog(Evita evita, RestTester tester) {
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs/unknown")
 			.httpMethod(Request.METHOD_DELETE)
 			.executeAndThen()
@@ -194,11 +203,11 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_REPLACE)
 	@DisplayName("Should replace catalog")
-	void shouldReplaceCatalog(Evita evita) {
+	void shouldReplaceCatalog(Evita evita, RestTester tester) {
 		// create new temporary catalog
-		testRestCall()
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
@@ -213,7 +222,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 			.body("", equalTo(createCatalogDto(evita.getCatalogInstanceOrThrowException("temporaryCatalog"))));
 
 		// replace test catalog to temporary catalog
-		testRestCall()
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs/test-catalog")
 			.httpMethod(Request.METHOD_PATCH)
 			.requestBody(
@@ -229,7 +238,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 			.body("", equalTo(createCatalogDto(evita.getCatalogInstanceOrThrowException("temporaryCatalog"))));
 
 		// recreate test catalog
-		testRestCall()
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
@@ -245,7 +254,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 			.body("", equalTo(createCatalogDto(evita.getCatalogInstanceOrThrowException(TEST_CATALOG))));
 
 		// replace temporary catalog back to test catalog
-		testRestCall()
+		tester.test(SYSTEM_URL)
 			.urlPathSuffix("/catalogs/temporary-catalog")
 			.httpMethod(Request.METHOD_PATCH)
 			.requestBody(

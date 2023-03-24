@@ -28,21 +28,25 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.testSuite.RestTester;
 import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
-import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -59,16 +63,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
-	@Nonnull
+
+	public static final String REST_THOUSAND_PRODUCTS_FOR_DELETE = REST_THOUSAND_PRODUCTS + "forDelete";
+
 	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
+	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_DELETE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
+	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		return super.setUpData(evita, evitaServer, 20);
 	}
 
 	@Test
-	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_DELETE)
 	@DisplayName("Should delete entity by query")
-	void shouldDeleteEntityByQuery(Evita evita) {
+	void shouldDeleteEntityByQuery(Evita evita, RestTester tester) {
 		final List<SealedEntity> entitiesToDelete = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -107,7 +114,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 			)
 			.toList();
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_DELETE)
 			.urlPathSuffix("/product")
 			.requestBody("""
@@ -130,14 +137,14 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 			.statusCode(200)
 			.body("", equalTo(expectedBody));
 
-		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey());
-		assertProductDeleted(entitiesToDelete.get(1).getPrimaryKey());
+		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey(), tester);
+		assertProductDeleted(entitiesToDelete.get(1).getPrimaryKey(), tester);
 	}
 
 	@Test
-	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_DELETE)
 	@DisplayName("Should not delete any entity by query")
-	void shouldNotDeleteAnyEntityByQuery(Evita evita) {
+	void shouldNotDeleteAnyEntityByQuery(Evita evita, RestTester tester) {
 		final List<EntityReference> entitiesToDelete = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -156,7 +163,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 		);
 		assertTrue(entitiesToDelete.isEmpty());
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_DELETE)
 			.urlPathSuffix("/product")
 			.requestBody("""
@@ -177,8 +184,8 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 			.body("", equalTo(List.of()));
 	}
 
-	private void assertProductDeleted(int primaryKey) {
-		testRestCall()
+	private void assertProductDeleted(int primaryKey, RestTester tester) {
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

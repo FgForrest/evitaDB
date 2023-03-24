@@ -153,7 +153,7 @@ public class EntityFetchingFunctionalTest {
 			.orElseThrow(() -> new EvitaInvalidUsageException("There are no entities matching the requirements!"));
 	}
 
-	@DataSet(FIFTY_PRODUCTS)
+	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
