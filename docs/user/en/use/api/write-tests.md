@@ -44,7 +44,7 @@ Our testing support requires and is written for the [JUnit 5](https://junit.org/
 framework.
 
 <video width="850" height="478" controls="controls">
-  <source src="https://evitadb.io/download/automated_testing.mp4" type="video/mp4">
+  <source src="https://evitadb.io/download/automated_testing.mp4" type="video/mp4"/>
     Your browser does not support the video tag.
 </video>
 
