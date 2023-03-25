@@ -40,7 +40,7 @@ public class EmptyDataSetTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldWriteTest() {
+	void exampleTestCaseWithAssertions() {
 		// here comes your test logic
 		assertNotNull(evita);
 	}

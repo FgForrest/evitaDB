@@ -1,5 +1,5 @@
 @ExtendWith(DbInstanceParameterResolver.class)
-public class PrefilledDataSetTest implements EvitaTestSupport {
+public class PrefilledDataSetTest {
 	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWithAFewData";
 	private static final String ENTITY_BRAND = "Brand";
 
@@ -15,7 +15,7 @@ public class PrefilledDataSetTest implements EvitaTestSupport {
 
 	@Test
 	@UseDataSet(DATA_SET_WITH_A_FEW_DATA)
-	void shouldWriteTest(EvitaSessionContract session) {
+	void exampleTestCaseWithAssertions(EvitaSessionContract session) {
 		assertEquals(1, session.getEntityCollectionSize(ENTITY_BRAND));
 
 		final SealedEntity theBrand = session.getEntity(

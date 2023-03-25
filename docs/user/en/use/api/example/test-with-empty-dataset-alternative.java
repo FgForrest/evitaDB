@@ -1,8 +1,11 @@
 @ExtendWith(DbInstanceParameterResolver.class)
-public class EmptyDataSetAlternativeTest implements EvitaTestSupport {
+public class EmptyDataSetAlternativeTest {
 
 	@Test
-	void shouldWriteTest(EvitaContract evita, EvitaSessionContract session) {
+	void exampleTestCaseWithAssertions(
+		EvitaContract evita,
+		EvitaSessionContract session
+	) {
 		// here comes your test logic
 		assertNotNull(evita);
 		assertNotNull(session);

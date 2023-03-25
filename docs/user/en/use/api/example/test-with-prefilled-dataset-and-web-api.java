@@ -1,5 +1,5 @@
 @ExtendWith(DbInstanceParameterResolver.class)
-public class PrefilledDataSetWebApiTest implements EvitaTestSupport {
+public class PrefilledDataSetWebApiTest {
 	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWithAFewData";
 	private static final String ENTITY_BRAND = "Brand";
 
@@ -18,7 +18,7 @@ public class PrefilledDataSetWebApiTest implements EvitaTestSupport {
 
 	@Test
 	@UseDataSet(DATA_SET_WITH_A_FEW_DATA)
-	void shouldWriteTest(EvitaClient client, String catalogName) {
+	void exampleTestCaseWithAssertions(EvitaClient client, String catalogName) {
 		client.queryCatalog(
 			catalogName,
 			session -> {

@@ -2,7 +2,7 @@
 title: Write tests
 perex: |
     Everyone writes tests - even you. Are we right?! Writing tests should be a pleasure and that's why we try to provide 
-    you with a support for you to write fast tests with evitaDB with ease. Your integration test shouldn't take minutes 
+    you with a support to write fast tests with evitaDB with ease. Your integration tests shouldn't take minutes 
     but seconds.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
@@ -19,8 +19,22 @@ Unfortunately, we don't have a support written for a C# client, yet. Want to
 
 <LanguageSpecific to="java">
 
+<UsedTerms>
+    <h4>Terms used in this document</h4>
+	<dl>
+		<dt>autowiring</dt>
+		<dd>
+        Autowiring is the process of placing an instance of a bean into the specified argument of the method. This 
+        mechanism is known as the [dependency injection pattern](https://en.wikipedia.org/wiki/Dependency_injection)
+        and allows the *framework* to resolve the correct instance for the argument of a given name and type, and 
+        automatically provide it to the application code. This process allows the application logic to be decoupled 
+        from the integration logic and greatly simplifies it.
+        </dd>
+	</dl>
+</UsedTerms>
+
 To take advantage of our support for application testing with evitaDB, you first need to import the `evita_test_support`
-artifact into your project. artifact into your project:
+artifact into your project:
 
 <CodeTabs>
 <CodeTabsBlock>
@@ -40,27 +54,27 @@ implementation 'io.evitadb:evita_test_support:0.5-SNAPSHOT'
 </CodeTabsBlock>
 </CodeTabs>
 
-Our testing support requires and is written for the [JUnit 5](https://junit.org/junit5/docs/current/user-guide/) testing
+Our testing support requires and is written for the [JUnit 5](https://junit.org/junit5/docs/current/user-guide/) test
 framework.
 
 ## JUnit test class
 
-Example of a test that starts with an empty evitaDB instance:
+Let's first take a look at what a commonly written automated test that uses data in evitaDB would look like:
 
 <SourceCodeTabs>
 [JUnit5 test example](docs/user/en/use/api/example/test-with-empty-dataset-example.java)
 </SourceCodeTabs>
 
-That's quite a lot of work, so we provide better support for evitaDB server initialization using 
-<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
-as `@ExtendWith(DbInstanceParameterResolver.class)`:
+That's quite a lot of work. Therefore, we provide better support for evitaDB server initialization using 
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>, 
+which can be integrated into your test via JUnit 5 annotation `@ExtendWith(DbInstanceParameterResolver.class)`:
 
 <SourceCodeTabs>
 [Alternative test example](docs/user/en/use/api/example/test-with-empty-dataset-alternative.java)
 </SourceCodeTabs>
 
 This example class will create *an anonymous instance* of an empty embedded evitaDB server and destroy it immediately 
-after the test is finished. If you want to name the evitaDB server instance and use it in multiple tests (and possibly 
+after the test has finished. If you want to name the evitaDB server instance and use it in multiple tests (and possibly 
 with some initial data fixture), you need to define a new initialization function in your test and use two new 
 annotations <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annotation/DataSet.java</SourceClass>
 and <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annotation/UseDataSet.java</SourceClass>:
@@ -71,109 +85,118 @@ and <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annotation/Use
 
 As you can see in the example, the `setUpData` method declares that it will initialize a data set named 
 `dataSetWithAFewData`, creates a new collection `Brand` with a single entity containing the attribute `name` with
-the value `Siemens`. The set up method allows the
-<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
-to automatically create a reference 
-to an evitaDB session object that allows to talk to the evitaDB instance (see [reference](#test-annotations-reference)
-for more options of the `@DataSet` annotation).
+the value `Siemens`. The <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
+automatically <Term name="autowiring">autowires</Term> a 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> 
+object that allows communication with the evitaDB instance (see [reference](#annotations-reference) for more options 
+of the `@DataSet` annotation).
 
-Additionally, there is a test method `shouldWriteTest` which declares that it uses the dataset with the name
-`dataSetWithAFewData` by using the annotation `@UseDataSet` and lets the
+In addition, there is a test method `exampleTestCaseWithAssertions`, which declares that it uses the dataset named 
+`dataSetWithAFewData` by using the `@UseDataSet` annotation. The same
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
-automatically create a reference to another evitaDB session object which it uses to query and assert the results of 
-the data in the database.
+automatically <Term name="autowiring">autowires</Term> a reference to another evitaDB session object which is used in 
+the test method implementation to query and assert the results of the data in the database.
 
 ### Test web APIs
 
 A similar approach is possible with the evitaDB Web APIs. When setting up your dataset, simply declare that you also 
-want to initialize the web server and open the named set of web APIs:
+want to initialize the web server and open required set of web APIs:
 
 <SourceCodeTabs>
 [Web API test example](docs/user/en/use/api/example/test-with-prefilled-dataset-and-web-api.java)
 </SourceCodeTabs>
 
-The example test is identical to the previous example with the only significant difference - instead of communicating 
-with the embedded evitaDB server, you use
+The example is identical to the previous one with the only significant difference - instead of communicating 
+with the embedded evitaDB server via direct method calls, it uses
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>,
-which communicates with gRPC server via HTTP/2 protocol. The server opens a free port, generates self-signed
-certificates, the 
+which communicates with the same embedded evitaDB server via gRPC protocol using HTTP/2 and local network. The server 
+opens a free port, generates self-signed <Term location="docs/user/en/operate/tls.md">certificate authority</Term> 
+certificate. The 
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
 creates a
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass> 
-instance that is properly configured to communicate with this gRPC server, downloads the self-signed server certificate
-and the generic client certificate to pass [mTLS verification](../../operate/tls.md#default-mtls-behaviour-not-secure),
-and talk to the *embedded evitaDB* over the wire.
+instance that is properly configured to communicate with this gRPC API, the client downloads the self-signed
+<Term location="docs/user/en/operate/tls.md">certificate authority</Term> certificate and the generic client 
+certificate to pass [mTLS verification](../../operate/tls.md#default-mtls-behaviour-not-secure), and 
+communicates with the *embedded evitaDB* over the wire.
 
 ### Init shared data objects
 
 In the initialization method marked with the `@DataSet` annotation, you can create a set of additional objects that will 
-be associated with the test dataset of such name and will be available for "autowiring" in any of your tests along with 
-evitaDB references. Let's have a look at the following example:
+be associated with the test dataset of such name and will be available for <Term>autowiring</Term> in any of your 
+tests along with other evitaDB related objects. Let's have a look at the following example:
 
 <SourceCodeTabs>
 [Company objects initialization](docs/user/en/use/api/example/test-company-objects.java)
 </SourceCodeTabs>
 
-In the initial method we return a special object
-<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DataCarrier.java</SourceClass>, this is 
-a wrapper around Map that carries the object *name* and the *value*. All named objects returned in a 
-<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DataCarrier.java</SourceClass> become available 
-for autowiring in input arguments of a test method. The arguments are autowired primarily by their name (and matching 
-type), secondarily by type compatibility. If you only need to propagate a single shared object, it can be returned as 
-the return value of the initialization method without the need to wrap it in a 
-<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DataCarrier.java</SourceClass> wrapper.
+In the initial method we return a special 
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DataCarrier.java</SourceClass>. It is 
+a wrapper around a [Map](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) that carries
+the shared object *name* and the *value*. All such objects that are returned in a 
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DataCarrier.java</SourceClass> will be 
+available for <Term>autowiring</Term> in the input arguments of a test method. The arguments are <Term 
+name="autowiring">autowired</Term> primarily by their name (and matching type), secondarily by type compatibility. 
+If you only need to propagate a single shared object, it can be returned directly as the return value of the 
+initialization method without wrapping it in a 
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DataCarrier.java</SourceClass>.
 
-You can see that in the test method, we accept `SealedEntity brand` and `String expectedBrandName`'` arguments that 
+You can see that in the test method, we accept `SealedEntity brand` and `String expectedBrandName` arguments that 
 exactly match the named values provided in a data carrier of the initialization method.
 
 ### Test isolation
 
-The data set support allows to run multiple isolated evitaDB instances in parallel - completely isolated one from 
-another. This approach allows you to run integration tests in parallel. You can read more about this technique in
-our blog post [about blazing fast integration testing](/blog/04-blazing-fast-integration-tests).
+The data set support allows to run multiple isolated evitaDB instances at the same time - completely isolated one from 
+each other. This fact allows you to run your integration tests in parallel. You can read more about this technique in
+our blog post [about blazing fast integration tests](/blog/04-blazing-fast-integration-tests).
 
-Each dataset targets a directory with randomized name in OS temporary folder. When the dataset provides web API, 
-the opened ports are consulted with <SourceClass>evita_test_support/src/main/java/io/evitadb/test/PortManager.java</SourceClass>
-that provides it with information about free ports that can be used for web APIs of the data set. When the dataset
-is destroyed the ports are closed and returned back to 
+Each dataset is stored in a directory with randomized name in the OS temporary folder. When the dataset opens a web API, 
+the opened ports are consulted with <SourceClass>evita_test_support/src/main/java/io/evitadb/test/PortManager.java</SourceClass>.
+It provides the evitaDB web server with information about free ports that can be used for web APIs of the dataset. 
+When the dataset is destroyed the ports are closed and returned back to 
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/PortManager.java</SourceClass>.
 
-All datasets are switched to read-only mode after they are initially filled, so that the data from the test cannot be 
-modified inadvertently and cause problems in different tests running simultaneously or reusing the same dataset 
-afterwards. You can switch the dataset to read-write mode, but it's recommended to consider this fact and mark the 
-dataset to be destroyed after the test or test class. All evita session objects that are created and injected into 
-the arguments of the test method are created as read-write sessions with 
-[dry-run flag enabled](write-data.md#dry-run-session), which means that they never affect the data in the dataset 
-outside the scope of this very session. This pattern is known as the
-[transaction rollback teardown pattern](http://xunitpatterns.com/Transaction%20Rollback%20Teardown.html), and it has 
-been used successfully for a long time in 
+All datasets are switched to read-only mode after they are initially populated, so that the data cannot be 
+inadvertently modified in the test implementations and cause problems in different tests running at the same time, 
+or reusing the same dataset later.
+
+You can switch the dataset to read-write mode, but it's recommended to be aware of this fact and mark the dataset to be
+destroyed after finishing the test method or the whole test class. All evita session objects that are created and 
+<Term>autowired</Term> in the arguments of the test method are created as read-write sessions with 
+[dry-run flag enabled](write-data.md#dry-run-session). This means that they will never affect the data in the dataset 
+outside the scope of that particular session. This pattern is called the
+[transaction rollback teardown pattern](http://xunitpatterns.com/Transaction%20Rollback%20Teardown.html), 
+and it has been used successfully for a long time in the 
 [Spring Framework Tests](https://relentlesscoding.com/posts/automatic-rollback-of-transactions-in-spring-tests/).
 
 ### Annotations reference
 
-All methods annotated with the evitaDB test annotations can declare the following arguments, which will be "autowired" 
-by our test support:
+All methods annotated with the evitaDB test annotations can declare the following arguments, which will be 
+<Term>autowired</Term> by our test support:
 
 <dl>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass></dt>
-    <dd>A reference to active instance of the evitaDB instance.</dd>
+    <dd>A reference to active instance of the embedded evitaDB.</dd>
     <dt>`String` catalogName</dt>
-    <dd>Name of the initial catalog inside evitaDB instance.</dd>    
+    <dd>Name of the initial catalog inside the evitaDB instance.</dd>    
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></dt>
-    <dd>A reference to an open read-write evitaDB session. The session is marked as dry-only in the test method where 
-    the `@UseDataSet' annotation is used.</dd>
+    <dd>
+        A reference to an open evitaDB read-write session. The session is marked as 
+        [dry-run](write-data.md#dry-run-session) if it's used in a test method annotated with `@UseDataSet' annotation.
+        Sessions <Term name="autowiring">autowired</Term> to init or teardown methods are purely read-write.
+    </dd>
     <dt><SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass></dt>
-    <dd>A reference to active instance of the evitaDB "web" server instance.</dd>
+    <dd>A reference to active instance of the evitaDB "web" server.</dd>
 </dl>
 
 In methods annotated with `@UseDataSet` or `@OnDataSetTearDown` (other than the initialization method), you can also use
-any [shared objects](#init-shared-data-objects) initialized and returned by a method annotated with the `@DataSet` 
-annotation.
+any of the [shared objects](#init-shared-data-objects) initialized and returned by a method annotated with the 
+`@DataSet` annotation.
 
 #### @DataSet
 
-Annotation is expected to be placed on non-test method that prepares new evitaDB instance with a sample dataset to be
-used in tests. It's an analogy to the JUnit `@BeforeEach` method.
+The annotation is expected to be placed on a non-test method that prepares a new evitaDB instance with a sample dataset 
+to be used in tests. It's analogous to the JUnit `@BeforeEach` method.
 
 <dl>
     <dt>`value`</dt>
@@ -188,7 +211,7 @@ used in tests. It's an analogy to the JUnit `@BeforeEach` method.
         <p>**Default:** `ALIVE`</p>
         <p>Defines the state of the initial catalog. By default, when the initial dataset is set up, the catalog is 
         switched to transactional mode so that multiple sessions can be opened in this catalog (multiple tests can 
-        access the contents of this catalog).</p>
+        access the contents of this catalog in parallel).</p>
     </dd>
     <dt>`openWebApi`</dt>
     <dd>
@@ -204,43 +227,43 @@ used in tests. It's an analogy to the JUnit `@BeforeEach` method.
     <dt>`readOnly`</dt>
     <dd>
         <p>**Default:** `true`</p>
-        <p>Marks the record as read-only after the initialization method completes. This is a security lock. If you need
+        <p>Marks the record as read-only after the initialization method completes. This is a safety lock. If you need
         to write to a dataset from the unit test methods, you probably don't want to share it with other tests, or only 
-        a controlled subset of them.</p>
-	    <p>If you disable the readOnly security lock, you should probably set the `destroyAfterClass` or 
+        a controlled subset of them (usually in the same test class).</p>
+	    <p>If you disable the readOnly safety lock, you should probably set the `destroyAfterClass` or 
         `destroyAfterTest` attributes to `true`.</p>
-	    <p>That's why `readOnly` is set to true by default, we want you to think about it before you turn off this 
+	    <p>That's why `readOnly` is set to `true` by default, we want you to think about it before you turn off this 
         safety lock.</p>
     </dd>
     <dt>`destroyAfterClass`</dt>
     <dd>
         <p>**Default:** `false`</p>
-        <p>If set to true, the evitaDB server instance will be closed and deleted after all test methods of the set 
-        where the `@DataSet` annotation is used have been executed.</p>
-        <p>By default, the dataset remains active so that other test classes can reuse it. Please make sure that there
+        <p>If set to true, the evitaDB server instance will be closed and deleted after all test methods of the test 
+        class in which the `@DataSet` annotation is declared have been executed.</p>
+        <p>By default, the dataset remains active so that other test classes can reuse it. Please make sure that there 
         are not multiple (different) versions of the dataset initialization methods that execute the dataset 
-        differently. The recommended approach is to have an abstract class with a setup method implementation and 
+        differently. The recommended approach is to have one abstract class with one setup method implementation and 
         multiple tests that extend from it and use the same dataset.</p>
-        <p>If you have different implementations of the record initialization method, there's no guarantee which version
-        will be called first and which will be skipped (due to the existence of the initialized record).</p>
+        <p>If you have different implementations of the record initialization method, there is no guarantee which 
+        version will be called first and which will be skipped (due to the existence of the initialized record).</p>
     </dd>
 </dl>
 
 #### @UseDataSet
 
-Annotation is expected to be places on `@Test` method or an argument of this method. It connects the argument / method
-with the data set initialized by the [`@DataSet`](#dataset) method.
+The annotation is expected to be placed on the `@Test` method or an argument of that method. It associates the argument 
+/ method with the dataset initialized by the [`@DataSet`](#dataset) method.
 
 <dl>
     <dt>`value`</dt>
-    <dd>Defines name of the dataset.</dd>
+    <dd>Defines name of the dataset to be used.</dd>
     <dt>`destroyAfterTest`</dt>
     <dd>
         <p>**Default:** `false`</p>
-        <p>If set to true, the evitaDB server instance will be closed and deleted after this test method finishes.</p>
-        <p>It's better to share a single dataset between multiple test methods, but if you know you're going to damage 
-        the dataset significantly by writing to it within the test method, it's better to discard it completely and let 
-        the system prepare a new one.</p>
+        <p>If set to true, the evitaDB server instance will be closed and deleted after this test method has finished.</p>
+        <p>It's better to share a single dataset between multiple test methods, but if you know that writing to it 
+        within the test method will significantly damage the dataset, it's better to discard it completely and let the 
+        system prepare a new one.</p>
     </dd>
 </dl>
 
@@ -252,15 +275,15 @@ with the server over the network even if the server is running locally as an emb
 
 #### @OnDataSetTearDown
 
-Annotation is expected to be placed on non-test method that is destroyed before new evitaDB instance is created. It's
-an analogy to the JUnit `@AfterEach` method. Usually you don't need to do anything, since we take care of proper closing
-of all things related to evitaDB, and we also call `close` method on all [shared objects](#init-shared-data-objects) 
-that implement Java's `AutoCloseable` interface. But sometimes you'd need a special cleanup procedure, and you might 
-appreciate this destroy callback support.
+Annotation is expected to be placed on non-test method. The method is called by the framework just before the dataset
+with the given name is closed and destroyed. It's analogous to the JUnit `@AfterEach` method. Usually you don't need to 
+do anything, since we take care of properly closing all things related to evitaDB. We also call the `close` 
+method on all [shared objects](#init-shared-data-objects) that implement Java's `AutoCloseable` interface. But sometimes
+you'd need a special cleanup procedure for your shared objects, and you might appreciate this destroy callback support.
 
 <dl>
     <dt>`value`</dt>
-    <dd>Defines name of the dataset.</dd>
+    <dd>Defines name of the associated dataset.</dd>
 </dl>
 
 </LanguageSpecific>

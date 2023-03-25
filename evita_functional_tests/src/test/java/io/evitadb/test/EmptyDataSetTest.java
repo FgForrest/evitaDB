@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class EmptyDataSetTest implements EvitaTestSupport, TestConstants {
+public class EmptyDataSetTest implements EvitaTestSupport {
 	private static final String DIR_EMPTY_DATA_SET_TEST = "emptyDataSetTest";
 	private Evita evita;
 

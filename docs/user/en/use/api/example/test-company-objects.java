@@ -1,5 +1,5 @@
 @ExtendWith(DbInstanceParameterResolver.class)
-public class PrefilledDataSetAndCustomDataTest implements EvitaTestSupport {
+public class PrefilledDataSetAndCustomDataTest {
 	private static final String DATA_SET_WITH_A_FEW_DATA = "dataSetWithAFewDataAndCustomObjects";
 	private static final String ENTITY_BRAND = "Brand";
 
@@ -26,7 +26,7 @@ public class PrefilledDataSetAndCustomDataTest implements EvitaTestSupport {
 
 	@Test
 	@UseDataSet(DATA_SET_WITH_A_FEW_DATA)
-	void shouldWriteTest(
+	void exampleTestCaseWithAssertions(
 		EvitaSessionContract session,
 		SealedEntity brand,
 		String expectedBrandName
