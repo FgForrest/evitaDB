@@ -170,7 +170,7 @@ outside the scope of that particular session. This pattern is called the
 and it has been used successfully for a long time in the 
 [Spring Framework Tests](https://relentlesscoding.com/posts/automatic-rollback-of-transactions-in-spring-tests/).
 
-### Annotations reference
+## Annotations reference
 
 All methods annotated with the evitaDB test annotations can declare the following arguments, which will be 
 <Term>autowired</Term> by our test support:
@@ -194,7 +194,7 @@ In methods annotated with `@UseDataSet` or `@OnDataSetTearDown` (other than the 
 any of the [shared objects](#init-shared-data-objects) initialized and returned by a method annotated with the 
 `@DataSet` annotation.
 
-#### @DataSet
+### @DataSet
 
 The annotation is expected to be placed on a non-test method that prepares a new evitaDB instance with a sample dataset 
 to be used in tests. It's analogous to the JUnit `@BeforeEach` method.
@@ -250,7 +250,7 @@ to be used in tests. It's analogous to the JUnit `@BeforeEach` method.
     </dd>
 </dl>
 
-#### @UseDataSet
+### @UseDataSet
 
 The annotation is expected to be placed on the `@Test` method or an argument of that method. It associates the argument 
 / method with the dataset initialized by the [`@DataSet`](#dataset) method.
@@ -274,7 +274,7 @@ to any of the defined arguments. The client will open a gRPC connection to the w
 <SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating 
 with the server over the network even if the server is running locally as an embedded database.
 
-#### @OnDataSetTearDown
+### @OnDataSetTearDown
 
 Annotation is expected to be placed on non-test method. The method is called by the framework just before the dataset
 with the given name is closed and destroyed. It's analogous to the JUnit `@AfterEach` method. Usually you don't need to 
