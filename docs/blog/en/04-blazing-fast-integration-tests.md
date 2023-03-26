@@ -19,7 +19,7 @@ CPUs and the tests create 65 database instances, with 13 running in parallel sid
 000 entities into the databases, access the web API on 31 ports, generate SSL self-signed certificates, and test in 
 parallel from HTTP clients over an encrypted protocol. If you don't believe me, check out the video below:
 
-<p>
+<p style="margin-top: 1em; margin-bottom: 1em;">
     <video width="850" height="478" controls="controls">
       <source src="https://evitadb.io/download/automated_testing.mp4" type="video/mp4"/>
         Your browser does not support the video tag.
