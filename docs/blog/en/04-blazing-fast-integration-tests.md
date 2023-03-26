@@ -26,7 +26,9 @@ parallel from HTTP clients over an encrypted protocol. If you don't believe me, 
     </video>
 </p>
 
-**The obvious question is: how did we achieve such results?**
+**The obvious question is:**
+
+## How did we achieve such results?
 
 There are two main advantages of the evitaDB:
 
