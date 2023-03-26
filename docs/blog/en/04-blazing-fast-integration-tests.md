@@ -71,7 +71,7 @@ We need to be able to operate multiple datasets simultaneously without colliding
 a regular database? Probably, but with a significant overhead. If you run your database engine in a Docker 
 you can dynamically spawn a new container instance. You could also create a new database schema in the same engine and
 have your application use the correct database schema within a specific test method. Both of these options have 
-their own issues, whether it is resource consumption or implementation complexity.
+their own issues, whether it is resource consumption, synchronization issues or implementation complexity.
 
 ### Keep control of the battlefield
 
