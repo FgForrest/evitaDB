@@ -13,10 +13,11 @@ This requirement is easily met with pure unit tests that have no interaction wit
 communication with an external system, such as a database, this resolution is often impossible to maintain. Before you 
 read any further, ask yourself: how long have your integration tests been running?
 
-The evitaDB test suite, including the integration ones, runs on developer laptops with 6 CPUs for about 30 seconds. 
-The tests use all 6 CPUs and the tests create 65 database instances, with 13 running in parallel side by side at peak, 
-insert nearly 9,000 entities into the databases, access the web API on 31 ports, generate SSL self-signed certificates, 
-and test in parallel from HTTP clients over an encrypted protocol. If you don't believe me, check out the video below:
+The evitaDB test suite, including the integration ones, runs on developer laptops with 6 physical CPUs (12 threads) for 
+about 30 seconds. The CPU on my developer machine is `Intel(R) Core(TM) i7-10750H @ 2.60GHz`. The tests use all 6 
+CPUs and the tests create 65 database instances, with 13 running in parallel side by side at peak, insert nearly 9,
+000 entities into the databases, access the web API on 31 ports, generate SSL self-signed certificates, and test in 
+parallel from HTTP clients over an encrypted protocol. If you don't believe me, check out the video below:
 
 <p style="text-align: center">
     <video width="850" height="478" controls="controls">
