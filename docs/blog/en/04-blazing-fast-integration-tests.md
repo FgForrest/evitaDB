@@ -15,9 +15,9 @@ read any further, ask yourself: how long have your integration tests been runnin
 
 The evitaDB test suite (2700+ tests), including the integration ones, runs on developer laptops with 6 physical CPUs 
 (12 threads) for about 30 seconds. The CPU on my developer machine is `Intel(R) Core(TM) i7-10750H @ 2.60GHz`. The tests 
-use all **6 CPUs** and the tests create **65 database instances**, with **13 running in parallel** side by side at 
-peak, insert nearly **9,000 entities** into the databases (**about 50MB, 100 thousand records**), access the web API on 
-**31 ports**, generate SSL self-signed certificates, and test in parallel from HTTP clients over an encrypted protocol. 
+use all **6 CPUs** and create **65 database instances**, with **13 running in parallel** side by side at peak, insert 
+nearly **9,000 entities** into the databases (**about 50MB, 100 thousand records**), access the web API on **31 
+ports**, generate SSL self-signed certificates, and test in parallel from HTTP clients over an encrypted protocol. 
 If you don't believe me, check out the video below:
 
 <p>
