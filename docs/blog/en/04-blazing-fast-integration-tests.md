@@ -40,9 +40,12 @@ But neither of them alone will produce the result you've seen in the screen reco
 
 We use the experimental 
 [JUnit 5 Parallel Tests](https://junit.org/junit5/docs/snapshot/user-guide/#writing-tests-parallel-execution) feature 
-that allows us to run our tests at full speed on all host CPUs. Since evitaDB is mainly an in-memory database, we use 
-the CPUs almost to their full capacity and the I/O doesn't get in the way. Enabling parallel tests is a matter of a few 
-lines in <SourceClass>evita_functional_tests/src/test/resources/junit-platform.properties</SourceClass>. 
+that allows us to run our tests at full speed on all host CPUs. Since evitaDB is mainly an in-memory database, 
+we use the CPUs almost to their full capacity and the I/O doesn't get in the way. When the tests run only in a 
+single thread, they take around 90 seconds to execute.
+
+Enabling parallel tests is a matter of a few lines in 
+<SourceClass>evita_functional_tests/src/test/resources/junit-platform.properties</SourceClass>. 
 The hard part is implementing the tests in a way that allows them to run in parallel.
 
 ## Principles of fast parallel, integration tests
