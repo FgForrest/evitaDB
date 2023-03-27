@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.query.require.HierarchyStatisticsOfSelf;
+import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
@@ -45,7 +45,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Extracts {@link io.evitadb.api.requestResponse.extraResult.HierarchyStatistics} from {@link EvitaResponse}s extra results
- * requested by {@link HierarchyStatisticsOfSelf}.
+ * requested by {@link HierarchyOfSelf}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

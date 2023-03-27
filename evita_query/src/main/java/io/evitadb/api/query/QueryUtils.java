@@ -123,8 +123,8 @@ public class QueryUtils {
 	@Nonnull
 	public static <T extends FilterConstraint> List<T> findFilters(@Nonnull Query query, @Nonnull Class<T> filterType) {
 		//noinspection unchecked
-		return (List<T>) Optional.ofNullable(query.getOrderBy())
-				.map(it -> FinderVisitor.findConstraints(it, filterType::isInstance))
+		return (List<T>) Optional.ofNullable(query.getFilterBy())
+			.map(it -> FinderVisitor.findConstraints(it, filterType::isInstance))
 				.orElse(Collections.emptyList())
 				.stream()
 				.map(i -> (FilterConstraint) i)

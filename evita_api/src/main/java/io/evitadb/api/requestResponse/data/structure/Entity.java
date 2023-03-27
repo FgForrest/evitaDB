@@ -36,8 +36,8 @@ import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.HierarchyParentsOfSelf;
-import io.evitadb.api.query.require.HierarchyStatisticsOfSelf;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
@@ -141,7 +141,7 @@ public class Entity implements SealedEntity {
 	 * Each entity must be part of at most single hierarchy (tree).
 	 * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
 	 * computation of extra data - such as {@link HierarchyParentsOfSelf}. It can also invert type of returned entities in case requirement
-	 * {@link HierarchyStatisticsOfSelf} is used.
+	 * {@link HierarchyOfSelf} is used.
 	 */
 	@Nullable final HierarchicalPlacementContract hierarchicalPlacement;
 	/**

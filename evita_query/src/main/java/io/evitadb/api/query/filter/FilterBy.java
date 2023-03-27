@@ -73,8 +73,8 @@ public class FilterBy extends AbstractFilterConstraintContainer implements Gener
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length > 0 ? new FilterBy((FilterConstraint) children[0]) : new FilterBy();
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length > 0 ? new FilterBy(children[0]) : new FilterBy();
 	}
 
 	@Nullable

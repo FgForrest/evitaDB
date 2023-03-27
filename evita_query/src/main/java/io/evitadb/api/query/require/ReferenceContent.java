@@ -318,14 +318,11 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		if (additionalChildren.length > 1 || (additionalChildren.length == 1 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()))) {
 			throw new IllegalArgumentException("Expected single or no additional filter child query.");
 		}
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-			.map(c -> (RequireConstraint) c)
-			.toArray(RequireConstraint[]::new);
-		return new ReferenceContent(getReferencedEntityTypes(), requireChildren, additionalChildren);
+		return new ReferenceContent(getReferencedEntityTypes(), children, additionalChildren);
 	}
 
 	@Nonnull

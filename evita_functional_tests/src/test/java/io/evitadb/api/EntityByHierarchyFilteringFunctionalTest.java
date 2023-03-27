@@ -614,7 +614,13 @@ public class EntityByHierarchyFilteringFunctionalTest {
 							page(1, 0),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
-							hierarchyStatisticsOfSelf(entityFetch(attributeContent()))
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statistics()
+								)
+							)
 						)
 					),
 					EntityReference.class
@@ -656,7 +662,13 @@ public class EntityByHierarchyFilteringFunctionalTest {
 							page(1, 0),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
-							hierarchyStatisticsOfSelf(entityFetch(attributeContent()))
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statistics()
+								)
+							)
 						)
 					),
 					EntityReference.class

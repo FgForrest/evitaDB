@@ -25,7 +25,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
 import io.evitadb.api.query.filter.HierarchyWithin;
-import io.evitadb.api.query.require.HierarchyStatisticsOfSelf;
+import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.Formula;
@@ -45,14 +45,14 @@ import java.util.Locale;
 import static java.util.Optional.ofNullable;
 
 /**
- * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyStatisticsOfSelf} to
+ * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
  * {@link HierarchyStatisticsProducer}. The producer instance has all pointer necessary to compute result.
  * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
  * {@link ExtraResultProducer#fabricate(List)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HierarchyStatisticsOfSelfTranslator implements RequireConstraintTranslator<HierarchyStatisticsOfSelf>, SelfTraversingTranslator {
+public class HierarchyStatisticsOfSelfTranslator implements RequireConstraintTranslator<HierarchyOfSelf>, SelfTraversingTranslator {
 
 	@Nonnull
 	private static HierarchyStatisticsProducer getHierarchyStatisticsProducer(
@@ -65,7 +65,7 @@ public class HierarchyStatisticsOfSelfTranslator implements RequireConstraintTra
 	}
 
 	@Override
-	public ExtraResultProducer apply(HierarchyStatisticsOfSelf hierarchyStatsConstraint, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer apply(HierarchyOfSelf hierarchyStatsConstraint, ExtraResultPlanningVisitor extraResultPlanner) {
 		final String queriedEntityType = extraResultPlanner.getSchema().getName();
 		// verify that requested entityType is hierarchical
 		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema(queriedEntityType);
@@ -85,6 +85,8 @@ public class HierarchyStatisticsOfSelfTranslator implements RequireConstraintTra
 		);
 
 		// the request is simple - we use global index of current entity
+		/* TODO JNO - reimplement */
+		/*
 		hierarchyStatisticsProducer
 			.addHierarchyRequest(
 				evitaRequest.getEntityTypeOrThrowException("hierarchy statistics"),
@@ -93,6 +95,7 @@ public class HierarchyStatisticsOfSelfTranslator implements RequireConstraintTra
 				globalIndex::getHierarchyNodesForParent,
 				hierarchyStatsConstraint.getEntityRequirement()
 			);
+		 */
 		return hierarchyStatisticsProducer;
 	}
 

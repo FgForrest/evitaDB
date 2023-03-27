@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.extraResult;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.query.require.HierarchyStatisticsOfSelf;
+import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -244,7 +244,7 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 * the cardinality of queried entities that refer to it and information about children level.
 	 *
 	 * @param entity             Hierarchical entity identification - it may be {@link Integer} representing primary key of the entity if no
-	 *                           {@link EntityContentRequire} requirements were passed within {@link HierarchyStatisticsOfSelf}
+	 *                           {@link EntityContentRequire} requirements were passed within {@link HierarchyOfSelf}
 	 *                           query, or it may be rich {@link SealedEntity} object if the richer requirements were specified.
 	 * @param cardinality        Contains the number of queried entities that refer directly to this {@link #entity} or to any of its children
 	 *                           entities.

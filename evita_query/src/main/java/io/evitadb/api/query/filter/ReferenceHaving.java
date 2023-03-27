@@ -114,8 +114,8 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length == 0 ? new ReferenceHaving(getReferenceName()) : new ReferenceHaving(getReferenceName(), (FilterConstraint) children[0]);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length == 0 ? new ReferenceHaving(getReferenceName()) : new ReferenceHaving(getReferenceName(), children[0]);
 	}
 
 	@Nonnull

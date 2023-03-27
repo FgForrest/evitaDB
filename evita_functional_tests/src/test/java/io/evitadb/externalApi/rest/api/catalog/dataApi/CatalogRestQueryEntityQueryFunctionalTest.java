@@ -1334,7 +1334,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_NAME)))
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent(ATTRIBUTE_NAME)),
+									statistics()
+								)
+							)
 						)
 					),
 					EntityReference.class
@@ -1401,7 +1408,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfReference(Entities.CATEGORY)
+							hierarchyOfReference(Entities.CATEGORY)
 						)
 					),
 					EntityReference.class

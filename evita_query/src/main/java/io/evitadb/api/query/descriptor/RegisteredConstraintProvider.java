@@ -135,8 +135,8 @@ class RegisteredConstraintProvider {
 		// references
 		ReferenceContent.class,
 		// hierarchy
-		HierarchyStatisticsOfSelf.class,
-		HierarchyStatisticsOfReference.class,
+		HierarchyOfSelf.class,
+		HierarchyOfReference.class,
 		HierarchyParentsOfSelf.class,
 		HierarchyParentsOfReference.class,
 		// facet

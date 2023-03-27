@@ -25,8 +25,8 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
 import io.evitadb.api.query.filter.HierarchyWithin;
-import io.evitadb.api.query.require.HierarchyStatisticsOfReference;
-import io.evitadb.api.query.require.HierarchyStatisticsOfSelf;
+import io.evitadb.api.query.require.HierarchyOfReference;
+import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -39,7 +39,6 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -50,14 +49,14 @@ import java.util.Locale;
 import static java.util.Optional.ofNullable;
 
 /**
- * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyStatisticsOfSelf} to
+ * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
  * {@link HierarchyStatisticsProducer}. The producer instance has all pointer necessary to compute result.
  * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
  * {@link ExtraResultProducer#fabricate(List)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HierarchyStatisticsOfReferenceTranslator implements RequireConstraintTranslator<HierarchyStatisticsOfReference>, SelfTraversingTranslator {
+public class HierarchyStatisticsOfReferenceTranslator implements RequireConstraintTranslator<HierarchyOfReference>, SelfTraversingTranslator {
 
 	@Nonnull
 	private static EntityIndexKey createReferencedHierarchyIndexKey(@Nonnull String referenceName, int hierarchyNodeId) {
@@ -75,7 +74,7 @@ public class HierarchyStatisticsOfReferenceTranslator implements RequireConstrai
 	}
 
 	@Override
-	public ExtraResultProducer apply(HierarchyStatisticsOfReference hierarchyStatsConstraint, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer apply(HierarchyOfReference hierarchyStatsConstraint, ExtraResultPlanningVisitor extraResultPlanner) {
 		// prepare shared data from the context
 		final EvitaRequest evitaRequest = extraResultPlanner.getEvitaRequest();
 		final String queriedEntityType = extraResultPlanner.getSchema().getName();
@@ -99,7 +98,8 @@ public class HierarchyStatisticsOfReferenceTranslator implements RequireConstrai
 			final EntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(entityType);
 
 			// the request is more complex
-			hierarchyStatisticsProducer
+			/* TODO JNO - reimplement */
+			/* hierarchyStatisticsProducer
 				.addHierarchyRequest(
 					extraResultPlanner.getSchema().getReferenceOrThrowException(referenceName),
 					hierarchyWithin,
@@ -111,6 +111,7 @@ public class HierarchyStatisticsOfReferenceTranslator implements RequireConstrai
 						.orElse(EmptyBitmap.INSTANCE),
 					hierarchyStatsConstraint.getEntityRequirement()
 				);
+			*/
 		}
 		return hierarchyStatisticsProducer;
 	}

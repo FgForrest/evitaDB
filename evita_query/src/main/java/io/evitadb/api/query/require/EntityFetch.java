@@ -117,11 +117,8 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-			.map(c -> (RequireConstraint) c)
-			.toArray(RequireConstraint[]::new);
-		return new EntityFetch(requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new EntityFetch(children);
 	}
 
 }

@@ -216,7 +216,14 @@ class PrettyPrintingVisitorTest {
 					attributeNatural("x")
 				),
 				require(
-					hierarchyStatisticsOfReference("CATEGORY", entityFetch(attributeContent())),
+					hierarchyOfReference(
+						"CATEGORY",
+						fromRoot(
+							"megaMenu",
+							entityFetch(attributeContent()),
+							statistics()
+						)
+					),
 					page(1, 100)
 				)
 			),

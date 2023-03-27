@@ -671,9 +671,11 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 			ctx,
 			() -> {
 				if (ctx.args == null) {
-					return new HierarchyStatisticsOfSelf();
+					return new HierarchyOfSelf();
 				}
-				return new HierarchyStatisticsOfSelf(visitInnerEntityFetch(ctx.args.requirement));
+				/* TODO LHO - update */
+				//return new HierarchyOfSelf(visitInnerEntityFetch(ctx.args.requirement));
+				return null;
 			}
 		);
 	}
@@ -688,12 +690,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 					.accept(classifierTokenVisitor)
 					.asClassifierArray();
 				if (ctx.args.requirement == null) {
-					return new HierarchyStatisticsOfReference(classifiers);
+					return new HierarchyOfReference(classifiers);
 				}
-				return new HierarchyStatisticsOfReference(
+				/* TODO LHO - update */
+				/*return new HierarchyOfReference(
 					classifiers,
 					visitInnerEntityFetch(ctx.args.requirement)
-				);
+				);*/
+				return null;
 			}
 		);
 	}

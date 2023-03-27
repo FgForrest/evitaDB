@@ -1,0 +1,108 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.api.query.require;
+
+import org.junit.jupiter.api.Test;
+
+import static io.evitadb.api.query.QueryConstraints.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * This tests verifies basic properties of {@link HierarchySiblings} query.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ */
+class HierarchySiblingsTest {
+
+	@Test
+	void shouldCreateWithStopAtViaFactoryClassWorkAsExpected() {
+		final HierarchySiblings hierarchySiblings = siblings("megaMenu");
+		assertEquals("megaMenu", hierarchySiblings.getOutputName());
+		assertNull(hierarchySiblings.getEntityFetch());
+		assertNull(hierarchySiblings.getFilterBy());
+		assertFalse(hierarchySiblings.isStatisticRequired());
+	}
+
+	@Test
+	void shouldCreateWithEntityFetchViaFactoryClassWorkAsExpected() {
+		final HierarchySiblings hierarchySiblings = siblings("megaMenu", entityFetchAll());
+		assertEquals("megaMenu", hierarchySiblings.getOutputName());
+		assertNull(hierarchySiblings.getFilterBy());
+		assertEquals(entityFetchAll(), hierarchySiblings.getEntityFetch());
+	}
+
+	@Test
+	void shouldCreateWithStatisticsViaFactoryClassWorkAsExpected() {
+		final HierarchySiblings hierarchySiblings = siblings("megaMenu", statistics());
+		assertEquals("megaMenu", hierarchySiblings.getOutputName());
+		assertNull(hierarchySiblings.getFilterBy());
+		assertNull(hierarchySiblings.getEntityFetch());
+		assertTrue(hierarchySiblings.isStatisticRequired());
+	}
+	
+	@Test
+	void shouldCreateWithFilterByViaFactoryClassWorkAsExpected() {
+		final HierarchySiblings hierarchySiblings = siblings("megaMenu", filterBy(entityPrimaryKeyInSet(1)));
+		assertEquals("megaMenu", hierarchySiblings.getOutputName());
+		assertEquals(filterBy(entityPrimaryKeyInSet(1)), hierarchySiblings.getFilterBy());
+		assertNull(hierarchySiblings.getEntityFetch());
+		assertFalse(hierarchySiblings.isStatisticRequired());
+	}
+
+	@Test
+	void shouldRecognizeApplicability() {
+		assertTrue(new HierarchySiblings().isApplicable());
+		assertTrue(siblings("megaMenu", filterBy(entityPrimaryKeyInSet(1))).isApplicable());
+		assertTrue(siblings("megaMenu", entityFetchAll()).isApplicable());
+		assertTrue(siblings("megaMenu", statistics()).isApplicable());
+		assertTrue(siblings("megaMenu").isApplicable());
+	}
+
+	@Test
+	void shouldToStringReturnExpectedFormat() {
+		final HierarchySiblings hierarchySiblings = siblings("megaMenu", filterBy(entityPrimaryKeyInSet(1)));
+		assertEquals("siblings('megaMenu',filterBy(entityPrimaryKeyInSet(1)))", hierarchySiblings.toString());
+
+		final HierarchySiblings hierarchySiblings2 = siblings("megaMenu", entityFetchAll());
+		assertEquals("siblings('megaMenu',entityFetch(attributeContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", hierarchySiblings2.toString());
+
+		final HierarchySiblings hierarchySiblings3 = siblings("megaMenu", statistics());
+		assertEquals("siblings('megaMenu',statistics())", hierarchySiblings3.toString());
+	}
+
+	@Test
+	void shouldConformToEqualsAndHashContract() {
+		assertNotSame(siblings("megaMenu"), siblings("megaMenu"));
+		assertEquals(siblings("megaMenu"), siblings("megaMenu"));
+		assertEquals(siblings("megaMenu", statistics()), siblings("megaMenu", statistics()));
+		assertNotEquals(siblings("megaMenu"), siblings("megaMenu", entityFetchAll()));
+		assertNotEquals(siblings("megaMenu"), siblings("megaMenu", filterBy(entityPrimaryKeyInSet(1))));
+		assertNotEquals(siblings("megaMenu"), siblings("megaMenu", statistics()));
+		assertEquals(siblings("megaMenu").hashCode(), siblings("megaMenu").hashCode());
+		assertNotEquals(siblings("megaMenu").hashCode(), siblings("megaMenu", filterBy(entityPrimaryKeyInSet(1))).hashCode());
+		assertNotEquals(siblings("megaMenu").hashCode(), siblings("megaMenu", entityFetchAll()).hashCode());
+		assertNotEquals(siblings("megaMenu").hashCode(), siblings("megaMenu", statistics()).hashCode());
+	}
+
+}

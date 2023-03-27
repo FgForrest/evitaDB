@@ -105,568 +105,574 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 @Slf4j
 public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<EvitaResponse<EntityClassifier>>> {
 
-    /**
-     * Resolves {@link FilterBy} from client argument.
-     */
-    private final FilterConstraintResolver filterByResolver;
-    /**
-     * Resolves {@link OrderBy} from client argument.
-     */
-    private final OrderConstraintResolver orderByResolver;
-    /**
-     * Resolves {@link Require} from client argument.
-     */
-    private final RequireConstraintResolver requireResolver;
+	/**
+	 * Resolves {@link FilterBy} from client argument.
+	 */
+	private final FilterConstraintResolver filterByResolver;
+	/**
+	 * Resolves {@link OrderBy} from client argument.
+	 */
+	private final OrderConstraintResolver orderByResolver;
+	/**
+	 * Resolves {@link Require} from client argument.
+	 */
+	private final RequireConstraintResolver requireResolver;
 
-    /**
-     * Entity type of collection to which this fetcher is mapped to.
-     */
-    @Nonnull
-    private final EntitySchemaContract entitySchema;
-    /**
-     * Function to fetch specific entity schema based on its name.
-     */
-    @Nonnull
-    private final Function<String, EntitySchemaContract> entitySchemaFetcher;
-    /**
-     * Entity schemas for references of {@link #entitySchema} by field-formatted names.
-     */
-    @Nonnull
-    private final Map<String, EntitySchemaContract> referencedEntitySchemas;
+	/**
+	 * Entity type of collection to which this fetcher is mapped to.
+	 */
+	@Nonnull
+	private final EntitySchemaContract entitySchema;
+	/**
+	 * Function to fetch specific entity schema based on its name.
+	 */
+	@Nonnull
+	private final Function<String, EntitySchemaContract> entitySchemaFetcher;
+	/**
+	 * Entity schemas for references of {@link #entitySchema} by field-formatted names.
+	 */
+	@Nonnull
+	private final Map<String, EntitySchemaContract> referencedEntitySchemas;
 
-    public QueryEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
-                                    @Nonnull EntitySchemaContract entitySchema) {
-        this.entitySchema = entitySchema;
-        this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
-        this.filterByResolver = new FilterConstraintResolver(catalogSchema, entitySchema.getName());
-        this.orderByResolver = new OrderConstraintResolver(catalogSchema, entitySchema.getName());
-        this.requireResolver = new RequireConstraintResolver(catalogSchema, entitySchema.getName());
+	@Nullable
+	private static Locale extractDesiredLocale(@Nullable FilterBy filterBy) {
+		return Optional.ofNullable(filterBy)
+			.map(it -> QueryUtils.findConstraint(it, EntityLocaleEquals.class))
+			.map(EntityLocaleEquals::getLocale)
+			.orElse(null);
+	}
 
-        this.referencedEntitySchemas = createHashMap(entitySchema.getReferences().size());
-        entitySchema.getReferences()
-            .values()
-            .stream()
-            .filter(ReferenceSchemaContract::isReferencedEntityTypeManaged)
-            .forEach(referenceSchema -> {
-                final EntitySchemaContract referencedEntitySchema = catalogSchema.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-                this.referencedEntitySchemas.put(referenceSchema.getName(), referencedEntitySchema);
-            });
-    }
+	public QueryEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
+	                                @Nonnull EntitySchemaContract entitySchema) {
+		this.entitySchema = entitySchema;
+		this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
+		this.filterByResolver = new FilterConstraintResolver(catalogSchema, entitySchema.getName());
+		this.orderByResolver = new OrderConstraintResolver(catalogSchema, entitySchema.getName());
+		this.requireResolver = new RequireConstraintResolver(catalogSchema, entitySchema.getName());
 
-    @Nonnull
-    @Override
-    public DataFetcherResult<EvitaResponse<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final Arguments arguments = Arguments.from(environment);
+		this.referencedEntitySchemas = createHashMap(entitySchema.getReferences().size());
+		entitySchema.getReferences()
+			.values()
+			.stream()
+			.filter(ReferenceSchemaContract::isReferencedEntityTypeManaged)
+			.forEach(referenceSchema -> {
+				final EntitySchemaContract referencedEntitySchema = catalogSchema.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
+				this.referencedEntitySchemas.put(referenceSchema.getName(), referencedEntitySchema);
+			});
+	}
 
-        final FilterBy filterBy = buildFilterBy(arguments);
-        final OrderBy orderBy = buildOrderBy(arguments);
-        final Require require = buildRequire(environment, arguments, filterBy);
-        final Query query = query(
-            collection(entitySchema.getName()),
-            filterBy,
-            orderBy,
-            require
-        );
-        log.debug("Generated evitaDB query for entity query fetch of type `{}` is `{}`.", entitySchema.getName(), query);
+	@Nonnull
+	@Override
+	public DataFetcherResult<EvitaResponse<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		final Arguments arguments = Arguments.from(environment);
 
-        final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-        final EvitaResponse<EntityClassifier> response = evitaSession.query(query, EntityClassifier.class);
+		final FilterBy filterBy = buildFilterBy(arguments);
+		final OrderBy orderBy = buildOrderBy(arguments);
+		final Require require = buildRequire(environment, arguments, filterBy);
+		final Query query = query(
+			collection(entitySchema.getName()),
+			filterBy,
+			orderBy,
+			require
+		);
+		log.debug("Generated evitaDB query for entity query fetch of type `{}` is `{}`.", entitySchema.getName(), query);
 
-        return DataFetcherResult.<EvitaResponse<EntityClassifier>>newResult()
-            .data(response)
-            .localContext(buildResultContext(query))
-            .build();
-    }
+		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
+		final EvitaResponse<EntityClassifier> response = evitaSession.query(query, EntityClassifier.class);
 
-    @Nullable
-    private FilterBy buildFilterBy(@Nonnull Arguments arguments) {
-        if (arguments.filterBy() == null) {
-            return null;
-        }
-        return (FilterBy) filterByResolver.resolve(QueryEntitiesQueryHeaderDescriptor.FILTER_BY.name(), arguments.filterBy());
-    }
+		return DataFetcherResult.<EvitaResponse<EntityClassifier>>newResult()
+			.data(response)
+			.localContext(buildResultContext(query))
+			.build();
+	}
 
-    @Nullable
-    private OrderBy buildOrderBy(@Nonnull Arguments arguments) {
-        if (arguments.orderBy() == null) {
-            return null;
-        }
-        return (OrderBy) orderByResolver.resolve(QueryEntitiesQueryHeaderDescriptor.ORDER_BY.name(), arguments.orderBy());
-    }
+	@Nullable
+	private FilterBy buildFilterBy(@Nonnull Arguments arguments) {
+		if (arguments.filterBy() == null) {
+			return null;
+		}
+		return (FilterBy) filterByResolver.resolve(QueryEntitiesQueryHeaderDescriptor.FILTER_BY.name(), arguments.filterBy());
+	}
 
-    @Nonnull
-    private Require buildRequire(@Nonnull DataFetchingEnvironment environment,
-                                 @Nonnull Arguments arguments,
-                                 @Nullable FilterBy filterBy) {
-        final List<RequireConstraint> requireConstraints = new LinkedList<>();
+	@Nullable
+	private OrderBy buildOrderBy(@Nonnull Arguments arguments) {
+		if (arguments.orderBy() == null) {
+			return null;
+		}
+		return (OrderBy) orderByResolver.resolve(QueryEntitiesQueryHeaderDescriptor.ORDER_BY.name(), arguments.orderBy());
+	}
 
-        // build explicit require container
-        if (arguments.require() != null) {
-            final Require explicitRequire = (Require) requireResolver.resolve(QueryEntitiesQueryHeaderDescriptor.REQUIRE.name(), arguments.require());
-            if (explicitRequire != null) {
-                requireConstraints.addAll(Arrays.asList(explicitRequire.getChildren()));
-            }
-        }
+	@Nonnull
+	private Require buildRequire(@Nonnull DataFetchingEnvironment environment,
+	                             @Nonnull Arguments arguments,
+	                             @Nullable FilterBy filterBy) {
+		final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
-        final DataFetchingFieldSelectionSet selectionSet = environment.getSelectionSet();
+		// build explicit require container
+		if (arguments.require() != null) {
+			final Require explicitRequire = (Require) requireResolver.resolve(QueryEntitiesQueryHeaderDescriptor.REQUIRE.name(), arguments.require());
+			if (explicitRequire != null) {
+				requireConstraints.addAll(Arrays.asList(explicitRequire.getChildren()));
+			}
+		}
 
-        // build requires for returning records
-        final List<SelectedField> recordFields = selectionSet.getFields(ResponseDescriptor.RECORD_PAGE.name(), ResponseDescriptor.RECORD_STRIP.name());
-        Assert.isTrue(
-            recordFields.size() <= 1,
-            () -> new GraphQLInvalidResponseUsageException(
-                "Entity response can have either `" + ResponseDescriptor.RECORD_PAGE.name() + "` or `" + ResponseDescriptor.RECORD_STRIP.name() + "`, not both."
-            )
-        );
-        if (recordFields.isEmpty()) {
-            requireConstraints.add(strip(0, 0));
-        } else {
-            // build paging require
-            final SelectedField recordField = recordFields.get(0);
-            if (recordField.getName().equals(ResponseDescriptor.RECORD_PAGE.name())) {
-                final Integer pageNumber = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.NUMBER.name(), 0);
-                final Integer pageSize = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.SIZE.name(), 20);
-                requireConstraints.add(page(pageNumber, pageSize));
-            } else if (recordField.getName().equals(ResponseDescriptor.RECORD_STRIP.name())) {
-                final Integer offset = (Integer) recordField.getArguments().getOrDefault(RecordStripFieldHeaderDescriptor.OFFSET.name(), 0);
-                final Integer limit = (Integer) recordField.getArguments().getOrDefault(RecordStripFieldHeaderDescriptor.LIMIT.name(), 20);
-                requireConstraints.add(strip(offset, limit));
-            } else {
-                throw new GraphQLInternalError(
-                    "Expected field `" + ResponseDescriptor.RECORD_PAGE + "` or `" + ResponseDescriptor.RECORD_STRIP + "` but was `" + recordField.getName() + "`."
-                );
-            }
+		final DataFetchingFieldSelectionSet selectionSet = environment.getSelectionSet();
 
-            // build content requires
-            final List<SelectedField> recordData = recordField.getSelectionSet().getFields(DataChunkDescriptor.DATA.name());
-            if (!recordData.isEmpty()) {
-                final SelectionSetWrapper selectionSetWrapper = SelectionSetWrapper.from(
-                    recordData
-                        .stream()
-                        .map(SelectedField::getSelectionSet)
-                        .toList()
-                );
-                final Locale desiredLocale = extractDesiredLocale(filterBy);
+		// build requires for returning records
+		final List<SelectedField> recordFields = selectionSet.getFields(ResponseDescriptor.RECORD_PAGE.name(), ResponseDescriptor.RECORD_STRIP.name());
+		Assert.isTrue(
+			recordFields.size() <= 1,
+			() -> new GraphQLInvalidResponseUsageException(
+				"Entity response can have either `" + ResponseDescriptor.RECORD_PAGE.name() + "` or `" + ResponseDescriptor.RECORD_STRIP.name() + "`, not both."
+			)
+		);
+		if (recordFields.isEmpty()) {
+			requireConstraints.add(strip(0, 0));
+		} else {
+			// build paging require
+			final SelectedField recordField = recordFields.get(0);
+			if (recordField.getName().equals(ResponseDescriptor.RECORD_PAGE.name())) {
+				final Integer pageNumber = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.NUMBER.name(), 0);
+				final Integer pageSize = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.SIZE.name(), 20);
+				requireConstraints.add(page(pageNumber, pageSize));
+			} else if (recordField.getName().equals(ResponseDescriptor.RECORD_STRIP.name())) {
+				final Integer offset = (Integer) recordField.getArguments().getOrDefault(RecordStripFieldHeaderDescriptor.OFFSET.name(), 0);
+				final Integer limit = (Integer) recordField.getArguments().getOrDefault(RecordStripFieldHeaderDescriptor.LIMIT.name(), 20);
+				requireConstraints.add(strip(offset, limit));
+			} else {
+				throw new GraphQLInternalError(
+					"Expected field `" + ResponseDescriptor.RECORD_PAGE + "` or `" + ResponseDescriptor.RECORD_STRIP + "` but was `" + recordField.getName() + "`."
+				);
+			}
 
-                requireConstraints.add(
-                    EntityFetchRequireBuilder.buildEntityRequirement(
-                        selectionSetWrapper,
-                        desiredLocale,
-                        entitySchema,
-                        entitySchemaFetcher
-                    )
-                );
-            }
-        }
+			// build content requires
+			final List<SelectedField> recordData = recordField.getSelectionSet().getFields(DataChunkDescriptor.DATA.name());
+			if (!recordData.isEmpty()) {
+				final SelectionSetWrapper selectionSetWrapper = SelectionSetWrapper.from(
+					recordData
+						.stream()
+						.map(SelectedField::getSelectionSet)
+						.toList()
+				);
+				final Locale desiredLocale = extractDesiredLocale(filterBy);
 
-        // build extra result requires
-        final List<SelectedField> extraResults = selectionSet.getFields(ResponseDescriptor.EXTRA_RESULTS.name());
-        final SelectionSetWrapper extraResultsSelectionSet = SelectionSetWrapper.from(
-            extraResults.stream()
-                .map(SelectedField::getSelectionSet)
-                .toList()
-        );
-        requireConstraints.addAll(buildAttributeHistogramRequires(extraResultsSelectionSet));
-        requireConstraints.add(buildPriceHistogramRequire(extraResultsSelectionSet));
-        requireConstraints.addAll(buildFacetSummaryRequire(extraResultsSelectionSet, filterBy));
-        requireConstraints.addAll(buildHierarchyParentsRequires(extraResultsSelectionSet, filterBy));
-        requireConstraints.addAll(buildHierarchyStatisticsRequires(extraResultsSelectionSet, filterBy));
-        requireConstraints.add(buildQueryTelemetryRequire(extraResultsSelectionSet));
+				requireConstraints.add(
+					EntityFetchRequireBuilder.buildEntityRequirement(
+						selectionSetWrapper,
+						desiredLocale,
+						entitySchema,
+						entitySchemaFetcher
+					)
+				);
+			}
+		}
 
-        return require(
-            requireConstraints.toArray(RequireConstraint[]::new)
-        );
-    }
+		// build extra result requires
+		final List<SelectedField> extraResults = selectionSet.getFields(ResponseDescriptor.EXTRA_RESULTS.name());
+		final SelectionSetWrapper extraResultsSelectionSet = SelectionSetWrapper.from(
+			extraResults.stream()
+				.map(SelectedField::getSelectionSet)
+				.toList()
+		);
+		requireConstraints.addAll(buildAttributeHistogramRequires(extraResultsSelectionSet));
+		requireConstraints.add(buildPriceHistogramRequire(extraResultsSelectionSet));
+		requireConstraints.addAll(buildFacetSummaryRequire(extraResultsSelectionSet, filterBy));
+		requireConstraints.addAll(buildHierarchyParentsRequires(extraResultsSelectionSet, filterBy));
+		requireConstraints.addAll(buildHierarchyStatisticsRequires(extraResultsSelectionSet, filterBy));
+		requireConstraints.add(buildQueryTelemetryRequire(extraResultsSelectionSet));
 
-    @Nonnull
-    private List<RequireConstraint> buildAttributeHistogramRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
-        final List<SelectedField> attributeHistogramFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name());
-        // todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
-        final List<SelectedField> attributeHistogramsFields = extraResultsSelectionSet.getFields("attributeHistograms");
-        if (attributeHistogramFields.isEmpty() && attributeHistogramsFields.isEmpty()) {
-            return List.of();
-        }
+		return require(
+			requireConstraints.toArray(RequireConstraint[]::new)
+		);
+	}
 
-        final Map<String, Integer> requestedAttributeHistograms = createHashMap(10);
+	@Nonnull
+	private List<RequireConstraint> buildAttributeHistogramRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
+		final List<SelectedField> attributeHistogramFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name());
+		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+		final List<SelectedField> attributeHistogramsFields = extraResultsSelectionSet.getFields("attributeHistograms");
+		if (attributeHistogramFields.isEmpty() && attributeHistogramsFields.isEmpty()) {
+			return List.of();
+		}
 
-        attributeHistogramFields.stream()
-            .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-            .forEach(f -> {
-                final AttributeSchemaContract attributeSchema = entitySchema
-                    .getAttributeByName(f.getName(), FIELD_NAME_NAMING_CONVENTION)
-                    .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + f.getName() + "`."));
-                final String originalAttributeName = attributeSchema.getName();
+		final Map<String, Integer> requestedAttributeHistograms = createHashMap(10);
 
-                final List<SelectedField> bucketsFields = f.getSelectionSet().getFields(HistogramDescriptor.BUCKETS.name());
-                Assert.isTrue(
-                    !bucketsFields.isEmpty(),
-                    () -> new GraphQLInvalidResponseUsageException(
-                        "Attribute histogram for attribute `" + originalAttributeName + "` must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
-                    )
-                );
+		attributeHistogramFields.stream()
+			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+			.forEach(f -> {
+				final AttributeSchemaContract attributeSchema = entitySchema
+					.getAttributeByName(f.getName(), FIELD_NAME_NAMING_CONVENTION)
+					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + f.getName() + "`."));
+				final String originalAttributeName = attributeSchema.getName();
 
-                bucketsFields.forEach(bucketsField -> {
-                    final int requestedBucketCount = (int) bucketsField.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT);
-                    final Integer alreadyRequestedBucketCount = requestedAttributeHistograms.put(originalAttributeName, requestedBucketCount);
-                    Assert.isTrue(
-                        alreadyRequestedBucketCount == null || alreadyRequestedBucketCount == requestedBucketCount,
-                        () -> new GraphQLInvalidResponseUsageException(
-                            "Attribute histogram for attribute `" + originalAttributeName + "` was already requested with bucket count `" + alreadyRequestedBucketCount + "`." +
-                                " Each attribute can have maximum number of one requested bucket count."
-                        )
-                    );
-                });
-            });
+				final List<SelectedField> bucketsFields = f.getSelectionSet().getFields(HistogramDescriptor.BUCKETS.name());
+				Assert.isTrue(
+					!bucketsFields.isEmpty(),
+					() -> new GraphQLInvalidResponseUsageException(
+						"Attribute histogram for attribute `" + originalAttributeName + "` must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
+					)
+				);
 
-        // todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
-        if (!attributeHistogramsFields.isEmpty()) {
-            attributeHistogramsFields.forEach(f -> {
-                //noinspection unchecked
-                final List<String> attributes = ((List<String>) f.getArguments().get("attributes"))
-                    .stream()
-                    .map(a -> {
-                        final AttributeSchemaContract attributeSchema = entitySchema
-                            .getAttributeByName(a, FIELD_NAME_NAMING_CONVENTION)
-                            .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + a + "`."));
-                        return attributeSchema.getName();
-                    })
-                    .toList();
+				bucketsFields.forEach(bucketsField -> {
+					final int requestedBucketCount = (int) bucketsField.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT);
+					final Integer alreadyRequestedBucketCount = requestedAttributeHistograms.put(originalAttributeName, requestedBucketCount);
+					Assert.isTrue(
+						alreadyRequestedBucketCount == null || alreadyRequestedBucketCount == requestedBucketCount,
+						() -> new GraphQLInvalidResponseUsageException(
+							"Attribute histogram for attribute `" + originalAttributeName + "` was already requested with bucket count `" + alreadyRequestedBucketCount + "`." +
+								" Each attribute can have maximum number of one requested bucket count."
+						)
+					);
+				});
+			});
 
-                final List<SelectedField> bucketsFields = f.getSelectionSet().getFields(HistogramDescriptor.BUCKETS.name());
-                Assert.isTrue(
-                    !bucketsFields.isEmpty(),
-                    () -> new GraphQLInvalidResponseUsageException(
-                        "Attribute histograms for attributes `" + String.join(",", attributes) + "` must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
-                    )
-                );
+		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
+		if (!attributeHistogramsFields.isEmpty()) {
+			attributeHistogramsFields.forEach(f -> {
+				//noinspection unchecked
+				final List<String> attributes = ((List<String>) f.getArguments().get("attributes"))
+					.stream()
+					.map(a -> {
+						final AttributeSchemaContract attributeSchema = entitySchema
+							.getAttributeByName(a, FIELD_NAME_NAMING_CONVENTION)
+							.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + a + "`."));
+						return attributeSchema.getName();
+					})
+					.toList();
 
-                bucketsFields.forEach(bucketsField -> {
-                    final int requestedBucketCount = (int) bucketsField.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT);
-                    attributes.forEach(attribute -> {
-                        final Integer alreadyRequestedBucketCount = requestedAttributeHistograms.put(attribute, requestedBucketCount);
-                        Assert.isTrue(
-                            alreadyRequestedBucketCount == null || alreadyRequestedBucketCount == requestedBucketCount,
-                            () -> new GraphQLInvalidResponseUsageException(
-                                "Attribute histogram for attribute `" + attribute + "` was already requested with bucket count `" + alreadyRequestedBucketCount + "`." +
-                                    " Each attribute can have maximum number of one requested bucket count."
-                            )
-                        );
-                    });
-                });
-            });
-        }
+				final List<SelectedField> bucketsFields = f.getSelectionSet().getFields(HistogramDescriptor.BUCKETS.name());
+				Assert.isTrue(
+					!bucketsFields.isEmpty(),
+					() -> new GraphQLInvalidResponseUsageException(
+						"Attribute histograms for attributes `" + String.join(",", attributes) + "` must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
+					)
+				);
 
-        // construct actual requires from gathered data
-        //noinspection ConstantConditions
-        return requestedAttributeHistograms.entrySet()
-            .stream()
-            .map(h -> (RequireConstraint) attributeHistogram(h.getValue(), h.getKey()))
-            .toList();
-    }
+				bucketsFields.forEach(bucketsField -> {
+					final int requestedBucketCount = (int) bucketsField.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT);
+					attributes.forEach(attribute -> {
+						final Integer alreadyRequestedBucketCount = requestedAttributeHistograms.put(attribute, requestedBucketCount);
+						Assert.isTrue(
+							alreadyRequestedBucketCount == null || alreadyRequestedBucketCount == requestedBucketCount,
+							() -> new GraphQLInvalidResponseUsageException(
+								"Attribute histogram for attribute `" + attribute + "` was already requested with bucket count `" + alreadyRequestedBucketCount + "`." +
+									" Each attribute can have maximum number of one requested bucket count."
+							)
+						);
+					});
+				});
+			});
+		}
 
-    @Nullable
-    private RequireConstraint buildPriceHistogramRequire(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
-        final List<SelectedField> priceHistogramFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.PRICE_HISTOGRAM.name());
-        if (priceHistogramFields.isEmpty()) {
-            return null;
-        }
+		// construct actual requires from gathered data
+		//noinspection ConstantConditions
+		return requestedAttributeHistograms.entrySet()
+			.stream()
+			.map(h -> (RequireConstraint) attributeHistogram(h.getValue(), h.getKey()))
+			.toList();
+	}
 
-        final Set<Integer> requestedBucketCounts = priceHistogramFields.stream()
-            .flatMap(f -> f.getSelectionSet().getFields(HistogramDescriptor.BUCKETS.name()).stream())
-            .map(f -> (int) f.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT))
-            .collect(Collectors.toSet());
-        Assert.isTrue(
-            !requestedBucketCounts.isEmpty(),
-            () -> new GraphQLInvalidResponseUsageException(
-                "Price histogram must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
-            )
-        );
-        Assert.isTrue(
-            requestedBucketCounts.size() == 1,
-            () -> new GraphQLInvalidResponseUsageException(
-                "Price histogram was requested with multiple different bucket counts. Only single count can be requested."
-            )
-        );
+	@Nullable
+	private RequireConstraint buildPriceHistogramRequire(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
+		final List<SelectedField> priceHistogramFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.PRICE_HISTOGRAM.name());
+		if (priceHistogramFields.isEmpty()) {
+			return null;
+		}
 
-        return priceHistogram(requestedBucketCounts.iterator().next());
-    }
+		final Set<Integer> requestedBucketCounts = priceHistogramFields.stream()
+			.flatMap(f -> f.getSelectionSet().getFields(HistogramDescriptor.BUCKETS.name()).stream())
+			.map(f -> (int) f.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT))
+			.collect(Collectors.toSet());
+		Assert.isTrue(
+			!requestedBucketCounts.isEmpty(),
+			() -> new GraphQLInvalidResponseUsageException(
+				"Price histogram must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
+			)
+		);
+		Assert.isTrue(
+			requestedBucketCounts.size() == 1,
+			() -> new GraphQLInvalidResponseUsageException(
+				"Price histogram was requested with multiple different bucket counts. Only single count can be requested."
+			)
+		);
 
-    @Nonnull
-    private List<RequireConstraint> buildFacetSummaryRequire(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
-                                                             @Nullable FilterBy filterBy) {
-        final List<SelectedField> facetSummaryFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.FACET_SUMMARY.name());
-        if (facetSummaryFields.isEmpty()) {
-            return List.of();
-        }
+		return priceHistogram(requestedBucketCounts.iterator().next());
+	}
 
-        final Set<String> references = createHashSet(facetSummaryFields.size());
-        final Map<String, FacetStatisticsDepth> statisticsDepths = createHashMap(facetSummaryFields.size());
-        final Map<String, List<DataFetchingFieldSelectionSet>> groupEntityContentFields = createHashMap(facetSummaryFields.size());
-        final Map<String, List<DataFetchingFieldSelectionSet>> facetEntityContentFields = createHashMap(facetSummaryFields.size());
-        facetSummaryFields.stream()
-            .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-            .forEach(f -> {
-                final String referenceName = f.getName();
-                final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, FIELD_NAME_NAMING_CONVENTION)
-                    .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
-                final String originalReferenceName = reference.getName();
-                references.add(originalReferenceName);
+	@Nonnull
+	private List<RequireConstraint> buildFacetSummaryRequire(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
+	                                                         @Nullable FilterBy filterBy) {
+		final List<SelectedField> facetSummaryFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.FACET_SUMMARY.name());
+		if (facetSummaryFields.isEmpty()) {
+			return List.of();
+		}
 
-                final boolean impactsNeeded = f.getSelectionSet()
-                    .getFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name())
-                    .stream()
-                    .anyMatch(f2 -> f2.getSelectionSet().contains(FacetStatisticsDescriptor.IMPACT.name()));
-                statisticsDepths.merge(
-                    originalReferenceName,
-                    impactsNeeded ? FacetStatisticsDepth.IMPACT : FacetStatisticsDepth.COUNTS,
-                    (statisticsDepth1, statisticsDepth2) -> {
-                        if (statisticsDepth1 == FacetStatisticsDepth.IMPACT || statisticsDepth2 == FacetStatisticsDepth.IMPACT) {
-                            return FacetStatisticsDepth.IMPACT;
-                        }
-                        return FacetStatisticsDepth.COUNTS;
-                    }
-                );
+		final Set<String> references = createHashSet(facetSummaryFields.size());
+		final Map<String, FacetStatisticsDepth> statisticsDepths = createHashMap(facetSummaryFields.size());
+		final Map<String, List<DataFetchingFieldSelectionSet>> groupEntityContentFields = createHashMap(facetSummaryFields.size());
+		final Map<String, List<DataFetchingFieldSelectionSet>> facetEntityContentFields = createHashMap(facetSummaryFields.size());
+		facetSummaryFields.stream()
+			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+			.forEach(f -> {
+				final String referenceName = f.getName();
+				final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, FIELD_NAME_NAMING_CONVENTION)
+					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
+				final String originalReferenceName = reference.getName();
+				references.add(originalReferenceName);
 
-                final List<DataFetchingFieldSelectionSet> groupEntityContentFieldsForReference = groupEntityContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
-                groupEntityContentFieldsForReference.addAll(
-                    f.getSelectionSet()
-                        .getFields(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name())
-                        .stream()
-                        .map(SelectedField::getSelectionSet)
-                        .toList()
-                );
+				final boolean impactsNeeded = f.getSelectionSet()
+					.getFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name())
+					.stream()
+					.anyMatch(f2 -> f2.getSelectionSet().contains(FacetStatisticsDescriptor.IMPACT.name()));
+				statisticsDepths.merge(
+					originalReferenceName,
+					impactsNeeded ? FacetStatisticsDepth.IMPACT : FacetStatisticsDepth.COUNTS,
+					(statisticsDepth1, statisticsDepth2) -> {
+						if (statisticsDepth1 == FacetStatisticsDepth.IMPACT || statisticsDepth2 == FacetStatisticsDepth.IMPACT) {
+							return FacetStatisticsDepth.IMPACT;
+						}
+						return FacetStatisticsDepth.COUNTS;
+					}
+				);
 
-                final List<DataFetchingFieldSelectionSet> facetEntityContentFieldsForReference = facetEntityContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
-                facetEntityContentFieldsForReference.addAll(
-                    f.getSelectionSet()
-                        .getFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name())
-                        .stream()
-                        .flatMap(f2 -> f2.getSelectionSet().getFields(FacetStatisticsDescriptor.FACET_ENTITY.name()).stream())
-                        .map(SelectedField::getSelectionSet)
-                        .toList()
-                );
-            });
+				final List<DataFetchingFieldSelectionSet> groupEntityContentFieldsForReference = groupEntityContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
+				groupEntityContentFieldsForReference.addAll(
+					f.getSelectionSet()
+						.getFields(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name())
+						.stream()
+						.map(SelectedField::getSelectionSet)
+						.toList()
+				);
 
-        // construct actual requires from gathered data
-        final List<RequireConstraint> requestedFacetSummaries = new ArrayList<>(references.size());
-        references.forEach(referenceName -> {
-            final FacetStatisticsDepth statisticsDepth = statisticsDepths.get(referenceName);
+				final List<DataFetchingFieldSelectionSet> facetEntityContentFieldsForReference = facetEntityContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
+				facetEntityContentFieldsForReference.addAll(
+					f.getSelectionSet()
+						.getFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name())
+						.stream()
+						.flatMap(f2 -> f2.getSelectionSet().getFields(FacetStatisticsDescriptor.FACET_ENTITY.name()).stream())
+						.map(SelectedField::getSelectionSet)
+						.toList()
+				);
+			});
 
-            final EntityFetch facetEntityRequirement = EntityFetchRequireBuilder.buildEntityRequirement(
-                SelectionSetWrapper.from(facetEntityContentFields.get(referenceName)),
-                extractDesiredLocale(filterBy),
-                referencedEntitySchemas.get(referenceName),
-                entitySchemaFetcher
-            );
+		// construct actual requires from gathered data
+		final List<RequireConstraint> requestedFacetSummaries = new ArrayList<>(references.size());
+		references.forEach(referenceName -> {
+			final FacetStatisticsDepth statisticsDepth = statisticsDepths.get(referenceName);
 
-            final EntityGroupFetch groupEntityRequirement = EntityFetchRequireBuilder.buildGroupEntityRequirement(
-                SelectionSetWrapper.from(groupEntityContentFields.get(referenceName)),
-                extractDesiredLocale(filterBy),
-                referencedEntitySchemas.get(referenceName),
-                entitySchemaFetcher
-            );
+			final EntityFetch facetEntityRequirement = EntityFetchRequireBuilder.buildEntityRequirement(
+				SelectionSetWrapper.from(facetEntityContentFields.get(referenceName)),
+				extractDesiredLocale(filterBy),
+				referencedEntitySchemas.get(referenceName),
+				entitySchemaFetcher
+			);
 
-            requestedFacetSummaries.add(facetSummaryOfReference(
-                referenceName,
-                statisticsDepth,
-                facetEntityRequirement,
-                groupEntityRequirement
-            ));
-        });
+			final EntityGroupFetch groupEntityRequirement = EntityFetchRequireBuilder.buildGroupEntityRequirement(
+				SelectionSetWrapper.from(groupEntityContentFields.get(referenceName)),
+				extractDesiredLocale(filterBy),
+				referencedEntitySchemas.get(referenceName),
+				entitySchemaFetcher
+			);
 
-        return requestedFacetSummaries;
-    }
+			requestedFacetSummaries.add(facetSummaryOfReference(
+				referenceName,
+				statisticsDepth,
+				facetEntityRequirement,
+				groupEntityRequirement
+			));
+		});
 
-    @Nonnull
-    private List<RequireConstraint> buildHierarchyParentsRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
-                                                                  @Nullable FilterBy filterBy) {
-        final List<SelectedField> parentsFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY_PARENTS.name());
-        if (parentsFields.isEmpty()) {
-            return List.of();
-        }
+		return requestedFacetSummaries;
+	}
 
-        final Map<String, List<DataFetchingFieldSelectionSet>> parentsContentFields = createHashMap(parentsFields.size());
-        parentsFields.stream()
-            .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-            .forEach(f -> {
-                final String referenceName = f.getName();
-                final String originalReferenceName;
-                if (referenceName.equals(HierarchyStatisticsDescriptor.SELF.name())) {
-                    originalReferenceName = HierarchyStatisticsDescriptor.SELF.name();
-                } else {
-                    final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, FIELD_NAME_NAMING_CONVENTION)
-                        .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
-                    originalReferenceName = reference.getName();
-                }
+	@Nonnull
+	private List<RequireConstraint> buildHierarchyParentsRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
+	                                                              @Nullable FilterBy filterBy) {
+		final List<SelectedField> parentsFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY_PARENTS.name());
+		if (parentsFields.isEmpty()) {
+			return List.of();
+		}
 
-                final List<DataFetchingFieldSelectionSet> fields = parentsContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
-                fields.addAll(
-                    f.getSelectionSet()
-                        .getFields(ParentsOfEntityDescriptor.PARENT_ENTITIES.name())
-                        .stream()
-                        .map(SelectedField::getSelectionSet)
-                        .toList()
-                );
-                fields.addAll(
-                    f.getSelectionSet()
-                        .getFields(ParentsOfEntityDescriptor.REFERENCES.name())
-                        .stream()
-                        .flatMap(f2 -> f2.getSelectionSet().getFields(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name()).stream())
-                        .map(SelectedField::getSelectionSet)
-                        .toList()
-                );
-            });
+		final Map<String, List<DataFetchingFieldSelectionSet>> parentsContentFields = createHashMap(parentsFields.size());
+		parentsFields.stream()
+			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+			.forEach(f -> {
+				final String referenceName = f.getName();
+				final String originalReferenceName;
+				if (referenceName.equals(HierarchyStatisticsDescriptor.SELF.name())) {
+					originalReferenceName = HierarchyStatisticsDescriptor.SELF.name();
+				} else {
+					final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, FIELD_NAME_NAMING_CONVENTION)
+						.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
+					originalReferenceName = reference.getName();
+				}
 
-        // construct actual requires from gathered data
-        final List<RequireConstraint> requestedParents = new ArrayList<>(parentsContentFields.size());
-        parentsContentFields.forEach((referenceName, contentFields) -> {
-            if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
-                requestedParents.add(hierarchyParentsOfSelf(
-                    EntityFetchRequireBuilder.buildEntityRequirement(
-                        SelectionSetWrapper.from(contentFields),
-                        extractDesiredLocale(filterBy),
-                        entitySchema,
-                        entitySchemaFetcher
-                    )
-                ));
-            } else {
-                requestedParents.add(hierarchyParentsOfReference(
-                    referenceName,
-                    EntityFetchRequireBuilder.buildEntityRequirement(
-                        SelectionSetWrapper.from(contentFields),
-                        extractDesiredLocale(filterBy),
-                        referencedEntitySchemas.get(referenceName),
-                        entitySchemaFetcher
-                    )
-                ));
-            }
-        });
+				final List<DataFetchingFieldSelectionSet> fields = parentsContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
+				fields.addAll(
+					f.getSelectionSet()
+						.getFields(ParentsOfEntityDescriptor.PARENT_ENTITIES.name())
+						.stream()
+						.map(SelectedField::getSelectionSet)
+						.toList()
+				);
+				fields.addAll(
+					f.getSelectionSet()
+						.getFields(ParentsOfEntityDescriptor.REFERENCES.name())
+						.stream()
+						.flatMap(f2 -> f2.getSelectionSet().getFields(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name()).stream())
+						.map(SelectedField::getSelectionSet)
+						.toList()
+				);
+			});
 
-        return requestedParents;
-    }
+		// construct actual requires from gathered data
+		final List<RequireConstraint> requestedParents = new ArrayList<>(parentsContentFields.size());
+		parentsContentFields.forEach((referenceName, contentFields) -> {
+			if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
+				requestedParents.add(hierarchyParentsOfSelf(
+					EntityFetchRequireBuilder.buildEntityRequirement(
+						SelectionSetWrapper.from(contentFields),
+						extractDesiredLocale(filterBy),
+						entitySchema,
+						entitySchemaFetcher
+					)
+				));
+			} else {
+				requestedParents.add(hierarchyParentsOfReference(
+					referenceName,
+					EntityFetchRequireBuilder.buildEntityRequirement(
+						SelectionSetWrapper.from(contentFields),
+						extractDesiredLocale(filterBy),
+						referencedEntitySchemas.get(referenceName),
+						entitySchemaFetcher
+					)
+				));
+			}
+		});
 
-    @Nonnull
-    private List<RequireConstraint> buildHierarchyStatisticsRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
-                                                                     @Nullable FilterBy filterBy) {
-        final List<SelectedField> hierarchyStatisticsFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY_STATISTICS.name());
-        if (hierarchyStatisticsFields.isEmpty()) {
-            return List.of();
-        }
+		return requestedParents;
+	}
 
-        final Map<String, List<DataFetchingFieldSelectionSet>> hierarchyStatisticsContentFields = createHashMap(hierarchyStatisticsFields.size());
-        hierarchyStatisticsFields.stream()
-            .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-            .forEach(f -> {
-                final String referenceName = f.getName();
-                final String originalReferenceName;
-                if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
-                    originalReferenceName = HierarchyParentsDescriptor.SELF.name();
-                } else {
-                    final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, FIELD_NAME_NAMING_CONVENTION)
-                        .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
-                    originalReferenceName = reference.getName();
-                }
+	@Nonnull
+	private List<RequireConstraint> buildHierarchyStatisticsRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
+	                                                                 @Nullable FilterBy filterBy) {
+		final List<SelectedField> hierarchyStatisticsFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY_STATISTICS.name());
+		if (hierarchyStatisticsFields.isEmpty()) {
+			return List.of();
+		}
 
-                final List<DataFetchingFieldSelectionSet> fields = hierarchyStatisticsContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
-                fields.addAll(
-                    f.getSelectionSet()
-                        .getFields(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name())
-                        .stream()
-                        .map(SelectedField::getSelectionSet)
-                        .toList()
-                );
-            });
+		final Map<String, List<DataFetchingFieldSelectionSet>> hierarchyStatisticsContentFields = createHashMap(hierarchyStatisticsFields.size());
+		hierarchyStatisticsFields.stream()
+			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+			.forEach(f -> {
+				final String referenceName = f.getName();
+				final String originalReferenceName;
+				if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
+					originalReferenceName = HierarchyParentsDescriptor.SELF.name();
+				} else {
+					final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, FIELD_NAME_NAMING_CONVENTION)
+						.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
+					originalReferenceName = reference.getName();
+				}
 
-        // construct actual requires from gathered data
-        final List<RequireConstraint> requestedHierarchyStatistics = new ArrayList<>(hierarchyStatisticsContentFields.size());
-        hierarchyStatisticsContentFields.forEach((referenceName, contentFields) -> {
-            if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
-                requestedHierarchyStatistics.add(hierarchyStatisticsOfSelf(
-                    EntityFetchRequireBuilder.buildEntityRequirement(
-                        SelectionSetWrapper.from(contentFields),
-                        extractDesiredLocale(filterBy),
-                        entitySchema,
-                        entitySchemaFetcher
-                    )
-                ));
-            } else {
-                requestedHierarchyStatistics.add(hierarchyStatisticsOfReference(
-                    referenceName,
-                    EntityFetchRequireBuilder.buildEntityRequirement(
-                        SelectionSetWrapper.from(contentFields),
-                        extractDesiredLocale(filterBy),
-                        referencedEntitySchemas.get(referenceName),
-                        entitySchemaFetcher
-                    )
-                ));
-            }
-        });
+				final List<DataFetchingFieldSelectionSet> fields = hierarchyStatisticsContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
+				fields.addAll(
+					f.getSelectionSet()
+						.getFields(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name())
+						.stream()
+						.map(SelectedField::getSelectionSet)
+						.toList()
+				);
+			});
 
-        return requestedHierarchyStatistics;
-    }
+		// construct actual requires from gathered data
+		final List<RequireConstraint> requestedHierarchyStatistics = new ArrayList<>(hierarchyStatisticsContentFields.size());
+		hierarchyStatisticsContentFields.forEach((referenceName, contentFields) -> {
+			/* TODO LHO - reimplement please */
+			/*
+			if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
+				requestedHierarchyStatistics.add(
+					hierarchyOfSelf(
+						EntityFetchRequireBuilder.buildEntityRequirement(
+							SelectionSetWrapper.from(contentFields),
+							extractDesiredLocale(filterBy),
+							entitySchema,
+							entitySchemaFetcher
+						)
+					)
+				);
+			} else {
+				requestedHierarchyStatistics.add(
+					hierarchyOfReference(
+						referenceName,
+						EntityFetchRequireBuilder.buildEntityRequirement(
+							SelectionSetWrapper.from(contentFields),
+							extractDesiredLocale(filterBy),
+							referencedEntitySchemas.get(referenceName),
+							entitySchemaFetcher
+						)
+					)
+				);
+			}
+			 */
+		});
 
-    @Nullable
-    private RequireConstraint buildQueryTelemetryRequire(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
-        final List<SelectedField> queryTelemetryFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.QUERY_TELEMETRY.name());
-        if (queryTelemetryFields.isEmpty()) {
-            return null;
-        }
-        return queryTelemetry();
-    }
+		return requestedHierarchyStatistics;
+	}
 
+	@Nullable
+	private RequireConstraint buildQueryTelemetryRequire(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
+		final List<SelectedField> queryTelemetryFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.QUERY_TELEMETRY.name());
+		if (queryTelemetryFields.isEmpty()) {
+			return null;
+		}
+		return queryTelemetry();
+	}
 
-    @Nonnull
-    private EntityQueryContext buildResultContext(@Nonnull Query query) {
-        final Locale desiredLocale = Optional.ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
-            .map(EntityLocaleEquals::getLocale)
-            .orElse(null);
+	@Nonnull
+	private EntityQueryContext buildResultContext(@Nonnull Query query) {
+		final Locale desiredLocale = Optional.ofNullable(QueryUtils.findFilter(query, EntityLocaleEquals.class))
+			.map(EntityLocaleEquals::getLocale)
+			.orElse(null);
 
-        final Currency desiredPriceInCurrency = Optional.ofNullable(QueryUtils.findFilter(query, PriceInCurrency.class))
-            .map(PriceInCurrency::getCurrency)
-            .orElse(null);
+		final Currency desiredPriceInCurrency = Optional.ofNullable(QueryUtils.findFilter(query, PriceInCurrency.class))
+			.map(PriceInCurrency::getCurrency)
+			.orElse(null);
 
-        final Optional<PriceValidIn> priceValidInConstraint = Optional.ofNullable(QueryUtils.findFilter(query, PriceValidIn.class));
-        final OffsetDateTime desiredPriceValidIn = priceValidInConstraint
-            .map(PriceValidIn::getTheMoment)
-            .orElse(null);
-        final boolean desiredPriceValidNow = priceValidInConstraint
-            .map(it -> it.getTheMoment() == null)
-            .orElse(false);
+		final Optional<PriceValidIn> priceValidInConstraint = Optional.ofNullable(QueryUtils.findFilter(query, PriceValidIn.class));
+		final OffsetDateTime desiredPriceValidIn = priceValidInConstraint
+			.map(PriceValidIn::getTheMoment)
+			.orElse(null);
+		final boolean desiredPriceValidNow = priceValidInConstraint
+			.map(it -> it.getTheMoment() == null)
+			.orElse(false);
 
-        final String[] desiredPriceInPriceLists = Optional.ofNullable(QueryUtils.findFilter(query, PriceInPriceLists.class))
-            .map(PriceInPriceLists::getPriceLists)
-            .orElse(null);
+		final String[] desiredPriceInPriceLists = Optional.ofNullable(QueryUtils.findFilter(query, PriceInPriceLists.class))
+			.map(PriceInPriceLists::getPriceLists)
+			.orElse(null);
 
-        return EntityQueryContext.builder()
-            .desiredLocale(desiredLocale)
-            .desiredPriceInCurrency(desiredPriceInCurrency)
-            .desiredPriceValidIn(desiredPriceValidIn)
-            .desiredPriceValidNow(desiredPriceValidNow)
-            .desiredPriceInPriceLists(desiredPriceInPriceLists)
-            .build();
-    }
+		return EntityQueryContext.builder()
+			.desiredLocale(desiredLocale)
+			.desiredPriceInCurrency(desiredPriceInCurrency)
+			.desiredPriceValidIn(desiredPriceValidIn)
+			.desiredPriceValidNow(desiredPriceValidNow)
+			.desiredPriceInPriceLists(desiredPriceInPriceLists)
+			.build();
+	}
 
-    @Nullable
-    private static Locale extractDesiredLocale(@Nullable FilterBy filterBy) {
-        return Optional.ofNullable(filterBy)
-            .map(it -> QueryUtils.findConstraint(it, EntityLocaleEquals.class))
-            .map(EntityLocaleEquals::getLocale)
-            .orElse(null);
-    }
+	/**
+	 * Holds parsed GraphQL query arguments relevant for entity query
+	 */
+	private record Arguments(@Nullable Object filterBy,
+	                         @Nullable Object orderBy,
+	                         @Nullable Object require) {
 
-    /**
-     * Holds parsed GraphQL query arguments relevant for entity query
-     */
-    private record Arguments(@Nullable Object filterBy,
-                             @Nullable Object orderBy,
-                             @Nullable Object require) {
+		private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
+			final Object filterBy = environment.getArgument(QueryEntitiesQueryHeaderDescriptor.FILTER_BY.name());
+			final Object orderBy = environment.getArgument(QueryEntitiesQueryHeaderDescriptor.ORDER_BY.name());
+			final Object require = environment.getArgument(QueryEntitiesQueryHeaderDescriptor.REQUIRE.name());
 
-        private static Arguments from(@Nonnull DataFetchingEnvironment environment) {
-            final Object filterBy = environment.getArgument(QueryEntitiesQueryHeaderDescriptor.FILTER_BY.name());
-            final Object orderBy = environment.getArgument(QueryEntitiesQueryHeaderDescriptor.ORDER_BY.name());
-            final Object require = environment.getArgument(QueryEntitiesQueryHeaderDescriptor.REQUIRE.name());
-
-            return new Arguments(filterBy, orderBy, require);
-        }
-    }
+			return new Arguments(filterBy, orderBy, require);
+		}
+	}
 }

@@ -92,27 +92,22 @@ import java.io.Serializable;
 )
 public class HierarchyExcludingRoot extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 3965082821350063527L;
+	private static final String CONSTRAINT_NAME = "excludingRoot";
 
-	private HierarchyExcludingRoot(Serializable... arguments) {
-		super(arguments);
+	private HierarchyExcludingRoot(@Nonnull Serializable... arguments) {
+		// because this query can be used only within some other hierarchy query, it would be
+		// unnecessary to duplicate the hierarchy prefix
+		super(CONSTRAINT_NAME, arguments);
 	}
 
 	@ConstraintCreatorDef
 	public HierarchyExcludingRoot() {
-		super();
+		super(CONSTRAINT_NAME);
 	}
 
 	@Override
 	public boolean isApplicable() {
 		return true;
-	}
-
-	@Nonnull
-	@Override
-	public String getName() {
-		// because this query can be used only within some other hierarchy query, it would be
-		// unnecessary to duplicate the hierarchy prefix
-		return "excludingRoot";
 	}
 
 	@Nonnull

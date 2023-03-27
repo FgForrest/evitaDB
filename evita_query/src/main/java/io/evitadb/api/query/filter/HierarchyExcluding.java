@@ -66,14 +66,17 @@ import java.util.Arrays;
 )
 public class HierarchyExcluding extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -6950287451642746676L;
+	private static final String CONSTRAINT_NAME = "excluding";
 
-	private HierarchyExcluding(Serializable... arguments) {
-		super(arguments);
+	private HierarchyExcluding(@Nonnull Serializable... arguments) {
+		// because this query can be used only within some other hierarchy query, it would be
+		// unnecessary to duplicate the hierarchy prefix
+		super(CONSTRAINT_NAME, arguments);
 	}
 
 	@ConstraintCreatorDef
 	public HierarchyExcluding(@Nonnull @ConstraintValueParamDef Integer... primaryKey) {
-		super(primaryKey);
+		super(CONSTRAINT_NAME, primaryKey);
 	}
 
 	/**
@@ -89,14 +92,6 @@ public class HierarchyExcluding extends AbstractFilterConstraintLeaf implements 
 	@Override
 	public boolean isApplicable() {
 		return isArgumentsNonNull() && getArguments().length > 0;
-	}
-
-	@Nonnull
-	@Override
-	public String getName() {
-		// because this query can be used only within some other hierarchy query, it would be
-		// unnecessary to duplicate the hierarchy prefix
-		return "excluding";
 	}
 
 	@Nonnull

@@ -27,41 +27,42 @@ import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
-import static io.evitadb.api.query.QueryConstraints.hierarchyStatisticsOfReference;
+import static io.evitadb.api.query.QueryConstraints.fromRoot;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link HierarchyStatisticsOfSelf} query.
+ * This tests verifies basic properties of {@link HierarchyOfSelf} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class HierarchyStatisticsOfReferenceTest {
+class HierarchyOfReferenceTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final HierarchyStatisticsOfReference hierarchyStatisticsOfReference = hierarchyStatisticsOfReference("category");
+		final HierarchyOfReference hierarchyStatisticsOfReference = hierarchyOfReference("category", fromRoot("megaMenu"));
 		assertArrayEquals(new String[] {"category"}, hierarchyStatisticsOfReference.getReferenceNames());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertTrue(new HierarchyStatisticsOfReference("category").isApplicable());
-		assertTrue(hierarchyStatisticsOfReference("category", entityFetch(attributeContent())).isApplicable());
+		assertFalse(new HierarchyOfReference("category", new HierarchyRequireConstraint[0]).isApplicable());
+		assertTrue(hierarchyOfReference("category", fromRoot("megaMenu", entityFetch(attributeContent()))).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		final HierarchyStatisticsOfReference hierarchyStatisticsOfReference = hierarchyStatisticsOfReference("brand");
-		assertEquals("hierarchyStatisticsOfReference('brand')", hierarchyStatisticsOfReference.toString());
+		final HierarchyOfReference hierarchyStatisticsOfReference = hierarchyOfReference("brand", fromRoot("megaMenu"));
+		assertEquals("hierarchyOfReference('brand',fromRoot('megaMenu'))", hierarchyStatisticsOfReference.toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(hierarchyStatisticsOfReference("brand"), hierarchyStatisticsOfReference("brand"));
-		assertEquals(hierarchyStatisticsOfReference("brand"), hierarchyStatisticsOfReference("brand"));
-		assertNotEquals(hierarchyStatisticsOfReference("brand"), hierarchyStatisticsOfReference("category"));
-		assertEquals(hierarchyStatisticsOfReference("brand").hashCode(), hierarchyStatisticsOfReference("brand").hashCode());
-		assertNotEquals(hierarchyStatisticsOfReference("brand").hashCode(), hierarchyStatisticsOfReference("category").hashCode());
+		assertNotSame(hierarchyOfReference("brand", fromRoot("megaMenu")), hierarchyOfReference("brand", fromRoot("megaMenu")));
+		assertEquals(hierarchyOfReference("brand", fromRoot("megaMenu")), hierarchyOfReference("brand", fromRoot("megaMenu")));
+		assertNotEquals(hierarchyOfReference("brand", fromRoot("megaMenu")), hierarchyOfReference("category", fromRoot("megaMenu")));
+		assertEquals(hierarchyOfReference("brand", fromRoot("megaMenu")).hashCode(), hierarchyOfReference("brand", fromRoot("megaMenu")).hashCode());
+		assertNotEquals(hierarchyOfReference("brand", fromRoot("megaMenu")).hashCode(), hierarchyOfReference("category", fromRoot("megaMenu")).hashCode());
 	}
 
 }

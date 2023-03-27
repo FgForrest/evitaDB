@@ -27,37 +27,25 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.HierarchyStatisticsOfReference;
+import io.evitadb.api.query.require.HierarchyLevel;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link HierarchyStatisticsOfReference} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link HierarchyLevel} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class HierarchyStatisticsOfReferenceSerializer extends Serializer<HierarchyStatisticsOfReference> {
+public class HierarchyLevelSerializer extends Serializer<HierarchyLevel> {
 
 	@Override
-	public void write(Kryo kryo, Output output, HierarchyStatisticsOfReference object) {
-		final String[] entityTypes = object.getReferenceNames();
-		output.writeVarInt(entityTypes.length, true);
-		for (String entityType : entityTypes) {
-			output.writeString(entityType);
-		}
-
-		kryo.writeClassAndObject(output, object.getEntityRequirement());
+	public void write(Kryo kryo, Output output, HierarchyLevel object) {
+		output.writeVarInt(object.getLevel(), true);
 	}
 
 	@Override
-	public HierarchyStatisticsOfReference read(Kryo kryo, Input input, Class<? extends HierarchyStatisticsOfReference> type) {
-		final int entityTypeCount = input.readVarInt(true);
-		final String[] entityTypes = new String[entityTypeCount];
-		for (int i = 0; i < entityTypeCount; i++) {
-			entityTypes[i] = input.readString();
-		}
-		return new HierarchyStatisticsOfReference(entityTypes, (EntityFetch) kryo.readClassAndObject(input));
+	public HierarchyLevel read(Kryo kryo, Input input, Class<? extends HierarchyLevel> type) {
+		return new HierarchyLevel(input.readVarInt(true));
 	}
 
 }

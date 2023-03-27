@@ -87,8 +87,8 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(HierarchyParentsOfReference.class, new HierarchyParentsOfReferenceTranslator());
 		TRANSLATORS.put(AttributeHistogram.class, new AttributeHistogramTranslator());
 		TRANSLATORS.put(PriceHistogram.class, new PriceHistogramTranslator());
-		TRANSLATORS.put(HierarchyStatisticsOfSelf.class, new HierarchyStatisticsOfSelfTranslator());
-		TRANSLATORS.put(HierarchyStatisticsOfReference.class, new HierarchyStatisticsOfReferenceTranslator());
+		TRANSLATORS.put(HierarchyOfSelf.class, new HierarchyStatisticsOfSelfTranslator());
+		TRANSLATORS.put(HierarchyOfReference.class, new HierarchyStatisticsOfReferenceTranslator());
 		TRANSLATORS.put(ReferenceContent.class, new ReferenceContentTranslator());
 	}
 

@@ -120,10 +120,7 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-			.map(c -> (RequireConstraint) c)
-			.toArray(RequireConstraint[]::new);
-		return new EntityGroupFetch(requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new EntityGroupFetch(children);
 	}
 }

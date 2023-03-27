@@ -2829,7 +2829,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_CODE)))
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent(ATTRIBUTE_CODE)),
+									statistics()
+								)
+							)
 						)
 					),
 					EntityReference.class
@@ -2922,7 +2929,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfSelf(entityFetch(attributeContent(ATTRIBUTE_CODE)))
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent(ATTRIBUTE_CODE)),
+									statistics()
+								)
+							)
 						)
 					),
 					EntityReference.class
@@ -3050,7 +3063,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_NAME)))
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent(ATTRIBUTE_NAME)),
+									statistics()
+								)
+							)
 						)
 					),
 					EntityReference.class

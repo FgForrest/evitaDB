@@ -29,6 +29,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -112,32 +113,34 @@ import java.util.Arrays;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDef(
-	name = "statisticsOfSelf",
+	name = "hierarchyOfSelf",
 	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of same hierarchical collection into response."
 )
-public class HierarchyStatisticsOfSelf extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
+public class HierarchyOfSelf extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 
 	@Serial private static final long serialVersionUID = -4394552939743167661L;
 
-	public HierarchyStatisticsOfSelf() {
+	public HierarchyOfSelf() {
 		super();
 	}
 
-	@ConstraintCreatorDef(silentImplicitClassifier = true)
-	public HierarchyStatisticsOfSelf(@Nullable @ConstraintChildrenParamDef EntityFetch entityRequirement) {
-		super(new Serializable[0], entityRequirement);
+	private HierarchyOfSelf(RequireConstraint[] children) {
+		super(children);
 	}
 
-	private HierarchyStatisticsOfSelf(RequireConstraint[] children) {
-		super(children);
+	@ConstraintCreatorDef(silentImplicitClassifier = true)
+	public HierarchyOfSelf(@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirements) {
+		super(new Serializable[0], requirements);
 	}
 
 	/**
 	 * Returns requirement constraints for the loaded entities.
 	 */
 	@Nullable
-	public EntityFetch getEntityRequirement() {
-		return getChildren().length == 0 ? null : (EntityFetch) getChildren()[0];
+	public HierarchyRequireConstraint[] getRequirements() {
+		return Arrays.stream(getChildren())
+			.map(it -> (HierarchyRequireConstraint)it)
+			.toArray(HierarchyRequireConstraint[]::new);
 	}
 
 	@Override
@@ -147,16 +150,19 @@ public class HierarchyStatisticsOfSelf extends AbstractRequireConstraintContaine
 
 	@Override
 	public boolean isApplicable() {
-		return true;
+		return getChildrenCount() > 0;
 	}
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-				.map(c -> (RequireConstraint) c)
-				.toArray(RequireConstraint[]::new);
-		return new HierarchyStatisticsOfSelf(requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		for (RequireConstraint child : children) {
+			Assert.isTrue(
+				child instanceof HierarchyRequireConstraint,
+				"Constraint HierarchyOfReference accepts only HierarchyRequireConstraint as inner constraints!"
+			);
+		}
+		return new HierarchyOfSelf(children);
 	}
 
 	@Nonnull

@@ -164,11 +164,8 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final FilterConstraint[] filterChildren = Arrays.stream(children)
-				.map(c -> (FilterConstraint) c)
-				.toArray(FilterConstraint[]::new);
-		return new HierarchyWithinRoot(getArguments(), filterChildren);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new HierarchyWithinRoot(getArguments(), children);
 	}
 
 	@Nonnull

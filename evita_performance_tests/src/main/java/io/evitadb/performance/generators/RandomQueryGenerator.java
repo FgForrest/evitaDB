@@ -383,7 +383,7 @@ public interface RandomQueryGenerator {
 			),
 			require(
 				page(1, 20),
-				hierarchyStatisticsOfReference(pickRandom(random, referencedHierarchyEntities))
+				hierarchyOfReference(pickRandom(random, referencedHierarchyEntities))
 			)
 		);
 	}

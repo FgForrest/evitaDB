@@ -319,7 +319,9 @@ public class EvitaRequest {
 					this.requiredLocaleSet = Set.of(theLocale);
 				}
 			} else {
-				final DataInLocales dataRequirement = QueryUtils.findConstraint(entityFetch, DataInLocales.class, SeparateEntityContentRequireContainer.class);
+				final DataInLocales dataRequirement = QueryUtils.findConstraint(
+					entityFetch, DataInLocales.class, SeparateEntityContentRequireContainer.class
+				);
 				if (dataRequirement != null) {
 					this.requiredLocaleSet = Arrays.stream(dataRequirement.getLocales())
 						.filter(Objects::nonNull)

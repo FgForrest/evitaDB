@@ -209,11 +209,8 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final FilterConstraint[] filterChildren = Arrays.stream(children)
-				.map(c -> (FilterConstraint) c)
-				.toArray(FilterConstraint[]::new);
-		return new HierarchyWithin(getArguments(), filterChildren);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new HierarchyWithin(getArguments(), children);
 	}
 
 	@Nonnull

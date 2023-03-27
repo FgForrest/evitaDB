@@ -73,8 +73,8 @@ public class EntityHaving extends AbstractFilterConstraintContainer implements E
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length == 0 ? new EntityHaving() : new EntityHaving((FilterConstraint) children[0]);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length == 0 ? new EntityHaving() : new EntityHaving(children[0]);
 	}
 
 	@Nonnull

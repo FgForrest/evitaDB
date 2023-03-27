@@ -411,7 +411,7 @@ public interface RestRandomQueryGenerator {
 			new RestConstraint[] {
 				new RestConstraint(Page.class, Map.of("number", 1, "size", 20)),
 				Optional.of(pickRandom(random, referencedHierarchyEntities))
-					.map(it -> new RestConstraint(it, HierarchyStatisticsOfReference.class, true))
+					.map(it -> new RestConstraint(it, HierarchyOfReference.class, true))
 					.orElseThrow()
 			}
 		);

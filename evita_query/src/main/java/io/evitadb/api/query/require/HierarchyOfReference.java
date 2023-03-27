@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -113,34 +114,34 @@ import java.util.Arrays;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDef(
-	name = "statisticsOfReference",
+	name = "hierarchyOfReference",
 	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response."
 )
-public class HierarchyStatisticsOfReference extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
+public class HierarchyOfReference extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 
 	@Serial private static final long serialVersionUID = 3121491811975308390L;
 
-	private HierarchyStatisticsOfReference(Serializable[] arguments, RequireConstraint... children) {
+	private HierarchyOfReference(Serializable[] arguments, RequireConstraint... children) {
 		super(arguments, children);
 	}
 
-	public HierarchyStatisticsOfReference(@Nonnull String referenceName) {
+	public HierarchyOfReference(@Nonnull String referenceName) {
 		super(new String[] { referenceName });
 	}
 
-	public HierarchyStatisticsOfReference(@Nonnull String... referenceName) {
+	public HierarchyOfReference(@Nonnull String... referenceName) {
 		super(referenceName);
 	}
 
 	@ConstraintCreatorDef
-	public HierarchyStatisticsOfReference(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                                      @Nullable @ConstraintChildrenParamDef EntityFetch entityRequirement) {
-		super(new Serializable[]{referenceName}, entityRequirement);
+	public HierarchyOfReference(@Nonnull @ConstraintClassifierParamDef String referenceName,
+	                            @Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirement) {
+		super(new Serializable[]{referenceName}, requirement);
 	}
 
-	public HierarchyStatisticsOfReference(@Nonnull String[] referenceName,
-	                                      @Nullable EntityFetch entityRequirement) {
-		super(referenceName, entityRequirement);
+	public HierarchyOfReference(@Nonnull String[] referenceName,
+	                            @Nonnull HierarchyRequireConstraint... requirement) {
+		super(referenceName, requirement);
 	}
 
 	/**
@@ -154,11 +155,13 @@ public class HierarchyStatisticsOfReference extends AbstractRequireConstraintCon
 	}
 
 	/**
-	 * Returns requirement constraints for the loaded entitye.
+	 * Returns requirement constraints for the loaded entities.
 	 */
 	@Nullable
-	public EntityFetch getEntityRequirement() {
-		return getChildren().length == 0 ? null : (EntityFetch) getChildren()[0];
+	public HierarchyRequireConstraint[] getRequirements() {
+		return Arrays.stream(getChildren())
+			.map(it -> (HierarchyRequireConstraint)it)
+			.toArray(HierarchyRequireConstraint[]::new);
 	}
 
 	@Override
@@ -168,22 +171,25 @@ public class HierarchyStatisticsOfReference extends AbstractRequireConstraintCon
 
 	@Override
 	public boolean isApplicable() {
-		return true;
+		return getChildrenCount() > 0;
 	}
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-				.map(c -> (RequireConstraint) c)
-				.toArray(RequireConstraint[]::new);
-		return new HierarchyStatisticsOfReference(getArguments(), requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		for (RequireConstraint child : children) {
+			Assert.isTrue(
+				child instanceof HierarchyRequireConstraint,
+				"Constraint HierarchyOfReference accepts only HierarchyRequireConstraint as inner constraints!"
+			);
+		}
+		return new HierarchyOfReference(getArguments(), children);
 	}
 
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new HierarchyStatisticsOfReference(
+		return new HierarchyOfReference(
 			Arrays.stream(newArguments)
 				.map(String.class::cast)
 				.toArray(String[]::new),

@@ -684,7 +684,14 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 							page(1, 0),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
-							hierarchyStatisticsOfReference(Entities.CATEGORY, entityFetch(attributeContent()))
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statistics()
+								)
+							)
 						)
 					),
 					EntityReference.class
@@ -728,7 +735,14 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 							page(1, 0),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
-							hierarchyStatisticsOfReference(Entities.CATEGORY, entityFetch(attributeContent()))
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statistics()
+								)
+							)
 						)
 					),
 					EntityReference.class

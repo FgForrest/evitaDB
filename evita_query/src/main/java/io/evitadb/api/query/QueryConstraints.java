@@ -1404,9 +1404,9 @@ public interface QueryConstraints {
 	 *
 	 * ```
 	 * orderBy(
-	 *    attribute("code", ASC),
-	 *    attribute("created", DESC),
-	 *    price(DESC)
+	 * attribute("code", ASC),
+	 * attribute("created", DESC),
+	 * price(DESC)
 	 * )
 	 * ```
 	 */
@@ -1764,196 +1764,409 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities and adds
-	 * an object to the result index. It has at least one {@link String}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
-	 *
-	 * When this require query is used an additional object is stored to result index:
-	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
-	 *
-	 * Example:
-	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference("category")
-	 * hierarchyStatisticsOfReference("category", entityBody(), attributes())
-	 * </pre>
-	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
-	 * <pre>
-	 * query(
-	 *     entities("PRODUCT"),
-	 *     filterBy(
-	 *         and(
-	 *             eq("visible", true),
-	 *             inRange("valid", 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency("USD"),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists("vip", "standard"),
-	 *             withinRootHierarchy("CATEGORY", excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfReference("CATEGORY", entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
-	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
+	 * TOBEDONE JNO: docs
 	 */
-	@Nonnull
-	static HierarchyStatisticsOfSelf hierarchyStatisticsOfSelf() {
-		return new HierarchyStatisticsOfSelf();
-	}
-
-	/**
-	 * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities and adds
-	 * an object to the result index. It has at least one {@link String}
-	 * argument that specifies type of hierarchical entity that this entity relates to. Additional arguments allow passing
-	 * requirements for fetching the referenced entity contents so that there are no other requests to the evitaDB necessary
-	 * and all data are fetched in single query.
-	 *
-	 * When this require query is used an additional object is stored to result index:
-	 *
-	 * - **HierarchyStatistics**
-	 * this object is organized in the tree structure that reflects the hierarchy of the entities of desired type that are
-	 * referenced by entities returned by primary query, for each tree entity there is a number that represents the count of
-	 * currently queried entities that relates to that referenced hierarchical entity and match the query filter - either
-	 * directly or to some subordinate entity of this hierarchical entity
-	 *
-	 * Example:
-	 *
-	 * <pre>
-	 * hierarchyStatisticsOfReference("category")
-	 * hierarchyStatisticsOfReference("category", entityBody(), attributes())
-	 * </pre>
-	 *
-	 * This require query is usually used when hierarchical menu rendering is needed. For example when we need to render
-	 * menu for entire e-commerce site, but we want to take excluded subtrees into an account and also reflect the filtering
-	 * conditions that may filter out dozens of products (and thus leading to empty categories) we can invoke following query:
-	 *
-	 * <pre>
-	 * query(
-	 *     entities("PRODUCT"),
-	 *     filterBy(
-	 *         and(
-	 *             eq("visible", true),
-	 *             inRange("valid", 2020-07-30T20:37:50+00:00),
-	 *             priceInCurrency("USD"),
-	 *             priceValidIn(2020-07-30T20:37:50+00:00),
-	 *             priceInPriceLists("vip", "standard"),
-	 *             withinRootHierarchy("CATEGORY", excluding(3, 7))
-	 *         )
-	 *     ),
-	 *     require(
-	 *         page(1, 20),
-	 *         hierarchyStatisticsOfReference("CATEGORY", entityBody(), attributes())
-	 *     )
-	 * )
-	 * </pre>
-	 *
-	 * This query would return first page with 20 products (omitting hundreds of others on additional pages) but also returns a
-	 * HierarchyStatistics in additional data. This object may contain following structure:
-	 *
-	 * <pre>
-	 * Electronics -> 1789
-	 *     TV -> 126
-	 *         LED -> 90
-	 *         CRT -> 36
-	 *     Washing machines -> 190
-	 *         Slim -> 40
-	 *         Standard -> 40
-	 *         With drier -> 23
-	 *         Top filling -> 42
-	 *         Smart -> 45
-	 *     Cell phones -> 350
-	 *     Audio / Video -> 230
-	 *     Printers -> 80
-	 * </pre>
-	 *
-	 * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
-	 * after the arrow represents the count of the products that are referencing this category (either directly or some of its
-	 * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
-	 * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
-	 * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
-	 */
-	@Nonnull
-	static HierarchyStatisticsOfSelf hierarchyStatisticsOfSelf(@Nullable EntityFetch entityRequirement) {
-		if (entityRequirement == null) {
-			return new HierarchyStatisticsOfSelf();
-		}
-		return new HierarchyStatisticsOfSelf(entityRequirement);
+	@Nullable
+	static HierarchyOfSelf hierarchyOfSelf(@Nullable HierarchyRequireConstraint... requirement) {
+		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(requirement);
 	}
 
 	/**
 	 * TOBEDONE JNO: docs
 	 */
 	@Nullable
-	static HierarchyStatisticsOfReference hierarchyStatisticsOfReference(@Nullable String referenceName) {
-		return referenceName == null ? null : new HierarchyStatisticsOfReference(referenceName);
+	static HierarchyOfReference hierarchyOfReference(
+		@Nullable String referenceName,
+		@Nullable HierarchyRequireConstraint... requirement
+	) {
+		return referenceName == null || ArrayUtils.isEmpty(requirement) ?
+			null : new HierarchyOfReference(referenceName, requirement);
 	}
 
 	/**
 	 * TOBEDONE JNO: docs
 	 */
 	@Nullable
-	static HierarchyStatisticsOfReference hierarchyStatisticsOfReference(@Nullable String... referenceName) {
-		return referenceName == null ? null : new HierarchyStatisticsOfReference(referenceName);
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nonnull
-	static HierarchyStatisticsOfReference hierarchyStatisticsOfReference(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement) {
-		return entityRequirement == null ? new HierarchyStatisticsOfReference(referenceName) : new HierarchyStatisticsOfReference(referenceName, entityRequirement);
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchyStatisticsOfReference hierarchyStatisticsOfReference(@Nullable String[] referenceName, @Nullable EntityFetch entityRequirement) {
+	static HierarchyOfReference hierarchyOfReference(
+		@Nullable String[] referenceName,
+		@Nullable HierarchyRequireConstraint... requirement
+	) {
 		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
 			return null;
 		}
-		if (entityRequirement == null) {
-			return new HierarchyStatisticsOfReference(referenceName);
+		if (ArrayUtils.isEmpty(requirement)) {
+			return null;
 		}
-		return new HierarchyStatisticsOfReference(referenceName, entityRequirement);
+		return new HierarchyOfReference(referenceName, requirement);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyFromRoot fromRoot(
+		@Nullable String outputName,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return requirement == null ? new HierarchyFromRoot(outputName) : new HierarchyFromRoot(outputName, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyFromRoot fromRoot(
+		@Nullable String outputName,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return entityFetch == null ? new HierarchyFromRoot(outputName, requirement) : new HierarchyFromRoot(outputName, entityFetch, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyFromNode fromNode(
+		@Nullable String outputName,
+		@Nonnull HierarchyNode node,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return requirement == null ?
+				new HierarchyFromNode(outputName, node) :
+				new HierarchyFromNode(outputName, node, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyFromNode fromNode(
+		@Nullable String outputName,
+		@Nonnull HierarchyNode node,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return entityFetch == null ?
+				new HierarchyFromNode(outputName, node, requirement) :
+				new HierarchyFromNode(outputName, node, entityFetch, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyChildren children(
+		@Nullable String outputName,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchyChildren(outputName, entityFetch, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyChildren children(
+		@Nullable String outputName,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchyChildren(outputName, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable String outputName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyStatistics hierarchyStatistics
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchySiblings(outputName, filterBy, entityFetch, hierarchyStatistics);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable String outputName,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyStatistics hierarchyStatistics
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchySiblings(outputName, entityFetch, hierarchyStatistics);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable String outputName,
+		@Nullable EntityFetch entityFetch
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchySiblings(outputName, entityFetch);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable String outputName,
+		@Nullable HierarchyStatistics hierarchyStatistics
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchySiblings(outputName, hierarchyStatistics);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable String outputName,
+		@Nullable FilterBy filterBy
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchySiblings(outputName, filterBy);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable String outputName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityFetch
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchySiblings(outputName, filterBy, entityFetch);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable String outputName,
+		@Nullable FilterBy filterBy,
+		@Nullable HierarchyStatistics statistics
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchySiblings(outputName, filterBy, statistics);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(@Nullable String outputName) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchySiblings(outputName);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyStatistics hierarchyStatistics
+	) {
+		return new HierarchySiblings(filterBy, entityFetch, hierarchyStatistics);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyStatistics hierarchyStatistics
+	) {
+		return new HierarchySiblings(entityFetch, hierarchyStatistics);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(@Nullable EntityFetch entityFetch) {
+		return new HierarchySiblings(entityFetch);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(@Nullable HierarchyStatistics hierarchyStatistics) {
+		return new HierarchySiblings(hierarchyStatistics);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(@Nullable FilterBy filterBy) {
+		return new HierarchySiblings(filterBy);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityFetch
+	) {
+		return new HierarchySiblings(filterBy, entityFetch);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings(
+		@Nullable FilterBy filterBy,
+		@Nullable HierarchyStatistics statistics
+	) {
+		return new HierarchySiblings(filterBy, statistics);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchySiblings siblings() {
+		return new HierarchySiblings();
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyParents parents(
+		@Nullable String outputName,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyOutputRequireConstraint... requirements
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchyParents(outputName, entityFetch, requirements);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyParents parents(
+		@Nullable String outputName,
+		@Nullable HierarchyOutputRequireConstraint... requirements
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchyParents(outputName, requirements);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyStopAt stopAt(@Nullable HierarchyStopAtRequireConstraint stopConstraint) {
+		return stopConstraint == null ? null : new HierarchyStopAt(stopConstraint);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyNode node(@Nullable FilterBy filterBy) {
+		return filterBy == null ? null : new HierarchyNode(filterBy);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyLevel level(@Nullable Integer level) {
+		return level == null ? null : new HierarchyLevel(level);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyDistance distance(@Nullable Integer distance) {
+		return distance == null ? null : new HierarchyDistance(distance);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyStatistics statistics() {
+		return new HierarchyStatistics();
 	}
 
 	// TOBEDONE JNO: docs

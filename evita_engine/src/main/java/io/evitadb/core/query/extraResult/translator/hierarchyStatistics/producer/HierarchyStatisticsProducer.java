@@ -27,7 +27,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.HierarchyStatisticsOfSelf;
+import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -72,7 +72,7 @@ import static java.util.Optional.ofNullable;
 /**
  * {@link HierarchyStatisticsProducer} creates {@link HierarchyStatistics} DTO instance and does the heavy lifting to
  * compute all information necessary. The producer aggregates {@link HierarchyStatisticsComputer} for each
- * {@link HierarchyStatisticsOfSelf} requirement and combines them into the single result.
+ * {@link HierarchyOfSelf} requirement and combines them into the single result.
  *
  * Producer uses {@link HierarchyIndex} of the targeted entity to {@link HierarchyIndex#traverseHierarchy(HierarchyVisitor)}
  * finding all entities linked to the queried entity type. It respects {@link EntityLocaleEquals} and {@link HierarchyWithin}
