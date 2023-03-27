@@ -93,6 +93,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
@@ -341,7 +342,7 @@ class EvitaApiFunctionalTest {
 				final SealedEntity updatedEntity = session.upsertAndFetchEntity(updatedBrand, entityFetchAllContent());
 				assertNotNull(updatedEntity);
 
-				assertFalse(updatedBrand.differsFrom(updatedEntity));
+				assertExactlyEquals(updatedBrand, updatedEntity);
 			}
 		);
 	}
@@ -407,7 +408,7 @@ class EvitaApiFunctionalTest {
 			// get entity by primary key and verify its contents
 			final SealedEntity loadedProduct = getProductById(session, 1).orElseThrow();
 			assertNotNull(loadedProduct);
-			assertFalse(entityReference.differsFrom(loadedProduct));
+			assertExactlyEquals(entityReference, loadedProduct);
 			return loadedProduct;
 		});
 	}
@@ -437,7 +438,7 @@ class EvitaApiFunctionalTest {
 			// get entity by primary key and verify its contents
 			final EntityContract loadedProduct = getProductById(session, 1).orElseThrow();
 			assertNotNull(loadedProduct);
-			assertFalse(product.get().differsFrom(loadedProduct));
+			assertExactlyEquals(product.get(), loadedProduct);
 			assertEquals(Boolean.TRUE, loadedProduct.getAttribute("aquaStop"));
 			assertEquals(Byte.valueOf((byte) 60), loadedProduct.getAttribute("width"));
 			assertNull(loadedProduct.getAttributeValue("waterConsumption").orElse(null));
@@ -858,7 +859,7 @@ class EvitaApiFunctionalTest {
 
 				// verify entity is deleted
 				assertTrue(getProductById(session, productReference.getPrimaryKey()).isEmpty());
-				assertFalse(productToDelete.differsFrom(deletedProduct));
+				assertExactlyEquals(productToDelete, deletedProduct);
 			}
 		);
 
@@ -1000,7 +1001,7 @@ class EvitaApiFunctionalTest {
 				// delete the root entity
 				final DeletedHierarchy deletionResult = session.deleteEntityAndItsHierarchy(CATEGORY, 1, entityFetchAllContent());
 				assertEquals(3, deletionResult.deletedEntities());
-				assertFalse(removedCategory.differsFrom(deletionResult.deletedRootEntity()));
+				assertExactlyEquals(removedCategory, deletionResult.deletedRootEntity());
 
 				// verify all entities are deleted
 				assertNull(getCategoryById(session, 1).orElse(null));
@@ -1169,7 +1170,7 @@ class EvitaApiFunctionalTest {
 				assertEquals(3, deletedEntities.length);
 				for (SealedEntity deletedEntity : deletedEntities) {
 					final SealedEntity originalEntity = existingEntities.get(deletedEntity.getPrimaryKey());
-					assertFalse(originalEntity.differsFrom(deletedEntity));
+					assertExactlyEquals(originalEntity, deletedEntity);
 				}
 
 				// verify all entities are deleted

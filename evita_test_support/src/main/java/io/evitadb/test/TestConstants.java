@@ -23,13 +23,6 @@
 
 package io.evitadb.test;
 
-import io.evitadb.api.requestResponse.data.ContentComparator;
-import io.evitadb.exception.EvitaInternalError;
-import org.junit.jupiter.api.Assertions;
-
-import java.io.File;
-import java.nio.file.Path;
-
 /**
  * This class contains shared constants for test suite.
  *
@@ -56,37 +49,5 @@ public interface TestConstants {
 	 * Name of the default catalog when no other name has been specified. Pretty good for most of the tests.
 	 */
 	String TEST_CATALOG = "testCatalog";
-
-	/**
-	 * Returns pointer to the data directory. This method supports proper DATA folder resolution from different working
-	 * directories in evitaDB git repository.
-	 */
-	default Path getDataDirectory() {
-		final String externallyDefinedPath = System.getProperty(DATA_FOLDER_ENV_VARIABLE);
-		final Path dataPath;
-		if (externallyDefinedPath == null) {
-			final Path workingDirPath = Path.of(System.getProperty("user.dir"));
-			if (workingDirPath.toString().contains(File.separator + "evita_")) {
-				dataPath = workingDirPath.resolve("../data");
-			} else {
-				dataPath = workingDirPath.resolve("data");
-			}
-		} else {
-			dataPath = Path.of(externallyDefinedPath);
-		}
-		if (!dataPath.toFile().exists()) {
-			throw new EvitaInternalError("Data directory `" + dataPath + "` does not exist!");
-		}
-		return dataPath;
-	}
-
-	/**
-	 * Executes full contents compilation and fails the test if contents are not equal.
-	 */
-	default <T> void assertExactlyEquals(ContentComparator<T> expected, T actual, String message) {
-		if (expected.differsFrom(actual)) {
-			Assertions.fail(message + "\nExpected:\n" + expected + "\n\nActual:\n" + actual.toString());
-		}
-	}
 
 }

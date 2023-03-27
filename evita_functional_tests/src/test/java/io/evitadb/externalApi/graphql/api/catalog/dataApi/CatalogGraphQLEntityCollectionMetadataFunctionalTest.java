@@ -23,12 +23,13 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
-import io.evitadb.core.Evita;
+import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -45,8 +46,8 @@ public class CatalogGraphQLEntityCollectionMetadataFunctionalTest extends Catalo
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return correct collection size")
-	void shouldReturnCorrectCollectionSize(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnCorrectCollectionSize(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {

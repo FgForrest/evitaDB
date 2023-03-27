@@ -26,27 +26,18 @@ package io.evitadb.externalApi.graphql.api.testSuite;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.externalApi.graphql.GraphQLProviderRegistrar;
-import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester.Request;
-import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
-import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
-import java.net.InetAddress;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 
@@ -63,50 +54,30 @@ public abstract class GraphQLEndpointFunctionalTest {
 
 	public static final String TYPENAME_FIELD = "__typename";
 
-	private static ExternalApiServer server;
-	private static GraphQLTester tester;
-
-	@SneakyThrows
-	@BeforeEach
-	void setUp() {
-		 tester = new GraphQLTester("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/gql" + getEndpointPath());
-	}
-
-	@Nonnull
-	protected abstract String getEndpointPath();
-
-	@DataSet(TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS)
-	List<SealedEntity> setUp(Evita evita) {
-		TestDataGenerator.generateMockCatalogs(evita);
-		final List<SealedEntity> entities = TestDataGenerator.generateMainCatalogEntities(evita);
-
-		server = new ExternalApiServer(
-			evita,
-			new ApiOptions(null, new CertificateSettings.Builder().build(), Map.of(GraphQLProvider.CODE, new GraphQLConfig())),
-			Collections.singleton(new GraphQLProviderRegistrar())
-		);
-		server.start();
-
-		return entities;
-	}
-
-	@AfterAll
-	static void tearDown() {
-		if (server != null) {
-			server.close();
-			server = null;
-		}
-	}
-
-	/**
-	 * Test single request to GraphQL API.
-	 */
-	protected Request testGraphQLCall() {
-		return tester.test();
-	}
-
 	@Nonnull
 	protected static EntitySchema createEmptyEntitySchema(@Nonnull String entityType) {
 		return EntitySchema._internalBuild(entityType);
+	}
+
+	@DataSet(value = TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS, openWebApi = GraphQLProvider.CODE)
+	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		return setUpData(evita, evitaServer, 1000);
+	}
+
+	@Nonnull
+	protected DataCarrier setUpData(Evita evita, EvitaServer evitaServer, int productCount) {
+		TestDataGenerator.generateMockCatalogs(evita);
+		final List<SealedEntity> entities = TestDataGenerator.generateMainCatalogEntities(evita, productCount);
+		final HostDefinition[] host = evitaServer.getExternalApiServer().getApiOptions()
+			.getEndpointConfiguration(GraphQLProvider.CODE)
+			.getHost();
+
+		return new DataCarrier(
+			"entities", entities,
+			"tester",
+			new GraphQLTester(
+				"https://" + host[0].hostName() + ":" + host[0].port() + "/gql"
+			)
+		);
 	}
 }

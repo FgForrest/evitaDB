@@ -90,7 +90,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
-	@DataSet(THOUSAND_PRODUCTS)
+	@DataSet(value = THOUSAND_PRODUCTS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {

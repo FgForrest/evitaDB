@@ -34,9 +34,5 @@ import javax.annotation.Nonnull;
  */
 public abstract class SystemGraphQLEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
 
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/system";
-	}
+	protected static final String SYSTEM_URL = "system";
 }

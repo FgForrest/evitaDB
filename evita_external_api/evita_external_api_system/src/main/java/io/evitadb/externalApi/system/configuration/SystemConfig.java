@@ -64,9 +64,8 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 		this.allowedOrigins = null;
 	}
 
-	public SystemConfig(@Nullable Boolean enabled,
-	                    @Nonnull String host) {
-		super(enabled, host, true);
+	public SystemConfig(@Nonnull String host) {
+		super(true, host, true);
 		this.prefix = BASE_SYSTEM_PATH;
 		this.allowedOrigins = null;
 	}

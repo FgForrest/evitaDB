@@ -39,7 +39,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.store.query.QuerySerializationKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -68,7 +68,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SanityChecker implements TestFileSupport {
+public class SanityChecker implements EvitaTestSupport {
 	private static final int PRELOADED_QUERY_COUNT = 100_000;
 	private final Object monitor = new Object();
 	private int queryLimit;

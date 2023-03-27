@@ -23,10 +23,14 @@
 
 package io.evitadb.test.extension;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import static java.util.Optional.ofNullable;
 
@@ -93,6 +97,16 @@ public class DataCarrier {
 	@Nullable
 	public Object getValueByName(String name) {
 		return valuesByName.get(name);
+	}
+
+	@Nonnull
+	public Set<Entry<String, Object>> entrySet() {
+		return valuesByName.entrySet();
+	}
+
+	@Nonnull
+	public Collection<Object> anonymousValues() {
+		return valuesByName.isEmpty() ? valuesByType.values() : Collections.emptySet();
 	}
 
 }

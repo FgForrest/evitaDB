@@ -34,6 +34,7 @@ import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.performance.generators.TestDatasetGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
+import io.evitadb.test.TestConstants;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
@@ -104,7 +105,7 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 	 * Returns name of the test catalog.
 	 */
 	protected String getCatalogName() {
-		return TEST_CATALOG;
+		return TestConstants.TEST_CATALOG;
 	}
 
 	/**

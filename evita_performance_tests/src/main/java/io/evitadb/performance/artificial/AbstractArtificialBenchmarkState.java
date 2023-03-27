@@ -61,10 +61,6 @@ public abstract class AbstractArtificialBenchmarkState<S> implements TestConstan
 	 */
 	public static final long SEED = 42;
 	/**
-	 * Default name of the test catalog.
-	 */
-	public static final String TEST_CATALOG = "testCatalog";
-	/**
 	 * Pseudo-randomizer for picking random entities to fetch.
 	 */
 	@Getter private final Random random = new Random(SEED);

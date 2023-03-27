@@ -96,7 +96,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
-	@DataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@DataSet(value = HUNDRED_PRODUCTS_WITH_PRICES, destroyAfterClass = true)
 	List<SealedEntity> setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> null;

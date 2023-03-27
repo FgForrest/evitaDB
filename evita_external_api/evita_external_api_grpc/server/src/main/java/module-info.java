@@ -37,6 +37,7 @@ module evita.external.api.grpc {
 
 	opens io.evitadb.externalApi.grpc.configuration to com.fasterxml.jackson.databind;
 	exports io.evitadb.externalApi.grpc.configuration;
+	exports io.evitadb.externalApi.grpc;
 
 	requires static jsr305;
 	requires static org.slf4j;

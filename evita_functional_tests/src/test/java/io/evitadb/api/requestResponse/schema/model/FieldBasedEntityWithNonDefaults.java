@@ -38,6 +38,7 @@ import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
 /**
  * Example interface for ClassSchemaAnalyzerTest.
@@ -132,9 +133,9 @@ public class FieldBasedEntityWithNonDefaults {
 	)
 	private Brand[] licensingBrands;
 
-	record ReferencedFiles(@Nonnull int... fileId) {}
+	record ReferencedFiles(@Nonnull int... fileId) implements Serializable {}
 
-	record LocalizedTexts(@Nonnull String... texts) {}
+	record LocalizedTexts(@Nonnull String... texts) implements Serializable {}
 
 	@Data
 	private static class Brand {

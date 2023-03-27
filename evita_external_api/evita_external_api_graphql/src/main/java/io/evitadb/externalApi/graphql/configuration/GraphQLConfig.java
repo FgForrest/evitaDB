@@ -60,6 +60,12 @@ public class GraphQLConfig extends AbstractApiConfiguration implements ApiWithSp
 		this.allowedOrigins = null;
 	}
 
+	public GraphQLConfig(@Nonnull String host) {
+		super(true, host);
+		this.prefix = BASE_GRAPHQL_PATH;
+		this.allowedOrigins = null;
+	}
+
 	@JsonCreator
 	public GraphQLConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                     @Nonnull @JsonProperty("host") String host,

@@ -45,8 +45,8 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Locale;
 
+import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -76,7 +76,7 @@ class SchemaSerializationServiceTest {
 
 		final EntitySchema deserializedSchema = schemaSerializationService.deserialize(new ByteArrayInputStream(serializedSchema));
 		assertEquals(createdSchema, deserializedSchema);
-		assertFalse(createdSchema.differsFrom(deserializedSchema));
+		assertExactlyEquals(createdSchema, deserializedSchema);
 	}
 
 	@Nonnull

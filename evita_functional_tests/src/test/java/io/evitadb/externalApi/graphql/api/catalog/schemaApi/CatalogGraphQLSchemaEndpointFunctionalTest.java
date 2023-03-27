@@ -33,10 +33,4 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public abstract class CatalogGraphQLSchemaEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
-
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog/schema";
-	}
 }

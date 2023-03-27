@@ -120,12 +120,6 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_external_api_grpc_tests</artifactId>
-			<version>${project.parent.version}</version>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_server</artifactId>
 			<version>${project.parent.version}</version>
 			<scope>runtime</scope>

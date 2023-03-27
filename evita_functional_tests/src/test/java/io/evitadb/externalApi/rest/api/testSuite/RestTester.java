@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.testSuite;
 
 import io.evitadb.externalApi.http.MimeTypes;
+import io.evitadb.utils.StringUtils;
 import io.restassured.http.Header;
 import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
@@ -52,13 +53,13 @@ import static io.restassured.RestAssured.given;
 @RequiredArgsConstructor
 public class RestTester {
 
-	private final String url;
+	private final String baseUrl;
 
 	/**
 	 * Test single request to GraphQL API.
 	 */
-	public Request test() {
-		return new Request(this);
+	public Request test(@Nonnull String catalogName) {
+		return new Request(this, catalogName);
 	}
 
 	@SneakyThrows
@@ -77,7 +78,7 @@ public class RestTester {
 			requestSpecification.params(request.getRequestParams());
 		}
 
-		final String fullUrl = url + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "");
+		final String fullUrl = baseUrl + "/" + StringUtils.toKebabCase(request.getCatalogName()) + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "");
 		final Response response = switch (request.httpMethod) {
 			case Request.METHOD_GET -> requestSpecification.when().get(fullUrl);
 			case Request.METHOD_PUT -> requestSpecification.when().put(fullUrl);
@@ -102,6 +103,7 @@ public class RestTester {
 		public static final String METHOD_GET = "get";
 
 		private final RestTester tester;
+		private final String catalogName;
 
 		@Getter(AccessLevel.PUBLIC) private String httpMethod;
 

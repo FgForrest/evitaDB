@@ -39,6 +39,7 @@ import io.evitadb.test.generator.DataGenerator;
 import lombok.Data;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -91,7 +92,8 @@ public class TestDataGenerator {
 		evita.defineCatalog("testCatalog3");
 	}
 
-	public static List<SealedEntity> generateMainCatalogEntities(@Nonnull Evita evita) {
+	@Nullable
+	public static List<SealedEntity> generateMainCatalogEntities(@Nonnull Evita evita, int productCount) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema()
 				.openForWrite()
@@ -118,7 +120,7 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(100)
+				.limit(Math.min(Math.max(10, productCount / 10), 100))
 				.forEach(session::upsertEntity);
 
 			dataGenerator.generateEntities(
@@ -150,7 +152,7 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(200)
+				.limit(Math.min(Math.max(10, productCount / 5), 100))
 				.forEach(session::upsertEntity);
 
 			dataGenerator.generateEntities(
@@ -158,7 +160,7 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(100)
+				.limit(Math.min(Math.max(10, productCount / 10), 100))
 				.forEach(session::upsertEntity);
 
 			dataGenerator.generateEntities(
@@ -166,7 +168,7 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(100)
+				.limit(Math.min(Math.max(10, productCount / 10), 100))
 				.forEach(session::upsertEntity);
 
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
@@ -237,7 +239,7 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(1000)
+				.limit(productCount)
 				.map(session::upsertEntity)
 				.toList();
 

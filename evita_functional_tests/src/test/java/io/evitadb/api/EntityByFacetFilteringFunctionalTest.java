@@ -280,7 +280,7 @@ public class EntityByFacetFilteringFunctionalTest {
 		);
 	}
 
-	@DataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@DataSet(value = THOUSAND_PRODUCTS_WITH_FACETS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {

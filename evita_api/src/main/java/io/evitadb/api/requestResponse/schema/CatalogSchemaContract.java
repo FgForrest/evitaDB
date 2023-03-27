@@ -66,7 +66,9 @@ public interface CatalogSchemaContract
 	@Nonnull
 	default EntitySchemaContract getEntitySchemaOrThrowException(@Nonnull String entityType) {
 		return getEntitySchema(entityType)
-			.orElseThrow(() -> new EvitaInvalidUsageException("Schema for entity with name `" + entityType + "` was not found!"));
+			.orElseThrow(() -> {
+				return new EvitaInvalidUsageException("Schema for entity with name `" + entityType + "` was not found!");
+			});
 	}
 
 }

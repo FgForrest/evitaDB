@@ -32,7 +32,7 @@ jobs:
 
       - name: Build with Maven   # this run Maven tests but only if something was committed this day
         if: ${{ env.NEW_COMMIT_COUNT > 0 }}
-        run: mvn -B package jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+        run: mvn -T 1C -B package jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
       - name: Upload test results  # this upload test results but only if something was committed this day
         uses: actions/upload-artifact@v2

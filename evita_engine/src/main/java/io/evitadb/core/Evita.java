@@ -57,6 +57,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.scheduling.Scheduler;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
@@ -160,6 +161,11 @@ public final class Evita implements EvitaContract {
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
 	private boolean active;
+	/**
+	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
+	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
+	 */
+	@Getter private boolean readOnly;
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
@@ -208,6 +214,15 @@ public final class Evita implements EvitaContract {
 		);
 
 		this.active = true;
+		this.readOnly = this.configuration.server().readOnly();
+	}
+
+	/**
+	 * Method for internal use. Can switch Evita from read-write to read-only one time only.
+	 */
+	public void setReadOnly() {
+		Assert.isTrue(!readOnly, "Only read-write evita can be switched to read-only instance!");
+		this.readOnly = true;
 	}
 
 	/**
@@ -315,7 +330,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	public void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations) {
 		assertActive();
-		if (this.configuration.server().readOnly()) {
+		if (readOnly) {
 			throw new ReadOnlyException();
 		}
 		// TOBEDONE JNO - append mutation to the WAL and execute asynchronously
@@ -363,7 +378,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	public <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags... flags) {
 		assertActive();
-		if (this.configuration.server().readOnly()) {
+		if (readOnly && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw new ReadOnlyException();
 		}
 		final SessionTraits traits = new SessionTraits(
@@ -669,8 +684,8 @@ public final class Evita implements EvitaContract {
 			catalog.getCatalogState() == CatalogState.WARMING_UP && sessionTraits.isReadWrite() && !sessionTraits.isDryRun() ?
 				new NonTransactionalCatalogDescriptor(catalog, structuralChangeObservers) : null;
 
-		if (this.configuration.server().readOnly()) {
-			isTrue(!sessionTraits.isReadWrite() , ReadOnlyException::new);
+		if (readOnly) {
+			isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
 		}
 
 		final EvitaSessionTerminationCallback terminationCallback = session -> {

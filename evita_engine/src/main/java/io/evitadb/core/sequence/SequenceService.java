@@ -50,21 +50,8 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class SequenceService {
-	private static final SequenceService INSTANCE = new SequenceService();
 	private final Map<SequenceKey, AtomicInteger> intSequences = new ConcurrentHashMap<>();
 	private final Map<SequenceKey, AtomicLong> longSequences = new ConcurrentHashMap<>();
-
-	private SequenceService() {
-	}
-
-	/**
-	 * This method resets all existing sequences. This method is targeted to be used only in tests! Never call this
-	 * method in production code!
-	 */
-	public static void reset() {
-		INSTANCE.intSequences.clear();
-		INSTANCE.longSequences.clear();
-	}
 
 	/**
 	 * Method returns existing sequence or creates new. Sequence is initialized with passed `initialValue` or can fast
@@ -77,7 +64,7 @@ public class SequenceService {
 	 *
 	 * Multiple threads are expected to use same sequence instance - thus {@link AtomicInteger} is used.
 	 */
-	public static AtomicInteger getOrCreateSequence(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable Integer initialValue) {
+	public AtomicInteger getOrCreateSequence(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable Integer initialValue) {
 		return getOrCreateSequenceInternal(catalog, sequenceType, null, initialValue);
 	}
 
@@ -92,7 +79,7 @@ public class SequenceService {
 	 *
 	 * Multiple threads are expected to use same sequence instance - thus {@link AtomicInteger} is used.
 	 */
-	public static AtomicInteger getOrCreateSequence(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nonnull String entityType, @Nullable Integer initialValue) {
+	public AtomicInteger getOrCreateSequence(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nonnull String entityType, @Nullable Integer initialValue) {
 		return getOrCreateSequenceInternal(catalog, sequenceType, entityType, initialValue);
 	}
 
@@ -107,7 +94,7 @@ public class SequenceService {
 	 *
 	 * Multiple threads are expected to use same sequence instance - thus {@link AtomicLong} is used.
 	 */
-	public static AtomicLong getOrCreateSequence(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable Long initialValue) {
+	public AtomicLong getOrCreateSequence(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable Long initialValue) {
 		return getOrCreateSequenceInternal(catalog, sequenceType, null, initialValue);
 	}
 
@@ -122,7 +109,7 @@ public class SequenceService {
 	 *
 	 * Multiple threads are expected to use same sequence instance - thus {@link AtomicLong} is used.
 	 */
-	public static AtomicLong getOrCreateSequence(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nonnull String entityType, @Nullable Long initialValue) {
+	public AtomicLong getOrCreateSequence(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nonnull String entityType, @Nullable Long initialValue) {
 		return getOrCreateSequenceInternal(catalog, sequenceType, entityType, initialValue);
 	}
 
@@ -131,9 +118,9 @@ public class SequenceService {
 	 */
 
 	@Nonnull
-	private static AtomicInteger getOrCreateSequenceInternal(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable String entityType, @Nullable Integer initialValue) {
+	private AtomicInteger getOrCreateSequenceInternal(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable String entityType, @Nullable Integer initialValue) {
 		final int theInitialValue = ofNullable(initialValue).orElse(0);
-		final AtomicInteger sequence = INSTANCE.intSequences.computeIfAbsent(
+		final AtomicInteger sequence = intSequences.computeIfAbsent(
 			new SequenceKey(catalog, sequenceType, entityType),
 			sequenceKey -> new AtomicInteger(theInitialValue)
 		);
@@ -153,9 +140,9 @@ public class SequenceService {
 	}
 
 	@Nonnull
-	private static AtomicLong getOrCreateSequenceInternal(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable String entityType, @Nullable Long initialValue) {
+	private AtomicLong getOrCreateSequenceInternal(@Nonnull String catalog, @Nonnull SequenceType sequenceType, @Nullable String entityType, @Nullable Long initialValue) {
 		final long theInitialValue = ofNullable(initialValue).orElse(0L);
-		final AtomicLong sequence = INSTANCE.longSequences.computeIfAbsent(
+		final AtomicLong sequence = longSequences.computeIfAbsent(
 			new SequenceKey(catalog, sequenceType, entityType),
 			sequenceKey -> new AtomicLong(theInitialValue)
 		);
