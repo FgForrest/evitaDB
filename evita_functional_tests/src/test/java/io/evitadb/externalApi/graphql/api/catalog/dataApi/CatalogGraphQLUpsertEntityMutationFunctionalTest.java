@@ -33,7 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;

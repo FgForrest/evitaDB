@@ -21,16 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.testSuite;
+package io.evitadb.test.tester;
 
-import io.evitadb.externalApi.graphql.io.GraphQLMimeTypes;
+import io.evitadb.test.tester.GraphQLTester.Request;
 import io.evitadb.utils.StringUtils;
 import io.restassured.http.Header;
 import io.restassured.response.ValidatableResponse;
-import io.undertow.util.Headers;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 
 import javax.annotation.Nonnull;
@@ -39,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import static io.evitadb.externalApi.graphql.io.GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON;
 import static io.restassured.RestAssured.given;
 
 /**
@@ -47,14 +46,17 @@ import static io.restassured.RestAssured.given;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public class GraphQLTester {
+public class GraphQLTester extends JsonExternalApiTester<Request> {
 
-	private final String baseUrl;
+	public GraphQLTester(@Nonnull String baseUrl) {
+		super(baseUrl);
+	}
 
 	/**
 	 * Test single request to GraphQL API.
 	 */
+	@Override
+	@Nonnull
 	public Request test(@Nonnull String catalogName) {
 		return new Request(this, catalogName);
 	}
@@ -115,12 +117,12 @@ public class GraphQLTester {
 		}
 
 		public Request contentTypeHeader(@Nonnull String value) {
-			this.headers.put(Headers.CONTENT_TYPE_STRING, new Header(Headers.CONTENT_TYPE_STRING, value));
+			this.headers.put(CONTENT_TYPE_HEADER, new Header(CONTENT_TYPE_HEADER, value));
 			return this;
 		}
 
 		public Request acceptHeader(@Nonnull String value) {
-			this.headers.put(Headers.ACCEPT_STRING, new Header(Headers.ACCEPT_STRING, value));
+			this.headers.put(ACCEPT_HEADER, new Header(ACCEPT_HEADER, value));
 			return this;
 		}
 
@@ -133,11 +135,11 @@ public class GraphQLTester {
 		 * Executes configured request against GraphQL APi and returns response with validation methods.
 		 */
 		public ValidatableResponse executeAndThen() {
-			if (!this.headers.containsKey(Headers.CONTENT_TYPE_STRING)) {
-				this.headers.put(Headers.CONTENT_TYPE_STRING, new Header(Headers.CONTENT_TYPE_STRING, GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON));
+			if (!this.headers.containsKey(CONTENT_TYPE_HEADER)) {
+				this.headers.put(CONTENT_TYPE_HEADER, new Header(CONTENT_TYPE_HEADER, APPLICATION_GRAPHQL_JSON));
 			}
-			if (!this.headers.containsKey(Headers.ACCEPT_STRING)) {
-				this.headers.put(Headers.ACCEPT_STRING, new Header(Headers.ACCEPT_STRING, GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON));
+			if (!this.headers.containsKey(ACCEPT_HEADER)) {
+				this.headers.put(ACCEPT_HEADER, new Header(ACCEPT_HEADER, APPLICATION_GRAPHQL_JSON));
 			}
 			return tester.executeAndThen(this);
 		}
