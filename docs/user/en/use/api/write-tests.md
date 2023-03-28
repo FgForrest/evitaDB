@@ -173,6 +173,8 @@ communicates with the *embedded evitaDB* over the wire.
 
 </LanguageSpecific>
 
+<LanguageSpecific to="java,graphql,rest">
+
 ### Init shared data objects
 
 In the initialization method marked with the `@DataSet` annotation, you can create a set of additional objects that will 
@@ -320,11 +322,37 @@ The annotation is expected to be placed on the `@Test` method or an argument of 
     </dd>
 </dl>
 
+<LanguageSpecific to="java">
+
 Besides the standard [autowired arguments](#annotations-reference) you can also inject 
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass> 
 to any of the defined arguments. The client will open a gRPC connection to the web API of 
 <SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating 
 with the server over the network even if the server is running locally as an embedded database.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+Besides the standard [autowired arguments](#annotations-reference) you can also inject
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/GraphQLTester.java</SourceClass>
+to any of the defined arguments. The tester will open a GraphQL connection to the web API of
+<SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating
+with the server over the network even if the server is running locally as an embedded database.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+Besides the standard [autowired arguments](#annotations-reference) you can also inject
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/RestTester.java</SourceClass>
+to any of the defined arguments. The tester will open a REST connection to the web API of
+<SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating
+with the server over the network even if the server is running locally as an embedded database.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,graphql,rest">
 
 ### @OnDataSetTearDown
 
@@ -339,12 +367,4 @@ you'd need a special cleanup procedure for your shared objects, and you might ap
     <dd>Defines name of the associated dataset.</dd>
 </dl>
 
-</LanguageSpecific>
-
-<LanguageSpecific to="graphql">
-**Work in progress**
-</LanguageSpecific>
-
-<LanguageSpecific to="rest">
-**Work in progress**
 </LanguageSpecific>
