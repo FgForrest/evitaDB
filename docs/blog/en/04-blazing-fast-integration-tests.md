@@ -3,7 +3,7 @@ title: Thousands integrations tests under 30 seconds? Yes, you can.
 perex: |
     A fast test suite is a critical aspect that motivates developers to write more tests and run the suite frequently. 
     The ideal test suite should finish in a matter of seconds or low units of minutes.
-date: '2023-01-12'
+date: '2023-03-25'
 author: 'Ing. Jan Novotný'
 motive: assets/images/04-blazing-fast-integration-tests.png
 proofreading: 'needed'
