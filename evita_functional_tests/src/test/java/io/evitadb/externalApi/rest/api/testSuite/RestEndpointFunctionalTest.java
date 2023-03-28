@@ -86,10 +86,7 @@ public abstract class RestEndpointFunctionalTest {
 
 		return new DataCarrier(
 			"entities", entities,
-			"tester",
-			new RestTester(
-				"https://" + host[0].hostName() + ":" + host[0].port() + "/rest"
-			)
+			"tester"
 		);
 	}
 

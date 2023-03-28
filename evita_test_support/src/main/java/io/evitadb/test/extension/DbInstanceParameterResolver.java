@@ -40,9 +40,11 @@ import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions.Builder;
 import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.EvitaTestSupport;
@@ -51,6 +53,8 @@ import io.evitadb.test.TestConstants;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.test.tester.RestTester;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
@@ -545,6 +549,36 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					)
 				)
 			);
+		} else if (GraphQLTester.class.isAssignableFrom(requestedParam.getType())) {
+			// return new GraphQL tester
+			return dataSetInfo.graphQLTester(
+				evitaServer -> {
+					final AbstractApiConfiguration gqlConfig = evitaServer.getExternalApiServer()
+						.getApiOptions()
+						.getEndpointConfiguration(GraphQLProvider.CODE);
+					if (gqlConfig == null) {
+						throw new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + useDataSet.value() + "`!");
+					}
+					return new GraphQLTester(
+						"https://" + gqlConfig.getHost()[0].hostName() + ":" + gqlConfig.getHost()[0].port() + "/gql"
+					);
+				}
+			);
+		} else if (RestTester.class.isAssignableFrom(requestedParam.getType())) {
+			// return new Rest tester
+			return dataSetInfo.restTester(
+				evitaServer -> {
+					final AbstractApiConfiguration restConfig = evitaServer.getExternalApiServer()
+						.getApiOptions()
+						.getEndpointConfiguration(RestProvider.CODE);
+					if (restConfig == null) {
+						throw new ParameterResolutionException("REST web API was not opened for the dataset `" + useDataSet.value() + "`!");
+					}
+					return new RestTester(
+						"https://" + restConfig.getHost()[0].hostName() + ":" + restConfig.getHost()[0].port() + "/rest"
+					);
+				}
+			);
 		} else if ("catalogName".equals(requestedParam.getName())) {
 			// return catalog name
 			return dataSetInfo.catalogName();
@@ -818,6 +852,50 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				.orElse(null);
 		}
 
+		@Nullable
+		public GraphQLTester graphQLTester(@Nonnull Function<EvitaServer, GraphQLTester> factory) {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::graphQLTester)
+				.map(it -> ofNullable(it.get())
+					.orElseGet(
+						() -> {
+							return ofNullable(evitaServerInstance())
+								.map(evitaServer -> {
+									final GraphQLTester newTester = factory.apply(evitaServer);
+									it.set(newTester);
+									return newTester;
+								})
+								.orElseThrow(() -> {
+									return new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + name + "`!");
+								});
+						}
+					)
+				)
+				.orElse(null);
+		}
+
+		@Nullable
+		public RestTester restTester(@Nonnull Function<EvitaServer, RestTester> factory) {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::restTester)
+				.map(it -> ofNullable(it.get())
+					.orElseGet(
+						() -> {
+							return ofNullable(evitaServerInstance())
+								.map(evitaServer -> {
+									final RestTester newTester = factory.apply(evitaServer);
+									it.set(newTester);
+									return newTester;
+								})
+								.orElseThrow(() -> {
+									return new ParameterResolutionException("REST web API was not opened for the dataset `" + name + "`!");
+								});
+						}
+					)
+				)
+				.orElse(null);
+		}
+
 		public void init(@Nonnull Supplier<DataSetState> stateCreator) {
 			final DataSetState previousState = this.dataSetInfoAtomicReference.compareAndExchange(
 				null,
@@ -868,11 +946,13 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		@Nullable DataCarrier dataCarrier,
 		@Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate,
 		@Nonnull AtomicReference<EvitaSessionContract> session,
-		@Nonnull AtomicReference<EvitaClient> client
+		@Nonnull AtomicReference<EvitaClient> client,
+		@Nonnull AtomicReference<GraphQLTester> graphQLTester,
+		@Nonnull AtomicReference<RestTester> restTester
 	) {
 
 		private DataSetState(@Nonnull Object testInstance, @Nonnull Method testMethod, @Nullable Evita evitaInstance, @Nullable EvitaServer evitaServerInstance, @Nullable DataCarrier dataCarrier, @Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate) {
-			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>(), new AtomicReference<>());
+			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>());
 		}
 
 		/**

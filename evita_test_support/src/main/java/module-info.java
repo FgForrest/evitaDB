@@ -28,4 +28,5 @@ module evita.test.support {
 	requires evita.external.api.grpc;
 	requires evita.external.api.system;
 	requires evita.external.api.graphql;
+	requires evita.external.api.rest;
 }
