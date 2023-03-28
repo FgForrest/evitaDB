@@ -75,10 +75,7 @@ public abstract class GraphQLEndpointFunctionalTest {
 
 		return new DataCarrier(
 			"entities", entities,
-			"tester",
-			new GraphQLTester(
-				"https://" + host[0].hostName() + ":" + host[0].port() + "/gql"
-			)
+			"tester"
 		);
 	}
 }

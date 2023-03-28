@@ -59,22 +59,8 @@ module evita.external.api.rest {
 	requires evita.query;
 	requires evita.engine;
 
+	exports io.evitadb.externalApi.rest;
 	exports io.evitadb.externalApi.rest.io;
 	exports io.evitadb.externalApi.rest.configuration;
-	exports io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
-	exports io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
-	exports io.evitadb.externalApi.rest.api.catalog.dataApi.dto;
-	exports io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
-	exports io.evitadb.externalApi.rest.api.resolver.endpoint;
-	exports io.evitadb.externalApi.rest.api.openApi;
-	exports io.evitadb.externalApi.rest.api;
-	exports io.evitadb.externalApi.rest.api.catalog.builder;
-	exports io.evitadb.externalApi.rest.api.catalog.dataApi.builder;
-	exports io.evitadb.externalApi.rest.api.catalog.schemaApi.builder;
-	exports io.evitadb.externalApi.rest.api.catalog;
-	exports io.evitadb.externalApi.rest.api.catalog.dataApi;
-	exports io.evitadb.externalApi.rest.api.catalog.schemaApi;
-	exports io.evitadb.externalApi.rest.api.catalog.resolver.endpoint;
-	exports io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 }
