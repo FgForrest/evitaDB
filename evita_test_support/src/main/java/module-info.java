@@ -15,6 +15,7 @@ module evita.test.support {
 	requires javafaker;
 	requires org.slf4j;
 	requires ch.qos.logback.core;
+	requires rest.assured;
 
 	requires evita.api;
 	requires evita.engine;
@@ -26,4 +27,5 @@ module evita.test.support {
 	requires evita.java.driver;
 	requires evita.external.api.grpc;
 	requires evita.external.api.system;
+	requires evita.external.api.graphql;
 }

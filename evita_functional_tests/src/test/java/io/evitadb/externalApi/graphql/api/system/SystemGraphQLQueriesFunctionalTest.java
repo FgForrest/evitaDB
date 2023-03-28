@@ -30,7 +30,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
-import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
