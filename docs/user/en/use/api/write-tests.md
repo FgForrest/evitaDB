@@ -322,6 +322,8 @@ The annotation is expected to be placed on the `@Test` method or an argument of 
     </dd>
 </dl>
 
+</LanguageSpecific>
+
 <LanguageSpecific to="java">
 
 Besides the standard [autowired arguments](#annotations-reference) you can also inject 
