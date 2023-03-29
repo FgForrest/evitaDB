@@ -622,7 +622,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				return null;
 			});
 		} finally {
-			ioService.close();
+			ioService.executeWriteSafely(() -> {
+				ioService.close();
+				return null;
+			});
 		}
 	}
 
