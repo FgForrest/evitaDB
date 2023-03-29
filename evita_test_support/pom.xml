@@ -57,6 +57,16 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_external_api_graphql</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_external_api_rest</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_java_driver</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
@@ -104,6 +114,11 @@
 			<artifactId>junit-platform-launcher</artifactId>
 			<version>1.9.2</version>
 			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.rest-assured</groupId>
+			<artifactId>rest-assured</artifactId>
+			<version>5.3.0</version>
 		</dependency>
 	</dependencies>
 </project>

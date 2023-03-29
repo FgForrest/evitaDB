@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.graphql.api.testSuite.GraphQLTester;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

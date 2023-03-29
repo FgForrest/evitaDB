@@ -25,8 +25,8 @@ package io.evitadb.externalApi.rest.api.catalog;
 
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
-import io.evitadb.externalApi.rest.api.testSuite.RestTester;
-import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

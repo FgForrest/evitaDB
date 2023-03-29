@@ -18,7 +18,7 @@ Unfortunately, we don't have a support written for a C# client, yet. Want to
 [contribute](https://github.com/FgForrest/evitaDB)?
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,graphql,rest">
 
 <UsedTerms>
     <h4>Terms used in this document</h4>
@@ -98,13 +98,17 @@ In addition, there is a test method `exampleTestCaseWithAssertions`, which decla
 automatically <Term name="autowiring">autowires</Term> a reference to another evitaDB session object which is used in 
 the test method implementation to query and assert the results of the data in the database.
 
+</LanguageSpecific>
+
+<LanguageSpecific to="java">
+
 ### Test web APIs
 
-A similar approach is possible with the evitaDB Web APIs. When setting up your dataset, simply declare that you also 
-want to initialize the web server and open required set of web APIs:
+A similar approach is possible with the evitaDB Java Client through gRPC API. When setting up your dataset, simply declare that you also 
+want to initialize the gRPC web server and open required set of web APIs:
 
 <SourceCodeTabs>
-[Web API test example](docs/user/en/use/api/example/test-with-prefilled-dataset-and-web-api.java)
+[Web API test example](docs/user/en/use/api/example/test-with-prefilled-dataset-and-grpc-web-api.java)
 </SourceCodeTabs>
 
 The example is identical to the previous one with the only significant difference - instead of communicating 
@@ -120,6 +124,60 @@ instance that is properly configured to communicate with this gRPC API, the clie
 <Term location="docs/user/en/operate/tls.md">certificate authority</Term> certificate and the generic client 
 certificate to pass [mTLS verification](../../operate/tls.md#default-mtls-behaviour-not-secure), and 
 communicates with the *embedded evitaDB* over the wire.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+### Test web APIs
+
+A similar approach is possible with the evitaDB GraphQL API. When setting up your dataset, simply declare that you also
+want to initialize the GraphQL web server and open required web API:
+
+<SourceCodeTabs>
+[Web API test example](docs/user/en/use/api/example/test-with-prefilled-dataset-and-graphql-web-api.java)
+</SourceCodeTabs>
+
+The example is similar to the previous one with the only significant difference - instead of communicating
+with the embedded evitaDB server via direct method calls, it uses
+exposed GraphQL API,
+which communicates with the same embedded evitaDB server via GraphQL protocol using HTTP and local network. The server
+opens a free port, generates self-signed <Term location="docs/user/en/operate/tls.md">certificate authority</Term>
+certificate. The
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
+creates a
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/GraphQLTester.java</SourceClass>
+instance that is properly configured to communicate with this GraphQL API, and
+communicates with the *embedded evitaDB* over the wire.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+### Test web APIs
+
+A similar approach is possible with the evitaDB REST API. When setting up your dataset, simply declare that you also
+want to initialize the REST web server and open required web API:
+
+<SourceCodeTabs>
+[Web API test example](docs/user/en/use/api/example/test-with-prefilled-dataset-and-rest-web-api.java)
+</SourceCodeTabs>
+
+The example is similar to the previous one with the only significant difference - instead of communicating
+with the embedded evitaDB server via direct method calls, it uses
+exposed REST API,
+which communicates with the same embedded evitaDB server via REST protocol using HTTP and local network. The server
+opens a free port, generates self-signed <Term location="docs/user/en/operate/tls.md">certificate authority</Term>
+certificate. The
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>
+creates a
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/RestTester.java</SourceClass>
+instance that is properly configured to communicate with this REST API, and
+communicates with the *embedded evitaDB* over the wire.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,graphql,rest">
 
 ### Init shared data objects
 
@@ -268,11 +326,39 @@ The annotation is expected to be placed on the `@Test` method or an argument of 
     </dd>
 </dl>
 
+</LanguageSpecific>
+
+<LanguageSpecific to="java">
+
 Besides the standard [autowired arguments](#annotations-reference) you can also inject 
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass> 
 to any of the defined arguments. The client will open a gRPC connection to the web API of 
 <SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating 
 with the server over the network even if the server is running locally as an embedded database.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+Besides the standard [autowired arguments](#annotations-reference) you can also inject
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/GraphQLTester.java</SourceClass>
+to any of the defined arguments. The tester will open a GraphQL connection to the web API of
+<SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating
+with the server over the network even if the server is running locally as an embedded database.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+Besides the standard [autowired arguments](#annotations-reference) you can also inject
+<SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/RestTester.java</SourceClass>
+to any of the defined arguments. The tester will open a REST connection to the web API of
+<SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating
+with the server over the network even if the server is running locally as an embedded database.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,graphql,rest">
 
 ### @OnDataSetTearDown
 
@@ -287,12 +373,4 @@ you'd need a special cleanup procedure for your shared objects, and you might ap
     <dd>Defines name of the associated dataset.</dd>
 </dl>
 
-</LanguageSpecific>
-
-<LanguageSpecific to="graphql">
-**Work in progress**
-</LanguageSpecific>
-
-<LanguageSpecific to="rest">
-**Work in progress**
 </LanguageSpecific>

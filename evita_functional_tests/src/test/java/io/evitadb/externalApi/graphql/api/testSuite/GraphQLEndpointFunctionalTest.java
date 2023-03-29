@@ -32,6 +32,7 @@ import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.tester.GraphQLTester;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,10 +75,7 @@ public abstract class GraphQLEndpointFunctionalTest {
 
 		return new DataCarrier(
 			"entities", entities,
-			"tester",
-			new GraphQLTester(
-				"https://" + host[0].hostName() + ":" + host[0].port() + "/gql"
-			)
+			"tester"
 		);
 	}
 }
