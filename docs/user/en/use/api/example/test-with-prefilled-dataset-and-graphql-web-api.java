@@ -24,7 +24,7 @@ public class PrefilledDataSetWebApiTest {
 				query {
 					countBrand
 					
-					get_brand(primaryKey: 1) {
+					getBrand(primaryKey: 1) {
 					    attributes(locale: en) {
 					        code
 					        name
