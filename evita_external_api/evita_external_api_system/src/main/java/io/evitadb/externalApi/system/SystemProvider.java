@@ -60,6 +60,10 @@ public class SystemProvider implements ExternalApiProvider<SystemConfig> {
 
 	@Nonnull
 	@Getter
+	private final String[] serverCertificateUrls;
+
+	@Nonnull
+	@Getter
 	private final String[] clientCertificateUrls;
 
 	@Nonnull
@@ -75,6 +79,10 @@ public class SystemProvider implements ExternalApiProvider<SystemConfig> {
 	@Override
 	public void afterStart() {
 		for (String certificateUrl : rootCertificateUrls) {
+			ConsoleWriter.write(StringUtils.rightPad("   - CA certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			ConsoleWriter.write(certificateUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		}
+		for (String certificateUrl : serverCertificateUrls) {
 			ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
 			ConsoleWriter.write(certificateUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		}

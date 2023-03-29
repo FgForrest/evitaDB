@@ -33,7 +33,6 @@ import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.utils.CertificateUtils;
-import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.server.handlers.resource.FileResourceManager;
 import io.undertow.server.handlers.resource.ResourceHandler;
@@ -89,6 +88,8 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				(exchange, path) -> {
 					if (("/" + fileName).equals(path)) {
 						return resourceManager.getResource(fileName);
+					} else if (("/" + CertificateUtils.getGeneratedServerCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
+						return resourceManager.getResource(CertificateUtils.getGeneratedServerCertificateFileName());
 					} else if (("/" + CertificateUtils.getGeneratedClientCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
 						return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificateFileName());
 					} else if (("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
@@ -109,6 +110,11 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				Arrays.stream(systemConfig.getBaseUrls())
 					.map(it -> it + fileName)
 					.toArray(String[]::new),
+				certificateSettings.generateAndUseSelfSigned() ?
+					Arrays.stream(systemConfig.getBaseUrls())
+						.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
+						.toArray(String[]::new) :
+					new String[0],
 				certificateSettings.generateAndUseSelfSigned() ?
 					Arrays.stream(systemConfig.getBaseUrls())
 						.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
