@@ -578,8 +578,9 @@ public final class Evita implements EvitaContract {
 		if (catalogToRemove == null) {
 			throw new CatalogNotFoundException(catalogName);
 		} else {
-			catalogToRemove.delete();
 			structuralChangeObservers.forEach(it -> doWithPretendingCatalogStillPresent(catalogToRemove, () -> it.onCatalogDelete(catalogName)));
+			catalogToRemove.terminate();
+			catalogToRemove.delete();
 		}
 	}
 
