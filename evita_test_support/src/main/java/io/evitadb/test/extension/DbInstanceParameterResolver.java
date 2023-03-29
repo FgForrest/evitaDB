@@ -128,6 +128,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	private static final String EVITA_DATA_SET_INDEX = "__dataSetIndex";
 	private static final String EVITA_ANONYMOUS_EVITA = "__anonymousEvita";
 	private static final Random RANDOM = new Random();
+	protected static final AtomicReference<Map<String, DataSetInfo>> DATA_SET_INFO = new AtomicReference<>();
 
 	/**
 	 * Indexes all methods annotated with {@link DataSet} annotation into the `dataSets` index.
@@ -329,6 +330,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 				.orElseGet(() -> {
 					final Map<String, DataSetInfo> newDataSets = new ConcurrentHashMap<>(32);
 					store.put(EVITA_DATA_SET_INDEX, newDataSets);
+					DATA_SET_INFO.set(newDataSets);
 					return newDataSets;
 				});
 		}
@@ -756,7 +758,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		return evitaServer;
 	}
 
-	private record DataSetInfo(
+	protected record DataSetInfo(
 		@Nonnull String name,
 		@Nonnull String catalogName,
 		@Nullable CatalogInitMethod initMethod,
@@ -767,7 +769,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 	) {
 
-		private DataSetInfo(
+		protected DataSetInfo(
 			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
 			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
 			boolean readOnly, boolean destroyAfterClass,
@@ -920,6 +922,21 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 						.ifPresent(EvitaSessionContract::close);
 					return it.destroyPredicate().test(extensionContext, it);
 				})
+				.map(it -> {
+					this.dataSetInfoAtomicReference.set(null);
+					it.destroy(dataSetName, dataSetInfo, portManager);
+					return true;
+				})
+				.orElse(false);
+		}
+
+		public boolean destroy(
+			@Nonnull String dataSetName,
+			@Nonnull DataSetInfo dataSetInfo,
+			@Nonnull PortManager portManager
+		) {
+			final DataSetState state = this.dataSetInfoAtomicReference.get();
+			return ofNullable(state)
 				.map(it -> {
 					this.dataSetInfoAtomicReference.set(null);
 					it.destroy(dataSetName, dataSetInfo, portManager);

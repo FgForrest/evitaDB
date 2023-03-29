@@ -24,6 +24,7 @@
 package io.evitadb.test.extension;
 
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.extension.DbInstanceParameterResolver.DataSetInfo;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -36,10 +37,13 @@ import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
 
 import java.io.IOException;
+import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.stream.Collectors;
 
+import static io.evitadb.test.extension.DbInstanceParameterResolver.DATA_SET_INFO;
 import static io.evitadb.test.extension.DbInstanceParameterResolver.STORAGE_PATH;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -114,6 +118,16 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 
 	@Override
 	public void testPlanExecutionFinished(TestPlan testPlan) {
+		// close the datasets that are still opened
+		Optional.ofNullable(DATA_SET_INFO.get())
+			.ifPresent(it -> {
+				for (Entry<String, DataSetInfo> entry : it.entrySet()) {
+					entry.getValue().destroy(
+						entry.getKey(), entry.getValue(), getPortManager()
+					);
+				}
+			});
+
 		if (!failedTests.isEmpty()) {
 			ConsoleWriter.write(
 				"\nFailed test count: " + failedTests.size() + ":\n" + failedTests.stream().map(it -> "\t - " + it + "\n").collect(Collectors.joining()),
