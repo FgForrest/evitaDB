@@ -423,7 +423,7 @@ public class EntityConverter {
 			.stream()
 			.map(
 				it -> toSealedEntity(
-					entity -> entitySchemaProvider.apply(entity.getEntityType(), entity.getVersion()),
+					entity -> entitySchemaProvider.apply(entity.getEntityType(), entity.getSchemaVersion()),
 					new EvitaRequest(query, OffsetDateTime.now()),
 					it
 				)
