@@ -590,36 +590,40 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	@Override
 	public void terminate() {
-		ioService.executeWriteSafely(() -> {
-			final List<EntityCollectionHeader> entityHeaders;
-			boolean changeOccurred = false;
-			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
-			entityHeaders = new ArrayList<>(this.entityCollections.size());
-			for (EntityCollection entityCollection : entityCollections.values()) {
-				// in warmup state try to persist all changes in volatile memory
-				if (warmingUpState) {
-					final long lastSeenVersion = entityCollection.getVersion();
-					entityHeaders.add(entityCollection.flush());
-					changeOccurred |= entityCollection.getVersion() != lastSeenVersion;
+		try {
+			ioService.executeWriteSafely(() -> {
+				final List<EntityCollectionHeader> entityHeaders;
+				boolean changeOccurred = false;
+				final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
+				entityHeaders = new ArrayList<>(this.entityCollections.size());
+				for (EntityCollection entityCollection : entityCollections.values()) {
+					// in warmup state try to persist all changes in volatile memory
+					if (warmingUpState) {
+						final long lastSeenVersion = entityCollection.getVersion();
+						entityHeaders.add(entityCollection.flush());
+						changeOccurred |= entityCollection.getVersion() != lastSeenVersion;
+					}
+					// in all states terminate collection operations
+					entityCollection.terminate();
 				}
-				// in all states terminate collection operations
-				entityCollection.terminate();
-			}
 
-			// if any change occurred (this may happen only in warm up state)
-			if (changeOccurred) {
-				// store catalog header
-				this.ioService.storeHeader(
-					getCatalogState(),
-					this.lastCommittedTransactionId,
-					this.entityTypeSequence.get(),
-					entityHeaders
-				);
-			}
-			// close all resources here, here we just hand all objects to GC
-			entityCollections.clear();
-			return null;
-		});
+				// if any change occurred (this may happen only in warm up state)
+				if (changeOccurred) {
+					// store catalog header
+					this.ioService.storeHeader(
+						getCatalogState(),
+						this.lastCommittedTransactionId,
+						this.entityTypeSequence.get(),
+						entityHeaders
+					);
+				}
+				// close all resources here, here we just hand all objects to GC
+				entityCollections.clear();
+				return null;
+			});
+		} finally {
+			ioService.close();
+		}
 	}
 
 	/**
