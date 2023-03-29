@@ -48,6 +48,8 @@ import java.util.Objects;
 import static java.util.Optional.ofNullable;
 
 /**
+ * TODO JNO - replace javadoc
+ *
  * This DTO contains hierarchical structure of entities referenced by the entities required by the query. It copies
  * hierarchical structure of those entities and contains their identification or full body as well as information on
  * cardinality of referencing entities.
@@ -104,8 +106,6 @@ import static java.util.Optional.ofNullable;
  * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
  * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
  *
- * TOBEDONE JNO - consider extension so that stats are computed either for full filter and also for base line without user filter
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
@@ -117,13 +117,13 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 * Contains list of statistics for the single level (probably root or whatever is filtered by the query) of
 	 * the queried hierarchy entity.
 	 */
-	private final List<LevelInfo> selfStatistics;
+	private final Map<String, List<LevelInfo>> selfStatistics;
 	/**
 	 * Index holds the statistics for particular references that target hierarchy entity types.
 	 * Key is the identification of the reference name, value contains list of statistics for the single level (probably
 	 * root or whatever is filtered by the query) of the hierarchy entity.
 	 */
-	private final Map<String, List<LevelInfo>> statistics;
+	private final Map<String, Map<String, List<LevelInfo>>> statistics;
 
 	/**
 	 * Method returns the cardinality statistics for the top most level of queried hierarchical entities.
@@ -131,9 +131,8 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 * was used at all. Or it's the level requested by {@link HierarchyWithin} query.
 	 */
 	@Nonnull
-	public List<LevelInfo> getSelfStatistics() {
-		//noinspection unchecked,rawtypes
-		return ofNullable((List)selfStatistics).orElse(Collections.emptyList());
+	public Map<String, List<LevelInfo>> getSelfStatistics() {
+		return ofNullable(selfStatistics).orElse(Collections.emptyMap());
 	}
 
 	/**
@@ -141,21 +140,27 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 * Level is either the root level if {@link HierarchyWithinRoot} query or no hierarchical filtering query
 	 * was used at all. Or it's the level requested by {@link HierarchyWithin} query.
 	 */
-	@Nullable
-	public List<LevelInfo> getStatistics(@Nonnull String referenceName) {
-		final List<LevelInfo> statisticsByType = statistics.get(referenceName);
-		if (statisticsByType == null) {
-			return null;
-		}
-		return Collections.unmodifiableList(statisticsByType);
+	@Nonnull
+	public List<LevelInfo> getStatistics(@Nonnull String referenceName, @Nonnull String outputName) {
+		return ofNullable(statistics.get(referenceName))
+			.map(it -> it.get(outputName))
+			.orElse(Collections.emptyList());
+	}
+
+	/**
+	 * Returns statistics for reference of specified name.
+	 */
+	@Nonnull
+	public Map<String, List<LevelInfo>> getStatistics(@Nonnull String referenceName) {
+		return ofNullable(statistics.get(referenceName)).orElse(Collections.emptyMap());
 	}
 
 	/**
 	 * Returns statistics for all references.
 	 */
 	@Nonnull
-	public  Map<String, List<LevelInfo>> getStatistics() {
-		return Collections.unmodifiableMap(statistics);
+	public Map<String, Map<String, List<LevelInfo>>> getStatistics() {
+		return statistics;
 	}
 
 	@Override
@@ -169,13 +174,9 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 		if (o == null || getClass() != o.getClass()) return false;
 		final HierarchyStatistics that = (HierarchyStatistics) o;
 
-		if (selfStatistics != null && (that.selfStatistics == null || notEquals(selfStatistics, that.selfStatistics))) {
-			return false;
-		}
-
-		for (Entry<String, List<LevelInfo>> entry : statistics.entrySet()) {
+		for (Entry<String, List<LevelInfo>> entry : selfStatistics.entrySet()) {
 			final List<LevelInfo> stats = entry.getValue();
-			final List<LevelInfo> otherStats = that.statistics.get(entry.getKey());
+			final List<LevelInfo> otherStats = that.selfStatistics.get(entry.getKey());
 
 			if (stats.size() != ofNullable(otherStats).map(List::size).orElse(0)) {
 				return false;
@@ -183,6 +184,29 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 
 			if (notEquals(stats, otherStats)) {
 				return false;
+			}
+		}
+
+		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : statistics.entrySet()) {
+			final Map<String, List<LevelInfo>> stats = statisticsEntry.getValue();
+			final Map<String, List<LevelInfo>> otherStats = that.statistics.get(statisticsEntry.getKey());
+
+			if (stats.size() != ofNullable(otherStats).map(Map::size).orElse(0)) {
+				return false;
+			}
+
+			for (Entry<String, List<LevelInfo>> entry : stats.entrySet()) {
+				final List<LevelInfo> innerStats = entry.getValue();
+				final List<LevelInfo> innerOtherStats = otherStats.get(entry.getKey());
+
+				if (innerStats.size() != ofNullable(innerOtherStats).map(List::size).orElse(0)) {
+					return false;
+				}
+
+				if (notEquals(innerStats, innerOtherStats)) {
+					return false;
+				}
+
 			}
 
 		}
@@ -207,18 +231,26 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 		final StringBuilder treeBuilder = new StringBuilder();
 
 		if (selfStatistics != null) {
-			for (LevelInfo levelInfo : selfStatistics) {
-				appendLevelInfoTreeString(treeBuilder, levelInfo, 1);
+			for (Map.Entry<String, List<LevelInfo>> statsByOutputName : selfStatistics.entrySet()) {
+				treeBuilder.append(statsByOutputName.getKey()).append(System.lineSeparator());
+
+				for (LevelInfo levelInfo : statsByOutputName.getValue()) {
+					appendLevelInfoTreeString(treeBuilder, levelInfo, 1);
+				}
 			}
 		}
 
-		for (Map.Entry<String, List<LevelInfo>> statisticsByType : statistics.entrySet()) {
-			treeBuilder.append(statisticsByType.getKey()).append(System.lineSeparator());
+		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : statistics.entrySet()) {
+			treeBuilder.append(statisticsEntry.getKey()).append(System.lineSeparator());
+			for (Map.Entry<String, List<LevelInfo>> statisticsByType : statisticsEntry.getValue().entrySet()) {
+				treeBuilder.append("    ").append(statisticsByType.getKey()).append(System.lineSeparator());
 
-			for (LevelInfo levelInfo : statisticsByType.getValue()) {
-				appendLevelInfoTreeString(treeBuilder, levelInfo, 1);
+				for (LevelInfo levelInfo : statisticsByType.getValue()) {
+					appendLevelInfoTreeString(treeBuilder, levelInfo, 2);
+				}
 			}
 		}
+
 		return treeBuilder.toString();
 	}
 
@@ -253,7 +285,8 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 
 	public record LevelInfo(
 		@Nonnull EntityClassifier entity,
-		int cardinality,
+		@Nullable Integer cardinality,
+		@Nullable Integer childrenCount,
 		@Nonnull List<LevelInfo> childrenStatistics
 	) implements Comparable<LevelInfo> {
 		@Override

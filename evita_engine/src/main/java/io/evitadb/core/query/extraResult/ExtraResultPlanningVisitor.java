@@ -42,8 +42,13 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryTranslator;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyStatisticsOfReferenceTranslator;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyStatisticsOfSelfTranslator;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyChildrenTranslator;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyFromNodeTranslator;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyFromRootTranslator;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyOfReferenceTranslator;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyOfSelfTranslator;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyParentsTranslator;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchySiblingsTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.AttributeHistogramTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.PriceHistogramTranslator;
 import io.evitadb.core.query.extraResult.translator.parents.HierarchyParentsOfReferenceTranslator;
@@ -87,8 +92,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(HierarchyParentsOfReference.class, new HierarchyParentsOfReferenceTranslator());
 		TRANSLATORS.put(AttributeHistogram.class, new AttributeHistogramTranslator());
 		TRANSLATORS.put(PriceHistogram.class, new PriceHistogramTranslator());
-		TRANSLATORS.put(HierarchyOfSelf.class, new HierarchyStatisticsOfSelfTranslator());
-		TRANSLATORS.put(HierarchyOfReference.class, new HierarchyStatisticsOfReferenceTranslator());
+		TRANSLATORS.put(HierarchyOfSelf.class, new HierarchyOfSelfTranslator());
+		TRANSLATORS.put(HierarchyOfReference.class, new HierarchyOfReferenceTranslator());
+		TRANSLATORS.put(HierarchyFromRoot.class, new HierarchyFromRootTranslator());
+		TRANSLATORS.put(HierarchyFromNode.class, new HierarchyFromNodeTranslator());
+		TRANSLATORS.put(HierarchyParents.class, new HierarchyParentsTranslator());
+		TRANSLATORS.put(HierarchyChildren.class, new HierarchyChildrenTranslator());
+		TRANSLATORS.put(HierarchySiblings.class, new HierarchySiblingsTranslator());
 		TRANSLATORS.put(ReferenceContent.class, new ReferenceContentTranslator());
 	}
 
@@ -118,7 +128,11 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	/**
 	 * Contains the list of producers that react to passed requirements.
 	 */
-	@Getter private final LinkedHashSet<ExtraResultProducer> extraResultProducers = new LinkedHashSet<>();
+	@Getter private final LinkedHashSet<ExtraResultProducer> extraResultProducers = new LinkedHashSet<>(16);
+	/**
+	 * Performance optimization when multiple translators ask for the same (last) producer.
+	 */
+	private ExtraResultProducer lastReturnedProducer;
 	/**
 	 * Contains set (usually of size == 1 or 0) that contains references to the {@link UserFilterFormula} inside
 	 * {@link #filteringFormula}. This is a helper field that allows to reuse result of the formula search multiple
@@ -146,8 +160,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nullable
 	public <T extends ExtraResultProducer> T findExistingProducer(Class<T> producerClass) {
+		if (producerClass.isInstance(lastReturnedProducer)) {
+			//noinspection unchecked
+			return (T) lastReturnedProducer;
+		}
 		for (ExtraResultProducer extraResultProducer : extraResultProducers) {
 			if (producerClass.isInstance(extraResultProducer)) {
+				lastReturnedProducer = extraResultProducer;
 				//noinspection unchecked
 				return (T) extraResultProducer;
 			}

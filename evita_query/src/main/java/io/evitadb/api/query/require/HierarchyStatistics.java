@@ -25,8 +25,9 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.utils.ArrayUtils;
+import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -46,17 +47,37 @@ import java.io.Serializable;
 public class HierarchyStatistics extends AbstractRequireConstraintLeaf implements HierarchyOutputRequireConstraint {
 	@Serial private static final long serialVersionUID = 264601966496432983L;
 
-	public HierarchyStatistics() {
+	/* TODO JNO ještě přidat zda cardinalitu nebo children nebo oboje */
+
+	@ConstraintCreatorDef
+	public HierarchyStatistics(@Nonnull @ConstraintValueParamDef StatisticsBase statisticsBase) {
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix
-		super("statistics");
+		super("statistics", statisticsBase);
+	}
+
+	/**
+	 * Returns the enum signalizing whether the hierarchy statistics cardinality will be based on a complete query
+	 * filter by constraint or only the part without user defined filter.
+	 */
+	@Nonnull
+	public StatisticsBase getStatisticsBase() {
+		return (StatisticsBase) getArguments()[0];
+	}
+
+	@Override
+	public boolean isApplicable() {
+		return !isArgumentsNonNull() && getArguments().length == 1;
 	}
 
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		Assert.isTrue(ArrayUtils.isEmpty(newArguments), "HierarchyNode container accepts no arguments!");
-		return this;
+		Assert.isTrue(
+			newArguments.length == 1 && newArguments[0] instanceof StatisticsBase,
+			"HierarchyStatistics requires single argument of type StatisticsBase!"
+		);
+		return new HierarchyStatistics((StatisticsBase) newArguments[0]);
 	}
 
 }

@@ -628,8 +628,12 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					session, null, categoryHierarchy, originalCategoryEntities,
-					languagePredicate, languagePredicate
+					null, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, languagePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(session, null, categoryHierarchy, categoryCardinalities)
+					)
 				);
 
 				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
@@ -688,8 +692,12 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					);
 				};
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					session, 2, categoryHierarchy, originalCategoryEntities,
-					languagePredicate.and(categoryPredicate), languagePredicate
+					2, categoryHierarchy, originalCategoryEntities,
+					languagePredicate.and(categoryPredicate), languagePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(session, 2, categoryHierarchy, categoryCardinalities)
+					)
 				);
 
 				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
@@ -703,13 +711,26 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 	@Nonnull
 	private HierarchyStatistics computeExpectedStatistics(
-		EvitaSessionContract session,
 		Integer parentCategoryId,
 		Hierarchy categoryHierarchy,
 		List<SealedEntity> allCategories,
 		Predicate<SealedEntity> filterPredicate,
-		Predicate<SealedEntity> treePredicate
+		Predicate<SealedEntity> treePredicate,
+		Function<Map<Integer, Integer>, HierarchyStatisticsTuple> statisticsComputer
 	) {
+		final Map<Integer, Integer> categoryCardinalities = computeCardinalities(parentCategoryId, categoryHierarchy, allCategories, filterPredicate, treePredicate);
+		final HierarchyStatisticsTuple result = statisticsComputer.apply(categoryCardinalities);
+		final Map<String, List<LevelInfo>> theResults = Map.of(
+			result.name(), result.levelInfos()
+		);
+		return new HierarchyStatistics(
+			theResults,
+			Collections.emptyMap()
+		);
+	}
+
+	@Nonnull
+	private static Map<Integer, Integer> computeCardinalities(Integer parentCategoryId, Hierarchy categoryHierarchy, List<SealedEntity> allCategories, Predicate<SealedEntity> filterPredicate, Predicate<SealedEntity> treePredicate) {
 		final Map<Integer, SealedEntity> categoriesById = allCategories.stream()
 			.collect(
 				Collectors.toMap(
@@ -750,7 +771,11 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				}
 			}
 		}
+		return categoryCardinalities;
+	}
 
+	@Nonnull
+	private List<LevelInfo> computeChildren(EvitaSessionContract session, Integer parentCategoryId, Hierarchy categoryHierarchy, Map<Integer, Integer> categoryCardinalities) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
 		final List<HierarchyItem> items = parentCategoryId == null ?
 			categoryHierarchy.getRootItems() :
@@ -761,10 +786,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			final Integer cardinality = categoryCardinalities.get(categoryId);
 			if (cardinality != null) {
 				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(new LevelInfo(category, cardinality, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
+				levelInfo.add(new LevelInfo(category, cardinality, 0, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
 			}
 		}
-		return new HierarchyStatistics(levelInfo, Collections.emptyMap());
+		return levelInfo;
 	}
 
 	private List<LevelInfo> fetchLevelInfo(EvitaSessionContract session, int parentCategoryId, Hierarchy categoryHierarchy, Map<Integer, Integer> categoryCardinalities) {
@@ -774,7 +799,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			final Integer cardinality = categoryCardinalities.get(categoryId);
 			if (cardinality != null) {
 				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(new LevelInfo(category, cardinality, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
+				levelInfo.add(new LevelInfo(category, cardinality, 0, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
 			}
 		}
 		return levelInfo;
@@ -795,5 +820,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			SealedEntity.class
 		).getRecordData().get(0);
 	}
+
+	record HierarchyStatisticsTuple(
+		String name,
+		List<LevelInfo> levelInfos
+	) {}
 
 }

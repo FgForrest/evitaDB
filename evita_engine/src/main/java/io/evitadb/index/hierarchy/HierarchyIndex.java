@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.array.CompositeObjectArray;
@@ -68,10 +69,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntBinaryOperator;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -357,7 +358,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		final CompositeObjectArray<Integer> result = new CompositeObjectArray<>(Integer.class);
 		while (hierarchyNode.parentEntityPrimaryKey() != null) {
 			result.add(hierarchyNode.parentEntityPrimaryKey());
-			hierarchyNode = getParentNodeOrThrowException(theNode, hierarchyNode);
+			hierarchyNode = getParentNodeOrThrowException(hierarchyNode);
 		}
 		final Integer[] theResult = result.toArray();
 		ArrayUtils.reverse(theResult);
@@ -372,7 +373,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		result.add(theNode);
 		while (hierarchyNode.parentEntityPrimaryKey() != null) {
 			result.add(hierarchyNode.parentEntityPrimaryKey());
-			hierarchyNode = getParentNodeOrThrowException(theNode, hierarchyNode);
+			hierarchyNode = getParentNodeOrThrowException(hierarchyNode);
 		}
 		final Integer[] theResult = result.toArray();
 		ArrayUtils.reverse(theResult);
@@ -421,8 +422,8 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	@Override
-	public void traverseHierarchy(@Nonnull HierarchyVisitor visitor) {
-		traverseHierarchyInternal(visitor, null, null, null);
+	public void traverseHierarchy(@Nonnull HierarchyVisitor visitor, @Nullable int... excludingNodes) {
+		traverseHierarchyInternal(visitor, null, null, excludingNodes);
 	}
 
 	@Override
@@ -661,9 +662,9 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	@Nonnull
-	private HierarchyNode getParentNodeOrThrowException(int theNode, @Nonnull HierarchyNode hierarchyNode) {
+	private HierarchyNode getParentNodeOrThrowException(@Nonnull HierarchyNode hierarchyNode) {
 		hierarchyNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
-		Assert.isPremiseValid(hierarchyNode != null, "The node parent `" + theNode + "` is unexpectedly not present in the index!");
+		Assert.isTrue(hierarchyNode != null, "The node parent `" + hierarchyNode.parentEntityPrimaryKey() + "` is unexpectedly not present in the index!");
 		return hierarchyNode;
 	}
 
@@ -733,13 +734,18 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		}
 	}
 
-	private void traverseHierarchyInternal(@Nonnull HierarchyVisitor visitor, @Nullable Integer rootNode, @Nullable Boolean excludingRoot, @Nullable int[] excludingNodes) {
+	private void traverseHierarchyInternal(
+		@Nonnull HierarchyVisitor visitor,
+		@Nullable Integer rootNode,
+		@Nullable Boolean excludingRoot,
+		@Nullable int[] excludingNodes
+	) {
 		final IntSet excludedNodes = new IntHashSet();
 		if (excludingNodes != null) {
 			Arrays.stream(excludingNodes).forEach(excludedNodes::add);
 		}
-		final AtomicReference<IntFunction<Runnable>> factoryHolder = new AtomicReference<>();
-		final IntFunction<Runnable> childrenTraverseCreator = childrenId ->
+		final AtomicReference<TraverserFactory> factoryHolder = new AtomicReference<>();
+		final TraverserFactory childrenTraverseCreator = (childrenId, level, distance) ->
 			() -> {
 				final Collection<HierarchyNode> children = ofNullable(this.levelIndex.get(childrenId))
 					.map(it ->
@@ -752,24 +758,33 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 					)
 					.orElse(Collections.emptyList());
 				for (HierarchyNode child : children) {
-					visitor.visit(child, factoryHolder.get().apply(child.entityPrimaryKey()));
+					visitor.visit(
+						child, level, distance,
+						factoryHolder.get().apply(child.entityPrimaryKey(), level + 1, distance + 1)
+					);
 				}
 			};
 		factoryHolder.set(childrenTraverseCreator);
 
 		final Collection<HierarchyNode> rootNodes;
+		final int level;
+		final int distance;
 		if (rootNode == null) {
+			level = 1;
+			distance = 0;
 			rootNodes = this.roots.stream()
 				.filter(it -> !excludedNodes.contains(it))
 				.map(this.itemIndex::get)
 				.filter(Objects::nonNull)
 				.sorted()
 				.collect(Collectors.toList());
-		} else if (!ofNullable(excludingRoot).orElse(false)) {
-			rootNodes = ofNullable(this.itemIndex.get(rootNode))
-				.map(Collections::singletonList)
-				.orElse(Collections.emptyList());
-		} else {
+		} else if (ofNullable(excludingRoot).orElse(false)) {
+			final Optional<HierarchyNode> rootHierarchyNode = ofNullable(this.itemIndex.get(rootNode));
+			level = rootHierarchyNode
+				.map(this::computeLevel)
+				.orElse(-1);
+			distance = 1;
+
 			rootNodes = ofNullable(this.levelIndex.get(rootNode))
 				.map(Arrays::stream)
 				.orElse(IntStream.empty())
@@ -778,11 +793,53 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 				.filter(Objects::nonNull)
 				.sorted()
 				.collect(Collectors.toList());
+		} else {
+			final Optional<HierarchyNode> rootHierarchyNode = ofNullable(this.itemIndex.get(rootNode));
+			rootNodes = rootHierarchyNode
+				.map(Collections::singletonList)
+				.orElse(Collections.emptyList());
+			level = rootHierarchyNode
+				.map(this::computeLevel)
+				.orElse(-1);
+			distance = 0;
 		}
 
 		for (HierarchyNode examinedNode : rootNodes) {
-			visitor.visit(examinedNode, childrenTraverseCreator.apply(examinedNode.entityPrimaryKey()));
+			visitor.visit(
+				examinedNode, level, distance,
+				childrenTraverseCreator.apply(examinedNode.entityPrimaryKey(), level + 1, distance + 1)
+			);
 		}
+	}
+
+	/**
+	 * Returns the level of the passed hierarchy node in the hierarchy tree.
+	 *
+	 * @param rootNode the node to compute level for
+	 * @return level of the node or -1 if the node is not part of the tree
+	 */
+	private int computeLevel(@Nonnull HierarchyNode rootNode) {
+		try {
+			int level = 1;
+			HierarchyNode theNode = rootNode;
+			while (theNode.parentEntityPrimaryKey() != null) {
+				theNode = getParentNodeOrThrowException(theNode);
+				level++;
+			}
+			return level;
+		} catch (EvitaInvalidUsageException ex) {
+			return -1;
+		}
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	private interface TraverserFactory {
+
+		@Nonnull
+		Runnable apply(int hierarchyNodeId, int level, int distance);
+
 	}
 
 }

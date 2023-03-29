@@ -31,6 +31,7 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
@@ -97,7 +98,7 @@ public class EvitaRequest {
 	private String[] priceLists;
 	private String[] additionalPriceLists;
 	private Integer firstRecordOffset;
-	private Map<String, HierarchyWithin> hierarchyWithin;
+	private Map<String, HierarchyFilterConstraint> hierarchyWithin;
 	private Boolean requiredWithinHierarchy;
 	private Boolean requiresHierarchyStatistics;
 	private Boolean requiresHierarchyParents;
@@ -729,7 +730,7 @@ public class EvitaRequest {
 	 * Returns {@link HierarchyWithin} query
 	 */
 	@Nullable
-	public HierarchyWithin getHierarchyWithin(@Nullable String referenceName) {
+	public HierarchyFilterConstraint getHierarchyWithin(@Nullable String referenceName) {
 		if (requiredWithinHierarchy == null) {
 			if (query.getFilterBy() == null) {
 				hierarchyWithin = Collections.emptyMap();
@@ -737,7 +738,7 @@ public class EvitaRequest {
 				hierarchyWithin = new HashMap<>();
 				QueryUtils.findConstraints(
 						query.getFilterBy(),
-						HierarchyWithin.class
+						HierarchyFilterConstraint.class
 					)
 					.forEach(it -> hierarchyWithin.put(it.getReferenceName(), it));
 			}

@@ -51,34 +51,66 @@ class GrpcHierarchyStatisticsBuilderTest {
 		final HierarchyStatistics integerHierarchyStatistics = new HierarchyStatistics(
 			null,
 			Map.of(
-				types[0], List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1, List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1, new ArrayList<>(0))))),
-				types[1], List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 2), 0, new ArrayList<>(0))),
-				types[2], List.of(new LevelInfo(
-						new EntityReference(Entities.CATEGORY, 3), 2, List.of(
-						new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1,
-							List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 2), 4, List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 5), 0, new ArrayList<>(0)))))
+				types[0],
+				Map.of(
+					"megaMenu",
+					List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1, 0, List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1, 0, new ArrayList<>(0))))
+					)
+				),
+				types[1],
+				Map.of(
+					"megaMenu",
+					List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 2), 0, 0, new ArrayList<>(0)))
+				),
+				types[2],
+				Map.of(
+					"megaMenu",
+					List.of(
+						new LevelInfo(
+							new EntityReference(Entities.CATEGORY, 3), 2, 0,
+							List.of(
+								new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1, 0,
+									List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 2), 4, 0, List.of(new LevelInfo(new EntityReference(Entities.CATEGORY, 5), 0, 0, new ArrayList<>(0)))))
+								)
+							)
 						)
-					))
+					)
 				)
 			)
 		);
 		final HierarchyStatistics entityHierarchyStatistics = new HierarchyStatistics(
 			null,
 			Map.of(
-				types[0], List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 1).toInstance(), 1, List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 6).toInstance(), 1, new ArrayList<>(0))))),
-				types[1], List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 2).toInstance(), 0, new ArrayList<>(0))),
-				types[2], List.of(new LevelInfo(
-						new InitialEntityBuilder(Entities.CATEGORY, 3).toInstance(), 2, List.of(
-						new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 9).toInstance(), 1,
-							List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 4).toInstance(), 4, List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 7).toInstance(), 0, new ArrayList<>(0)))))
+				types[0],
+				Map.of(
+					"megaMenu",
+					List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 1).toInstance(), 1, 0, List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 6).toInstance(), 1, 0, new ArrayList<>(0)))))
+				),
+				types[1],
+				Map.of(
+					"megaMenu",
+					List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 2).toInstance(), 0, 0, new ArrayList<>(0)))
+				),
+				types[2],
+				Map.of(
+					"megaMenu",
+					List.of(
+						new LevelInfo(
+							new InitialEntityBuilder(Entities.CATEGORY, 3).toInstance(), 2, 0,
+							List.of(
+								new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 9).toInstance(), 1, 0,
+									List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 4).toInstance(), 4, 0, List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 7).toInstance(), 0, 0, new ArrayList<>(0)))))
+								)
+							)
 						)
-					))
+					)
 				)
 			)
 		);
 
 		final Map<String, GrpcLevelInfos> integerGrpcLevelInfos = new HashMap<>(integerHierarchyStatistics.getStatistics().size());
-		for (Entry<String, List<LevelInfo>> entry : integerHierarchyStatistics.getStatistics().entrySet()) {
+		for (Entry<String, Map<String, List<LevelInfo>>> entry : integerHierarchyStatistics.getStatistics().entrySet()) {
+			// TODO LHO - alter structure
 			integerGrpcLevelInfos.put(
 				entry.getKey(),
 				GrpcHierarchyStatisticsBuilder.buildHierarchyStatistics(entry.getValue())
@@ -88,7 +120,8 @@ class GrpcHierarchyStatisticsBuilderTest {
 		GrpcAssertions.assertStatistics(integerHierarchyStatistics, integerGrpcLevelInfos, types[2]);
 
 		final Map<String, GrpcLevelInfos> entityGrpcLevelInfos = new HashMap<>(entityHierarchyStatistics.getStatistics().size());
-		for (Entry<String, List<LevelInfo>> entry : entityHierarchyStatistics.getStatistics().entrySet()) {
+		for (Entry<String, Map<String, List<LevelInfo>>> entry : entityHierarchyStatistics.getStatistics().entrySet()) {
+			// TODO LHO - alter structure
 			entityGrpcLevelInfos.put(
 				entry.getKey(),
 				GrpcHierarchyStatisticsBuilder.buildHierarchyStatistics(entry.getValue())

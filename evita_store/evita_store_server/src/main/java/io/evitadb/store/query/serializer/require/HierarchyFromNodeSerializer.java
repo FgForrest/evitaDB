@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.HierarchyFromNode;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStatistics;
 import io.evitadb.api.query.require.HierarchyStopAt;
+import io.evitadb.api.query.require.StatisticsBase;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -48,6 +49,7 @@ public class HierarchyFromNodeSerializer extends Serializer<HierarchyFromNode> {
 		kryo.writeObjectOrNull(output, object.getFromNode(), HierarchyNode.class);
 		kryo.writeObjectOrNull(output, object.getStopAt(), HierarchyStopAt.class);
 		kryo.writeObjectOrNull(output, object.getEntityFetch(), EntityFetch.class);
+		// TODO JNO - handle enum
 		output.writeBoolean(object.isStatisticRequired());
 	}
 
@@ -57,7 +59,7 @@ public class HierarchyFromNodeSerializer extends Serializer<HierarchyFromNode> {
 		final HierarchyNode fromNode = kryo.readObjectOrNull(input, HierarchyNode.class);
 		final HierarchyStopAt stopAt = kryo.readObjectOrNull(input, HierarchyStopAt.class);
 		final EntityFetch entityFetch = kryo.readObjectOrNull(input, EntityFetch.class);
-		final HierarchyStatistics statistics = input.readBoolean() ? new HierarchyStatistics() : null;
+		final HierarchyStatistics statistics = input.readBoolean() ? new HierarchyStatistics(StatisticsBase.COMPLETE_FILTER) : null;
 		return new HierarchyFromNode(outputName, fromNode, stopAt, entityFetch, statistics);
 	}
 

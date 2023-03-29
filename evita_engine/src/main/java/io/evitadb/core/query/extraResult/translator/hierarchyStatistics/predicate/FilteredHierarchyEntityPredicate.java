@@ -21,37 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.stream;
+package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate;
 
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityPredicate;
+import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.RandomAccessFile;
-
 /**
- * Streams data to a {@link RandomAccessFile} starting at its current position.
+ * TODO JNO - document me
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class RandomAccessFileOutputStream extends OutputStream {
-	private final RandomAccessFile randomAccessFile;
+public class FilteredHierarchyEntityPredicate implements HierarchyEntityPredicate {
+	private final Formula filteredIds;
+	private Bitmap computedIds;
 
 	@Override
-	public void write(int b) throws IOException {
-		randomAccessFile.write(b);
+	public boolean test(int hierarchyNodeId, int level, int distance) {
+		if (computedIds == null) {
+			computedIds = filteredIds.compute();
+		}
+		return computedIds.contains(hierarchyNodeId);
 	}
-
-	@Override
-	public void write(@Nonnull byte[] b) throws IOException {
-		randomAccessFile.write(b);
-	}
-
-	@Override
-	public void write(@Nonnull byte[] b, int offset, int length) throws IOException {
-		randomAccessFile.write(b, offset, length);
-	}
-
 }

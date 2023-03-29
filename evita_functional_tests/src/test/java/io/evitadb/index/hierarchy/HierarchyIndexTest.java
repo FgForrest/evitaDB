@@ -107,74 +107,112 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldTraverseRootNodes() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchy(
-			(node, childrenTraverser) -> sb.append(node.entityPrimaryKey()).append("|")
+			(node, level, distance, childrenTraverser) -> {
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
+			}
 		);
-		assertEquals("|6|7|", sb.toString());
+		assertEquals("|6|7|", nodeIds.toString());
+		assertEquals("|1|1|", levels.toString());
+		assertEquals("|0|0|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseEntireTreeTopDown() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchy(
-			(node, childrenTraverser) -> {
-				sb.append(node.entityPrimaryKey()).append("|");
+			(node, level, distance, childrenTraverser) -> {
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 				childrenTraverser.run();
 			}
 		);
-		assertEquals("|6|8|9|12|11|10|3|2|1|7|4|5|0|", sb.toString());
+		assertEquals("|6|8|9|12|11|10|3|2|1|7|4|5|0|", nodeIds.toString());
+		assertEquals("|1|2|3|4|4|4|2|3|3|1|2|2|3|", levels.toString());
+		assertEquals("|0|1|2|3|3|3|1|2|2|0|1|1|2|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseEntireTreeBottomUp() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchy(
-			(node, childrenTraverser) -> {
+			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
-				sb.append(node.entityPrimaryKey()).append("|");
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 			}
 		);
-		assertEquals("|12|11|10|9|8|2|1|3|6|4|0|5|7|", sb.toString());
+		assertEquals("|12|11|10|9|8|2|1|3|6|4|0|5|7|", nodeIds.toString());
+		assertEquals("|4|4|4|3|2|3|3|2|1|2|3|2|1|", levels.toString());
+		assertEquals("|3|3|3|2|1|2|2|1|0|1|2|1|0|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseSubTreeExcludingInnerSubTree() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchyFromNode(
-			(node, childrenTraverser) -> {
+			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
-				sb.append(node.entityPrimaryKey()).append("|");
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 			},
 			6, false, 9
 		);
-		assertEquals("|8|2|1|3|6|", sb.toString());
+		assertEquals("|8|2|1|3|6|", nodeIds.toString());
+		assertEquals("|2|3|3|2|1|", levels.toString());
+		assertEquals("|1|2|2|1|0|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseEntireTreeFromParent() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchyFromNode(
-			(node, childrenTraverser) -> {
+			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
-				sb.append(node.entityPrimaryKey()).append("|");
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 			},
 			9, false
 		);
-		assertEquals("|12|11|10|9|", sb.toString());
+		assertEquals("|12|11|10|9|", nodeIds.toString());
+		assertEquals("|4|4|4|3|", levels.toString());
+		assertEquals("|1|1|1|0|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseEntireTreeFromParentExcludingIt() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchyFromNode(
-			(node, childrenTraverser) -> {
+			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
-				sb.append(node.entityPrimaryKey()).append("|");
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 			},
 			9, true
 		);
-		assertEquals("|12|11|10|", sb.toString());
+		assertEquals("|12|11|10|", nodeIds.toString());
+		assertEquals("|3|3|3|", levels.toString());
+		assertEquals("|1|1|1|", distances.toString());
 	}
 
 	@Test

@@ -48,7 +48,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.utils.NamingConvention;
@@ -174,7 +173,7 @@ public class ExtraResultsJsonSerializer {
 	private JsonNode serializeHierarchyStatistics(@Nonnull HierarchyStatistics statistics) {
 		final ObjectNode statisticsNode = objectJsonSerializer.objectNode();
 
-		final List<LevelInfo> selfStatistics = statistics.getSelfStatistics();
+		final Map<String, List<LevelInfo>> selfStatistics = statistics.getSelfStatistics();
 		if (!selfStatistics.isEmpty()) {
 			statisticsNode.putIfAbsent(HierarchyStatisticsDescriptor.SELF.name(), serializeLevelInfos(selfStatistics));
 		}
@@ -187,8 +186,10 @@ public class ExtraResultsJsonSerializer {
 	}
 
 	@Nonnull
-	private JsonNode serializeLevelInfos(@Nonnull List<LevelInfo> levelInfos) {
+	private JsonNode serializeLevelInfos(@Nonnull Map<String, List<LevelInfo>> levelInfos) {
 		final ArrayNode levelInfoNodes = objectJsonSerializer.arrayNode();
+		/*
+		TODO LHO - handle new contents
 		for (LevelInfo levelInfo : levelInfos) {
 			final ObjectNode levelInfoNode = objectJsonSerializer.objectNode();
 			levelInfoNode.putIfAbsent(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), objectJsonSerializer.serializeObject(levelInfo.cardinality()));
@@ -200,6 +201,7 @@ public class ExtraResultsJsonSerializer {
 
 			levelInfoNodes.add(levelInfoNode);
 		}
+		 */
 		return levelInfoNodes;
 	}
 

@@ -2166,7 +2166,15 @@ public interface QueryConstraints {
 	 */
 	@Nullable
 	static HierarchyStatistics statistics() {
-		return new HierarchyStatistics();
+		return new HierarchyStatistics(StatisticsBase.COMPLETE_FILTER);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyStatistics statistics(@Nullable StatisticsBase base) {
+		return base == null ? null : new HierarchyStatistics(base);
 	}
 
 	// TOBEDONE JNO: docs

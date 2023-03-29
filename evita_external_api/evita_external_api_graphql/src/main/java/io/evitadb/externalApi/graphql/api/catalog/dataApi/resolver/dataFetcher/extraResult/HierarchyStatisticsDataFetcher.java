@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
 
 import javax.annotation.Nonnull;
 import java.util.AbstractMap.SimpleEntry;
@@ -70,7 +69,8 @@ public class HierarchyStatisticsDataFetcher implements DataFetcher<DataFetcherRe
 		}
 
 		final Map<String, List<LevelInfo>> statisticsDto = createHashMap(hierarchyStatistics.getStatistics().size() + 1);
-
+		/*
+		TODO LHO - handle new structure
 		statisticsDto.put(
 			HierarchyStatisticsDescriptor.SELF.name(),
 			hierarchyStatistics.getSelfStatistics()
@@ -79,6 +79,7 @@ public class HierarchyStatisticsDataFetcher implements DataFetcher<DataFetcherRe
 			referenceNameToFieldName.get(key),
 			value
 		));
+		 */
 
 		return DataFetcherResult.<Map<String, List<LevelInfo>>>newResult()
 			.data(statisticsDto)

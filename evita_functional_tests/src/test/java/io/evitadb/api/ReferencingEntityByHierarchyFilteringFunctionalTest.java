@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.EntityByHierarchyFilteringFunctionalTest.HierarchyStatisticsTuple;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -89,6 +90,51 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 	private static final String ATTRIBUTE_CAPACITY = "capacity";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
+
+	@Nonnull
+	private static Map<Integer, Integer> getCardinalityIndex(Integer parentCategoryId, Hierarchy categoryHierarchy, List<SealedEntity> allProducts, List<SealedEntity> allCategories, Predicate<SealedEntity> filterPredicate, Predicate<SealedEntity> treePredicate) {
+		final Map<Integer, SealedEntity> categoriesById = allCategories.stream()
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					Function.identity()
+				)
+			);
+
+		final Map<Integer, Integer> categoryCardinalities = new HashMap<>();
+		for (SealedEntity product : allProducts) {
+			if (filterPredicate.test(product)) {
+				final Collection<ReferenceContract> categoryReferences = product.getReferences(Entities.CATEGORY);
+				for (ReferenceContract category : categoryReferences) {
+					final boolean pathValid = categoryHierarchy.getParentItems(String.valueOf(category.getReferenceKey().primaryKey()))
+						.stream()
+						.map(HierarchyItem::getCode)
+						.map(Integer::parseInt)
+						.map(categoriesById::get)
+						.allMatch(treePredicate) &&
+						treePredicate.test(categoriesById.get(category.getReferenceKey().primaryKey()));
+					if (pathValid) {
+						final int categoryId = category.getReferenceKey().primaryKey();
+						final List<Integer> categoryPath = Stream.concat(
+							categoryHierarchy.getParentItems(String.valueOf(categoryId))
+								.stream()
+								.map(it -> Integer.parseInt(it.getCode())),
+							Stream.of(categoryId)
+						).toList();
+						for (int i = categoryPath.size() - 1; i >= 0; i--) {
+							int cid = categoryPath.get(i);
+							categoryCardinalities.merge(cid, 1, Integer::sum);
+							if (parentCategoryId != null && cid == parentCategoryId) {
+								// we have encountered requested parent
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		return categoryCardinalities;
+	}
 
 	@DataSet(value = THOUSAND_PRODUCTS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
@@ -700,8 +746,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
 				final Predicate<SealedEntity> aliasPredicate = it -> ofNullable((Boolean) it.getAttribute(ATTRIBUTE_ALIAS)).orElse(false);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					session, null, categoryHierarchy, originalProductEntities, originalCategoryEntities,
-					languagePredicate.and(aliasPredicate), languagePredicate
+					null, categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					languagePredicate.and(aliasPredicate), languagePredicate,
+					categoryCardinalities -> getChildren("megaMenu", null, categoryHierarchy, session, categoryCardinalities)
 				);
 
 				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
@@ -767,8 +814,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 					});
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					session, 2, categoryHierarchy, originalProductEntities, originalCategoryEntities,
-					languagePredicate.and(aliasPredicate).and(categoryPredicate), languagePredicate
+					2, categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					languagePredicate.and(aliasPredicate).and(categoryPredicate), languagePredicate,
+					categoryCardinalities -> getChildren("megaMenu", 2, categoryHierarchy, session, categoryCardinalities)
 				);
 
 				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
@@ -778,6 +826,24 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 				return null;
 			}
 		);
+	}
+
+	@Nonnull
+	private HierarchyStatisticsTuple getChildren(String outputName, Integer parentCategoryId, Hierarchy categoryHierarchy, EvitaSessionContract session, Map<Integer, Integer> categoryCardinalities) {
+		final List<HierarchyItem> items = parentCategoryId == null ?
+			categoryHierarchy.getRootItems() :
+			Collections.singletonList(categoryHierarchy.getItem(String.valueOf(parentCategoryId)));
+
+		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
+		for (HierarchyItem rootItem : items) {
+			final int categoryId = Integer.parseInt(rootItem.getCode());
+			final Integer cardinality = categoryCardinalities.get(categoryId);
+			if (cardinality != null) {
+				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
+				levelInfo.add(new LevelInfo(category, cardinality, 0, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
+			}
+		}
+		return new HierarchyStatisticsTuple(outputName, levelInfo);
 	}
 
 	@Nonnull
@@ -793,63 +859,21 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 	}
 
 	@Nonnull
-	private HierarchyStatistics computeExpectedStatistics(EvitaSessionContract session, Integer parentCategoryId, Hierarchy categoryHierarchy, List<SealedEntity> allProducts, List<SealedEntity> allCategories, Predicate<SealedEntity> filterPredicate, Predicate<SealedEntity> treePredicate) {
-		final Map<Integer, SealedEntity> categoriesById = allCategories.stream()
-			.collect(
-				Collectors.toMap(
-					EntityContract::getPrimaryKey,
-					Function.identity()
-				)
-			);
+	private HierarchyStatistics computeExpectedStatistics(
+		Integer parentCategoryId, Hierarchy categoryHierarchy,
+		List<SealedEntity> allProducts, List<SealedEntity> allCategories,
+		Predicate<SealedEntity> filterPredicate, Predicate<SealedEntity> treePredicate,
+		Function<Map<Integer, Integer>, HierarchyStatisticsTuple> statisticsComputer
+	) {
+		final Map<Integer, Integer> categoryCardinalities = getCardinalityIndex(parentCategoryId, categoryHierarchy, allProducts, allCategories, filterPredicate, treePredicate);
 
-		final Map<Integer, Integer> categoryCardinalities = new HashMap<>();
-		for (SealedEntity product : allProducts) {
-			if (filterPredicate.test(product)) {
-				final Collection<ReferenceContract> categoryReferences = product.getReferences(Entities.CATEGORY);
-				for (ReferenceContract category : categoryReferences) {
-					final boolean pathValid = categoryHierarchy.getParentItems(String.valueOf(category.getReferenceKey().primaryKey()))
-						.stream()
-						.map(HierarchyItem::getCode)
-						.map(Integer::parseInt)
-						.map(categoriesById::get)
-						.allMatch(treePredicate) &&
-						treePredicate.test(categoriesById.get(category.getReferenceKey().primaryKey()));
-					if (pathValid) {
-						final int categoryId = category.getReferenceKey().primaryKey();
-						final List<Integer> categoryPath = Stream.concat(
-							categoryHierarchy.getParentItems(String.valueOf(categoryId))
-								.stream()
-								.map(it -> Integer.parseInt(it.getCode())),
-							Stream.of(categoryId)
-						).toList();
-						for (int i = categoryPath.size() - 1; i >= 0; i--) {
-							int cid = categoryPath.get(i);
-							categoryCardinalities.merge(cid, 1, Integer::sum);
-							if (parentCategoryId != null && cid == parentCategoryId) {
-								// we have encountered requested parent
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
+		final Map<String, Map<String, List<LevelInfo>>> resultIndex = new TreeMap<>();
+		final TreeMap<String, List<LevelInfo>> categoryInfo = new TreeMap<>();
+		resultIndex.put(Entities.CATEGORY, categoryInfo);
 
-		final Map<String, List<LevelInfo>> resultIndex = new TreeMap<>();
-		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
-		resultIndex.put(Entities.CATEGORY, levelInfo);
-		final List<HierarchyItem> items = parentCategoryId == null ?
-			categoryHierarchy.getRootItems() :
-			Collections.singletonList(categoryHierarchy.getItem(String.valueOf(parentCategoryId)));
+		final HierarchyStatisticsTuple result = statisticsComputer.apply(categoryCardinalities);
+		categoryInfo.put(result.name(), result.levelInfos());
 
-		for (HierarchyItem rootItem : items) {
-			final int categoryId = Integer.parseInt(rootItem.getCode());
-			final Integer cardinality = categoryCardinalities.get(categoryId);
-			if (cardinality != null) {
-				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(new LevelInfo(category, cardinality, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
-			}
-		}
 		return new HierarchyStatistics(null, resultIndex);
 	}
 
@@ -860,7 +884,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 			final Integer cardinality = categoryCardinalities.get(categoryId);
 			if (cardinality != null) {
 				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(new LevelInfo(category, cardinality, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
+				levelInfo.add(new LevelInfo(category, cardinality, 0, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
 			}
 		}
 		return levelInfo;

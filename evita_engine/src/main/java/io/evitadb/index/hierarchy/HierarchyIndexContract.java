@@ -194,7 +194,7 @@ public interface HierarchyIndexContract {
 	 * according to ordering specified on nodes and progresses up to the root. When one root node is examined, next
 	 * one leafs will be visited next.
 	 */
-	void traverseHierarchy(@Nonnull HierarchyVisitor visitor);
+	void traverseHierarchy(@Nonnull HierarchyVisitor visitor, @Nullable int... excludingNodes);
 
 	/**
 	 * Method returns all nodes that are not reachable from the root nodes. We call them orphans. These orphans are

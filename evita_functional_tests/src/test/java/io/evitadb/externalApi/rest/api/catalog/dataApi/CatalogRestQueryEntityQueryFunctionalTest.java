@@ -51,12 +51,12 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchySta
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
-import io.evitadb.test.tester.RestTester;
-import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -1352,7 +1352,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		final var expectedBody = response.getExtraResult(HierarchyStatistics.class)
 			.getStatistics(Entities.CATEGORY)
+			.entrySet()
 			.stream()
+			// TODO LHO - this needs to be corrected probably
+			.flatMap(it -> it.getValue().stream())
 			.map(it -> ((SealedEntity) it.entity()).getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
 			.toList();
 
@@ -1419,7 +1422,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		final var expectedBody = response.getExtraResult(HierarchyStatistics.class)
 			.getStatistics(Entities.CATEGORY)
+			.entrySet()
 			.stream()
+			// TODO LHO - this needs to be corrected probably
+			.flatMap(it -> it.getValue().stream())
 			.map(it -> {
 				return map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), it.entity().getPrimaryKey())

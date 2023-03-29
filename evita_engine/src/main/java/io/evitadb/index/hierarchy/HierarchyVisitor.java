@@ -37,7 +37,12 @@ public interface HierarchyVisitor {
 	 * Method is called on each node in the hierarchical tree of the {@link HierarchyIndex}. The visitor itself controls
 	 * the traversal by calling `childrenTraverser.run()` at the place it needs to be called on current `node` children.
 	 * ChildrenTraverser might be also completely ignored when subtree should not be traversed at all.
+	 *
+	 * @param node              the visited hierarchy node
+	 * @param level             the depth level of visited hierarchy node
+	 * @param distance          the distance from the top node the visitor started to traversing
+	 * @param childrenTraverser the lambda to traverse children of the visited hierarchy node
 	 */
-	void visit(@Nonnull HierarchyNode node, @Nonnull Runnable childrenTraverser);
+	void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable childrenTraverser);
 
 }

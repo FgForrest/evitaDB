@@ -57,14 +57,14 @@ public class GrpcHierarchyStatisticsBuilder {
 	 */
 	public static void buildHierarchyStatistics(@Nonnull Builder extraResults,
 	                                                                     @Nonnull HierarchyStatistics hierarchyStatistics) {
-		final List<LevelInfo> statistics = hierarchyStatistics.getSelfStatistics();
+		final Map<String, List<LevelInfo>> statistics = hierarchyStatistics.getSelfStatistics();
 		if (!statistics.isEmpty()) {
 			extraResults.setSelfHierarchyStatistics(
 				buildHierarchyStatistics(statistics)
 			);
 		}
 
-		for (Map.Entry<String, List<LevelInfo>> hierarchyStatisticsOfReference : hierarchyStatistics.getStatistics().entrySet()) {
+		for (Map.Entry<String, Map<String, List<LevelInfo>>> hierarchyStatisticsOfReference : hierarchyStatistics.getStatistics().entrySet()) {
 			extraResults.putHierarchyStatistics(
 				hierarchyStatisticsOfReference.getKey(),
 				buildHierarchyStatistics(hierarchyStatisticsOfReference.getValue())
@@ -79,8 +79,11 @@ public class GrpcHierarchyStatisticsBuilder {
 	 * @return map of all hierarchy statistics specified by their entity type
 	 */
 	@Nonnull
-	public static GrpcLevelInfos buildHierarchyStatistics(@Nonnull List<LevelInfo> hierarchyStatistics) {
+	public static GrpcLevelInfos buildHierarchyStatistics(@Nonnull Map<String, List<LevelInfo>> hierarchyStatistics) {
 		final List<GrpcLevelInfo> children = new LinkedList<>();
+
+		/*
+		TODO LHO - update structure
 
 		if (hierarchyStatistics.isEmpty()) {
 			return GrpcLevelInfos.newBuilder().addAllLevelInfos(children).build();
@@ -89,6 +92,7 @@ public class GrpcHierarchyStatisticsBuilder {
 		for (LevelInfo child : hierarchyStatistics) {
 			children.addAll(buildLevelInfoChild(child));
 		}
+		 */
 
 		return GrpcLevelInfos.newBuilder().addAllLevelInfos(children).build();
 	}
