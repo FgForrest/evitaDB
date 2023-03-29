@@ -155,7 +155,7 @@ public class RestTester extends JsonExternalApiTester<Request> {
 		}
 
 		/**
-		 * Executes configured request against GraphQL APi and returns response with validation methods.
+		 * Executes configured request against REST API and returns response with validation methods.
 		 */
 		public ValidatableResponse executeAndThen() {
 			if (!this.headers.containsKey(CONTENT_TYPE_HEADER)) {

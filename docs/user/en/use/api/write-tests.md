@@ -98,11 +98,11 @@ In addition, there is a test method `exampleTestCaseWithAssertions`, which decla
 automatically <Term name="autowiring">autowires</Term> a reference to another evitaDB session object which is used in 
 the test method implementation to query and assert the results of the data in the database.
 
+### Test web APIs
+
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
-
-### Test web APIs
 
 A similar approach is possible with the evitaDB Java Client through gRPC API. When setting up your dataset, simply declare that you also 
 want to initialize the gRPC web server and open required set of web APIs:
@@ -129,8 +129,6 @@ communicates with the *embedded evitaDB* over the wire.
 
 <LanguageSpecific to="graphql">
 
-### Test web APIs
-
 A similar approach is possible with the evitaDB GraphQL API. When setting up your dataset, simply declare that you also
 want to initialize the GraphQL web server and open required web API:
 
@@ -151,14 +149,12 @@ instance that is properly configured to communicate with this GraphQL API, and
 communicates with the *embedded evitaDB* over the wire.
 The <SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/GraphQLTester.java</SourceClass> is essentially
 just a wrapper around the [REST-assured](https://rest-assured.io/) library to provide a pre-configured tester with request
-builder methods specific to our GraphQL API. However, after the `.executeAndThen()` method is called, the request is sent,
-and you can use assertion methods provider directly by the [REST-assured](https://github.com/rest-assured/rest-assured/wiki/Usage#verifying-response-data) library.
+builder specific to our GraphQL API. However, after the `.executeAndThen()` method is called, the request is sent,
+and you can use assertion methods provided directly by the [REST-assured](https://github.com/rest-assured/rest-assured/wiki/Usage#verifying-response-data) library.
 
 </LanguageSpecific>
 
 <LanguageSpecific to="rest">
-
-### Test web APIs
 
 A similar approach is possible with the evitaDB REST API. When setting up your dataset, simply declare that you also
 want to initialize the REST web server and open required web API:
@@ -180,8 +176,8 @@ instance that is properly configured to communicate with this REST API, and
 communicates with the *embedded evitaDB* over the wire. 
 The <SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/RestTester.java</SourceClass> is essentially 
 just a wrapper around the [REST-assured](https://rest-assured.io/) library to provide a pre-configured tester with request 
-builder methods specific to our REST API. However, after the `.executeAndThen()` method is called, the request is sent,
-and you can use assertion methods provider directly by the [REST-assured](https://github.com/rest-assured/rest-assured/wiki/Usage#verifying-response-data) library.
+builder specific to our REST API. However, after the `.executeAndThen()` method is called, the request is sent,
+and you can use assertion methods provided directly by the [REST-assured](https://github.com/rest-assured/rest-assured/wiki/Usage#verifying-response-data) library.
 
 </LanguageSpecific>
 
