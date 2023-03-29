@@ -100,9 +100,9 @@ the test method implementation to query and assert the results of the data in th
 
 </LanguageSpecific>
 
-### Test web APIs
-
 <LanguageSpecific to="java">
+
+### Test web APIs
 
 A similar approach is possible with the evitaDB Java Client through gRPC API. When setting up your dataset, simply declare that you also 
 want to initialize the gRPC web server and open required set of web APIs:
@@ -129,6 +129,8 @@ communicates with the *embedded evitaDB* over the wire.
 
 <LanguageSpecific to="graphql">
 
+### Test web APIs
+
 A similar approach is possible with the evitaDB GraphQL API. When setting up your dataset, simply declare that you also
 want to initialize the GraphQL web server and open required web API:
 
@@ -151,6 +153,8 @@ communicates with the *embedded evitaDB* over the wire.
 </LanguageSpecific>
 
 <LanguageSpecific to="rest">
+
+### Test web APIs
 
 A similar approach is possible with the evitaDB REST API. When setting up your dataset, simply declare that you also
 want to initialize the REST web server and open required web API:
