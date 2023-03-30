@@ -116,7 +116,8 @@ public class GrpcHierarchyStatisticsBuilder {
 		}
 
 		final GrpcLevelInfo.Builder grpcLevelInfoBuilder = GrpcLevelInfo.newBuilder()
-			.setCardinality(levelInfo.cardinality())
+			// TODO LHO - RENAME TO queriedEntityCount in gRPC
+			.setCardinality(levelInfo.queriedEntityCount())
 			.addAllChildrenStatistics(children);
 
 		if (levelInfo.entity() instanceof SealedEntity entity) {

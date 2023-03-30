@@ -144,11 +144,6 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
 		return getChildrenCount() > 0;
 	}
@@ -158,8 +153,8 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		for (RequireConstraint child : children) {
 			Assert.isTrue(
-				child instanceof HierarchyRequireConstraint,
-				"Constraint HierarchyOfReference accepts only HierarchyRequireConstraint as inner constraints!"
+				child instanceof HierarchyRequireConstraint || child instanceof EntityFetch,
+				"Constraint HierarchyOfSelf accepts only HierarchyRequireConstraint or EntityFetch as inner constraints!"
 			);
 		}
 		return new HierarchyOfSelf(children);

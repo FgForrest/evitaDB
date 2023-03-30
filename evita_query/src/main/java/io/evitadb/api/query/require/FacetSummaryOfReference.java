@@ -175,13 +175,8 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
-		return true;
+		return isArgumentsNonNull() && getArguments().length >= 1;
 	}
 
 	@Nonnull

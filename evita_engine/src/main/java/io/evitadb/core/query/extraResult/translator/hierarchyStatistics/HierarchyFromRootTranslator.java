@@ -28,6 +28,9 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * TODO JNO - document me
@@ -39,7 +42,19 @@ public class HierarchyFromRootTranslator
 	implements RequireConstraintTranslator<HierarchyFromRoot>, SelfTraversingTranslator {
 
 	@Override
-	public ExtraResultProducer apply(HierarchyFromRoot requireConstraints, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
-		return getHierarchyStatisticsProducer(extraResultPlanningVisitor);
+	public ExtraResultProducer apply(HierarchyFromRoot fromRoot, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+		final HierarchyStatisticsProducer producer = getHierarchyStatisticsProducer(extraResultPlanningVisitor);
+		producer.computeChildren(
+			fromRoot.getOutputName(),
+			ofNullable(fromRoot.getStopAt())
+				.map(stopAt -> stopAtConstraintToPredicate(fromRoot.getName(), extraResultPlanningVisitor, producer, stopAt))
+				.orElse(null),
+			createEntityFetcher(
+				fromRoot,
+				fromRoot.getEntityFetch(),
+				producer
+			)
+		);
+		return producer;
 	}
 }

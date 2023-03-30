@@ -114,13 +114,8 @@ public class HierarchyParentsOfReference extends AbstractRequireConstraintContai
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return getArguments().length > 0;
-	}
-
-	@Override
 	public boolean isApplicable() {
-		return true;
+		return getArguments().length > 0;
 	}
 
 	@Nonnull

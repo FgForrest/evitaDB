@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,7 @@ public class HierarchyOfReferenceSerializer extends Serializer<HierarchyOfRefere
 		for (String entityType : entityTypes) {
 			output.writeString(entityType);
 		}
+		kryo.writeObject(output, object.getEmptyHierarchicalEntityBehaviour());
 		final HierarchyRequireConstraint[] requirements = object.getRequirements();
 		output.writeVarInt(requirements.length, true);
 		for (HierarchyRequireConstraint requirement : requirements) {
@@ -61,13 +63,16 @@ public class HierarchyOfReferenceSerializer extends Serializer<HierarchyOfRefere
 			entityTypes[i] = input.readString();
 		}
 
+		final EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour =
+			kryo.readObject(input, EmptyHierarchicalEntityBehaviour.class);
+
 		final int requirementCount = input.readVarInt(true);
 		final HierarchyRequireConstraint[] requirements = new HierarchyRequireConstraint[requirementCount];
 		for (int i = 0; i < requirementCount; i++) {
 			requirements[i] = (HierarchyRequireConstraint) kryo.readClassAndObject(input);
 		}
 
-		return new HierarchyOfReference(entityTypes, requirements);
+		return new HierarchyOfReference(entityTypes, emptyHierarchicalEntityBehaviour, requirements);
 	}
 
 }

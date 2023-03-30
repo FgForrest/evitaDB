@@ -71,6 +71,8 @@ public class HierarchyOfReferenceTranslator
 		final String queriedEntityType = extraResultPlanner.getSchema().getName();
 		// retrieve existing producer or create new one
 		final HierarchyStatisticsProducer hierarchyStatisticsProducer = getHierarchyStatisticsProducer(extraResultPlanner);
+		// we need to register producer prematurely
+		extraResultPlanner.registerProducer(hierarchyStatisticsProducer);
 
 		for (String referenceName : hierarchyStatsConstraint.getReferenceNames()) {
 			final ReferenceSchemaContract referenceSchema = extraResultPlanner.getSchema()
@@ -97,6 +99,7 @@ public class HierarchyOfReferenceTranslator
 				hierarchyNodeId -> ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, hierarchyNodeId)))
 					.map(EntityIndex::getAllPrimaryKeys)
 					.orElse(EmptyBitmap.INSTANCE),
+				hierarchyStatsConstraint.getEmptyHierarchicalEntityBehaviour(),
 				() -> hierarchyStatsConstraint.accept(extraResultPlanner)
 			);
 		}

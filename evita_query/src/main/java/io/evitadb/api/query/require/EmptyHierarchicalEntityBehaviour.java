@@ -23,14 +23,13 @@
 
 package io.evitadb.api.query.require;
 
-import io.evitadb.api.query.HierarchyConstraint;
-import io.evitadb.api.query.RequireConstraint;
-
 /**
- * This interface marks all filtering constraints that can be used to further specify hierarchy statistics and that can
- * be used within {@link HierarchyOfSelf} or {@link HierarchyOfReference} containers.
+ * TODO JNO - document me
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface HierarchyRequireConstraint extends RequireConstraint, ExtraResultRequireConstraint, HierarchyConstraint<RequireConstraint> {
+public enum EmptyHierarchicalEntityBehaviour {
+
+	LEAVE_EMPTY, REMOVE_EMPTY
+
 }

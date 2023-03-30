@@ -46,14 +46,14 @@ class HierarchyOfReferenceTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new HierarchyOfReference("category", new HierarchyRequireConstraint[0]).isApplicable());
+		assertFalse(new HierarchyOfReference("category", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, new HierarchyRequireConstraint[0]).isApplicable());
 		assertTrue(hierarchyOfReference("category", fromRoot("megaMenu", entityFetch(attributeContent()))).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
 		final HierarchyOfReference hierarchyStatisticsOfReference = hierarchyOfReference("brand", fromRoot("megaMenu"));
-		assertEquals("hierarchyOfReference('brand',fromRoot('megaMenu'))", hierarchyStatisticsOfReference.toString());
+		assertEquals("hierarchyOfReference('brand',REMOVE_EMPTY,fromRoot('megaMenu'))", hierarchyStatisticsOfReference.toString());
 	}
 
 	@Test
@@ -61,8 +61,10 @@ class HierarchyOfReferenceTest {
 		assertNotSame(hierarchyOfReference("brand", fromRoot("megaMenu")), hierarchyOfReference("brand", fromRoot("megaMenu")));
 		assertEquals(hierarchyOfReference("brand", fromRoot("megaMenu")), hierarchyOfReference("brand", fromRoot("megaMenu")));
 		assertNotEquals(hierarchyOfReference("brand", fromRoot("megaMenu")), hierarchyOfReference("category", fromRoot("megaMenu")));
+		assertNotEquals(hierarchyOfReference("brand", EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY, fromRoot("megaMenu")), hierarchyOfReference("category", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")));
 		assertEquals(hierarchyOfReference("brand", fromRoot("megaMenu")).hashCode(), hierarchyOfReference("brand", fromRoot("megaMenu")).hashCode());
 		assertNotEquals(hierarchyOfReference("brand", fromRoot("megaMenu")).hashCode(), hierarchyOfReference("category", fromRoot("megaMenu")).hashCode());
+		assertNotEquals(hierarchyOfReference("brand", EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY, fromRoot("megaMenu")).hashCode(), hierarchyOfReference("category", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")).hashCode());
 	}
 
 }

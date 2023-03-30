@@ -162,11 +162,6 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
 		return true;
 	}

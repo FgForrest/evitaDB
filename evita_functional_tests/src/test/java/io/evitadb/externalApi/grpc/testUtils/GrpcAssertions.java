@@ -319,7 +319,7 @@ public class GrpcAssertions {
 	}
 
 	public static <T extends Serializable> void assertInnerStatistics(@Nonnull LevelInfo expectedChild, GrpcLevelInfo actualChild) {
-		assertEquals(expectedChild.cardinality(), actualChild.getCardinality());
+		assertEquals(expectedChild.queriedEntityCount(), actualChild.getCardinality());
 		assertEquals(expectedChild.childrenStatistics().size(), actualChild.getChildrenStatisticsCount());
 		if (expectedChild.childrenStatistics().isEmpty()) {
 			return;

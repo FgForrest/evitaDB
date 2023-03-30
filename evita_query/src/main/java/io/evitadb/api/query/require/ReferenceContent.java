@@ -279,11 +279,6 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
 		return true;
 	}

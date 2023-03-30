@@ -67,11 +67,6 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
 		return true;
 	}

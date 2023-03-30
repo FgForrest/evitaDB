@@ -24,7 +24,7 @@
 package io.evitadb.api.query.require;
 
 /**
- * The constraint specifies whether the hierarchy statistics cardinality will be based on a complete query filter by
+ * The enum specifies whether the hierarchy statistics cardinality will be based on a complete query filter by
  * constraint or only the part without user defined filter.
  */
 public enum StatisticsBase {

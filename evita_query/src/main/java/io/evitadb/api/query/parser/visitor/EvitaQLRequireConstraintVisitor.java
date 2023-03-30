@@ -689,11 +689,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 				final String[] classifiers = ctx.args.classifiers
 					.accept(classifierTokenVisitor)
 					.asClassifierArray();
+				/* TODO LHO - update */
+				/*
 				if (ctx.args.requirement == null) {
 					return new HierarchyOfReference(classifiers);
 				}
-				/* TODO LHO - update */
-				/*return new HierarchyOfReference(
+				return new HierarchyOfReference(
 					classifiers,
 					visitInnerEntityFetch(ctx.args.requirement)
 				);*/

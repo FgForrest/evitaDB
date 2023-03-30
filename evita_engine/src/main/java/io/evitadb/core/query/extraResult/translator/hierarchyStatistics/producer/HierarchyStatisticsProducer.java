@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
@@ -66,12 +67,13 @@ import static java.util.Optional.ofNullable;
  * compute all information necessary. The producer aggregates {@link AbstractHierarchyStatisticsComputer} for each
  * {@link HierarchyOfSelf} requirement and combines them into the single result.
  *
- * Producer uses {@link HierarchyIndex} of the targeted entity to {@link HierarchyIndex#traverseHierarchy(HierarchyVisitor)}
+ * Producer uses {@link HierarchyIndex} of the targeted entity to {@link HierarchyIndex#traverseHierarchy(HierarchyVisitor, int...)}
  * finding all entities linked to the queried entity type. It respects {@link EntityLocaleEquals} and {@link HierarchyWithin}
  * filtering constraints when filtering the entity tree. For each such hierarchical entity node it finds all entity
  * primary keys of the queried entity type connected to it, combines them with entity id array that is produced by
- * the query (only matching ids will remain) and uses this information to fill the {@link LevelInfo#cardinality()}
- * information. {@link LevelInfo} with zero cardinality are filtered out from the result.
+ * the query (only matching ids will remain) and uses this information to fill the {@link LevelInfo#queriedEntityCount()}
+ * and {@link LevelInfo#childrenCount()} information. {@link LevelInfo} with zero cardinality are filtered out from
+ * the result.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -86,7 +88,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 */
 	@Nullable private final Locale language;
 	/**
-	 * Contains filtering formula tree that was used to produce results so that computed {@link LevelInfo#cardinality()}
+	 * Contains filtering formula tree that was used to produce results so that computed {@link LevelInfo#queriedEntityCount()}
 	 * is reduced according to the input filter.
 	 */
 	@Nonnull private final Formula filteringFormula;
@@ -148,10 +150,11 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 *
 	 * @param entitySchema                  target hierarchy entity {@link EntitySchema}
 	 * @param referenceSchema               relates to reference schema {@link ReferenceSchema} that target the hierarchy entity
-	 * @param hierarchyWithin                      limits the statistics to certain subtree of the hierarchy
+	 * @param hierarchyWithin               limits the statistics to certain subtree of the hierarchy
 	 * @param targetIndex                   owner entityIndex for hierarchy index
 	 * @param hierarchyReferencingEntityPks represents function that produces bitmap of queried entity ids connected
 	 *                                      with particular hierarchical entity
+	 * @param behaviour                     controls whether items with {@link LevelInfo#queriedEntityCount()} equal to zero should be excluded
 	 * @param interpretationLambda          lambda that allows additional configuration of the {@link AbstractHierarchyStatisticsComputer}
 	 */
 	public void interpret(
@@ -160,6 +163,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nullable HierarchyFilterConstraint hierarchyWithin,
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull IntFunction<Bitmap> hierarchyReferencingEntityPks,
+		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
 		@Nonnull Runnable interpretationLambda
 	) {
 		Assert.isTrue(context.get() == null, "HierarchyOfSelf / HierarchyOfReference cannot be nested inside each other!");
@@ -171,7 +175,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 					hierarchyWithin,
 					targetIndex,
 					hierarchyReferencingEntityPks,
-					referenceSchema != null
+					behaviour == EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY
 				)
 			);
 			interpretationLambda.run();

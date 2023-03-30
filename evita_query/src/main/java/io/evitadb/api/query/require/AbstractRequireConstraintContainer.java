@@ -84,4 +84,9 @@ abstract class AbstractRequireConstraintContainer extends ConstraintContainer<Re
 		visitor.visit(this);
 	}
 
+	@Override
+	public boolean isNecessary() {
+		return true;
+	}
+
 }

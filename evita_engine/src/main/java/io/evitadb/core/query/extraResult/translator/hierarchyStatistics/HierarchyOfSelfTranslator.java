@@ -24,7 +24,9 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -68,6 +70,8 @@ public class HierarchyOfSelfTranslator
 		final HierarchyStatisticsProducer hierarchyStatisticsProducer = getHierarchyStatisticsProducer(
 			extraResultPlanner
 		);
+		// we need to register producer prematurely
+		extraResultPlanner.registerProducer(hierarchyStatisticsProducer);
 
 		// the request is simple - we use global index of current entity
 		hierarchyStatisticsProducer.interpret(
@@ -76,7 +80,12 @@ public class HierarchyOfSelfTranslator
 			hierarchyWithin,
 			globalIndex,
 			globalIndex::getHierarchyNodesForParent,
-			() -> hierarchyStatsConstraint.accept(extraResultPlanner)
+			EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,
+			() -> {
+				for (RequireConstraint child : hierarchyStatsConstraint) {
+					child.accept(extraResultPlanner);
+				}
+			}
 		);
 
 		return hierarchyStatisticsProducer;

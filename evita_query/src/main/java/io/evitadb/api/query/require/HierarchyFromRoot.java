@@ -145,6 +145,7 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 		return false;
 	}
 
+	@Override
 	public boolean isApplicable() {
 		return isArgumentsNonNull() && getArguments().length == 1;
 	}

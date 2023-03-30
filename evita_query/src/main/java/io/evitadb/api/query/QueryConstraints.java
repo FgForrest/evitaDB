@@ -47,6 +47,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Factory class for creating {@link Constraint} instances.
  * This factory class is handy so that developer doesn't need to remember all possible query variants and could
@@ -1779,8 +1781,25 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
+		return hierarchyOfReference(referenceName, null, requirement);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyOfReference hierarchyOfReference(
+		@Nullable String referenceName,
+		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nullable HierarchyRequireConstraint... requirement
+	) {
 		return referenceName == null || ArrayUtils.isEmpty(requirement) ?
-			null : new HierarchyOfReference(referenceName, requirement);
+			null :
+			new HierarchyOfReference(
+				referenceName,
+				ofNullable(emptyHierarchicalEntityBehaviour).orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY),
+				requirement
+			);
 	}
 
 	/**
@@ -1791,13 +1810,29 @@ public interface QueryConstraints {
 		@Nullable String[] referenceName,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
+		return hierarchyOfReference(referenceName, null, requirement);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyOfReference hierarchyOfReference(
+		@Nullable String[] referenceName,
+		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nullable HierarchyRequireConstraint... requirement
+	) {
 		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
 			return null;
 		}
 		if (ArrayUtils.isEmpty(requirement)) {
 			return null;
 		}
-		return new HierarchyOfReference(referenceName, requirement);
+		return new HierarchyOfReference(
+			referenceName,
+			ofNullable(emptyHierarchicalEntityBehaviour).orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY),
+			requirement
+		);
 	}
 
 	/**
@@ -2165,16 +2200,22 @@ public interface QueryConstraints {
 	 * TOBEDONE JNO: docs
 	 */
 	@Nullable
-	static HierarchyStatistics statistics() {
-		return new HierarchyStatistics(StatisticsBase.COMPLETE_FILTER);
+	static HierarchyStatistics statistics(@Nullable StatisticsType... type) {
+		return type == null ?
+			new HierarchyStatistics(StatisticsBase.WITHOUT_USER_FILTER) :
+			new HierarchyStatistics(StatisticsBase.WITHOUT_USER_FILTER, type);
 	}
 
 	/**
 	 * TOBEDONE JNO: docs
 	 */
 	@Nullable
-	static HierarchyStatistics statistics(@Nullable StatisticsBase base) {
-		return base == null ? null : new HierarchyStatistics(base);
+	static HierarchyStatistics statistics(@Nullable StatisticsBase base, @Nullable StatisticsType... type) {
+		if (base == null) {
+			return null;
+		} else {
+			return type == null ? new HierarchyStatistics(base) : new HierarchyStatistics(base, type);
+		}
 	}
 
 	// TOBEDONE JNO: docs

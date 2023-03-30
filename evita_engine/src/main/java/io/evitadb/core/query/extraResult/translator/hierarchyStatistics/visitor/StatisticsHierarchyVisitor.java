@@ -100,7 +100,7 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 			final Accumulator topAccumulator = Objects.requireNonNull(accumulator.peek());
 			if (removeEmptyResults) {
 				Optional.of(finalizedAccumulator.toLevelInfo())
-					.filter(it -> it.cardinality() > 0)
+					.filter(it -> it.queriedEntityCount() > 0)
 					.ifPresent(topAccumulator::add);
 			} else {
 				topAccumulator.add(finalizedAccumulator.toLevelInfo());

@@ -67,7 +67,7 @@ public class Accumulator {
 			entity,
 			IntStream.concat(
 				IntStream.of(directEntityCount),
-				children.stream().mapToInt(LevelInfo::cardinality)
+				children.stream().mapToInt(LevelInfo::queriedEntityCount)
 			).sum(),
 			children.size(),
 			children

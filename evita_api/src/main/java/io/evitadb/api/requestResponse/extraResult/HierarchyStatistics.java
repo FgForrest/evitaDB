@@ -125,6 +125,18 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 */
 	private final Map<String, Map<String, List<LevelInfo>>> statistics;
 
+	private static boolean notEquals(@Nonnull List<LevelInfo> stats, @Nonnull List<LevelInfo> otherStats) {
+		for (int i = 0; i < stats.size(); i++) {
+			final LevelInfo levelInfo = stats.get(i);
+			final LevelInfo otherLevelInfo = otherStats.get(i);
+
+			if (!Objects.equals(levelInfo, otherLevelInfo)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Method returns the cardinality statistics for the top most level of queried hierarchical entities.
 	 * Level is either the root level if {@link HierarchyWithinRoot} query or no hierarchical filtering query
@@ -214,18 +226,6 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 		return true;
 	}
 
-	private static boolean notEquals(@Nonnull List<LevelInfo> stats, @Nonnull List<LevelInfo> otherStats) {
-		for (int i = 0; i < stats.size(); i++) {
-			final LevelInfo levelInfo = stats.get(i);
-			final LevelInfo otherLevelInfo = otherStats.get(i);
-
-			if (!Objects.equals(levelInfo, otherLevelInfo)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	@Override
 	public String toString() {
 		final StringBuilder treeBuilder = new StringBuilder();
@@ -278,20 +278,20 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 * @param entity             Hierarchical entity identification - it may be {@link Integer} representing primary key of the entity if no
 	 *                           {@link EntityContentRequire} requirements were passed within {@link HierarchyOfSelf}
 	 *                           query, or it may be rich {@link SealedEntity} object if the richer requirements were specified.
-	 * @param cardinality        Contains the number of queried entities that refer directly to this {@link #entity} or to any of its children
+	 * @param queriedEntityCount Contains the number of queried entities that refer directly to this {@link #entity} or to any of its children
 	 *                           entities.
 	 * @param childrenStatistics Contains statistics of the entities that are subordinate (children) of this {@link #entity}.
 	 */
 
 	public record LevelInfo(
 		@Nonnull EntityClassifier entity,
-		@Nullable Integer cardinality,
+		@Nullable Integer queriedEntityCount,
 		@Nullable Integer childrenCount,
 		@Nonnull List<LevelInfo> childrenStatistics
 	) implements Comparable<LevelInfo> {
 		@Override
 		public String toString() {
-			return "[" + cardinality + "] " + entity;
+			return "[" + queriedEntityCount + "] " + entity;
 		}
 
 		@Override

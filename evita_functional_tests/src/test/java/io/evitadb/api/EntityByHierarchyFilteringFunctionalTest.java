@@ -50,6 +50,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -596,7 +597,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should return cardinalities for categories")
+	@DisplayName("Should return children for categories without statistics")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
 	void shouldReturnCardinalitiesForCategories(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
@@ -617,8 +618,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 							hierarchyOfSelf(
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent()),
-									statistics()
+									entityFetch(attributeContent())
 								)
 							)
 						)
@@ -630,9 +630,12 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					null, categoryHierarchy, originalCategoryEntities,
 					languagePredicate, languagePredicate,
-					categoryCardinalities -> new HierarchyStatisticsTuple(
+					(categoryChildren, categoryCardinalities) -> new HierarchyStatisticsTuple(
 						"megaMenu",
-						computeChildren(session, null, categoryHierarchy, categoryCardinalities)
+						computeChildren(
+							session, null, categoryHierarchy,
+							null, null
+						)
 					)
 				);
 
@@ -694,9 +697,12 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					2, categoryHierarchy, originalCategoryEntities,
 					languagePredicate.and(categoryPredicate), languagePredicate,
-					categoryCardinalities -> new HierarchyStatisticsTuple(
+					(categoryChildren, categoryCardinalities) -> new HierarchyStatisticsTuple(
 						"megaMenu",
-						computeChildren(session, 2, categoryHierarchy, categoryCardinalities)
+						computeChildren(
+							session, 2, categoryHierarchy,
+							categoryCardinalities, categoryChildren
+						)
 					)
 				);
 
@@ -716,10 +722,11 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		List<SealedEntity> allCategories,
 		Predicate<SealedEntity> filterPredicate,
 		Predicate<SealedEntity> treePredicate,
-		Function<Map<Integer, Integer>, HierarchyStatisticsTuple> statisticsComputer
+		BiFunction<Map<Integer, Integer>, Map<Integer, Integer>, HierarchyStatisticsTuple> statisticsComputer
 	) {
 		final Map<Integer, Integer> categoryCardinalities = computeCardinalities(parentCategoryId, categoryHierarchy, allCategories, filterPredicate, treePredicate);
-		final HierarchyStatisticsTuple result = statisticsComputer.apply(categoryCardinalities);
+		final Map<Integer, Integer> childrenCount = computeCardinalities(parentCategoryId, categoryHierarchy, allCategories, filterPredicate, treePredicate);
+		final HierarchyStatisticsTuple result = statisticsComputer.apply(childrenCount, categoryCardinalities);
 		final Map<String, List<LevelInfo>> theResults = Map.of(
 			result.name(), result.levelInfos()
 		);
@@ -775,7 +782,13 @@ public class EntityByHierarchyFilteringFunctionalTest {
 	}
 
 	@Nonnull
-	private List<LevelInfo> computeChildren(EvitaSessionContract session, Integer parentCategoryId, Hierarchy categoryHierarchy, Map<Integer, Integer> categoryCardinalities) {
+	private List<LevelInfo> computeChildren(
+		@Nonnull EvitaSessionContract session,
+		@Nullable Integer parentCategoryId,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nullable Map<Integer, Integer> categoryChildren,
+		@Nullable Map<Integer, Integer> categoryCardinalities
+	) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
 		final List<HierarchyItem> items = parentCategoryId == null ?
 			categoryHierarchy.getRootItems() :
@@ -783,29 +796,44 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 		for (HierarchyItem rootItem : items) {
 			final int categoryId = Integer.parseInt(rootItem.getCode());
-			final Integer cardinality = categoryCardinalities.get(categoryId);
-			if (cardinality != null) {
-				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(new LevelInfo(category, cardinality, 0, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
-			}
+			final Integer childrenCount = ofNullable(categoryChildren).map(it -> it.get(categoryId)).orElse(null);
+			final Integer cardinality = ofNullable(categoryCardinalities).map(it -> it.get(categoryId)).orElse(null);
+			final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
+			levelInfo.add(
+				new LevelInfo(
+					category, cardinality, childrenCount,
+					fetchLevelInfo(session, categoryId, categoryHierarchy, categoryChildren, categoryCardinalities)
+				)
+			);
 		}
 		return levelInfo;
 	}
 
-	private List<LevelInfo> fetchLevelInfo(EvitaSessionContract session, int parentCategoryId, Hierarchy categoryHierarchy, Map<Integer, Integer> categoryCardinalities) {
+	private List<LevelInfo> fetchLevelInfo(
+		@Nonnull EvitaSessionContract session,
+		int parentCategoryId,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nullable Map<Integer, Integer> categoryChildren,
+		@Nullable Map<Integer, Integer> categoryCardinalities
+	) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
 		for (HierarchyItem item : categoryHierarchy.getChildItems(String.valueOf(parentCategoryId))) {
 			final int categoryId = Integer.parseInt(item.getCode());
-			final Integer cardinality = categoryCardinalities.get(categoryId);
-			if (cardinality != null) {
-				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(new LevelInfo(category, cardinality, 0, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
-			}
+			final Integer childrenCount = ofNullable(categoryChildren).map(it -> it.get(categoryId)).orElse(null);
+			final Integer cardinality = ofNullable(categoryCardinalities).map(it -> it.get(categoryId)).orElse(null);
+			final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
+			levelInfo.add(
+				new LevelInfo(
+					category, cardinality, childrenCount,
+					fetchLevelInfo(session, categoryId, categoryHierarchy, categoryChildren, categoryCardinalities)
+				)
+			);
 		}
 		return levelInfo;
 	}
 
-	private SealedEntity fetchHierarchyStatisticsEntity(EvitaSessionContract session, int categoryId) {
+	@Nonnull
+	private SealedEntity fetchHierarchyStatisticsEntity(@Nonnull EvitaSessionContract session, int categoryId) {
 		return session.query(
 			query(
 				collection(Entities.CATEGORY),

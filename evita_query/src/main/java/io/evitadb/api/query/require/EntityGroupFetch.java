@@ -67,11 +67,6 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
 		return true;
 	}

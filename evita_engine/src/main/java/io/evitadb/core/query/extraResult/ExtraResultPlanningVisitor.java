@@ -229,11 +229,11 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						child.accept(this);
 					}
 				} else {
-					ofNullable(translator.apply(requireConstraint, this)).ifPresent(extraResultProducers::add);
+					registerProducer(translator.apply(requireConstraint, this));
 				}
 			} else if (requireConstraint instanceof ConstraintLeaf) {
 				// process the leaf query
-				ofNullable(translator.apply(requireConstraint, this)).ifPresent(extraResultProducers::add);
+				registerProducer(translator.apply(requireConstraint, this));
 			} else {
 				// sanity check only
 				throw new EvitaInternalError("Should never happen");
@@ -244,6 +244,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				child.accept(this);
 			}
 		}
+	}
+
+	/**
+	 * Method registers the {@link ExtraResultProducer} instance.
+	 */
+	public void registerProducer(@Nullable ExtraResultProducer extraResultProducer) {
+		ofNullable(extraResultProducer).ifPresent(extraResultProducers::add);
 	}
 
 }

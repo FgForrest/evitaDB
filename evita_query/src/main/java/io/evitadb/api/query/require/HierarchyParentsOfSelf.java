@@ -89,11 +89,6 @@ public class HierarchyParentsOfSelf extends AbstractRequireConstraintContainer i
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
 		return true;
 	}

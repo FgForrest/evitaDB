@@ -23,14 +23,12 @@
 
 package io.evitadb.api.query.require;
 
-import io.evitadb.api.query.HierarchyConstraint;
-import io.evitadb.api.query.RequireConstraint;
-
 /**
- * This interface marks all filtering constraints that can be used to further specify hierarchy statistics and that can
- * be used within {@link HierarchyOfSelf} or {@link HierarchyOfReference} containers.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * The enum specifies whether the {@link HierarchyStatistics} should produce the hierarchy children count or referenced
+ * entity count.
  */
-public interface HierarchyRequireConstraint extends RequireConstraint, ExtraResultRequireConstraint, HierarchyConstraint<RequireConstraint> {
+public enum StatisticsType {
+
+	CHILDREN_COUNT, QUERIED_ENTITY_COUNT
+
 }

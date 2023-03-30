@@ -28,11 +28,15 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.EnumSet;
 
 /**
  * TOBEDONE JNO: docs
@@ -47,22 +51,53 @@ import java.io.Serializable;
 public class HierarchyStatistics extends AbstractRequireConstraintLeaf implements HierarchyOutputRequireConstraint {
 	@Serial private static final long serialVersionUID = 264601966496432983L;
 
-	/* TODO JNO ještě přidat zda cardinalitu nebo children nebo oboje */
+	private HierarchyStatistics(@Nonnull Serializable... arguments) {
+		super(arguments);
+	}
 
 	@ConstraintCreatorDef
-	public HierarchyStatistics(@Nonnull @ConstraintValueParamDef StatisticsBase statisticsBase) {
+	public HierarchyStatistics(
+		@Nonnull @ConstraintValueParamDef StatisticsBase statisticsBase,
+		@Nonnull @ConstraintValueParamDef StatisticsType... statisticsType
+	) {
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix
-		super("statistics", statisticsBase);
+		super(
+			"statistics",
+			ArrayUtils.mergeArrays(
+				new Serializable[] {statisticsBase},
+				statisticsType
+			)
+		);
 	}
 
 	/**
-	 * Returns the enum signalizing whether the hierarchy statistics cardinality will be based on a complete query
+	 * Returns the enum signalizing whether the hierarchy statistics results will be based on a complete query
 	 * filter by constraint or only the part without user defined filter.
 	 */
 	@Nonnull
 	public StatisticsBase getStatisticsBase() {
-		return (StatisticsBase) getArguments()[0];
+		for (Serializable argument : getArguments()) {
+			if (argument instanceof StatisticsBase sb) {
+				return sb;
+			}
+		}
+		throw new EvitaInternalError("StatisticsBase is mandatory argument, yet it was not found!");
+	}
+
+	/**
+	 * Returns the enum signalizing whether the hierarchy statistics will contain information about children count,
+	 * queued entities count or both.
+	 */
+	@Nonnull
+	public EnumSet<StatisticsType> getStatisticsType() {
+		final EnumSet<StatisticsType> result = EnumSet.noneOf(StatisticsType.class);
+		for (Serializable argument : getArguments()) {
+			if (argument instanceof StatisticsType st) {
+				result.add(st);
+			}
+		}
+		return result;
 	}
 
 	@Override
@@ -74,10 +109,14 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		Assert.isTrue(
-			newArguments.length == 1 && newArguments[0] instanceof StatisticsBase,
-			"HierarchyStatistics requires single argument of type StatisticsBase!"
+			Arrays.stream(newArguments).anyMatch(StatisticsBase.class::isInstance),
+			"HierarchyStatistics requires an argument of type StatisticsBase!"
 		);
-		return new HierarchyStatistics((StatisticsBase) newArguments[0]);
+		Assert.isTrue(
+			Arrays.stream(newArguments).allMatch(it -> it instanceof StatisticsBase || it instanceof StatisticsType),
+			"HierarchyStatistics accepts only arguments of type StatisticsBase and StatisticsType!"
+		);
+		return new HierarchyStatistics(newArguments);
 	}
 
 }

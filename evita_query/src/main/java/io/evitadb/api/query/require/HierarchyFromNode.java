@@ -170,6 +170,7 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 		return false;
 	}
 
+	@Override
 	public boolean isApplicable() {
 		return isArgumentsNonNull() && getArguments().length == 1 && getChildren().length >= 1;
 	}
