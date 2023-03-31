@@ -39,7 +39,7 @@ class HierarchyStatisticsTest {
 	void shouldCreateViaFactoryClassWorkAsExpected() {
 		assertNotNull(statistics());
 		assertNotNull(statistics(StatisticsBase.COMPLETE_FILTER));
-		assertNull(statistics(null));
+		assertNotNull(statistics());
 	}
 
 	@Test
@@ -51,7 +51,7 @@ class HierarchyStatisticsTest {
 	@Test
 	void shouldToStringReturnExpectedFormat() {
 		final HierarchyStatistics hierarchyStatistics = statistics();
-		assertEquals("statistics()", hierarchyStatistics.toString());
+		assertEquals("statistics(WITHOUT_USER_FILTER)", hierarchyStatistics.toString());
 	}
 
 	@Test

@@ -73,7 +73,8 @@ public abstract class AbstractHierarchyTranslator {
 				() -> new HierarchyStatisticsProducer(
 					extraResultPlanner.getQueryContext(),
 					extraResultPlanner.getLocale(),
-					extraResultPlanner.getFilteringFormula()
+					extraResultPlanner.getFilteringFormula(),
+					extraResultPlanner.getFilteringFormulaWithoutUserFilter()
 				)
 			);
 	}
@@ -87,10 +88,16 @@ public abstract class AbstractHierarchyTranslator {
 		final HierarchyStopAtRequireConstraint filter = stopAt.getGenericHierarchyOutputRequireConstraint();
 		if (filter instanceof HierarchyLevel levelConstraint) {
 			final int requiredLevel = levelConstraint.getLevel();
-			return (hierarchyNodeId, level, distance) -> level == requiredLevel;
+			return new HierarchyEntityPredicate(
+				value -> true,
+				(level, distance) -> level <= requiredLevel
+			);
 		} else if (filter instanceof HierarchyDistance distanceCnt) {
 			final int requiredDistance = distanceCnt.getDistance();
-			return (hierarchyNodeId, level, distance) -> distance == requiredDistance;
+			return new HierarchyEntityPredicate(
+				value -> true,
+				(level, distance) -> distance > -1 && distance <= requiredDistance
+			);
 		} else if (filter instanceof HierarchyNode node) {
 			final FilterBy filterBy = node.getFilterBy();
 			final EntityCollection referencedEntityCollection = extraResultPlanningVisitor.getEntityCollectionOrThrowException(
@@ -99,7 +106,10 @@ public abstract class AbstractHierarchyTranslator {
 			// TODO JNO - INSPIRE HERE
 			// ReferencedEntityFetcher.getFilteredReferencedEntityIds()
 			final Formula filteredIds = EmptyFormula.INSTANCE;
-			return new FilteredHierarchyEntityPredicate(filteredIds);
+			return new HierarchyEntityPredicate(
+				new FilteredHierarchyEntityPredicate(filteredIds),
+				(level, distance) -> true
+			);
 		} else {
 			return null;
 		}

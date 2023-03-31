@@ -31,7 +31,6 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchySiblings;
 import io.evitadb.api.query.require.HierarchyStatistics;
-import io.evitadb.api.query.require.StatisticsBase;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -46,9 +45,8 @@ public class HierarchySiblingsSerializer extends Serializer<HierarchySiblings> {
 	public void write(Kryo kryo, Output output, HierarchySiblings object) {
 		output.writeString(object.getOutputName());
 		kryo.writeObjectOrNull(output, object.getFilterBy(), FilterBy.class);
-		kryo.writeObjectOrNull(output, object.getEntityFetch(), EntityFetch.class);
-		// TODO JNO - handle enum
-		output.writeBoolean(object.isStatisticRequired());
+		kryo.writeObjectOrNull(output, object.getEntityFetch().orElse(null), EntityFetch.class);
+		kryo.writeObjectOrNull(output, object.getStatistics().orElse(null), HierarchyStatistics.class);
 	}
 
 	@Override
@@ -56,7 +54,7 @@ public class HierarchySiblingsSerializer extends Serializer<HierarchySiblings> {
 		final String outputName = input.readString();
 		final FilterBy filterBy = kryo.readObjectOrNull(input, FilterBy.class);
 		final EntityFetch entityFetch = kryo.readObjectOrNull(input, EntityFetch.class);
-		final HierarchyStatistics statistics = input.readBoolean() ? new HierarchyStatistics(StatisticsBase.COMPLETE_FILTER) : null;
+		final HierarchyStatistics statistics = kryo.readObjectOrNull(input, HierarchyStatistics.class);
 		return new HierarchySiblings(outputName, filterBy, entityFetch, statistics);
 	}
 

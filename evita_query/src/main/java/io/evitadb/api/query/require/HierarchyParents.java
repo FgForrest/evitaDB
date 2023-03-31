@@ -31,9 +31,12 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Optional;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * TOBEDONE JNO: docs
@@ -87,53 +90,54 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 	/**
 	 * Returns the condition that limits the top-down hierarchy traversal.
 	 */
-	@Nullable
-	public HierarchyStopAt getStopAt() {
+	@Nonnull
+	public Optional<HierarchyStopAt> getStopAt() {
 		for (RequireConstraint constraint : getChildren()) {
 			if (constraint instanceof HierarchyStopAt hierarchyStopAt) {
-				return hierarchyStopAt;
+				return of(hierarchyStopAt);
 			}
 		}
-		return null;
+		return empty();
 	}
 
 	/**
 	 * Returns the constraint that defines whether siblings of all (or specific) returned parent nodes should
 	 * be returned and what content requirements are connected with them.
 	 */
-	@Nullable
-	public HierarchySiblings getSiblings() {
+	@Nonnull
+	public Optional<HierarchySiblings> getSiblings() {
 		for (RequireConstraint constraint : getChildren()) {
 			if (constraint instanceof HierarchySiblings hierarchySiblings) {
-				return hierarchySiblings;
+				return of(hierarchySiblings);
 			}
 		}
-		return null;
+		return empty();
 	}
 
 	/**
 	 * Returns content requirements for hierarchy entities.
 	 */
-	@Nullable
-	public EntityFetch getEntityFetch() {
+	@Nonnull
+	public Optional<EntityFetch> getEntityFetch() {
 		for (RequireConstraint constraint : getChildren()) {
 			if (constraint instanceof EntityFetch entityFetch) {
-				return entityFetch;
+				return of(entityFetch);
 			}
 		}
-		return null;
+		return empty();
 	}
 
 	/**
-	 * Returns true if the hierarchy entities should be accompanied with the count of their valid immediate children.
+	 * Returns {@link HierarchyStatistics} settings.
 	 */
-	public boolean isStatisticRequired() {
+	@Nonnull
+	public Optional<HierarchyStatistics> getStatistics() {
 		for (RequireConstraint constraint : getChildren()) {
-			if (constraint instanceof HierarchyStatistics) {
-				return true;
+			if (constraint instanceof HierarchyStatistics statistics) {
+				return of(statistics);
 			}
 		}
-		return false;
+		return empty();
 	}
 
 	@Override

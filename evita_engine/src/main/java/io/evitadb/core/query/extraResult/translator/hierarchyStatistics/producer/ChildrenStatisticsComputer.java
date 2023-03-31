@@ -25,6 +25,8 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.StatisticsHierarchyVisitor;
@@ -33,6 +35,7 @@ import org.roaringbitmap.RoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -43,21 +46,27 @@ import java.util.List;
  */
 public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsComputer {
 
+
 	public ChildrenStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
-		@Nullable HierarchyEntityPredicate nodeFilter,
-		@Nonnull HierarchyEntityFetcher entityFetcher
+		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nonnull HierarchyEntityPredicate nodeFilter,
+		@Nullable StatisticsBase statisticsBase,
+		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, nodeFilter);
+		super(context, entityFetcher, nodeFilter, statisticsBase, statisticsType);
 	}
 
 	@Nonnull
 	@Override
-	protected List<LevelInfo> createStatistics(@Nonnull RoaringBitmap filteredEntityPks, @Nonnull HierarchyEntityPredicate nodePredicate) {
+	protected List<LevelInfo> createStatistics(
+		@Nonnull RoaringBitmap filteredEntityPks,
+		@Nonnull HierarchyEntityPredicate nodePredicate
+	) {
 		final Deque<Accumulator> accumulator = new LinkedList<>();
 
 		// accumulator is used to gather information about its children gradually
-		final Accumulator root = new Accumulator(null, 0);
+		final Accumulator root = new Accumulator(null, () -> 0);
 		accumulator.add(root);
 
 		if (context.hierarchyWithin() instanceof HierarchyWithinRoot hierarchyWithinRoot) {
@@ -66,7 +75,8 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 				new StatisticsHierarchyVisitor(
 					context.removeEmptyResults(), nodePredicate,
 					filteredEntityPks, accumulator,
-					context.hierarchyReferencingEntityPks(), entityFetcher
+					context.hierarchyReferencingEntityPks(), entityFetcher,
+					statisticsType
 				),
 				hierarchyWithinRoot.getExcludedChildrenIds()
 			);
@@ -76,7 +86,8 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 				new StatisticsHierarchyVisitor(
 					context.removeEmptyResults(), nodePredicate,
 					filteredEntityPks, accumulator,
-					context.hierarchyReferencingEntityPks(), entityFetcher
+					context.hierarchyReferencingEntityPks(), entityFetcher,
+					statisticsType
 				),
 				hierarchyWithin.getParentId(),
 				hierarchyWithin.isExcludingRoot(),
@@ -88,7 +99,9 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 				new StatisticsHierarchyVisitor(
 					context.removeEmptyResults(), nodePredicate,
 					filteredEntityPks, accumulator,
-					context.hierarchyReferencingEntityPks(), entityFetcher
+					context.hierarchyReferencingEntityPks(),
+					entityFetcher,
+					statisticsType
 				)
 			);
 		}

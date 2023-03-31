@@ -39,26 +39,27 @@ class HierarchyFromRootTest {
 	void shouldCreateWithStopAtViaFactoryClassWorkAsExpected() {
 		final HierarchyFromRoot hierarchyFromRoot = fromRoot("megaMenu", stopAt(level(1)));
 		assertEquals("megaMenu", hierarchyFromRoot.getOutputName());
-		assertNull(hierarchyFromRoot.getEntityFetch());
-		assertFalse(hierarchyFromRoot.isStatisticRequired());
-		assertEquals(stopAt(level(1)), hierarchyFromRoot.getStopAt());
+		assertFalse(hierarchyFromRoot.getEntityFetch().isPresent());
+		assertFalse(hierarchyFromRoot.getStatistics().isPresent());
+		assertEquals(stopAt(level(1)), hierarchyFromRoot.getStopAt().orElse(null));
 	}
 
 	@Test
 	void shouldCreateWithEntityFetchViaFactoryClassWorkAsExpected() {
 		final HierarchyFromRoot hierarchyFromRoot = fromRoot("megaMenu", entityFetchAll());
 		assertEquals("megaMenu", hierarchyFromRoot.getOutputName());
-		assertNull(hierarchyFromRoot.getStopAt());
-		assertEquals(entityFetchAll(), hierarchyFromRoot.getEntityFetch());
+		assertFalse(hierarchyFromRoot.getStopAt().isPresent());
+		assertFalse(hierarchyFromRoot.getStatistics().isPresent());
+		assertEquals(entityFetchAll(), hierarchyFromRoot.getEntityFetch().orElse(null));
 	}
 
 	@Test
 	void shouldCreateWithStatisticsViaFactoryClassWorkAsExpected() {
 		final HierarchyFromRoot hierarchyFromRoot = fromRoot("megaMenu", statistics());
 		assertEquals("megaMenu", hierarchyFromRoot.getOutputName());
-		assertNull(hierarchyFromRoot.getStopAt());
-		assertNull(hierarchyFromRoot.getEntityFetch());
-		assertTrue(hierarchyFromRoot.isStatisticRequired());
+		assertFalse(hierarchyFromRoot.getStopAt().isPresent());
+		assertFalse(hierarchyFromRoot.getEntityFetch().isPresent());
+		assertEquals(statistics(), hierarchyFromRoot.getStatistics().orElse(null));
 	}
 
 	@Test
@@ -78,7 +79,7 @@ class HierarchyFromRootTest {
 		assertEquals("fromRoot('megaMenu',entityFetch(attributeContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", hierarchyFromRoot2.toString());
 
 		final HierarchyFromRoot hierarchyFromRoot3 = fromRoot("megaMenu", statistics());
-		assertEquals("fromRoot('megaMenu',statistics())", hierarchyFromRoot3.toString());
+		assertEquals("fromRoot('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchyFromRoot3.toString());
 	}
 
 	@Test

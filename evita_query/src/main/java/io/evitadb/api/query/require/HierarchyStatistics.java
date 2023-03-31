@@ -65,7 +65,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		super(
 			"statistics",
 			ArrayUtils.mergeArrays(
-				new Serializable[] {statisticsBase},
+				statisticsBase == null ? new Serializable[0] : new Serializable[] {statisticsBase},
 				statisticsType
 			)
 		);
@@ -102,7 +102,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 
 	@Override
 	public boolean isApplicable() {
-		return !isArgumentsNonNull() && getArguments().length == 1;
+		return isArgumentsNonNull() && getArguments().length >= 1;
 	}
 
 	@Nonnull

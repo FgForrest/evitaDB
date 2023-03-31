@@ -23,17 +23,17 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate;
 
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityPredicate;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
+import java.util.function.IntPredicate;
 
 /**
  * This class allows to test, whether the hierarchical entity has requested language variant.
  */
-public class LocaleHierarchyEntityPredicate implements HierarchyEntityPredicate {
+public class LocaleHierarchyEntityPredicate implements IntPredicate {
 	/**
 	 * Bitmap contains id of all hierarchical entities of the requested language.
 	 * Bitmap contains distinct primary ids ordered in ascending form.
@@ -45,7 +45,7 @@ public class LocaleHierarchyEntityPredicate implements HierarchyEntityPredicate 
 	}
 
 	@Override
-	public boolean test(int hierarchyNodeId, int level, int distance) {
+	public boolean test(int hierarchyNodeId) {
 		return recordsInLanguage.contains(hierarchyNodeId);
 	}
 

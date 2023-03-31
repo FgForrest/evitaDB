@@ -39,36 +39,36 @@ class HierarchyChildrenTest {
 	void shouldCreateWithStopAtViaFactoryClassWorkAsExpected() {
 		final HierarchyChildren hierarchyChildren = children("megaMenu");
 		assertEquals("megaMenu", hierarchyChildren.getOutputName());
-		assertNull(hierarchyChildren.getEntityFetch());
-		assertNull(hierarchyChildren.getStopAt());
-		assertFalse(hierarchyChildren.isStatisticRequired());
+		assertFalse(hierarchyChildren.getEntityFetch().isPresent());
+		assertFalse(hierarchyChildren.getStopAt().isPresent());
+		assertFalse(hierarchyChildren.getStatistics().isPresent());
 	}
 
 	@Test
 	void shouldCreateWithEntityFetchViaFactoryClassWorkAsExpected() {
 		final HierarchyChildren hierarchyChildren = children("megaMenu", entityFetchAll());
 		assertEquals("megaMenu", hierarchyChildren.getOutputName());
-		assertNull(hierarchyChildren.getStopAt());
-		assertEquals(entityFetchAll(), hierarchyChildren.getEntityFetch());
-		assertFalse(hierarchyChildren.isStatisticRequired());
+		assertFalse(hierarchyChildren.getStopAt().isPresent());
+		assertEquals(entityFetchAll(), hierarchyChildren.getEntityFetch().orElse(null));
+		assertFalse(hierarchyChildren.getStatistics().isPresent());
 	}
 
 	@Test
 	void shouldCreateWithStatisticsViaFactoryClassWorkAsExpected() {
 		final HierarchyChildren hierarchyChildren = children("megaMenu", statistics());
 		assertEquals("megaMenu", hierarchyChildren.getOutputName());
-		assertNull(hierarchyChildren.getStopAt());
-		assertNull(hierarchyChildren.getEntityFetch());
-		assertTrue(hierarchyChildren.isStatisticRequired());
+		assertFalse(hierarchyChildren.getStopAt().isPresent());
+		assertFalse(hierarchyChildren.getEntityFetch().isPresent());
+		assertEquals(statistics(StatisticsBase.WITHOUT_USER_FILTER), hierarchyChildren.getStatistics().orElse(null));
 	}
 	
 	@Test
 	void shouldCreateWithFilterByViaFactoryClassWorkAsExpected() {
 		final HierarchyChildren hierarchyChildren = children("megaMenu", stopAt(level(2)));
 		assertEquals("megaMenu", hierarchyChildren.getOutputName());
-		assertEquals(stopAt(level(2)), hierarchyChildren.getStopAt());
-		assertNull(hierarchyChildren.getEntityFetch());
-		assertFalse(hierarchyChildren.isStatisticRequired());
+		assertEquals(stopAt(level(2)), hierarchyChildren.getStopAt().orElse(null));
+		assertFalse(hierarchyChildren.getEntityFetch().isPresent());
+		assertFalse(hierarchyChildren.getStatistics().isPresent());
 	}
 
 	@Test
@@ -89,7 +89,7 @@ class HierarchyChildrenTest {
 		assertEquals("children('megaMenu',entityFetch(attributeContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", hierarchyChildren2.toString());
 
 		final HierarchyChildren hierarchyChildren3 = children("megaMenu", statistics());
-		assertEquals("children('megaMenu',statistics())", hierarchyChildren3.toString());
+		assertEquals("children('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchyChildren3.toString());
 	}
 
 	@Test

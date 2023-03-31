@@ -131,6 +131,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(HierarchyStopAt.class, new HierarchyStopAtSerializer(), index++);
 		kryo.register(HierarchySiblings.class, new HierarchySiblingsSerializer(), index++);
 		kryo.register(HierarchyStopAt.class, new HierarchyStopAtSerializer(), index++);
+		kryo.register(HierarchyStatistics.class, new HierarchyStatisticsSerializer(), index++);
 		kryo.register(PriceHistogram.class, new PriceHistogramSerializer(), index++);
 		kryo.register(io.evitadb.api.requestResponse.data.structure.Prices.class, new PriceContentSerializer(), index++);
 		kryo.register(ReferenceContent.class, new ReferenceContentSerializer(), index++);

@@ -29,6 +29,8 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
@@ -50,6 +52,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -93,6 +96,11 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 */
 	@Nonnull private final Formula filteringFormula;
 	/**
+	 * Contains filtering formula tree that was used to produce results so that computed {@link LevelInfo#queriedEntityCount()}
+	 * is reduced according to the input filter. The tree doesn't contain user filter part.
+	 */
+	@Nonnull private final Formula filteringFormulaWithoutUserFilter;
+	/**
 	 * Contains set of producer instances, that should build collections of {@link LevelInfo} for each requested
 	 * references. Each producer contains all information necessary.
 	 */
@@ -120,7 +128,9 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 					.collect(
 						Collectors.toMap(
 							Entry::getKey,
-							entry -> entry.getValue().createStatistics(filteringFormula, language)
+							entry -> entry.getValue().createStatistics(
+								filteringFormula, filteringFormulaWithoutUserFilter, language
+							)
 						)
 					)
 				)
@@ -137,7 +147,9 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 							.collect(
 								Collectors.toMap(
 									Entry::getKey,
-									entry -> entry.getValue().createStatistics(filteringFormula, language)
+									entry -> entry.getValue().createStatistics(
+										filteringFormula, filteringFormulaWithoutUserFilter, language
+									)
 								)
 							)
 					)
@@ -191,13 +203,15 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	public ExtraResultProducer computeChildren(
 		@Nonnull String outputName,
 		@Nullable HierarchyEntityPredicate predicate,
-		@Nullable HierarchyEntityFetcher entityFetcher
+		@Nullable HierarchyEntityFetcher entityFetcher,
+		@Nullable StatisticsBase statisticsBase,
+		@Nonnull EnumSet<StatisticsType> statisticsTypes
 	) {
 		addComputer(
 			"HierarchyChildren",
 			outputName,
 			ctx -> new ChildrenStatisticsComputer(
-				ctx, predicate, entityFetcher
+				ctx, entityFetcher, predicate, statisticsBase, statisticsTypes
 			)
 		);
 		return this;

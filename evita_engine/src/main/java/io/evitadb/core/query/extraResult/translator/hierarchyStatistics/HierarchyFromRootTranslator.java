@@ -24,13 +24,16 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.query.require.HierarchyFromRoot;
+import io.evitadb.api.query.require.HierarchyStatistics;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 
-import static java.util.Optional.ofNullable;
+import java.util.EnumSet;
+import java.util.Optional;
 
 /**
  * TODO JNO - document me
@@ -44,16 +47,19 @@ public class HierarchyFromRootTranslator
 	@Override
 	public ExtraResultProducer apply(HierarchyFromRoot fromRoot, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		final HierarchyStatisticsProducer producer = getHierarchyStatisticsProducer(extraResultPlanningVisitor);
+		final Optional<HierarchyStatistics> statistics = fromRoot.getStatistics();
 		producer.computeChildren(
 			fromRoot.getOutputName(),
-			ofNullable(fromRoot.getStopAt())
+			fromRoot.getStopAt()
 				.map(stopAt -> stopAtConstraintToPredicate(fromRoot.getName(), extraResultPlanningVisitor, producer, stopAt))
 				.orElse(null),
 			createEntityFetcher(
 				fromRoot,
-				fromRoot.getEntityFetch(),
+				fromRoot.getEntityFetch().orElse(null),
 				producer
-			)
+			),
+			statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
+			statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
 		);
 		return producer;
 	}

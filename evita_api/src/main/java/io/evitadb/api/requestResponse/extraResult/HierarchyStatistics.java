@@ -291,7 +291,11 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	) implements Comparable<LevelInfo> {
 		@Override
 		public String toString() {
-			return "[" + queriedEntityCount + "] " + entity;
+			if (queriedEntityCount == null && childrenCount == null) {
+				return entity.toString();
+			} else {
+				return "[" + queriedEntityCount + ":" + childrenCount + "] " + entity;
+			}
 		}
 
 		@Override

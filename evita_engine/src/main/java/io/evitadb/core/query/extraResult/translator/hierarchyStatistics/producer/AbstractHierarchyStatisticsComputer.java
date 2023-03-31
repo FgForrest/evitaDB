@@ -25,6 +25,8 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.LocaleHierarchyEntityPredicate;
@@ -33,6 +35,7 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -55,12 +58,28 @@ public abstract class AbstractHierarchyStatisticsComputer {
 	 */
 	@Nonnull
 	private final HierarchyEntityPredicate nodeFilter;
+	/**
+	 * TODO JNO - document me
+	 */
+	private final StatisticsBase statisticsBase;
+	/**
+	 * TODO JNO - document me
+	 */
+	protected final EnumSet<StatisticsType> statisticsType;
 
-	public AbstractHierarchyStatisticsComputer(@Nonnull HierarchyProducerContext context, @Nonnull HierarchyEntityFetcher entityFetcher, @Nonnull HierarchyEntityPredicate nodeFilter) {
+	public AbstractHierarchyStatisticsComputer(
+		@Nonnull HierarchyProducerContext context,
+		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nonnull HierarchyEntityPredicate nodeFilter,
+		@Nullable StatisticsBase statisticsBase,
+		@Nonnull EnumSet<StatisticsType> statisticsType
+	) {
 		this.context = context;
 		this.entityFetcher = entityFetcher;
 		this.nodeFilter = Optional.ofNullable(nodeFilter)
-			.orElse((hierarchyNodeId, level, distance) -> true);
+			.orElse(HierarchyEntityPredicate.MATCH_ALL);
+		this.statisticsBase = statisticsBase;
+		this.statisticsType = statisticsType;
 	}
 
 	/**
@@ -69,13 +88,25 @@ public abstract class AbstractHierarchyStatisticsComputer {
 	 * `filteringFormula` to limit the reported cardinalities in level info objects.
 	 */
 	@Nonnull
-	public final List<LevelInfo> createStatistics(@Nonnull Formula filteringFormula, @Nullable Locale language) {
+	public final List<LevelInfo> createStatistics(
+		@Nonnull Formula filteringFormula,
+		@Nonnull Formula filteringFormulaWithoutUserFilter,
+		@Nullable Locale language
+	) {
 		// get roaring bitmap of filtering entity ids
-		final RoaringBitmap filteredEntityPks = RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
+		final RoaringBitmap filteredEntityPks = RoaringBitmapBackedBitmap.getRoaringBitmap(
+			statisticsBase == StatisticsBase.WITHOUT_USER_FILTER ?
+				filteringFormulaWithoutUserFilter.compute() : filteringFormula.compute()
+		);
 		// the language predicate is used to filter out entities that doesn't have requested language variant
 		final HierarchyEntityPredicate resolvedNodePredicate = language == null ?
 			nodeFilter :
-			new LocaleHierarchyEntityPredicate(context.entityIndex(), language).and(nodeFilter);
+			nodeFilter.and(
+				new HierarchyEntityPredicate(
+					new LocaleHierarchyEntityPredicate(context.entityIndex(), language),
+					(level, distance) -> true
+				)
+			);
 
 		return createStatistics(filteredEntityPks, resolvedNodePredicate);
 	}
@@ -87,6 +118,9 @@ public abstract class AbstractHierarchyStatisticsComputer {
 	 * @return
 	 */
 	@Nonnull
-	protected abstract List<LevelInfo> createStatistics(@Nonnull RoaringBitmap filteredEntityPks, @Nonnull HierarchyEntityPredicate nodePredicate);
+	protected abstract List<LevelInfo> createStatistics(
+		@Nonnull RoaringBitmap filteredEntityPks,
+		@Nonnull HierarchyEntityPredicate nodePredicate
+	);
 
 }

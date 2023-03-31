@@ -27,35 +27,40 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.HierarchyFromRoot;
 import io.evitadb.api.query.require.HierarchyStatistics;
-import io.evitadb.api.query.require.HierarchyStopAt;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 import lombok.RequiredArgsConstructor;
 
+import java.util.EnumSet;
+
 /**
- * This {@link Serializer} implementation reads/writes {@link HierarchyFromRoot} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link HierarchyStatistics} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class HierarchyFromRootSerializer extends Serializer<HierarchyFromRoot> {
+public class HierarchyStatisticsSerializer extends Serializer<HierarchyStatistics> {
 
 	@Override
-	public void write(Kryo kryo, Output output, HierarchyFromRoot object) {
-		output.writeString(object.getOutputName());
-		kryo.writeObjectOrNull(output, object.getStopAt().orElse(null), HierarchyStopAt.class);
-		kryo.writeObjectOrNull(output, object.getEntityFetch().orElse(null), EntityFetch.class);
-		kryo.writeObjectOrNull(output, object.getStatistics().orElse(null), HierarchyStatistics.class);
+	public void write(Kryo kryo, Output output, HierarchyStatistics object) {
+		kryo.writeClassAndObject(output, object.getStatisticsBase());
+		final EnumSet<StatisticsType> statisticsType = object.getStatisticsType();
+		output.writeVarInt(statisticsType.size(), true);
+		for (StatisticsType type : statisticsType) {
+			kryo.writeObject(output, type);
+		}
 	}
 
 	@Override
-	public HierarchyFromRoot read(Kryo kryo, Input input, Class<? extends HierarchyFromRoot> type) {
-		final String outputName = input.readString();
-		final HierarchyStopAt stopAt = kryo.readObjectOrNull(input, HierarchyStopAt.class);
-		final EntityFetch entityFetch = kryo.readObjectOrNull(input, EntityFetch.class);
-		final HierarchyStatistics statistics = kryo.readObjectOrNull(input, HierarchyStatistics.class);
-		return new HierarchyFromRoot(outputName, stopAt, entityFetch, statistics);
+	public HierarchyStatistics read(Kryo kryo, Input input, Class<? extends HierarchyStatistics> type) {
+		final StatisticsBase statisticsBase = kryo.readObject(input, StatisticsBase.class);
+		final int typeCount = input.readVarInt(true);
+		final StatisticsType[] types = new StatisticsType[typeCount];
+		for (int i = 0; i < typeCount; i++) {
+			types[i] = kryo.readObject(input, StatisticsType.class);
+		}
+		return new HierarchyStatistics(statisticsBase, types);
 	}
 
 }

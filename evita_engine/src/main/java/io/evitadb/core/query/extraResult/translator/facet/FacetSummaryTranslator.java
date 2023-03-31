@@ -94,6 +94,7 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 			facetSummaryProducer = new FacetSummaryProducer(
 				extraResultPlanner.getQueryContext(),
 				extraResultPlanner.getFilteringFormula(),
+				extraResultPlanner.getFilteringFormulaWithoutUserFilter(),
 				facetIndexes,
 				requestedFacets
 			);

@@ -24,9 +24,10 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate;
 
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityPredicate;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
+
+import java.util.function.IntPredicate;
 
 /**
  * TODO JNO - document me
@@ -34,12 +35,12 @@ import lombok.RequiredArgsConstructor;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class FilteredHierarchyEntityPredicate implements HierarchyEntityPredicate {
+public class FilteredHierarchyEntityPredicate implements IntPredicate {
 	private final Formula filteredIds;
 	private Bitmap computedIds;
 
 	@Override
-	public boolean test(int hierarchyNodeId, int level, int distance) {
+	public boolean test(int hierarchyNodeId) {
 		if (computedIds == null) {
 			computedIds = filteredIds.compute();
 		}

@@ -35,6 +35,7 @@ import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
@@ -134,6 +135,11 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	private ExtraResultProducer lastReturnedProducer;
 	/**
+	 * Contains {@link #getFilteringFormula()} without {@link UserFilterFormula} sub-trees. The field is initialized
+	 * lazily.
+	 */
+	private Formula filteringFormulaWithoutUserFilter;
+	/**
 	 * Contains set (usually of size == 1 or 0) that contains references to the {@link UserFilterFormula} inside
 	 * {@link #filteringFormula}. This is a helper field that allows to reuse result of the formula search multiple
 	 * times.
@@ -172,6 +178,22 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link UserFilterFormula} parts.
+	 * Result of this method is cached so that additional calls introduce no performance penalty and also the formula
+	 * memoized sub-results are shared once the {@link Formula#compute()} method is called for the first time.
+	 */
+	@Nonnull
+	public Formula getFilteringFormulaWithoutUserFilter() {
+		if (filteringFormulaWithoutUserFilter == null) {
+			filteringFormulaWithoutUserFilter = FormulaCloner.clone(
+				filteringFormula,
+				formula -> formula instanceof UserFilterFormula ? null : formula
+			);
+		}
+		return filteringFormulaWithoutUserFilter;
 	}
 
 	/**

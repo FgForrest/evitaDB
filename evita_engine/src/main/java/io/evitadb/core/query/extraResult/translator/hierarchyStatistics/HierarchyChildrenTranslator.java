@@ -24,6 +24,8 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.query.require.HierarchyChildren;
+import io.evitadb.api.query.require.HierarchyStatistics;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
@@ -31,7 +33,8 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.AbstractHierarchyStatisticsComputer;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 
-import static java.util.Optional.ofNullable;
+import java.util.EnumSet;
+import java.util.Optional;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} translates {@link HierarchyChildren} to
@@ -46,16 +49,19 @@ public class HierarchyChildrenTranslator
 	@Override
 	public ExtraResultProducer apply(HierarchyChildren hierarchyChildren, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		final HierarchyStatisticsProducer producer = getHierarchyStatisticsProducer(extraResultPlanningVisitor);
+		final Optional<HierarchyStatistics> statistics = hierarchyChildren.getStatistics();
 		producer.computeChildren(
 			hierarchyChildren.getOutputName(),
-			ofNullable(hierarchyChildren.getStopAt())
+			hierarchyChildren.getStopAt()
 				.map(stopAt -> stopAtConstraintToPredicate(hierarchyChildren.getName(), extraResultPlanningVisitor, producer, stopAt))
 				.orElse(null),
 			createEntityFetcher(
 				hierarchyChildren,
-				hierarchyChildren.getEntityFetch(),
+				hierarchyChildren.getEntityFetch().orElse(null),
 				producer
-			)
+			),
+			statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
+			statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
 		);
 		return producer;
 	}

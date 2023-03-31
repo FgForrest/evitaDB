@@ -33,4 +33,5 @@ import java.util.function.IntFunction;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface HierarchyEntityFetcher extends IntFunction<EntityClassifier> {
+
 }

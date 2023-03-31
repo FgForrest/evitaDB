@@ -39,49 +39,49 @@ class HierarchyParentsTest {
 	void shouldCreateWithStopAtViaFactoryClassWorkAsExpected() {
 		final HierarchyParents hierarchyParents = parents("megaMenu");
 		assertEquals("megaMenu", hierarchyParents.getOutputName());
-		assertNull(hierarchyParents.getEntityFetch());
-		assertNull(hierarchyParents.getStopAt());
-		assertNull(hierarchyParents.getSiblings());
-		assertFalse(hierarchyParents.isStatisticRequired());
+		assertFalse(hierarchyParents.getEntityFetch().isPresent());
+		assertFalse(hierarchyParents.getStopAt().isPresent());
+		assertFalse(hierarchyParents.getSiblings().isPresent());
+		assertFalse(hierarchyParents.getStatistics().isPresent());
 	}
 
 	@Test
 	void shouldCreateWithEntityFetchViaFactoryClassWorkAsExpected() {
 		final HierarchyParents hierarchyParents = parents("megaMenu", entityFetchAll());
 		assertEquals("megaMenu", hierarchyParents.getOutputName());
-		assertNull(hierarchyParents.getStopAt());
-		assertNull(hierarchyParents.getSiblings());
-		assertEquals(entityFetchAll(), hierarchyParents.getEntityFetch());
+		assertFalse(hierarchyParents.getStopAt().isPresent());
+		assertFalse(hierarchyParents.getSiblings().isPresent());
+		assertEquals(entityFetchAll(), hierarchyParents.getEntityFetch().orElse(null));
 	}
 
 	@Test
 	void shouldCreateWithStatisticsViaFactoryClassWorkAsExpected() {
 		final HierarchyParents hierarchyParents = parents("megaMenu", statistics());
 		assertEquals("megaMenu", hierarchyParents.getOutputName());
-		assertNull(hierarchyParents.getStopAt());
-		assertNull(hierarchyParents.getSiblings());
-		assertNull(hierarchyParents.getEntityFetch());
-		assertTrue(hierarchyParents.isStatisticRequired());
+		assertFalse(hierarchyParents.getStopAt().isPresent());
+		assertFalse(hierarchyParents.getSiblings().isPresent());
+		assertFalse(hierarchyParents.getEntityFetch().isPresent());
+		assertEquals(statistics(), hierarchyParents.getStatistics().orElse(null));
 	}
 	
 	@Test
 	void shouldCreateWithFilterByViaFactoryClassWorkAsExpected() {
 		final HierarchyParents hierarchyParents = parents("megaMenu", stopAt(level(2)));
 		assertEquals("megaMenu", hierarchyParents.getOutputName());
-		assertEquals(stopAt(level(2)), hierarchyParents.getStopAt());
-		assertNull(hierarchyParents.getSiblings());
-		assertNull(hierarchyParents.getEntityFetch());
-		assertFalse(hierarchyParents.isStatisticRequired());
+		assertEquals(stopAt(level(2)), hierarchyParents.getStopAt().orElse(null));
+		assertFalse(hierarchyParents.getSiblings().isPresent());
+		assertFalse(hierarchyParents.getEntityFetch().isPresent());
+		assertFalse(hierarchyParents.getStatistics().isPresent());
 	}
 
 	@Test
 	void shouldCreateWithSiblingsByViaFactoryClassWorkAsExpected() {
 		final HierarchyParents hierarchyParents = parents("megaMenu", siblings());
 		assertEquals("megaMenu", hierarchyParents.getOutputName());
-		assertNull(hierarchyParents.getStopAt());
-		assertEquals(siblings(), hierarchyParents.getSiblings());
-		assertNull(hierarchyParents.getEntityFetch());
-		assertFalse(hierarchyParents.isStatisticRequired());
+		assertFalse(hierarchyParents.getStopAt().isPresent());
+		assertEquals(siblings(), hierarchyParents.getSiblings().orElse(null));
+		assertFalse(hierarchyParents.getEntityFetch().isPresent());
+		assertFalse(hierarchyParents.getStatistics().isPresent());
 	}
 
 	@Test
@@ -103,7 +103,7 @@ class HierarchyParentsTest {
 		assertEquals("parents('megaMenu',entityFetch(attributeContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", hierarchyParents2.toString());
 
 		final HierarchyParents hierarchyParents3 = parents("megaMenu", statistics());
-		assertEquals("parents('megaMenu',statistics())", hierarchyParents3.toString());
+		assertEquals("parents('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchyParents3.toString());
 
 		final HierarchyParents hierarchyParents4 = parents("megaMenu", siblings());
 		assertEquals("parents('megaMenu',siblings())", hierarchyParents4.toString());
