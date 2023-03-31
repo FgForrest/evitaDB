@@ -87,6 +87,10 @@ public class Accumulator {
 		);
 	}
 
+	/**
+	 * Method computes the number of queried entities aggregating the information from children and also omitted
+	 * entity count (the number of queried entities that belong to nodes that are not part of the requested output).
+	 */
 	public int getQueriedEntityCount() {
 		return IntStream.concat(
 			IntStream.of(queriedEntityCount.getAsInt()),
@@ -94,22 +98,35 @@ public class Accumulator {
 		).sum() + omittedQueuedEntityCount;
 	}
 
+	/**
+	 * Method computes the number of immediate children nodes of this {@link #entity} combining the size of
+	 * the {@link #children} and the count of omitted children that were not requested in the output.
+	 */
 	public int getChildrenCount() {
 		return omittedChildren + children.size();
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Registers a node that matches the requirement conditions but is not requested in output.
 	 */
 	public void registerOmittedChild() {
 		omittedChildren++;
 	}
 
+	/**
+	 * Registers a count of queried entities that are part of the requested tree that matches the filter but is not
+	 * requested in the output.
+	 */
 	public void registerOmittedCardinality(int cardinality) {
 		omittedQueuedEntityCount += cardinality;
 	}
 
-	public void executeOmissionBlock(Runnable runnable) {
+	/**
+	 * Invokes lambda function in an "omission block". It means that the logic within this block should start registering
+	 * "omitted" data instead of regular data in the {@link #children}. This data were not requested in the output, but
+	 * they still represent a valida data to be accounted.
+	 */
+	public void executeOmissionBlock(@Nonnull Runnable runnable) {
 		try {
 			Assert.isPremiseValid(!omissionBlock, "Already in omission block!");
 			omissionBlock = true;
@@ -119,7 +136,11 @@ public class Accumulator {
 		}
 	}
 
+	/**
+	 * Returns true if there is currently omission block active.
+	 */
 	public boolean isInOmissionBlock() {
 		return omissionBlock;
 	}
+
 }

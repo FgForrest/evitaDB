@@ -60,10 +60,10 @@ public class HierarchyFromRootTranslator
 		} else {
 			final HierarchyFilteringPredicate filteringPredicate = fromRoot.getFilterBy()
 				.map(it -> (HierarchyFilteringPredicate) new FilteredHierarchyEntityPredicate(context, it))
-				.orElse(HierarchyEntityPredicate.ACCEPT_ALL_NODES_PREDICATE);
+				.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 			final HierarchyTraversalPredicate traversingPredicate = fromRoot.getStopAt()
 				.map(it -> stopAtConstraintToPredicate(context, it))
-				.orElse(HierarchyEntityPredicate.NEVER_STOP_PREDICATE);
+				.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 			hierarchyEntityPredicate = new HierarchyEntityPredicate(
 				filteringPredicate,
 				traversingPredicate

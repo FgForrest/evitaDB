@@ -30,7 +30,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.AbstractHierarchyStatisticsComputer;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.ChildrenStatisticsComputer;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 
@@ -39,7 +39,7 @@ import java.util.Optional;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} translates {@link HierarchyChildren} to
- * configuration of {@link AbstractHierarchyStatisticsComputer} computer configuration.
+ * {@link ChildrenStatisticsComputer} computer instance.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

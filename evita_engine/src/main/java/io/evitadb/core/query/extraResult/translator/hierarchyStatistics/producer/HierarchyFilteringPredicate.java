@@ -25,33 +25,49 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
+import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 
 import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - document me
+ * The predicate controls the visibility for the hierarchical entities that take part in hierarchy statistics
+ * computation. The hierarchical entities that are not matched by this predicate will not be counted nor present
+ * in the output.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface HierarchyFilteringPredicate extends IntPredicate {
 
+	HierarchyFilteringPredicate ACCEPT_ALL_NODES_PREDICATE = hierarchNodeId -> true;
+
+	/**
+	 * Method returns the {@link Formula} that produces the {@link Bitmap} of hierarchical entity primary keys, that
+	 * are matched by this predicate.
+	 */
 	@Nullable
 	default Formula getFilteringFormula() {
 		return null;
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * The copy of the {@link Predicate#and(Predicate)} that combines two {@link HierarchyFilteringPredicate} producing
+	 * another one in conjunction scope.
 	 */
+	@Nonnull
 	default HierarchyFilteringPredicate and(@Nonnull HierarchyFilteringPredicate other) {
 		return new CompositeHierarchyFilteringPredicate(this, other);
 	}
 
+	/**
+	 * Implementation of {@link HierarchyFilteringPredicate} that combines two implementations of the same type with
+	 * AND relation.
+	 */
 	@RequiredArgsConstructor
 	class CompositeHierarchyFilteringPredicate implements HierarchyFilteringPredicate {
 		private final HierarchyFilteringPredicate first;
@@ -62,7 +78,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		public Formula getFilteringFormula() {
 			return ofNullable(first.getFilteringFormula())
 				.map(formula -> ofNullable(second.getFilteringFormula())
-					.map(it -> (Formula)new AndFormula(formula, it))
+					.map(it -> (Formula) new AndFormula(formula, it))
 					.orElse(formula)
 				)
 				.orElse(second.getFilteringFormula());

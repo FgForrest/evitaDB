@@ -37,11 +37,9 @@ import java.util.Objects;
  */
 @RequiredArgsConstructor
 public class HierarchyEntityPredicate {
-	public static final HierarchyFilteringPredicate ACCEPT_ALL_NODES_PREDICATE = hierarchNodeId -> true;
-	public static final HierarchyTraversalPredicate NEVER_STOP_PREDICATE = (hierarchyNodeId, level, distance) -> true;
 	public static final HierarchyEntityPredicate MATCH_ALL = new HierarchyEntityPredicate(
-		ACCEPT_ALL_NODES_PREDICATE,
-		NEVER_STOP_PREDICATE
+		HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE,
+		HierarchyTraversalPredicate.NEVER_STOP_PREDICATE
 	);
 
 	private final HierarchyFilteringPredicate hierarchyNodePredicate;

@@ -23,12 +23,21 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
+import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+
+import javax.annotation.Nonnull;
+import java.util.function.Predicate;
+
 /**
- * TODO JNO - document me
+ * The predicate controls the scope of the computed hierarchy statistics tree. In other words it defines the scope for
+ * which the {@link LevelInfo} objects will be generated. It does not define the visibility scope, however.
+ * The visibility scope is driven by {@link HierarchyFilteringPredicate}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface HierarchyTraversalPredicate {
+
+	HierarchyTraversalPredicate NEVER_STOP_PREDICATE = (hierarchyNodeId, level, distance) -> true;
 
 	/**
 	 * Method should return true or false in case the predicate matches the traversed node or its position in the tree.
@@ -41,9 +50,11 @@ public interface HierarchyTraversalPredicate {
 	boolean test(int hierarchyNodeId, int level, int distance);
 
 	/**
-	 * TODO JNO - document me
+	 * The copy of the {@link Predicate#and(Predicate)} that combines two {@link HierarchyTraversalPredicate} producing
+	 * another one in conjunction scope.
 	 */
-	default HierarchyTraversalPredicate and(HierarchyTraversalPredicate other) {
+	@Nonnull
+	default HierarchyTraversalPredicate and(@Nonnull HierarchyTraversalPredicate other) {
 		return (hierarchyNodeId, level, distance) ->
 			test(hierarchyNodeId, level, distance) && other.test(hierarchyNodeId, level, distance);
 	}

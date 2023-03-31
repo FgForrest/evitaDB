@@ -24,7 +24,8 @@
 package io.evitadb.api.query.require;
 
 /**
- * TODO JNO - document me
+ * The enumeration controls {@link HierarchyOfReference} behaviour whether the hierarchical nodes that are not referred
+ * by any of the queried entities should be part of the result hierarchy statistics tree.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

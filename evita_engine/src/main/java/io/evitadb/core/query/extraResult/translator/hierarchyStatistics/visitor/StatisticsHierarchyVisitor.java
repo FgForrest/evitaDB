@@ -66,13 +66,14 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 	 */
 	@Nonnull private final HierarchyEntityFetcher entityFetcher;
 	/**
-	 * TODO JNO - document me
+	 * Field contains set of all {@link StatisticsType} required by the input query.
 	 */
 	@Nonnull private final EnumSet<StatisticsType> statisticsType;
 	/**
-	 * TODO JNO - document me
+	 * Internal function that creates a formula that computes the number of queried entities linked to the processed
+	 * {@link HierarchyNode}.
 	 */
-	private final ToIntBiFunction<HierarchyNode, Formula> queuedEntityComputer;
+	private final ToIntBiFunction<HierarchyNode, Formula> queriedEntityComputer;
 
 	public StatisticsHierarchyVisitor(boolean removeEmptyResults, @Nonnull HierarchyEntityPredicate entityPredicate, @Nonnull Formula filteredEntityPks, @Nonnull Deque<Accumulator> accumulator, @Nonnull IntFunction<Formula> hierarchyReferencingEntityPks, @Nonnull HierarchyEntityFetcher entityFetcher, @Nonnull EnumSet<StatisticsType> statisticsType) {
 		this.removeEmptyResults = removeEmptyResults;
@@ -80,7 +81,7 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 		this.accumulator = accumulator;
 		this.entityFetcher = entityFetcher;
 		this.statisticsType = statisticsType;
-		this.queuedEntityComputer = (hierarchyNode, predicateFilteringFormula) -> {
+		this.queriedEntityComputer = (hierarchyNode, predicateFilteringFormula) -> {
 			// get all queried entity primary keys that refer to this hierarchical node
 			final Formula allEntitiesReferencingEntity = hierarchyReferencingEntityPks.apply(hierarchyNode.entityPrimaryKey());
 			// now combine them with primary keys that are really returned by the query and compute matching count
@@ -111,7 +112,7 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 			if (entityPredicate.test(entityPrimaryKey)) {
 				// in omission block compute only cardinality of queued entities
 				topAccumulator.registerOmittedCardinality(
-					queuedEntityComputer.applyAsInt(node, entityPredicate.getFilteringFormula())
+					queriedEntityComputer.applyAsInt(node, entityPredicate.getFilteringFormula())
 				);
 			}
 			// but deeply
@@ -122,7 +123,7 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 					// now fetch the appropriate form of the hierarchical entity
 					final EntityClassifier hierarchyEntity = entityFetcher.apply(entityPrimaryKey);
 					// and create element in accumulator that will be filled in
-					accumulator.push(new Accumulator(hierarchyEntity, () -> queuedEntityComputer.applyAsInt(node, entityPredicate.getFilteringFormula())));
+					accumulator.push(new Accumulator(hierarchyEntity, () -> queriedEntityComputer.applyAsInt(node, entityPredicate.getFilteringFormula())));
 					// traverse subtree - filling up the accumulator on previous row
 					childrenTraverser.run();
 					// now remove current accumulator from stack
@@ -151,7 +152,7 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 					// and compute overall cardinality
 					if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
 						topAccumulator.registerOmittedCardinality(
-							queuedEntityComputer.applyAsInt(node, entityPredicate.getFilteringFormula())
+							queriedEntityComputer.applyAsInt(node, entityPredicate.getFilteringFormula())
 						);
 					}
 				}

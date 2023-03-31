@@ -26,7 +26,6 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predica
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyFilteringPredicate;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,14 +36,9 @@ import java.util.Locale;
  */
 public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredicate {
 	/**
-	 * Bitmap contains id of all hierarchical entities of the requested language.
-	 * Bitmap contains distinct primary ids ordered in ascending form.
+	 * Formula computes id of all hierarchical entities of the requested language.
 	 */
 	private final Formula filteringFormula;
-	/**
-	 * TODO JNO - compute me
-	 */
-	private Bitmap filteredResult;
 
 	public LocaleHierarchyEntityPredicate(@Nonnull EntityIndex targetIndex, @Nonnull Locale language) {
 		this.filteringFormula = targetIndex.getRecordsWithLanguageFormula(language);
@@ -58,10 +52,7 @@ public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredica
 
 	@Override
 	public boolean test(int hierarchyNodeId) {
-		if (filteredResult == null) {
-			filteredResult = filteringFormula.compute();
-		}
-		return filteredResult.contains(hierarchyNodeId);
+		return filteringFormula.compute().contains(hierarchyNodeId);
 	}
 
 }

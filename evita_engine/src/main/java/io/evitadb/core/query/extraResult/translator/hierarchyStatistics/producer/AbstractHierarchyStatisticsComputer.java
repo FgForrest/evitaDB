@@ -39,9 +39,9 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Producer class
+ * Abstract ancestor for hierarchy statistics computers. Contains shared logic and data.
  */
-public abstract class AbstractHierarchyStatisticsComputer {
+abstract class AbstractHierarchyStatisticsComputer {
 	/**
 	 * Context captured at the moment the computer was created.
 	 */
@@ -55,7 +55,7 @@ public abstract class AbstractHierarchyStatisticsComputer {
 	 * TODO JNO - DOCUMENT ME
 	 */
 	@Nonnull
-	private final HierarchyEntityPredicate nodeFilter;
+	private final HierarchyEntityPredicate scopeAndVisibilityFilter;
 	/**
 	 * TODO JNO - document me
 	 */
@@ -68,13 +68,13 @@ public abstract class AbstractHierarchyStatisticsComputer {
 	public AbstractHierarchyStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
-		@Nonnull HierarchyEntityPredicate nodeFilter,
+		@Nonnull HierarchyEntityPredicate scopeAndVisibilityFilter,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
 		this.context = context;
 		this.entityFetcher = entityFetcher;
-		this.nodeFilter = Optional.ofNullable(nodeFilter)
+		this.scopeAndVisibilityFilter = Optional.ofNullable(scopeAndVisibilityFilter)
 			.orElse(HierarchyEntityPredicate.MATCH_ALL);
 		this.statisticsBase = statisticsBase;
 		this.statisticsType = statisticsType;
@@ -93,8 +93,8 @@ public abstract class AbstractHierarchyStatisticsComputer {
 	) {
 		// the language predicate is used to filter out entities that doesn't have requested language variant
 		final HierarchyEntityPredicate resolvedNodePredicate = language == null ?
-			nodeFilter :
-			nodeFilter.and(
+			scopeAndVisibilityFilter :
+			scopeAndVisibilityFilter.and(
 				new HierarchyEntityPredicate(
 					new LocaleHierarchyEntityPredicate(context.entityIndex(), language),
 					(hierarchyNodeId, level, distance) -> true

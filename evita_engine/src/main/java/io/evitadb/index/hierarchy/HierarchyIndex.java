@@ -833,10 +833,15 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Interface allows to define a factory function accepting multiple placement information and create a traverser
+	 * logic from it.
 	 */
 	private interface TraverserFactory {
 
+		/**
+		 * Creates a lambda that will traverse contents of the `hierarchyNodeId` on specific `level` and `distance` from
+		 * the originally accessed root node.
+		 */
 		@Nonnull
 		Runnable apply(int hierarchyNodeId, int level, int distance);
 
