@@ -29,6 +29,7 @@ package io.evitadb.api.query.require;
  */
 public enum StatisticsType {
 
-	CHILDREN_COUNT, QUERIED_ENTITY_COUNT
+	CHILDREN_COUNT,
+	QUERIED_ENTITY_COUNT
 
 }

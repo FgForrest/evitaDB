@@ -23,12 +23,14 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 
 import java.util.function.IntFunction;
 
 /**
- * TODO JNO - document me
+ * Symbolic interface for fetching proper instance of {@link EntityClassifier} according to the {@link EntityFetch}
+ * requirement.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

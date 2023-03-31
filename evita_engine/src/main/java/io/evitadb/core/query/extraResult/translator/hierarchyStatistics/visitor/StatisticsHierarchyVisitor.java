@@ -54,13 +54,16 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 	 */
 	private final boolean removeEmptyResults;
 	/**
-	 * TODO JNO - document me
+	 * The predicate that controls the scope that will be returned in the form of {@link LevelInfo}.
 	 */
-	private HierarchyTraversalPredicate scopePredicate;
+	@Nonnull
+	private final HierarchyTraversalPredicate scopePredicate;
 	/**
-	 * TODO JNO - document me
+	 * The predicate controlling which hierarchical entities will be taken into an account
+	 * in {@link LevelInfo#childrenCount()} and {@link LevelInfo#queriedEntityCount()}.
 	 */
-	private HierarchyFilteringPredicate filterPredicate;
+	@Nonnull
+	private final HierarchyFilteringPredicate filterPredicate;
 	/**
 	 * Deque of accumulators allow to compose a tree of results
 	 */

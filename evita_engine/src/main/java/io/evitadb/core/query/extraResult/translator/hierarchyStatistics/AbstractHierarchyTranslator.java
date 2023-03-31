@@ -24,28 +24,22 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyDistance;
 import io.evitadb.api.query.require.HierarchyLevel;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.query.require.HierarchyStopAtRequireConstraint;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.core.EntityCollection;
-import io.evitadb.core.query.QueryContext;
-import io.evitadb.core.query.QueryPlan;
-import io.evitadb.core.query.QueryPlanner;
-import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyTraversalPredicate;
-import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -79,7 +73,8 @@ public abstract class AbstractHierarchyTranslator {
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Method creates a {@link HierarchyTraversalPredicate} controlling the scope of the generated {@link LevelInfo}
+	 * hierarchy statistics according the contents of the {@link HierarchyStopAt} constraint.
 	 */
 	@Nullable
 	protected static HierarchyTraversalPredicate stopAtConstraintToPredicate(
@@ -101,38 +96,11 @@ public abstract class AbstractHierarchyTranslator {
 	}
 
 	/**
-	 * TODO JNO - document me
-	 */
-	@Nonnull
-	private static Formula getNestedQueryFormula(
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull String referencedEntityType,
-		@Nonnull EntityCollection referencedEntityCollection,
-		@Nonnull FilterBy filterBy,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
-	) {
-		final QueryContext nestedQueryContext = referencedEntityCollection.createQueryContext(
-			filterByVisitor.getQueryContext(),
-			filterByVisitor.getEvitaRequest().deriveCopyWith(
-				referencedEntityType,
-				filterBy,
-				ofNullable(entityNestedQueryComparator)
-					.map(EntityNestedQueryComparator::getOrderBy)
-					.map(it -> new OrderBy(it.getChildren()))
-					.orElse(null)
-			),
-			filterByVisitor.getEvitaSession()
-		);
-		final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
-		if (entityNestedQueryComparator != null) {
-			entityNestedQueryComparator.initSorter(nestedQueryContext, queryPlan.getSorter());
-		}
-
-		return queryPlan.getFilter();
-	}
-
-	/**
-	 * TODO JNO - DOCUMENT ME
+	 * Method creates an implementation of {@link HierarchyEntityFetcher} that fabricates the proper instance of
+	 * {@link EntityClassifier} according to the {@link EntityFetch} requirement. It fabricates either:
+	 *
+	 * - thin {@link EntityClassifier} that contains only entity type and primary key
+	 * - {@link SealedEntity} with varying content according to requirements
 	 */
 	@Nonnull
 	protected HierarchyEntityFetcher createEntityFetcher(

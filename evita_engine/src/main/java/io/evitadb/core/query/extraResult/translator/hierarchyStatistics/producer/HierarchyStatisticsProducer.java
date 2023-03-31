@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
+import io.evitadb.api.query.require.HierarchyChildren;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.StatisticsBase;
@@ -196,7 +197,8 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Methods creates {@link ChildrenStatisticsComputer} instance that computes result labeled as `outputName`
+	 * using defined predicates and entity fetcher.
 	 */
 	@Nonnull
 	public ExtraResultProducer computeChildren(
@@ -208,7 +210,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nonnull EnumSet<StatisticsType> statisticsTypes
 	) {
 		addComputer(
-			"HierarchyChildren",
+			HierarchyChildren.class.getSimpleName(),
 			outputName,
 			ctx -> new ChildrenStatisticsComputer(
 				ctx, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsTypes
@@ -218,7 +220,8 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Method returns a {@link HierarchyProducerContext} reference that could be accessed in translators that are placed
+	 * within a scope of {@link HierarchyOfSelf} or {@link HierarchyOfReference}.
 	 */
 	@Nonnull
 	public HierarchyProducerContext getContext(@Nonnull String constraintName) {
@@ -231,10 +234,14 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 			);
 	}
 
+	/**
+	 * Methods registers a specific implementation {@link AbstractHierarchyStatisticsComputer} instance for computing
+	 * a result labeled as `outputName`.
+	 */
 	private void addComputer(
 		@Nonnull String constraintName,
 		@Nonnull String outputName,
-		@Nonnull Function<HierarchyProducerContext, ChildrenStatisticsComputer> computer
+		@Nonnull Function<HierarchyProducerContext, AbstractHierarchyStatisticsComputer> computer
 	) {
 		final HierarchyProducerContext ctx = getContext(constraintName);
 		if (ctx.referenceSchema() == null) {

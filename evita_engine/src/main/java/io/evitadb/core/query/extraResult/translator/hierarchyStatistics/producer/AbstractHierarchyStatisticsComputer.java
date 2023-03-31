@@ -54,20 +54,31 @@ abstract class AbstractHierarchyStatisticsComputer {
 	 */
 	@Nonnull protected final HierarchyEntityFetcher entityFetcher;
 	/**
-	 * TODO JNO - DOCUMENT ME
+	 * Contains the set of statistics that are required to be computed.
+	 *
+	 * - {@link StatisticsType#CHILDREN_COUNT} triggers {@link LevelInfo#childrenCount()} computation
+	 * - {@link StatisticsType#QUERIED_ENTITY_COUNT} triggers {@link LevelInfo#queriedEntityCount()} computation
+	 */
+	@Nonnull
+	protected final EnumSet<StatisticsType> statisticsType;
+	/**
+	 * The predicate that controls the scope that will be returned in the form of {@link LevelInfo}.
 	 */
 	@Nonnull
 	private final HierarchyTraversalPredicate scopePredicate;
+	/**
+	 * The predicate controlling which hierarchical entities will be taken into an account
+	 * in {@link LevelInfo#childrenCount()} and {@link LevelInfo#queriedEntityCount()}.
+	 */
 	@Nonnull
 	private final HierarchyFilteringPredicate filterPredicate;
 	/**
-	 * TODO JNO - document me
+	 * Controls the scope of the query filter by, that should be used for computing the queried entity count
+	 * in the {@link LevelInfo#queriedEntityCount()} statistics. Might be null if the count is not required to be
+	 * computed at all.
 	 */
+	@Nullable
 	private final StatisticsBase statisticsBase;
-	/**
-	 * TODO JNO - document me
-	 */
-	protected final EnumSet<StatisticsType> statisticsType;
 
 	public AbstractHierarchyStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
@@ -108,10 +119,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 	}
 
 	/**
-	 * TODO JNO - DOCUMENT ME
-	 * @param filteredEntityPks
-	 * @param nodePredicate
-	 * @return
+	 * Method implementation differs across different computer types.
 	 */
 	@Nonnull
 	protected abstract List<LevelInfo> createStatistics(
