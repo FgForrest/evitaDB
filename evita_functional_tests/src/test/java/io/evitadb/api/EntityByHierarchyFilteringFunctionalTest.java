@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
@@ -103,6 +104,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		Predicate<SealedEntity> filterPredicate,
 		TestHierarchyPredicate treePredicate
 	) {
+		final Map<Integer, SealedEntity> categoryIndex = allCategories
+			.stream()
+			.collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()));
+
 		final Set<Integer> categoriesWithValidPath = new HashSet<>();
 		for (SealedEntity category : allCategories) {
 			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(category.getPrimaryKey()));
@@ -112,14 +117,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		}
 		final Cardinalities categoryCardinalities = new Cardinalities();
 		for (SealedEntity category : allCategories) {
-			if (filterPredicate.test(category)) {
-				final int categoryId = category.getPrimaryKey();
-				final List<Integer> categoryPath = Stream.concat(
-					categoryHierarchy.getParentItems(String.valueOf(categoryId))
-						.stream()
-						.map(it -> Integer.parseInt(it.getCode())),
-					Stream.of(categoryId)
-				).toList();
+			final int categoryId = category.getPrimaryKey();
+			final List<Integer> categoryPath = Stream.concat(
+				categoryHierarchy.getParentItems(String.valueOf(categoryId))
+					.stream()
+					.map(it -> Integer.parseInt(it.getCode())),
+				Stream.of(categoryId)
+			).toList();
+			if (categoryPath.stream().allMatch(cid -> filterPredicate.test(categoryIndex.get(cid)))) {
 				final int levels = categoryPath.size() - 1;
 				for (int i = levels; i >= 0; i--) {
 					int cid = categoryPath.get(i);
@@ -912,9 +917,8 @@ public class EntityByHierarchyFilteringFunctionalTest {
 							hierarchyOfSelf(
 								fromRoot(
 									"megaMenu",
+									filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)),
 									entityFetch(attributeContent()),
-									/* TODO JNO - Implement */
-									// filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)),
 									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
 								)
 							)
@@ -927,7 +931,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					return sealedEntity.getLocales().contains(CZECH_LOCALE) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 				};
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
-					return languagePredicate.test(sealedEntity) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
+					return languagePredicate.test(sealedEntity);
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(

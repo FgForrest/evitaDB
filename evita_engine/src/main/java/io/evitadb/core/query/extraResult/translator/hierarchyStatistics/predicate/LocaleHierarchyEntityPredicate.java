@@ -23,30 +23,45 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate;
 
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyFilteringPredicate;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Locale;
-import java.util.function.IntPredicate;
 
 /**
  * This class allows to test, whether the hierarchical entity has requested language variant.
  */
-public class LocaleHierarchyEntityPredicate implements IntPredicate {
+public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredicate {
 	/**
 	 * Bitmap contains id of all hierarchical entities of the requested language.
 	 * Bitmap contains distinct primary ids ordered in ascending form.
 	 */
-	private final Bitmap recordsInLanguage;
+	private final Formula filteringFormula;
+	/**
+	 * TODO JNO - compute me
+	 */
+	private Bitmap filteredResult;
 
 	public LocaleHierarchyEntityPredicate(@Nonnull EntityIndex targetIndex, @Nonnull Locale language) {
-		this.recordsInLanguage = targetIndex.getRecordsWithLanguageFormula(language).compute();
+		this.filteringFormula = targetIndex.getRecordsWithLanguageFormula(language);
+	}
+
+	@Nullable
+	@Override
+	public Formula getFilteringFormula() {
+		return filteringFormula;
 	}
 
 	@Override
 	public boolean test(int hierarchyNodeId) {
-		return recordsInLanguage.contains(hierarchyNodeId);
+		if (filteredResult == null) {
+			filteredResult = filteringFormula.compute();
+		}
+		return filteredResult.contains(hierarchyNodeId);
 	}
 
 }

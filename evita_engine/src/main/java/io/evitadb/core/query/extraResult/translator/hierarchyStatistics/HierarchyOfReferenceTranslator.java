@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
@@ -39,7 +40,6 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -97,8 +97,8 @@ public class HierarchyOfReferenceTranslator
 				// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
 				// entity primary keys that are referencing the hierarchy entity
 				hierarchyNodeId -> ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, hierarchyNodeId)))
-					.map(EntityIndex::getAllPrimaryKeys)
-					.orElse(EmptyBitmap.INSTANCE),
+					.map(EntityIndex::getAllPrimaryKeysFormula)
+					.orElse(EmptyFormula.INSTANCE),
 				hierarchyStatsConstraint.getEmptyHierarchicalEntityBehaviour(),
 				() -> hierarchyStatsConstraint.accept(extraResultPlanner)
 			);

@@ -1856,6 +1856,24 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchyFromRoot fromRoot(
 		@Nullable String outputName,
+		@Nullable FilterBy filterBy,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else if (filterBy == null) {
+			return requirement == null ? new HierarchyFromRoot(outputName) : new HierarchyFromRoot(outputName, requirement);
+		} else {
+			return requirement == null ? new HierarchyFromRoot(outputName, filterBy) : new HierarchyFromRoot(outputName, filterBy, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyFromRoot fromRoot(
+		@Nullable String outputName,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
@@ -1863,6 +1881,23 @@ public interface QueryConstraints {
 			return null;
 		} else {
 			return entityFetch == null ? new HierarchyFromRoot(outputName, requirement) : new HierarchyFromRoot(outputName, entityFetch, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyFromRoot fromRoot(
+		@Nullable String outputName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return entityFetch == null ? new HierarchyFromRoot(outputName, filterBy, requirement) : new HierarchyFromRoot(outputName, filterBy, entityFetch, requirement);
 		}
 	}
 
@@ -1891,6 +1926,29 @@ public interface QueryConstraints {
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
 		@Nonnull HierarchyNode node,
+		@Nullable FilterBy filterBy,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else if (filterBy == null) {
+			return requirement == null ?
+				new HierarchyFromNode(outputName, node) :
+				new HierarchyFromNode(outputName, node, requirement);
+		} else {
+			return requirement == null ?
+				new HierarchyFromNode(outputName, node, filterBy) :
+				new HierarchyFromNode(outputName, node, filterBy, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyFromNode fromNode(
+		@Nullable String outputName,
+		@Nonnull HierarchyNode node,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
@@ -1900,6 +1958,30 @@ public interface QueryConstraints {
 			return entityFetch == null ?
 				new HierarchyFromNode(outputName, node, requirement) :
 				new HierarchyFromNode(outputName, node, entityFetch, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyFromNode fromNode(
+		@Nullable String outputName,
+		@Nonnull HierarchyNode node,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else if (filterBy == null) {
+			return entityFetch == null ?
+				new HierarchyFromNode(outputName, node, requirement) :
+				new HierarchyFromNode(outputName, node, entityFetch, requirement);
+		} else {
+			return entityFetch == null ?
+				new HierarchyFromNode(outputName, node, filterBy, requirement) :
+				new HierarchyFromNode(outputName, node, filterBy, entityFetch, requirement);
 		}
 	}
 

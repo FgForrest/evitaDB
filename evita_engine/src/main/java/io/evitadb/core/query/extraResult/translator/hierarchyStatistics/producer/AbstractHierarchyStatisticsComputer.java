@@ -30,8 +30,6 @@ import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.LocaleHierarchyEntityPredicate;
-import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -93,11 +91,6 @@ public abstract class AbstractHierarchyStatisticsComputer {
 		@Nonnull Formula filteringFormulaWithoutUserFilter,
 		@Nullable Locale language
 	) {
-		// get roaring bitmap of filtering entity ids
-		final RoaringBitmap filteredEntityPks = RoaringBitmapBackedBitmap.getRoaringBitmap(
-			statisticsBase == StatisticsBase.WITHOUT_USER_FILTER ?
-				filteringFormulaWithoutUserFilter.compute() : filteringFormula.compute()
-		);
 		// the language predicate is used to filter out entities that doesn't have requested language variant
 		final HierarchyEntityPredicate resolvedNodePredicate = language == null ?
 			nodeFilter :
@@ -108,7 +101,11 @@ public abstract class AbstractHierarchyStatisticsComputer {
 				)
 			);
 
-		return createStatistics(filteredEntityPks, resolvedNodePredicate);
+		return createStatistics(
+			statisticsBase == StatisticsBase.WITHOUT_USER_FILTER ?
+				filteringFormulaWithoutUserFilter : filteringFormula,
+			resolvedNodePredicate
+		);
 	}
 
 	/**
@@ -119,7 +116,7 @@ public abstract class AbstractHierarchyStatisticsComputer {
 	 */
 	@Nonnull
 	protected abstract List<LevelInfo> createStatistics(
-		@Nonnull RoaringBitmap filteredEntityPks,
+		@Nonnull Formula filteredEntityPks,
 		@Nonnull HierarchyEntityPredicate nodePredicate
 	);
 

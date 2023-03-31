@@ -28,9 +28,9 @@ import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.StatisticsHierarchyVisitor;
-import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,7 +60,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 	@Nonnull
 	@Override
 	protected List<LevelInfo> createStatistics(
-		@Nonnull RoaringBitmap filteredEntityPks,
+		@Nonnull Formula filteredEntityPks,
 		@Nonnull HierarchyEntityPredicate nodePredicate
 	) {
 		final Deque<Accumulator> accumulator = new LinkedList<>();

@@ -41,9 +41,9 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyPositionalPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyTraversalPredicate;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 
@@ -82,8 +82,10 @@ public abstract class AbstractHierarchyTranslator {
 	 * TODO JNO - document me
 	 */
 	@Nullable
-	protected static HierarchyPositionalPredicate stopAtConstraintToPredicate(String constraintName, ExtraResultPlanningVisitor extraResultPlanningVisitor, HierarchyStatisticsProducer producer, HierarchyStopAt stopAt) {
-		final HierarchyProducerContext context = producer.getContext(constraintName);
+	protected static HierarchyTraversalPredicate stopAtConstraintToPredicate(
+		@Nonnull HierarchyProducerContext context,
+		@Nonnull HierarchyStopAt stopAt
+	) {
 		final HierarchyStopAtRequireConstraint filter = stopAt.getGenericHierarchyOutputRequireConstraint();
 		if (filter instanceof HierarchyLevel levelConstraint) {
 			final int requiredLevel = levelConstraint.getLevel();

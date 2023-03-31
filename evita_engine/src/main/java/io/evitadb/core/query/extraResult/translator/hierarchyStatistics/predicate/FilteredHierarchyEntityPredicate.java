@@ -29,15 +29,16 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotFoundException;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyPositionalPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyFilteringPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyTraversalPredicate;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nullable;
 import java.util.Collections;
-import java.util.function.IntPredicate;
 
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.Assert.notNull;
@@ -48,7 +49,7 @@ import static io.evitadb.utils.Assert.notNull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class FilteredHierarchyEntityPredicate implements IntPredicate, HierarchyPositionalPredicate {
+public class FilteredHierarchyEntityPredicate implements HierarchyFilteringPredicate, HierarchyTraversalPredicate {
 	private final Formula filteringFormula;
 	private Bitmap filteredIds;
 
@@ -84,6 +85,12 @@ public class FilteredHierarchyEntityPredicate implements IntPredicate, Hierarchy
 				return theFilterByVisitor.getFormulaAndClear();
 			}
 		);
+	}
+
+	@Nullable
+	@Override
+	public Formula getFilteringFormula() {
+		return filteringFormula;
 	}
 
 	@Override

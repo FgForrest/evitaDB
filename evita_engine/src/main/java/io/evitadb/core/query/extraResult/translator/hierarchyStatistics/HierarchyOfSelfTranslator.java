@@ -79,7 +79,7 @@ public class HierarchyOfSelfTranslator
 			null,
 			hierarchyWithin,
 			globalIndex,
-			globalIndex::getHierarchyNodesForParent,
+			globalIndex::getHierarchyNodesForParentFormula,
 			EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,
 			() -> {
 				for (RequireConstraint child : hierarchyStatsConstraint) {

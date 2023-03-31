@@ -28,7 +28,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface HierarchyPositionalPredicate {
+public interface HierarchyTraversalPredicate {
 
 	/**
 	 * Method should return true or false in case the predicate matches the traversed node or its position in the tree.
@@ -43,7 +43,7 @@ public interface HierarchyPositionalPredicate {
 	/**
 	 * TODO JNO - document me
 	 */
-	default HierarchyPositionalPredicate and(HierarchyPositionalPredicate other) {
+	default HierarchyTraversalPredicate and(HierarchyTraversalPredicate other) {
 		return (hierarchyNodeId, level, distance) ->
 			test(hierarchyNodeId, level, distance) && other.test(hierarchyNodeId, level, distance);
 	}

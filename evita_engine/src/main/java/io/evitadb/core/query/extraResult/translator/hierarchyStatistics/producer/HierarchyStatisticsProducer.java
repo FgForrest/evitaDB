@@ -43,7 +43,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
 import io.evitadb.utils.Assert;
@@ -174,7 +173,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable HierarchyFilterConstraint hierarchyWithin,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull IntFunction<Bitmap> hierarchyReferencingEntityPks,
+		@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
 		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
 		@Nonnull Runnable interpretationLambda
 	) {

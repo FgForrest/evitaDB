@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -53,8 +54,8 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 	@Serial private static final long serialVersionUID = 283525753371686479L;
 	private static final String CONSTRAINT_NAME = "fromNode";
 
-	private HierarchyFromNode(@Nonnull String outputName, @Nonnull RequireConstraint[] children) {
-		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children);
+	private HierarchyFromNode(@Nonnull String outputName, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children, additionalChildren);
 		for (RequireConstraint requireConstraint : children) {
 			Assert.isTrue(
 				requireConstraint instanceof HierarchyOutputRequireConstraint ||
@@ -62,6 +63,18 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 				"Constraint HierarchyFromRoot accepts only HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
 			);
 		}
+	}
+
+	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode node, @Nullable FilterBy filterBy, @Nullable EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[]{outputName},
+			ArrayUtils.mergeArrays(
+				new RequireConstraint[] {node, entityFetch},
+				requirements
+			),
+			filterBy
+		);
 	}
 
 	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode node, @Nullable EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
@@ -79,6 +92,18 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 		super(CONSTRAINT_NAME, new Serializable[]{outputName}, fromNode);
 	}
 
+	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode fromNode, @Nullable FilterBy filterBy, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[]{outputName},
+			ArrayUtils.mergeArrays(
+				new RequireConstraint[] {fromNode},
+				requirements
+			),
+			filterBy
+		);
+	}
+
 	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode fromNode, @Nonnull HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
@@ -88,30 +113,6 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 				requirements
 			)
 		);
-	}
-
-	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode fromNode, @Nonnull HierarchyStopAt stopAt) {
-		super(CONSTRAINT_NAME, new Serializable[]{outputName}, fromNode, stopAt);
-	}
-
-	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode fromNode, @Nonnull EntityFetch entityFetch) {
-		super(CONSTRAINT_NAME, new Serializable[]{outputName}, fromNode, entityFetch);
-	}
-
-	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode fromNode, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, new Serializable[]{outputName}, fromNode, statistics);
-	}
-
-	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode fromNode, @Nonnull HierarchyStopAt stopAt, @Nonnull EntityFetch entityFetch) {
-		super(CONSTRAINT_NAME, new Serializable[]{outputName}, fromNode, stopAt, entityFetch);
-	}
-
-	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode fromNode, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, new Serializable[]{outputName}, fromNode, entityFetch, statistics);
-	}
-
-	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode fromNode, @Nonnull HierarchyStopAt stopAt, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, new Serializable[]{outputName}, fromNode, stopAt, entityFetch, statistics);
 	}
 
 	/**
@@ -160,6 +161,14 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 			}
 		}
 		return empty();
+	}
+
+	/**
+	 * Contains filtering condition filters out hierarchy nodes that should not be part of the result.
+	 */
+	@Nonnull
+	public Optional<FilterBy> getFilterBy() {
+		return Optional.ofNullable(getAdditionalChild(FilterBy.class));
 	}
 
 	/**

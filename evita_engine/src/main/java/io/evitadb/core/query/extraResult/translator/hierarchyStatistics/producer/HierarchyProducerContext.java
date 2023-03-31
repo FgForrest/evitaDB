@@ -31,8 +31,8 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 
 import javax.annotation.Nonnull;
@@ -57,7 +57,7 @@ public record HierarchyProducerContext(
 	@Nullable ReferenceSchemaContract referenceSchema,
 	@Nullable HierarchyFilterConstraint hierarchyWithin,
 	@Nonnull EntityIndex entityIndex,
-	@Nonnull IntFunction<Bitmap> hierarchyReferencingEntityPks,
+	@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
 	boolean removeEmptyResults
 ) {
 

@@ -23,11 +23,12 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
+import io.evitadb.core.query.algebra.Formula;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Objects;
-import java.util.function.IntPredicate;
 
 /**
  * TODO JNO - document me
@@ -36,13 +37,24 @@ import java.util.function.IntPredicate;
  */
 @RequiredArgsConstructor
 public class HierarchyEntityPredicate {
+	public static final HierarchyFilteringPredicate ACCEPT_ALL_NODES_PREDICATE = hierarchNodeId -> true;
+	public static final HierarchyTraversalPredicate NEVER_STOP_PREDICATE = (hierarchyNodeId, level, distance) -> true;
 	public static final HierarchyEntityPredicate MATCH_ALL = new HierarchyEntityPredicate(
-		hierarchNodeId -> true,
-		(hierarchyNodeId, level, distance) -> true
+		ACCEPT_ALL_NODES_PREDICATE,
+		NEVER_STOP_PREDICATE
 	);
 
-	private final IntPredicate hierarchyNodePredicate;
-	private final HierarchyPositionalPredicate positionPredicate;
+	private final HierarchyFilteringPredicate hierarchyNodePredicate;
+	private final HierarchyTraversalPredicate positionPredicate;
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nullable
+	public Formula getFilteringFormula() {
+		return hierarchyNodePredicate.getFilteringFormula();
+	}
 
 	/**
 	 * Method should return true or false in case the predicate matches the traversed node or its position in the tree.
@@ -53,7 +65,7 @@ public class HierarchyEntityPredicate {
 	 * @return true if the node is accepted
 	 */
 	public boolean test(int hierarchyNodeId, int level, int distance) {
-		return hierarchyNodePredicate.test(hierarchyNodeId) && positionPredicate.test(hierarchyNodeId, level, distance);
+		return positionPredicate.test(hierarchyNodeId, level, distance);
 	}
 
 	/**
@@ -77,5 +89,4 @@ public class HierarchyEntityPredicate {
 			this.positionPredicate.and(other.positionPredicate)
 		);
 	}
-
 }

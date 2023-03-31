@@ -56,7 +56,7 @@ public class HierarchyChildrenTranslator
 			hierarchyChildren.getStopAt()
 				.map(stopAt -> new HierarchyEntityPredicate(
 					value -> true,
-					stopAtConstraintToPredicate(hierarchyChildren.getName(), extraResultPlanningVisitor, producer, stopAt))
+					stopAtConstraintToPredicate(producer.getContext(hierarchyChildren.getName()), stopAt))
 				)
 				.orElse(null),
 			createEntityFetcher(

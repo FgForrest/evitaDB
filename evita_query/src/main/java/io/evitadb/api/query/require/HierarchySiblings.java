@@ -130,16 +130,11 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 	}
 
 	/**
-	 * Contains filtering condition for siblings. Only those siblings that match the filter condition will be returned.
+	 * Contains filtering condition filters out hierarchy nodes that should not be part of the result.
 	 */
-	@Nullable
-	public FilterBy getFilterBy() {
-		for (Constraint<?> constraint : getAdditionalChildren()) {
-			if (constraint instanceof FilterBy filterBy) {
-				return filterBy;
-			}
-		}
-		return null;
+	@Nonnull
+	public Optional<FilterBy> getFilterBy() {
+		return Optional.ofNullable(getAdditionalChild(FilterBy.class));
 	}
 
 	/**
