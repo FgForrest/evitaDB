@@ -96,57 +96,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
-	@Nonnull
-	private static Cardinalities computeCardinalities(
-		Integer parentCategoryId,
-		Hierarchy categoryHierarchy,
-		List<SealedEntity> allCategories,
-		Predicate<SealedEntity> filterPredicate,
-		TestHierarchyPredicate treePredicate
-	) {
-		final Map<Integer, SealedEntity> categoryIndex = allCategories
-			.stream()
-			.collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()));
-
-		final Set<Integer> categoriesWithValidPath = new HashSet<>();
-		for (SealedEntity category : allCategories) {
-			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(category.getPrimaryKey()));
-			if (treePredicate.test(category, parentItems)) {
-				categoriesWithValidPath.add(category.getPrimaryKey());
-			}
-		}
-		final Cardinalities categoryCardinalities = new Cardinalities();
-		for (SealedEntity category : allCategories) {
-			final int categoryId = category.getPrimaryKey();
-			final List<Integer> categoryPath = Stream.concat(
-				categoryHierarchy.getParentItems(String.valueOf(categoryId))
-					.stream()
-					.map(it -> Integer.parseInt(it.getCode())),
-				Stream.of(categoryId)
-			).toList();
-			if (categoryPath.stream().allMatch(cid -> filterPredicate.test(categoryIndex.get(cid)))) {
-				final int levels = categoryPath.size() - 1;
-				for (int i = levels; i >= 0; i--) {
-					int cid = categoryPath.get(i);
-					if (categoriesWithValidPath.contains(cid)) {
-						if (i == levels) {
-							categoryCardinalities.record(cid);
-						} else if (i == levels - 1) {
-							categoryCardinalities.recordChild(cid);
-						} else {
-							categoryCardinalities.recordDistantChild(cid);
-						}
-					}
-					if (parentCategoryId != null && cid == parentCategoryId) {
-						// we have encountered requested parent
-						break;
-					}
-				}
-			}
-		}
-		return categoryCardinalities;
-	}
-
 	@DataSet(value = THOUSAND_CATEGORIES, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
@@ -701,7 +650,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics")
+	@DisplayName("Should return children for categories with all statistics within category 2")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
 	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequested(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
@@ -772,6 +721,67 @@ public class EntityByHierarchyFilteringFunctionalTest {
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
 	void shouldReturnCardinalitiesForCategoriesInDistanceOne(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRootSelf()
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(1)),
+									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+					final int level = parentItems.size() + 1;
+					return languagePredicate.test(sealedEntity) && (level <= 2);
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					2, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, null, categoryHierarchy,
+							categoryCardinalities, true
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children for categories with all statistics in distance 1 within category 2")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForWithinCategoryInDistanceOne(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -868,9 +878,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				);
 
 				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
-				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
-					return languagePredicate.test(sealedEntity) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
-				};
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> languagePredicate.test(sealedEntity) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					null, categoryHierarchy, originalCategoryEntities,
@@ -879,6 +887,71 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
+							categoryCardinalities, true
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children for categories with all statistics until shortcut category is reached within category 1")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedAndStopAtShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
+						parentItems
+							.stream()
+							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
+					return languagePredicate.test(sealedEntity) && withinCategory1 &&
+						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					null, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, 1, categoryHierarchy,
 							categoryCardinalities, true
 						)
 					)
@@ -927,12 +1000,11 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> {
-					return sealedEntity.getLocales().contains(CZECH_LOCALE) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
-				};
-				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
-					return languagePredicate.test(sealedEntity);
-				};
+				final Predicate<SealedEntity> languagePredicate =
+					sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
+						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) ->
+					languagePredicate.test(sealedEntity);
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					null, categoryHierarchy, originalCategoryEntities,
@@ -955,10 +1027,76 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics until ")
+	@DisplayName("Should return children for categories with all statistics until shortcut category is reached within category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
-	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedOnLevelTwo(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedExceptShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)),
+									entityFetch(attributeContent()),
+									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate =
+					sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
+						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
+						parentItems
+							.stream()
+							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
+					return languagePredicate.test(sealedEntity) && withinCategory1;
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					null, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, 1, categoryHierarchy,
+							categoryCardinalities, true
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children for categories with all statistics until level 2")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesUntilLevelTwo(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1014,6 +1152,122 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				return null;
 			}
 		);
+	}
+
+	@DisplayName("Should return children for categories with all statistics in category 1 until level two")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedUntilLevelTwo(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(level(2)),
+									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+					final int level = parentItems.size() + 1;
+					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
+						parentItems
+							.stream()
+							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
+					return languagePredicate.test(sealedEntity) && withinCategory1 && level <= 2;
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					null, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, 1, categoryHierarchy,
+							categoryCardinalities, true
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@Nonnull
+	private Cardinalities computeCardinalities(
+		Integer parentCategoryId,
+		Hierarchy categoryHierarchy,
+		List<SealedEntity> allCategories,
+		Predicate<SealedEntity> filterPredicate,
+		TestHierarchyPredicate treePredicate
+	) {
+		final Map<Integer, SealedEntity> categoryIndex = allCategories
+			.stream()
+			.collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()));
+
+		final Set<Integer> categoriesWithValidPath = new HashSet<>();
+		for (SealedEntity category : allCategories) {
+			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(category.getPrimaryKey()));
+			if (treePredicate.test(category, parentItems)) {
+				categoriesWithValidPath.add(category.getPrimaryKey());
+			}
+		}
+		final Cardinalities categoryCardinalities = new Cardinalities();
+		for (SealedEntity category : allCategories) {
+			final int categoryId = category.getPrimaryKey();
+			final List<Integer> categoryPath = Stream.concat(
+				categoryHierarchy.getParentItems(String.valueOf(categoryId))
+					.stream()
+					.map(it -> Integer.parseInt(it.getCode())),
+				Stream.of(categoryId)
+			).toList();
+			if (categoryPath.stream().allMatch(cid -> filterPredicate.test(categoryIndex.get(cid)))) {
+				final int levels = categoryPath.size() - 1;
+				for (int i = levels; i >= 0; i--) {
+					int cid = categoryPath.get(i);
+					if (categoriesWithValidPath.contains(cid)) {
+						if (i == levels) {
+							categoryCardinalities.record(cid);
+						} else if (i == levels - 1) {
+							categoryCardinalities.recordChild(cid);
+						} else {
+							categoryCardinalities.recordDistantChild(cid);
+						}
+					}
+					if (parentCategoryId != null && cid == parentCategoryId) {
+						// we have encountered requested parent
+						break;
+					}
+				}
+			}
+		}
+		return categoryCardinalities;
 	}
 
 	@Nonnull
