@@ -34,7 +34,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
-import lombok.RequiredArgsConstructor;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -43,13 +42,12 @@ import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.IntFunction;
-import java.util.function.IntSupplier;
+import java.util.function.ToIntFunction;
 
 /**
  * This {@link HierarchyVisitor} implementation is called for each hierarchical entity and cooperates
  * with {@link Accumulator} to compose a tree of {@link LevelInfo} objects.
  */
-@RequiredArgsConstructor
 public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 	/**
 	 * Contains true if hierarchy statistics should be stripped of results with zero occurrences.
@@ -80,34 +78,47 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 	 * TODO JNO - document me
 	 */
 	@Nonnull private final EnumSet<StatisticsType> statisticsType;
+	/**
+	 * TODO JNO - document me
+	 */
+	private final ToIntFunction<HierarchyNode> queuedEntityComputer;
 
-	@Override
-	public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable childrenTraverser) {
-		final int entityPrimaryKey = node.entityPrimaryKey();
-		// get current accumulator
-		final Accumulator topAccumulator = Objects.requireNonNull(accumulator.peek());
-
-		// prepare method that lazily computes the queued entity cardinality
-		final IntSupplier queuedEntityComputer = () -> {
+	public StatisticsHierarchyVisitor(boolean removeEmptyResults, @Nonnull HierarchyEntityPredicate entityPredicate, @Nonnull RoaringBitmap filteredEntityPks, @Nonnull Deque<Accumulator> accumulator, @Nonnull IntFunction<Bitmap> hierarchyReferencingEntityPks, @Nonnull HierarchyEntityFetcher entityFetcher, @Nonnull EnumSet<StatisticsType> statisticsType) {
+		this.removeEmptyResults = removeEmptyResults;
+		this.entityPredicate = entityPredicate;
+		this.filteredEntityPks = filteredEntityPks;
+		this.accumulator = accumulator;
+		this.hierarchyReferencingEntityPks = hierarchyReferencingEntityPks;
+		this.entityFetcher = entityFetcher;
+		this.statisticsType = statisticsType;
+		this.queuedEntityComputer = hierarchyNode -> {
 			// get all queried entity primary keys that refer to this hierarchical node
-			final Bitmap allEntitiesReferencingEntity = hierarchyReferencingEntityPks.apply(entityPrimaryKey);
+			final Bitmap allEntitiesReferencingEntity = hierarchyReferencingEntityPks.apply(hierarchyNode.entityPrimaryKey());
 			// now combine them with primary keys that are really returned by the query and compute matching count
 			return RoaringBitmap.and(
 				RoaringBitmapBackedBitmap.getRoaringBitmap(allEntitiesReferencingEntity),
 				filteredEntityPks
 			).getCardinality();
 		};
+	}
 
+	@Override
+	public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable childrenTraverser) {
+		final int entityPrimaryKey = node.entityPrimaryKey();
+		// get current accumulator
+		final Accumulator topAccumulator = Objects.requireNonNull(accumulator.peek());
 		if (topAccumulator.isInOmissionBlock() && entityPredicate.test(entityPrimaryKey)) {
 			// in omission block compute only cardinality of queued entities
 			topAccumulator.registerOmittedCardinality(
-				queuedEntityComputer.getAsInt()
+				queuedEntityComputer.applyAsInt(node)
 			);
+			// but deeply
+			childrenTraverser.run();
 		} else if (entityPredicate.test(entityPrimaryKey, level, distance)) {
 			// now fetch the appropriate form of the hierarchical entity
 			final EntityClassifier hierarchyEntity = entityFetcher.apply(entityPrimaryKey);
 			// and create element in accumulator that will be filled in
-			accumulator.push(new Accumulator(hierarchyEntity, queuedEntityComputer));
+			accumulator.push(new Accumulator(hierarchyEntity, () -> queuedEntityComputer.applyAsInt(node)));
 			// traverse subtree - filling up the accumulator on previous row
 			childrenTraverser.run();
 			// now remove current accumulator from stack
@@ -136,7 +147,7 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 			// and compute overall cardinality
 			if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
 				topAccumulator.registerOmittedCardinality(
-					queuedEntityComputer.getAsInt()
+					queuedEntityComputer.applyAsInt(node)
 				);
 			}
 		}

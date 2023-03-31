@@ -38,7 +38,7 @@ import java.util.function.IntPredicate;
 public class HierarchyEntityPredicate {
 	public static final HierarchyEntityPredicate MATCH_ALL = new HierarchyEntityPredicate(
 		hierarchNodeId -> true,
-		(level, distance) -> true
+		(hierarchyNodeId, level, distance) -> true
 	);
 
 	private final IntPredicate hierarchyNodePredicate;
@@ -53,7 +53,7 @@ public class HierarchyEntityPredicate {
 	 * @return true if the node is accepted
 	 */
 	public boolean test(int hierarchyNodeId, int level, int distance) {
-		return hierarchyNodePredicate.test(hierarchyNodeId) && positionPredicate.test(level, distance);
+		return hierarchyNodePredicate.test(hierarchyNodeId) && positionPredicate.test(hierarchyNodeId, level, distance);
 	}
 
 	/**

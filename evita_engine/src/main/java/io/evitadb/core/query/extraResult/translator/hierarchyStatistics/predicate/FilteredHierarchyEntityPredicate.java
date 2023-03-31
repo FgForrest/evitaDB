@@ -23,11 +23,24 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate;
 
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.exception.AttributeNotFoundException;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyPositionalPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
+import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Collections;
 import java.util.function.IntPredicate;
+
+import static io.evitadb.utils.Assert.isTrue;
+import static io.evitadb.utils.Assert.notNull;
 
 /**
  * TODO JNO - document me
@@ -35,15 +48,59 @@ import java.util.function.IntPredicate;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class FilteredHierarchyEntityPredicate implements IntPredicate {
-	private final Formula filteredIds;
-	private Bitmap computedIds;
+public class FilteredHierarchyEntityPredicate implements IntPredicate, HierarchyPositionalPredicate {
+	private final Formula filteringFormula;
+	private Bitmap filteredIds;
+
+	public FilteredHierarchyEntityPredicate(HierarchyProducerContext context, FilterBy filterBy) {
+		final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
+			context.queryContext(),
+			Collections.emptyList(),
+			TargetIndexes.EMPTY,
+			false
+		);
+		this.filteringFormula = theFilterByVisitor.executeInContext(
+			Collections.singletonList(context.entityIndex()),
+			null,
+			null,
+			null,
+			null,
+			(entitySchema, attributeName) -> {
+				final AttributeSchemaContract attributeSchema = context.entitySchema().getAttribute(attributeName).orElse(null);
+				notNull(
+					attributeSchema,
+					() -> new AttributeNotFoundException(attributeName, entitySchema)
+				);
+				isTrue(
+					attributeSchema.isFilterable() || attributeSchema.isUnique(),
+					() -> new AttributeNotFilterableException(attributeName, entitySchema)
+				);
+				return attributeSchema;
+			},
+			AttributesContract::getAttribute,
+			() -> {
+				filterBy.accept(theFilterByVisitor);
+				// get the result and clear the visitor internal structures
+				return theFilterByVisitor.getFormulaAndClear();
+			}
+		);
+	}
+
+	@Override
+	public boolean test(int hierarchyNodeId, int level, int distance) {
+		return getFilteredIds().contains(hierarchyNodeId);
+	}
 
 	@Override
 	public boolean test(int hierarchyNodeId) {
-		if (computedIds == null) {
-			computedIds = filteredIds.compute();
+		return getFilteredIds().contains(hierarchyNodeId);
+	}
+
+	private Bitmap getFilteredIds() {
+		if (filteredIds == null) {
+			/* TODO JNO - add footprint to query telemetry */
+			filteredIds = filteringFormula.compute();
 		}
-		return computedIds.contains(hierarchyNodeId);
+		return filteredIds;
 	}
 }

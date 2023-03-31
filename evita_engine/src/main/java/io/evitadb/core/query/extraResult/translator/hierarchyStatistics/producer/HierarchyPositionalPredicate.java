@@ -33,19 +33,18 @@ public interface HierarchyPositionalPredicate {
 	/**
 	 * Method should return true or false in case the predicate matches the traversed node or its position in the tree.
 	 *
-	 * @param level           the depth level of visited hierarchy node
+	 * @param hierarchyNodeId the primary key of the visited hierarchy node
+	 * @param level           the depth level of the visited hierarchy node
 	 * @param distance        the distance from the top node the visitor started to traversing
 	 * @return true if the node is accepted
 	 */
-	boolean test(int level, int distance);
+	boolean test(int hierarchyNodeId, int level, int distance);
 
 	/**
 	 * TODO JNO - document me
-	 * @param other
-	 * @return
 	 */
 	default HierarchyPositionalPredicate and(HierarchyPositionalPredicate other) {
-		return (level, distance) ->
-			test(level, distance) && other.test(level, distance);
+		return (hierarchyNodeId, level, distance) ->
+			test(hierarchyNodeId, level, distance) && other.test(hierarchyNodeId, level, distance);
 	}
 }

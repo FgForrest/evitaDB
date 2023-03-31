@@ -104,7 +104,7 @@ public abstract class AbstractHierarchyStatisticsComputer {
 			nodeFilter.and(
 				new HierarchyEntityPredicate(
 					new LocaleHierarchyEntityPredicate(context.entityIndex(), language),
-					(level, distance) -> true
+					(hierarchyNodeId, level, distance) -> true
 				)
 			);
 

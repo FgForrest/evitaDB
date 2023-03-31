@@ -31,6 +31,7 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.AbstractHierarchyStatisticsComputer;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 
 import java.util.EnumSet;
@@ -53,7 +54,10 @@ public class HierarchyChildrenTranslator
 		producer.computeChildren(
 			hierarchyChildren.getOutputName(),
 			hierarchyChildren.getStopAt()
-				.map(stopAt -> stopAtConstraintToPredicate(hierarchyChildren.getName(), extraResultPlanningVisitor, producer, stopAt))
+				.map(stopAt -> new HierarchyEntityPredicate(
+					value -> true,
+					stopAtConstraintToPredicate(hierarchyChildren.getName(), extraResultPlanningVisitor, producer, stopAt))
+				)
 				.orElse(null),
 			createEntityFetcher(
 				hierarchyChildren,

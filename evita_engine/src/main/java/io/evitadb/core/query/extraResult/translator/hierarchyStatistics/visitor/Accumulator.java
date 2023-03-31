@@ -88,18 +88,14 @@ public class Accumulator {
 	}
 
 	public int getQueriedEntityCount() {
-		if (children.isEmpty()) {
-			return queriedEntityCount.getAsInt() + omittedQueuedEntityCount;
-		} else {
-			return IntStream.concat(
-				IntStream.of(queriedEntityCount.getAsInt()),
-				children.stream().mapToInt(LevelInfo::queriedEntityCount)
-			).sum();
-		}
+		return IntStream.concat(
+			IntStream.of(queriedEntityCount.getAsInt()),
+			children.stream().mapToInt(LevelInfo::queriedEntityCount)
+		).sum() + omittedQueuedEntityCount;
 	}
 
 	public int getChildrenCount() {
-		return children.isEmpty() ? omittedChildren : children.size();
+		return omittedChildren + children.size();
 	}
 
 	/**

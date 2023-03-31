@@ -38,11 +38,10 @@ import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyPositionalPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -83,33 +82,17 @@ public abstract class AbstractHierarchyTranslator {
 	 * TODO JNO - document me
 	 */
 	@Nullable
-	protected static HierarchyEntityPredicate stopAtConstraintToPredicate(String constraintName, ExtraResultPlanningVisitor extraResultPlanningVisitor, HierarchyStatisticsProducer producer, HierarchyStopAt stopAt) {
+	protected static HierarchyPositionalPredicate stopAtConstraintToPredicate(String constraintName, ExtraResultPlanningVisitor extraResultPlanningVisitor, HierarchyStatisticsProducer producer, HierarchyStopAt stopAt) {
 		final HierarchyProducerContext context = producer.getContext(constraintName);
 		final HierarchyStopAtRequireConstraint filter = stopAt.getGenericHierarchyOutputRequireConstraint();
 		if (filter instanceof HierarchyLevel levelConstraint) {
 			final int requiredLevel = levelConstraint.getLevel();
-			return new HierarchyEntityPredicate(
-				value -> true,
-				(level, distance) -> level <= requiredLevel
-			);
+			return (hierarchyNodeId, level, distance) -> level <= requiredLevel;
 		} else if (filter instanceof HierarchyDistance distanceCnt) {
 			final int requiredDistance = distanceCnt.getDistance();
-			return new HierarchyEntityPredicate(
-				value -> true,
-				(level, distance) -> distance > -1 && distance <= requiredDistance
-			);
+			return (hierarchyNodeId, level, distance) -> distance > -1 && distance <= requiredDistance;
 		} else if (filter instanceof HierarchyNode node) {
-			final FilterBy filterBy = node.getFilterBy();
-			final EntityCollection referencedEntityCollection = extraResultPlanningVisitor.getEntityCollectionOrThrowException(
-				context.entitySchema().getName(), "resolve hierarchy constraint"
-			);
-			// TODO JNO - INSPIRE HERE
-			// ReferencedEntityFetcher.getFilteredReferencedEntityIds()
-			final Formula filteredIds = EmptyFormula.INSTANCE;
-			return new HierarchyEntityPredicate(
-				new FilteredHierarchyEntityPredicate(filteredIds),
-				(level, distance) -> true
-			);
+			return new FilteredHierarchyEntityPredicate(context, node.getFilterBy());
 		} else {
 			return null;
 		}
