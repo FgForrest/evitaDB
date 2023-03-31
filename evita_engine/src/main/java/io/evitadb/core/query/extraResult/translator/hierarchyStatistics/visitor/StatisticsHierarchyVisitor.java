@@ -31,7 +31,8 @@ import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyFilteringPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
 
@@ -53,9 +54,13 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 	 */
 	private final boolean removeEmptyResults;
 	/**
-	 * Predicate is used to filter out hierarchical entities that doesn't match the language requirement.
+	 * TODO JNO - document me
 	 */
-	@Nonnull private final HierarchyEntityPredicate entityPredicate;
+	private HierarchyTraversalPredicate scopePredicate;
+	/**
+	 * TODO JNO - document me
+	 */
+	private HierarchyFilteringPredicate filterPredicate;
 	/**
 	 * Deque of accumulators allow to compose a tree of results
 	 */
@@ -75,9 +80,19 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 	 */
 	private final ToIntBiFunction<HierarchyNode, Formula> queriedEntityComputer;
 
-	public StatisticsHierarchyVisitor(boolean removeEmptyResults, @Nonnull HierarchyEntityPredicate entityPredicate, @Nonnull Formula filteredEntityPks, @Nonnull Deque<Accumulator> accumulator, @Nonnull IntFunction<Formula> hierarchyReferencingEntityPks, @Nonnull HierarchyEntityFetcher entityFetcher, @Nonnull EnumSet<StatisticsType> statisticsType) {
+	public StatisticsHierarchyVisitor(
+		boolean removeEmptyResults,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate filterPredicate,
+		@Nonnull Formula filteredEntityPks,
+		@Nonnull Deque<Accumulator> accumulator,
+		@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
+		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nonnull EnumSet<StatisticsType> statisticsType
+	) {
 		this.removeEmptyResults = removeEmptyResults;
-		this.entityPredicate = entityPredicate;
+		this.scopePredicate = scopePredicate;
+		this.filterPredicate = filterPredicate;
 		this.accumulator = accumulator;
 		this.entityFetcher = entityFetcher;
 		this.statisticsType = statisticsType;
@@ -109,21 +124,21 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 		final Accumulator topAccumulator = Objects.requireNonNull(accumulator.peek());
 
 		if (topAccumulator.isInOmissionBlock()) {
-			if (entityPredicate.test(entityPrimaryKey)) {
+			if (filterPredicate.test(entityPrimaryKey)) {
 				// in omission block compute only cardinality of queued entities
 				topAccumulator.registerOmittedCardinality(
-					queriedEntityComputer.applyAsInt(node, entityPredicate.getFilteringFormula())
+					queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
 				);
 			}
 			// but deeply
 			childrenTraverser.run();
 		} else {
-			if (entityPredicate.test(entityPrimaryKey)) {
-				if (entityPredicate.test(entityPrimaryKey, level, distance)) {
+			if (filterPredicate.test(entityPrimaryKey)) {
+				if (scopePredicate.test(entityPrimaryKey, level, distance)) {
 					// now fetch the appropriate form of the hierarchical entity
 					final EntityClassifier hierarchyEntity = entityFetcher.apply(entityPrimaryKey);
 					// and create element in accumulator that will be filled in
-					accumulator.push(new Accumulator(hierarchyEntity, () -> queriedEntityComputer.applyAsInt(node, entityPredicate.getFilteringFormula())));
+					accumulator.push(new Accumulator(hierarchyEntity, () -> queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())));
 					// traverse subtree - filling up the accumulator on previous row
 					childrenTraverser.run();
 					// now remove current accumulator from stack
@@ -152,7 +167,7 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 					// and compute overall cardinality
 					if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
 						topAccumulator.registerOmittedCardinality(
-							queriedEntityComputer.applyAsInt(node, entityPredicate.getFilteringFormula())
+							queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
 						);
 					}
 				}

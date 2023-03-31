@@ -36,7 +36,9 @@ import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
+
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * Abstract ancestor for hierarchy statistics computers. Contains shared logic and data.
@@ -55,7 +57,9 @@ abstract class AbstractHierarchyStatisticsComputer {
 	 * TODO JNO - DOCUMENT ME
 	 */
 	@Nonnull
-	private final HierarchyEntityPredicate scopeAndVisibilityFilter;
+	private final HierarchyTraversalPredicate scopePredicate;
+	@Nonnull
+	private final HierarchyFilteringPredicate filterPredicate;
 	/**
 	 * TODO JNO - document me
 	 */
@@ -68,14 +72,15 @@ abstract class AbstractHierarchyStatisticsComputer {
 	public AbstractHierarchyStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
-		@Nonnull HierarchyEntityPredicate scopeAndVisibilityFilter,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
 		this.context = context;
 		this.entityFetcher = entityFetcher;
-		this.scopeAndVisibilityFilter = Optional.ofNullable(scopeAndVisibilityFilter)
-			.orElse(HierarchyEntityPredicate.MATCH_ALL);
+		this.scopePredicate = ofNullable(scopePredicate).orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
+		this.filterPredicate = of(filterPredicate).orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 		this.statisticsBase = statisticsBase;
 		this.statisticsType = statisticsType;
 	}
@@ -92,19 +97,13 @@ abstract class AbstractHierarchyStatisticsComputer {
 		@Nullable Locale language
 	) {
 		// the language predicate is used to filter out entities that doesn't have requested language variant
-		final HierarchyEntityPredicate resolvedNodePredicate = language == null ?
-			scopeAndVisibilityFilter :
-			scopeAndVisibilityFilter.and(
-				new HierarchyEntityPredicate(
-					new LocaleHierarchyEntityPredicate(context.entityIndex(), language),
-					(hierarchyNodeId, level, distance) -> true
-				)
-			);
-
 		return createStatistics(
 			statisticsBase == StatisticsBase.WITHOUT_USER_FILTER ?
 				filteringFormulaWithoutUserFilter : filteringFormula,
-			resolvedNodePredicate
+			scopePredicate,
+			language == null ?
+				filterPredicate :
+				filterPredicate.and(new LocaleHierarchyEntityPredicate(context.entityIndex(), language))
 		);
 	}
 
@@ -117,7 +116,8 @@ abstract class AbstractHierarchyStatisticsComputer {
 	@Nonnull
 	protected abstract List<LevelInfo> createStatistics(
 		@Nonnull Formula filteredEntityPks,
-		@Nonnull HierarchyEntityPredicate nodePredicate
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate filterPredicate
 	);
 
 }

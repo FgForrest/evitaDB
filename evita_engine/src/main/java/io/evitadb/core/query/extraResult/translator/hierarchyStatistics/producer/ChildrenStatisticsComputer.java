@@ -50,18 +50,20 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 	public ChildrenStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
-		@Nonnull HierarchyEntityPredicate nodeFilter,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, nodeFilter, statisticsBase, statisticsType);
+		super(context, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsType);
 	}
 
 	@Nonnull
 	@Override
 	protected List<LevelInfo> createStatistics(
 		@Nonnull Formula filteredEntityPks,
-		@Nonnull HierarchyEntityPredicate nodePredicate
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		final Deque<Accumulator> accumulator = new LinkedList<>();
 
@@ -73,7 +75,8 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			// if there is within hierarchy root query we start at root nodes
 			context.entityIndex().traverseHierarchy(
 				new StatisticsHierarchyVisitor(
-					context.removeEmptyResults(), nodePredicate,
+					context.removeEmptyResults(),
+					scopePredicate, filterPredicate,
 					filteredEntityPks, accumulator,
 					context.hierarchyReferencingEntityPks(), entityFetcher,
 					statisticsType
@@ -84,7 +87,8 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			// if root node is set, use different traversal method
 			context.entityIndex().traverseHierarchyFromNode(
 				new StatisticsHierarchyVisitor(
-					context.removeEmptyResults(), nodePredicate,
+					context.removeEmptyResults(),
+					scopePredicate, filterPredicate,
 					filteredEntityPks, accumulator,
 					context.hierarchyReferencingEntityPks(), entityFetcher,
 					statisticsType
@@ -97,7 +101,8 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
 			context.entityIndex().traverseHierarchy(
 				new StatisticsHierarchyVisitor(
-					context.removeEmptyResults(), nodePredicate,
+					context.removeEmptyResults(),
+					scopePredicate, filterPredicate,
 					filteredEntityPks, accumulator,
 					context.hierarchyReferencingEntityPks(),
 					entityFetcher,

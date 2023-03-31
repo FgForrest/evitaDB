@@ -83,6 +83,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * This test verifies whether entities can be filtered by hierarchy constraints.
+ * TODO JNO - tam kde je withinHierarchyOfSelf(parentNode) se teď nic netestuje - musí tam být children + dodělat varianty na fromNode
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

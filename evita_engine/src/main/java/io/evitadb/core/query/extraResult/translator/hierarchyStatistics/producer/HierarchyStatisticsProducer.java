@@ -201,7 +201,8 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	@Nonnull
 	public ExtraResultProducer computeChildren(
 		@Nonnull String outputName,
-		@Nullable HierarchyEntityPredicate predicate,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable HierarchyEntityFetcher entityFetcher,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsTypes
@@ -210,7 +211,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 			"HierarchyChildren",
 			outputName,
 			ctx -> new ChildrenStatisticsComputer(
-				ctx, entityFetcher, predicate, statisticsBase, statisticsTypes
+				ctx, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsTypes
 			)
 		);
 		return this;

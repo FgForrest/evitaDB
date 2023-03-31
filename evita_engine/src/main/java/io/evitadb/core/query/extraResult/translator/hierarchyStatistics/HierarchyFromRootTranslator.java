@@ -31,7 +31,6 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyFilteringPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
@@ -54,24 +53,16 @@ public class HierarchyFromRootTranslator
 		final HierarchyStatisticsProducer producer = getHierarchyStatisticsProducer(extraResultPlanningVisitor);
 		final Optional<HierarchyStatistics> statistics = fromRoot.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(fromRoot.getName());
-		final HierarchyEntityPredicate hierarchyEntityPredicate;
-		if (fromRoot.getFilterBy().isEmpty() && fromRoot.getStopAt().isEmpty()) {
-			hierarchyEntityPredicate = HierarchyEntityPredicate.MATCH_ALL;
-		} else {
-			final HierarchyFilteringPredicate filteringPredicate = fromRoot.getFilterBy()
-				.map(it -> (HierarchyFilteringPredicate) new FilteredHierarchyEntityPredicate(context, it))
-				.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
-			final HierarchyTraversalPredicate traversingPredicate = fromRoot.getStopAt()
-				.map(it -> stopAtConstraintToPredicate(context, it))
-				.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
-			hierarchyEntityPredicate = new HierarchyEntityPredicate(
-				filteringPredicate,
-				traversingPredicate
-			);
-		}
+		final HierarchyFilteringPredicate filteringPredicate = fromRoot.getFilterBy()
+			.map(it -> (HierarchyFilteringPredicate) new FilteredHierarchyEntityPredicate(context, it))
+			.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+		final HierarchyTraversalPredicate scopePredicate = fromRoot.getStopAt()
+			.map(it -> stopAtConstraintToPredicate(context, it))
+			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		producer.computeChildren(
 			fromRoot.getOutputName(),
-			hierarchyEntityPredicate,
+			scopePredicate,
+			filteringPredicate,
 			createEntityFetcher(
 				fromRoot,
 				fromRoot.getEntityFetch().orElse(null),
