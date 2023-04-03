@@ -58,7 +58,7 @@ import javax.annotation.Nonnull;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
  * Implementation of {@link PartialGraphQLSchemaBuilder} for building schema for fetching and updating {@link CatalogSchemaContract}.
@@ -184,7 +184,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 	@Nonnull
 	private BuiltFieldDescriptor buildGlobalAttributeSchemaField(@Nonnull AttributeSchemaContract attributeSchema) {
 		final GraphQLFieldDefinition attributeSchemaField = newFieldDefinition()
-			.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())
 			.deprecate(attributeSchema.getDeprecationNotice())
 			.type(nonNull(typeRef(GlobalAttributeSchemaDescriptor.THIS.name())))
@@ -222,7 +222,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 
 		buildingContext.getEntitySchemas().forEach(entitySchema -> {
 			final GraphQLFieldDefinition entitySchemaField = newFieldDefinition()
-				.name(entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+				.name(entitySchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 				.description(entitySchema.getDescription())
 				.deprecate(entitySchema.getDeprecationNotice())
 				.type(nonNull(typeRef(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema))))

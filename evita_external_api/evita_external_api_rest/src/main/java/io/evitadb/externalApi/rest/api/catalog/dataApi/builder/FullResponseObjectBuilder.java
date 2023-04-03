@@ -63,7 +63,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.*;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
@@ -253,7 +253,7 @@ public class FullResponseObjectBuilder {
 
 		attributeSchemas.forEach(attributeSchema -> {
 			attributeHistogramObjectBuilder.property(p -> p
-				.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+				.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 				.type(typeRefTo(HistogramDescriptor.THIS.name())));
 		});
 
@@ -322,7 +322,7 @@ public class FullResponseObjectBuilder {
 		);
 
 		return newProperty()
-			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.type(arrayOf(facetGroupStatisticsObject))
 			.build();
 	}
@@ -496,7 +496,7 @@ public class FullResponseObjectBuilder {
 		);
 
 		return newProperty()
-			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.type(arrayOf(parentsOfEntityObject))
 			.build();
 	}
@@ -627,7 +627,7 @@ public class FullResponseObjectBuilder {
 	                                               boolean localized) {
 		final OpenApiTypeReference levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema, localized);
 		return newProperty()
-			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.type(arrayOf(levelInfoObject))
 			.build();
 	}

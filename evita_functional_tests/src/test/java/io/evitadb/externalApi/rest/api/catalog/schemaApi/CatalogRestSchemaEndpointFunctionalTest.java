@@ -47,7 +47,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
@@ -108,7 +108,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				//noinspection unchecked
 				final Map<String, Object> attributes = (Map<String, Object>) catalogSchemaDto.get(CatalogSchemaDescriptor.ATTRIBUTES.name());
 				attributes.put(
-					attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+					attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					createGlobalAttributeSchemaDto(attributeSchema)
 				);
 			});
@@ -120,7 +120,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				//noinspection unchecked
 				final Map<String, Object> entitySchemas = (Map<String, Object>) catalogSchemaDto.get(CatalogSchemaDescriptor.ENTITY_SCHEMAS.name());
 				entitySchemas.put(
-					entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+					entitySchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					createEntitySchemaDto(evita, entitySchema)
 				);
 			});
@@ -159,7 +159,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				//noinspection unchecked
 				final Map<String, Object> attributes = (Map<String, Object>) entitySchemaDto.get(EntitySchemaDescriptor.ATTRIBUTES.name());
 				attributes.put(
-					attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+					attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					attributeSchema instanceof GlobalAttributeSchemaContract ? createGlobalAttributeSchemaDto((GlobalAttributeSchemaContract) attributeSchema) : createAttributeSchemaDto(attributeSchema)
 				);
 			});
@@ -169,7 +169,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				//noinspection unchecked
 				final Map<String, Object> associatedData = (Map<String, Object>) entitySchemaDto.get(EntitySchemaDescriptor.ASSOCIATED_DATA.name());
 				associatedData.put(
-					associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+					associatedDataSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					createAssociatedDataSchemaDto(associatedDataSchema)
 				);
 			});
@@ -179,7 +179,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				//noinspection unchecked
 				final Map<String, Object> references = (Map<String, Object>) entitySchemaDto.get(EntitySchemaDescriptor.REFERENCES.name());
 				references.put(
-					referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+					referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					createReferenceSchemaDto(evita, referenceSchema)
 				);
 			});
@@ -301,7 +301,7 @@ abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunct
 				//noinspection unchecked
 				final Map<String, Object> attributes = (Map<String, Object>) referenceSchemaBuilder.get(EntitySchemaDescriptor.ATTRIBUTES.name());
 				attributes.put(
-					attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+					attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					createAttributeSchemaDto(attributeSchema)
 				);
 			});

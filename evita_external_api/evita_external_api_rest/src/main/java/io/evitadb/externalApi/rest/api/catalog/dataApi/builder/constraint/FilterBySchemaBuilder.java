@@ -88,7 +88,7 @@ public class FilterBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
 	@Nonnull
 	@Override
 	protected String getContainerObjectTypeName() {
-		return "FilterContainer_";
+		return "FilterContainer";
 	}
 
 	@Nonnull

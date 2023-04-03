@@ -87,7 +87,7 @@ public class OrderBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
 	@Nonnull
 	@Override
 	protected String getContainerObjectTypeName() {
-		return "OrderContainer_";
+		return "OrderContainer";
 	}
 
 	@Override

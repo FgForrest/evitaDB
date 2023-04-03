@@ -60,7 +60,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertEquals(
 			attributeEquals("CODE", "123"),
 			resolver.resolve(
-				"attribute_code_equals",
+				"attributeCodeEquals",
 				"123"
 			)
 		);
@@ -68,9 +68,9 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueFilterConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("attribute_code_equals", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attribute_code_equals", List.of()));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attribute_code_equals", Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("attributeCodeEquals", null));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attributeCodeEquals", List.of()));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attributeCodeEquals", Map.of()));
 	}
 
 	@Test
@@ -87,8 +87,8 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 			resolver.resolve(
 				"and",
 				List.of(
-					Map.of("attribute_code_equals", "123"),
-					Map.of("attribute_age_is", AttributeSpecialValue.NULL)
+					Map.of("attributeCodeEquals", "123"),
+					Map.of("attributeAgeIs", AttributeSpecialValue.NULL)
 				)
 			)
 		);
@@ -110,11 +110,11 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				directRelation()
 			),
 			resolver.resolve(
-				"hierarchy_category_within",
+				"hierarchyCategoryWithin",
 				Map.of(
 					"ofParent", 1,
 					"with", Map.of(
-						"hierarchy_directRelation", true
+						"hierarchyDirectRelation", true
 					)
 				)
 			)
@@ -126,7 +126,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				1
 			),
 			resolver.resolve(
-				"hierarchy_category_within",
+				"hierarchyCategoryWithin",
 				Map.of(
 					"ofParent", 1
 				)
@@ -143,7 +143,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				2
 			),
 			resolver.resolve(
-				"attribute_age_between",
+				"attributeAgeBetween",
 				List.of(1, 2)
 			)
 		);
@@ -155,7 +155,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				2
 			),
 			resolver.resolve(
-				"attribute_age_between",
+				"attributeAgeBetween",
 				Arrays.asList(null, 2)
 			)
 		);
@@ -167,7 +167,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				null
 			),
 			resolver.resolve(
-				"attribute_age_between",
+				"attributeAgeBetween",
 				Arrays.asList(1, null)
 			)
 		);
@@ -178,7 +178,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> resolver.resolve(
-				"attribute_age_between",
+				"attributeAgeBetween",
 				null
 			)
 		);
@@ -186,7 +186,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> resolver.resolve(
-				"attribute_age_between",
+				"attributeAgeBetween",
 				List.of(1)
 			)
 		);
@@ -194,7 +194,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertThrows(
 			EvitaInternalError.class,
 			() -> resolver.resolve(
-				"attribute_age_between",
+				"attributeAgeBetween",
 				mapOf(
 					"from", 1,
 					"to", 2
@@ -239,23 +239,23 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				resolver.resolve(
 					"filterBy",
 					mapOf(
-						"attribute_code_equals", "123",
+						"attributeCodeEquals", "123",
 						"or", List.of(
 							mapOf(
-								"attribute_age_is", AttributeSpecialValue.NULL
+								"attributeAgeIs", AttributeSpecialValue.NULL
 							),
 							mapOf(
-								"price_between", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
-								"facet_brand_inSet", List.of(10, 20, 30)
+								"priceBetween", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
+								"facetBrandInSet", List.of(10, 20, 30)
 							)
 						),
-						"reference_category_having", mapOf(
-							"attribute_code_startsWith", "ab",
-							"entity_primaryKey_inSet", List.of(2),
-							"entity_having", mapOf(
-								"attribute_name_equals", "cd",
-								"reference_relatedProducts_having", mapOf(
-									"attribute_order_equals", 1
+						"referenceCategoryHaving", mapOf(
+							"attributeCodeStartsWith", "ab",
+							"entityPrimaryKeyInSet", List.of(2),
+							"entityHaving", mapOf(
+								"attributeNameEquals", "cd",
+								"referenceRelatedProductsHaving", mapOf(
+									"attributeOrderEquals", 1
 								)
 							)
 						)

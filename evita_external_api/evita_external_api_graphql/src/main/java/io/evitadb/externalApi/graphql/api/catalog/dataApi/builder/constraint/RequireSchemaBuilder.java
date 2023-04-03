@@ -99,7 +99,7 @@ public class RequireSchemaBuilder extends GraphQLConstraintSchemaBuilder {
 	@Nonnull
 	@Override
 	protected String getContainerObjectTypeName() {
-		return "RequireContainer_";
+		return "RequireContainer";
 	}
 
 	@Nonnull

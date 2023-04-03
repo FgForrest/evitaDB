@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.api.model;
 
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
-import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
@@ -34,7 +33,8 @@ import lombok.Builder;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_PART_NAMING_CONVENTION;
 
 /**
  * API-independent descriptor of single endpoint (query, mutation, ...) in schema-based external APIs.
@@ -92,7 +92,7 @@ public record EndpointDescriptor(@Nonnull String operation,
 	@Nonnull
 	public String operation() {
 		if (hasClassifier()) {
-			return constructOperationName(classifier(FIELD_NAME_NAMING_CONVENTION), null);
+			return constructOperationName(classifier(PROPERTY_NAME_NAMING_CONVENTION), null);
 		} else {
 			Assert.isPremiseValid(
 				!operation.contains(OPERATION_NAME_WILDCARD),
@@ -108,7 +108,7 @@ public record EndpointDescriptor(@Nonnull String operation,
 	@Nonnull
 	public String operation(@Nonnull String suffix) {
 		if (hasClassifier()) {
-			return constructOperationName(classifier(FIELD_NAME_NAMING_CONVENTION), suffix);
+			return constructOperationName(classifier(PROPERTY_NAME_NAMING_CONVENTION), suffix);
 		} else {
 			Assert.isPremiseValid(
 				!operation.contains(OPERATION_NAME_WILDCARD),
@@ -137,7 +137,7 @@ public record EndpointDescriptor(@Nonnull String operation,
 			() -> new ExternalApiInternalError("Endpoint `" + operation + "` has static classifier, cannot use dynamic one.")
 		);
 
-		return constructOperationName(schema.getNameVariant(FIELD_NAME_NAMING_CONVENTION), suffix);
+		return constructOperationName(schema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION), suffix);
 	}
 
 	/**
@@ -146,7 +146,7 @@ public record EndpointDescriptor(@Nonnull String operation,
 	@Nonnull
 	private String constructOperationName(@Nullable String customSuffix) {
 		if (customSuffix != null) {
-			return operation + CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER + customSuffix;
+			return operation + StringUtils.toSpecificCase(customSuffix, PROPERTY_NAME_PART_NAMING_CONVENTION);
 		}
 		return operation;
 	}
@@ -162,11 +162,13 @@ public record EndpointDescriptor(@Nonnull String operation,
 				() -> new ExternalApiInternalError("Custom operation suffix is supported only when no implicit suffix is defined.")
 			);
 			final String[] operationParts = operation.split("\\" + OPERATION_NAME_WILDCARD);
-			return operationParts[0] + CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER + customClassifier + CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER + operationParts[1];
+			return operationParts[0] +
+				StringUtils.toSpecificCase(customClassifier, PROPERTY_NAME_PART_NAMING_CONVENTION) +
+				StringUtils.toSpecificCase(operationParts[1], PROPERTY_NAME_PART_NAMING_CONVENTION);
 		} else {
-			String operation = this.operation + CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER + customClassifier;
+			String operation = this.operation + StringUtils.toSpecificCase(customClassifier, PROPERTY_NAME_PART_NAMING_CONVENTION);
 			if (customSuffix != null) {
-				operation += CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER + customSuffix;
+				operation += StringUtils.toSpecificCase(customSuffix, PROPERTY_NAME_PART_NAMING_CONVENTION);
 			}
 			return operation;
 		}

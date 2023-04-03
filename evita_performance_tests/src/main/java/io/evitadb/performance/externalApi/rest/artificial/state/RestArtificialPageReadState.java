@@ -61,10 +61,11 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 	public void prepareCall(RestArtificialFullDatabaseBenchmarkState benchmarkState) {
 		final List<String> filterConstraints = new LinkedList<>();
 		final List<String> requireConstraints = new LinkedList<>();
+		final List<String> entityFetchRequireConstraints = new LinkedList<>();
 
 		/* 75% times fetch attributes */
 		if (benchmarkState.getRandom().nextInt(4) != 0) {
-			requireConstraints.add("\"attribute_content\": [\"code\", \"quantity\"]");
+			entityFetchRequireConstraints.add("\"attributeContent\": [\"code\", \"quantity\"]");
 		}
 		/* 75% times fetch associated data */
 		if (benchmarkState.getRandom().nextInt(4) != 0) {
@@ -76,8 +77,8 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 				.map(it -> "\"" + it + "\"")
 				.collect(Collectors.joining(","));
 			if (!associatedData.isEmpty()) {
-				requireConstraints.add(
-					"\"associatedData_content\": [" + associatedData + "]"
+				entityFetchRequireConstraints.add(
+					"\"associatedDataContent\": [" + associatedData + "]"
 				);
 			}
 		}
@@ -91,15 +92,15 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 				.filter(it -> benchmarkState.getRandom().nextBoolean())
 				.toArray(String[]::new);
 
-			filterConstraints.add("\"price_inCurrency\": \"" + randomExistingCurrency.toString() + "\"");
-			filterConstraints.add("\"price_inPriceLists\": [" + Arrays.stream(priceLists).map(p -> "\"" + p + "\"").collect(Collectors.joining(",")) + "]");
-			filterConstraints.add("\"price_validIn\": \"" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "\"");
+			filterConstraints.add("\"priceInCurrency\": \"" + randomExistingCurrency.toString() + "\"");
+			filterConstraints.add("\"priceInPriceLists\": [" + Arrays.stream(priceLists).map(p -> "\"" + p + "\"").collect(Collectors.joining(",")) + "]");
+			filterConstraints.add("\"priceValidIn\": \"" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "\"");
 
 			/* 75% only filtered prices */
 			if (benchmarkState.getRandom().nextInt(4) != 0) {
-				requireConstraints.add("\"price_content\":\"RESPECTING_FILTER\"");
+				entityFetchRequireConstraints.add("\"priceContent\": { \"contentMode\": \"RESPECTING_FILTER\" }");
 			} else {
-				requireConstraints.add("\"price_content\":\"ALL\"");
+				entityFetchRequireConstraints.add("\"priceContent\": { \"contentMode\": \"ALL\" }");
 			}
 		}
 
@@ -108,8 +109,8 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 			Stream.of(Entities.BRAND, Entities.CATEGORY, Entities.PRICE_LIST, Entities.STORE)
 				.filter(it -> benchmarkState.getProductSchema().getReference(it).isPresent())
 				.forEach(ref -> {
-					final String refFieldName = StringUtils.toCamelCase(ref);
-					requireConstraints.add("\"reference_" + refFieldName + "_content\": true");
+					final String refFieldName = StringUtils.toPascalCase(ref);
+					entityFetchRequireConstraints.add("\"reference" + refFieldName + "Content\": true");
 				});
 		}
 
@@ -120,14 +121,23 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 			.findFirst()
 			.orElseThrow(() -> new IllegalStateException("No locales found!"));
 
+		requireConstraints.add(
+			String.format("""
+				"entityFetch": {
+					%s
+				}
+				""",
+				String.join(",\n", entityFetchRequireConstraints)
+			)
+		);
 		requireConstraints.add(String.format(
-			"\"page\": { \"pageNumber\": %d, \"pageSize\": %d }",
+			"\"page\": { \"number\": %d, \"size\": %d }",
 			benchmarkState.getRandom().nextInt(5) + 1,
 			20
 		));
 
 		filterConstraints.add(
-			"\"entity_primaryKey_inSet\": [" +
+			"\"entityPrimaryKeyInSet\": [" +
 				Stream.iterate(
 						benchmarkState.getRandom().nextInt(benchmarkState.getRandom().nextInt(PRODUCT_COUNT) + 1),
 						aLong -> benchmarkState.getRandom().nextInt(PRODUCT_COUNT) + 1
@@ -137,7 +147,7 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 					.collect(Collectors.joining(",")) +
 				"]"
 		);
-		filterConstraints.add("\"entity_locale_equals\": \"" + randomExistingLocale.toLanguageTag() + "\"");
+		filterConstraints.add("\"entityLocaleEquals\": \"" + randomExistingLocale.toLanguageTag() + "\"");
 
 		this.resource = "product/list";
 		this.requestBody = String.format(

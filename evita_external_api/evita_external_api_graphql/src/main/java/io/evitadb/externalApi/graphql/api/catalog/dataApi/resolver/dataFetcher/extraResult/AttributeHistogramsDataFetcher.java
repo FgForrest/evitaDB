@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
  * Extracts individual attribute {@link HistogramContract}s for each attribute from {@link EvitaResponse}s extra results
@@ -67,7 +67,7 @@ public class AttributeHistogramsDataFetcher implements DataFetcher<DataFetcherRe
 				final String attributeName = entitySchema
 					.getAttribute(h.getKey())
 					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + h.getKey() + "`."))
-					.getNameVariant(FIELD_NAME_NAMING_CONVENTION);
+					.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION);
 				return attributes.contains(attributeName);
 			})
 			.map(h -> Map.of(

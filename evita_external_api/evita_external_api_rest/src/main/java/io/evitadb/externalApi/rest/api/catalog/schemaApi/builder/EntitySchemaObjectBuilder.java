@@ -63,7 +63,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -193,7 +193,7 @@ public class EntitySchemaObjectBuilder {
 		}
 
 		return newProperty()
-			.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())
 			.deprecationNotice(attributeSchema.getDeprecationNotice())
 			.type(attributeSchemaType)
@@ -223,7 +223,7 @@ public class EntitySchemaObjectBuilder {
 	@Nonnull
 	private static OpenApiProperty buildAssociatedDataSchemaProperty(@Nonnull AssociatedDataSchemaContract associatedDataSchema) {
 		return newProperty()
-			.name(associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(associatedDataSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(associatedDataSchema.getDescription())
 			.deprecationNotice(associatedDataSchema.getDeprecationNotice())
 			.type(nonNull(typeRefTo(AssociatedDataSchemaDescriptor.THIS.name())))
@@ -254,7 +254,7 @@ public class EntitySchemaObjectBuilder {
 	private OpenApiProperty buildReferenceSchemaProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
 		return newProperty()
-			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(referenceSchema.getDescription())
 			.deprecationNotice(referenceSchema.getDeprecationNotice())
 			.type(nonNull(buildReferenceSchemaObject(entitySchema, referenceSchema)))

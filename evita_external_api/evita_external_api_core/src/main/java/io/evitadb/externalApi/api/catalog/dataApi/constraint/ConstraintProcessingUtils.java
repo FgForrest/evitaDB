@@ -33,6 +33,7 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 
 /**
@@ -98,11 +99,15 @@ public class ConstraintProcessingUtils {
 	}
 
 	/**
-	 * Finds corresponding property type for query JSON key prefix.
+	 * Finds corresponding property type for query JSON key prefix. Returns found prefix with corresponding property type.
 	 */
 	@Nonnull
-	public static Optional<ConstraintPropertyType> getPropertyTypeByPrefix(@Nonnull String prefix) {
-		return Optional.ofNullable(PREFIX_TO_PROPERTY_TYPE.get(prefix));
+	public static Entry<String, ConstraintPropertyType> getPropertyTypeByPrefix(@Nonnull String s) {
+		return ConstraintProcessingUtils.PREFIX_TO_PROPERTY_TYPE.entrySet()
+			.stream()
+			.filter(it -> s.startsWith(it.getKey()))
+			.findFirst()
+			.orElse(Map.entry(ConstraintProcessingUtils.GENERIC_PREFIX, ConstraintPropertyType.GENERIC));
 	}
 
 	/**

@@ -68,7 +68,7 @@ public interface EntityHeaderDescriptor {
 			.name("priceList")
 			.description("""
 	            Parameter specifying desired price list of output price.
-	            Whenever possible, use constraint `price_inPriceList` in main query instead.
+	            Whenever possible, use constraint `priceInPriceList` in main query instead.
 				""")
 			.type(nullable(String.class))
 			.build();
@@ -76,7 +76,7 @@ public interface EntityHeaderDescriptor {
 			.name("currency")
 			.description("""
 	            Parameter specifying desired currency of output price if different currency that already defined is desired.
-	            Whenever possible, use constraint `price_inCurrency` in main query instead.
+	            Whenever possible, use constraint `priceInCurrency` in main query instead.
 				""")
 			// type is expected to be a currency enum
 			.build();
@@ -85,7 +85,7 @@ public interface EntityHeaderDescriptor {
 			.description("""
 				Parameter specifying when output price should be valid. If both `validInNow` and `validIn` parameters are
 				specified `validIn` is used.
-				Whenever possible, use constraint `price_validIn` in main query instead.
+				Whenever possible, use constraint `priceValidIn` in main query instead.
 				""")
 			.type(nullable(OffsetDateTime.class))
 			.build();
@@ -94,7 +94,7 @@ public interface EntityHeaderDescriptor {
 			.description("""
 				Parameter specifying when output price should be valid. The date time is resolved to `now` by evitaDB. If both `validNow`
 				and `validIn` parameters are specified `validIn` is used.
-				Whenever possible, use constraint `price_validInNow` in main query instead.
+				Whenever possible, use constraint `priceValidInNow` in main query instead.
 				""")
 			.type(nullable(Boolean.class))
 			.build();

@@ -55,7 +55,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertEquals(
 			facetGroupsConjunction("BRAND", 1, 2),
 			resolver.resolve(
-				"facet_brand_groupsConjunction",
+				"facetBrandGroupsConjunction",
 				List.of(1, 2)
 			)
 		);
@@ -63,7 +63,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueRequireConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("facet_brand_groupsConjunction", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("facet_brand_groupsConjunction", Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("facetBrandGroupsConjunction", null));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve("facetBrandGroupsConjunction", Map.of()));
 	}
 }

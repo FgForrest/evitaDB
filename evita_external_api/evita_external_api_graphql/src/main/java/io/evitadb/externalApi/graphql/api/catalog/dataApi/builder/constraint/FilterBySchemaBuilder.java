@@ -84,7 +84,7 @@ public class FilterBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
 	@Nonnull
 	@Override
 	protected String getContainerObjectTypeName() {
-		return "FilterContainer_";
+		return "FilterContainer";
 	}
 
 	@Nonnull
