@@ -54,6 +54,7 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 public abstract class GraphQLEndpointFunctionalTest {
 
 	public static final String TYPENAME_FIELD = "__typename";
+	protected static final String ERRORS_PATH = "errors";
 
 	@Nonnull
 	protected static EntitySchema createEmptyEntitySchema(@Nonnull String entityType) {

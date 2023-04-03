@@ -71,7 +71,6 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String PRODUCT_SCHEMA_PATH = "data.getProductSchema";
 	private static final Function<String, EntitySchemaContract> FAIL_ON_CALL = s -> {
 		fail("Should not be called!");

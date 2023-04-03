@@ -55,7 +55,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  */
 public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String CATALOG_SCHEMA_PATH = "data.getCatalogSchema";
 
 	@Test
