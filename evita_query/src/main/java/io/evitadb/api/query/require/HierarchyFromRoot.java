@@ -179,7 +179,6 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		Assert.isTrue(ArrayUtils.isEmpty(additionalChildren), "Inner constraints of different type than `require` are not expected.");
 		return new HierarchyFromRoot(getOutputName(), children, additionalChildren);
 	}
 
@@ -190,7 +189,7 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 			newArguments.length == 1 && newArguments[0] instanceof String,
 			"HierarchyFromRoot container accepts only single String argument!"
 		);
-		return new HierarchyFromRoot((String) newArguments[0], getChildren());
+		return new HierarchyFromRoot((String) newArguments[0], getChildren(), getAdditionalChildren());
 	}
 
 }

@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.CompositeIntArray;
@@ -194,10 +195,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromRootFormula(int... excludedNodeTrees) {
-		return new DeferredFormula(
-			new HierarchyRootsWithExcludesBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				excludedNodeTrees
+		return new HierarchyFormula(
+			new DeferredFormula(
+				new HierarchyRootsWithExcludesBitmapSupplier(
+					this, new long[]{this.roots.getId(), this.levelIndex.getId()},
+					excludedNodeTrees
+				)
 			)
 		);
 	}
@@ -222,10 +225,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromRootDownToFormula(int levels, int... excludedNodeTrees) {
-		return new DeferredFormula(
-			new HierarchyRootsDownToLevelWithExcludesBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				levels, excludedNodeTrees
+		return new HierarchyFormula(
+			new DeferredFormula(
+				new HierarchyRootsDownToLevelWithExcludesBitmapSupplier(
+					this, new long[]{this.roots.getId(), this.levelIndex.getId()},
+					levels, excludedNodeTrees
+				)
 			)
 		);
 	}
@@ -250,10 +255,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentIncludingItselfFormula(int parentNode, int... excludedNodeTrees) {
-		return new DeferredFormula(
-			new HierarchyByParentWithExcludesIncludingSelfBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				parentNode, excludedNodeTrees
+		return new HierarchyFormula(
+			new DeferredFormula(
+				new HierarchyByParentWithExcludesIncludingSelfBitmapSupplier(
+					this, new long[]{this.roots.getId(), this.levelIndex.getId()},
+					parentNode, excludedNodeTrees
+				)
 			)
 		);
 	}
@@ -276,10 +283,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentIncludingItselfDownToFormula(int parentNode, int levels, int... excludedNodeTrees) {
-		return new DeferredFormula(
-			new HierarchyByParentDownToLevelWithExcludesIncludingSelfBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				parentNode, levels, excludedNodeTrees
+		return new HierarchyFormula(
+			new DeferredFormula(
+				new HierarchyByParentDownToLevelWithExcludesIncludingSelfBitmapSupplier(
+					this, new long[]{this.roots.getId(), this.levelIndex.getId()},
+					parentNode, levels, excludedNodeTrees
+				)
 			)
 		);
 	}
@@ -302,10 +311,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentFormula(int parentNode, int... excludedNodeTrees) {
-		return new DeferredFormula(
-			new HierarchyByParentWithExcludesBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				parentNode, excludedNodeTrees
+		return new HierarchyFormula(
+			new DeferredFormula(
+				new HierarchyByParentWithExcludesBitmapSupplier(
+					this, new long[]{this.roots.getId(), this.levelIndex.getId()},
+					parentNode, excludedNodeTrees
+				)
 			)
 		);
 	}
@@ -327,10 +338,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentDownToFormula(int parentNode, int levels, int... excludedNodeTrees) {
-		return new DeferredFormula(
-			new HierarchyByParentDownToLevelWithExcludesBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				parentNode, levels, excludedNodeTrees
+		return new HierarchyFormula(
+			new DeferredFormula(
+				new HierarchyByParentDownToLevelWithExcludesBitmapSupplier(
+					this, new long[]{this.roots.getId(), this.levelIndex.getId()},
+					parentNode, levels, excludedNodeTrees
+				)
 			)
 		);
 	}
@@ -383,10 +396,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	@Nonnull
 	public Formula getRootHierarchyNodesFormula() {
-		return new DeferredFormula(
-			new HierarchyRootsBitmapSupplier(
-				this,
-				new long[]{this.roots.getId(), this.levelIndex.getId()}
+		return new HierarchyFormula(
+			new DeferredFormula(
+				new HierarchyRootsBitmapSupplier(
+					this,
+					new long[]{this.roots.getId(), this.levelIndex.getId()}
+				)
 			)
 		);
 	}
@@ -401,10 +416,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	@Nonnull
 	public Formula getHierarchyNodesForParentFormula(int parentNode) {
-		return new DeferredFormula(
-			new HierarchyByParentBitmapSupplier(
-				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				parentNode
+		return new HierarchyFormula(
+			new DeferredFormula(
+				new HierarchyByParentBitmapSupplier(
+					this, new long[]{this.roots.getId(), this.levelIndex.getId()},
+					parentNode
+				)
 			)
 		);
 	}
@@ -771,7 +788,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		final int distance;
 		if (rootNode == null) {
 			level = 1;
-			distance = 0;
+			distance = 1;
 			rootNodes = this.roots.stream()
 				.filter(it -> !excludedNodes.contains(it))
 				.map(this.itemIndex::get)

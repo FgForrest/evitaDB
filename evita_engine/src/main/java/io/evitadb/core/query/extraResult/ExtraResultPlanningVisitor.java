@@ -29,12 +29,15 @@ import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
+import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
@@ -135,10 +138,20 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	private ExtraResultProducer lastReturnedProducer;
 	/**
+	 * Contains {@link #getFilteringFormula()} without {@link HierarchyWithin} / {@link HierarchyWithinRoot} sub-trees.
+	 * The field is initialized lazily.
+	 */
+	private Formula filteringFormulaWithoutHierarchyFilter;
+	/**
 	 * Contains {@link #getFilteringFormula()} without {@link UserFilterFormula} sub-trees. The field is initialized
 	 * lazily.
 	 */
 	private Formula filteringFormulaWithoutUserFilter;
+	/**
+	 * Contains {@link #getFilteringFormula()} without {@link UserFilterFormula} and {@link HierarchyWithin} /
+	 * {@link HierarchyWithinRoot} sub-trees. The field is initialized lazily.
+	 */
+	private Formula filteringFormulaWithoutHierarchyAndUserFilter;
 	/**
 	 * Contains set (usually of size == 1 or 0) that contains references to the {@link UserFilterFormula} inside
 	 * {@link #filteringFormula}. This is a helper field that allows to reuse result of the formula search multiple
@@ -181,6 +194,23 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
+	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link HierarchyWithin} and
+	 * {@link HierarchyWithinRoot} formula parts. Result of this method is cached so that additional calls introduce no
+	 * performance penalty and also the formula memoized sub-results are shared once the {@link Formula#compute()}
+	 * method is called for the first time.
+	 */
+	@Nonnull
+	public Formula getFilteringFormulaWithoutHierarchyFilter() {
+		if (filteringFormulaWithoutHierarchyFilter == null) {
+			filteringFormulaWithoutHierarchyFilter = FormulaCloner.clone(
+				filteringFormula,
+				formula -> formula instanceof HierarchyFormula ? null : formula
+			);
+		}
+		return filteringFormulaWithoutHierarchyFilter;
+	}
+
+	/**
 	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link UserFilterFormula} parts.
 	 * Result of this method is cached so that additional calls introduce no performance penalty and also the formula
 	 * memoized sub-results are shared once the {@link Formula#compute()} method is called for the first time.
@@ -194,6 +224,24 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			);
 		}
 		return filteringFormulaWithoutUserFilter;
+	}
+
+	/**
+	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link HierarchyWithin},
+	 * {@link HierarchyWithinRoot} formulas and {@link UserFilterFormula} parts. Result of this method is cached so that
+	 * additional calls introduce no performance penalty and also the formula memoized sub-results are shared once
+	 * the {@link Formula#compute()} method is called for the first time.
+	 */
+	@Nonnull
+	public Formula getFilteringFormulaWithoutHierarchyAndUserFilter() {
+		if (filteringFormulaWithoutHierarchyFilter == null) {
+			filteringFormulaWithoutHierarchyFilter = FormulaCloner.clone(
+				filteringFormula,
+				formula -> formula instanceof HierarchyFormula || formula instanceof UserFilterFormula ?
+					null : formula
+			);
+		}
+		return filteringFormulaWithoutHierarchyFilter;
 	}
 
 	/**

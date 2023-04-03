@@ -60,7 +60,14 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 			Assert.isTrue(
 				requireConstraint instanceof HierarchyOutputRequireConstraint ||
 					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchyFromRoot accepts only HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
+				"Constraint HierarchyFromNode accepts only FilterBy, HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
+			);
+		}
+		for (Constraint<?> additionalConstraint : additionalChildren) {
+			Assert.isTrue(
+				additionalConstraint instanceof FilterBy ||
+					additionalConstraint == null,
+				"Constraint HierarchyFromNode accepts only FilterBy, HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
 			);
 		}
 	}
@@ -192,16 +199,7 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		for (RequireConstraint requireConstraint : children) {
-			Assert.isTrue(
-				requireConstraint instanceof HierarchyOutputRequireConstraint ||
-					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchyFromNode accepts only HierarchyNode, HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
-			);
-		}
-
-		Assert.isTrue(ArrayUtils.isEmpty(additionalChildren), "Inner constraints of different type than `require` are not expected.");
-		return new HierarchyFromNode(getOutputName(), children);
+		return new HierarchyFromNode(getOutputName(), children, additionalChildren);
 	}
 
 	@Nonnull
@@ -211,7 +209,7 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 			newArguments.length == 1 && newArguments[0] instanceof String,
 			"HierarchyFromNode container accepts only single String argument!"
 		);
-		return new HierarchyFromNode((String) newArguments[0], getChildren());
+		return new HierarchyFromNode((String) newArguments[0], getChildren(), getAdditionalChildren());
 	}
 
 }

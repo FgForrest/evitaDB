@@ -59,7 +59,7 @@ public class HierarchyFromRootTranslator
 		final HierarchyTraversalPredicate scopePredicate = fromRoot.getStopAt()
 			.map(it -> stopAtConstraintToPredicate(context, it))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
-		producer.computeChildren(
+		producer.computeRoot(
 			fromRoot.getOutputName(),
 			scopePredicate,
 			filteringPredicate,

@@ -66,8 +66,8 @@ public abstract class AbstractHierarchyTranslator {
 				() -> new HierarchyStatisticsProducer(
 					extraResultPlanner.getQueryContext(),
 					extraResultPlanner.getLocale(),
-					extraResultPlanner.getFilteringFormula(),
-					extraResultPlanner.getFilteringFormulaWithoutUserFilter()
+					extraResultPlanner.getFilteringFormulaWithoutHierarchyFilter(),
+					extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter()
 				)
 			);
 	}

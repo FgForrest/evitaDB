@@ -119,7 +119,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		);
 		assertEquals("|6|7|", nodeIds.toString());
 		assertEquals("|1|1|", levels.toString());
-		assertEquals("|0|0|", distances.toString());
+		assertEquals("|1|1|", distances.toString());
 	}
 
 	@Test
@@ -137,7 +137,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		);
 		assertEquals("|6|8|9|12|11|10|3|2|1|7|4|5|0|", nodeIds.toString());
 		assertEquals("|1|2|3|4|4|4|2|3|3|1|2|2|3|", levels.toString());
-		assertEquals("|0|1|2|3|3|3|1|2|2|0|1|1|2|", distances.toString());
+		assertEquals("|1|2|3|4|4|4|2|3|3|1|2|2|3|", distances.toString());
 	}
 
 	@Test
@@ -155,7 +155,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		);
 		assertEquals("|12|11|10|9|8|2|1|3|6|4|0|5|7|", nodeIds.toString());
 		assertEquals("|4|4|4|3|2|3|3|2|1|2|3|2|1|", levels.toString());
-		assertEquals("|3|3|3|2|1|2|2|1|0|1|2|1|0|", distances.toString());
+		assertEquals("|4|4|4|3|2|3|3|2|1|2|3|2|1|", distances.toString());
 	}
 
 	@Test

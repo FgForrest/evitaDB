@@ -44,6 +44,8 @@ import static java.util.Optional.ofNullable;
  * Abstract ancestor for hierarchy statistics computers. Contains shared logic and data.
  */
 abstract class AbstractHierarchyStatisticsComputer {
+	protected static final int[] EMPTY_IDS = new int[0];
+
 	/**
 	 * Context captured at the moment the computer was created.
 	 */

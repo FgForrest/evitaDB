@@ -23,14 +23,17 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
-import io.evitadb.api.query.filter.HierarchyWithin;
-import io.evitadb.api.query.filter.HierarchyWithinRoot;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.StatisticsHierarchyVisitor;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -39,23 +42,27 @@ import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsComputer {
+public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsComputer {
+	private final FilterBy parentId;
 
-
-	public ChildrenStatisticsComputer(
+	public NodeRelativeStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
-		@Nonnull EnumSet<StatisticsType> statisticsType
+		@Nonnull EnumSet<StatisticsType> statisticsType,
+		@Nonnull FilterBy parentId
 	) {
 		super(context, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsType);
+		this.parentId = parentId;
 	}
 
 	@Nonnull
@@ -71,20 +78,16 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		final Accumulator root = new Accumulator(null, () -> 0);
 		accumulator.add(root);
 
-		if (context.hierarchyWithin() instanceof HierarchyWithinRoot hierarchyWithinRoot) {
-			// if there is within hierarchy root query we start at root nodes
-			context.entityIndex().traverseHierarchy(
-				new StatisticsHierarchyVisitor(
-					context.removeEmptyResults(),
-					scopePredicate, filterPredicate,
-					filteredEntityPks, accumulator,
-					context.hierarchyReferencingEntityPks(), entityFetcher,
-					statisticsType
-				),
-				hierarchyWithinRoot.getExcludedChildrenIds()
+		final FilteredHierarchyEntityPredicate parentIdPredicate = new FilteredHierarchyEntityPredicate(context, parentId);
+		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();
+
+		if (!parentId.isEmpty()) {
+			Assert.isTrue(
+				parentId.size() == 1,
+				() -> "The filter by constraint: `" + parentIdPredicate.getFilterBy() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
+					"Hierarchy statistics computation expects only single node will be matched (due to performance reasons)."
 			);
-		} else if (context.hierarchyWithin() instanceof HierarchyWithin hierarchyWithin) {
-			// if root node is set, use different traversal method
+			// we always start at specific node, but we respect the excluded children
 			context.entityIndex().traverseHierarchyFromNode(
 				new StatisticsHierarchyVisitor(
 					context.removeEmptyResults(),
@@ -93,21 +96,11 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 					context.hierarchyReferencingEntityPks(), entityFetcher,
 					statisticsType
 				),
-				hierarchyWithin.getParentId(),
+				parentId.getFirst(),
 				false,
-				hierarchyWithin.getExcludedChildrenIds()
-			);
-		} else {
-			// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
-			context.entityIndex().traverseHierarchy(
-				new StatisticsHierarchyVisitor(
-					context.removeEmptyResults(),
-					scopePredicate, filterPredicate,
-					filteredEntityPks, accumulator,
-					context.hierarchyReferencingEntityPks(),
-					entityFetcher,
-					statisticsType
-				)
+				ofNullable(context.hierarchyWithin())
+					.map(HierarchyFilterConstraint::getExcludedChildrenIds)
+					.orElse(EMPTY_IDS)
 			);
 		}
 

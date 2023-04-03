@@ -28,10 +28,12 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
@@ -53,8 +55,34 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 	@Serial private static final long serialVersionUID = 9160175156714580097L;
 	private static final String CONSTRAINT_NAME = "children";
 
-	private HierarchyChildren(@Nonnull String outputName, @Nonnull RequireConstraint[] children) {
-		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children);
+	private HierarchyChildren(@Nonnull String outputName, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children, additionalChildren);
+		for (RequireConstraint requireConstraint : children) {
+			Assert.isTrue(
+				requireConstraint instanceof HierarchyOutputRequireConstraint ||
+					requireConstraint instanceof EntityFetch,
+				"Constraint HierarchyChildren accepts only FilterBy, HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
+			);
+		}
+		for (Constraint<?> additionalConstraint : additionalChildren) {
+			Assert.isTrue(
+				additionalConstraint instanceof FilterBy ||
+					additionalConstraint == null,
+				"Constraint HierarchyChildren accepts only FilterBy, HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
+			);
+		}
+	}
+
+	public HierarchyChildren(@Nonnull String outputName, @Nullable FilterBy filterBy, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[]{outputName},
+			ArrayUtils.mergeArrays(
+				new RequireConstraint[]{entityFetch},
+				requirements
+			),
+			filterBy
+		);
 	}
 
 	public HierarchyChildren(@Nonnull String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
@@ -98,6 +126,14 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 	}
 
 	/**
+	 * Contains filtering condition filters out hierarchy nodes that should not be part of the result.
+	 */
+	@Nonnull
+	public Optional<FilterBy> getFilterBy() {
+		return Optional.ofNullable(getAdditionalChild(FilterBy.class));
+	}
+
+	/**
 	 * Returns content requirements for hierarchy entities.
 	 */
 	@Nonnull
@@ -131,16 +167,7 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		for (RequireConstraint requireConstraint : children) {
-			Assert.isTrue(
-				requireConstraint instanceof HierarchyOutputRequireConstraint ||
-					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchyChildren accepts only HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
-			);
-		}
-
-		Assert.isTrue(ArrayUtils.isEmpty(additionalChildren), "Inner constraints of different type than `require` are not expected.");
-		return new HierarchyChildren(getOutputName(), children);
+		return new HierarchyChildren(getOutputName(), children, additionalChildren);
 	}
 
 	@Nonnull
@@ -150,7 +177,7 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 			newArguments.length == 1 && newArguments[0] instanceof String,
 			"HierarchyChildren container accepts only single String argument!"
 		);
-		return new HierarchyChildren((String) newArguments[0], getChildren());
+		return new HierarchyChildren((String) newArguments[0], getChildren(), getAdditionalChildren());
 	}
 
 }

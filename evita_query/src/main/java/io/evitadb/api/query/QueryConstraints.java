@@ -1991,6 +1991,23 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchyChildren children(
 		@Nullable String outputName,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchyOutputRequireConstraint... requirement
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return new HierarchyChildren(outputName, filterBy, entityFetch, requirement);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyChildren children(
+		@Nullable String outputName,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {

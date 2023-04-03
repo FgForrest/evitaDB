@@ -39,6 +39,7 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.bitmap.Bitmap;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -58,11 +59,16 @@ import static io.evitadb.utils.Assert.notNull;
 @RequiredArgsConstructor
 public class FilteredHierarchyEntityPredicate implements HierarchyFilteringPredicate, HierarchyTraversalPredicate {
 	/**
+	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
+	 */
+	@Getter private final FilterBy filterBy;
+	/**
 	 * Formula computes id of all hierarchical entities that match input filter by constraint.
 	 */
 	private final Formula filteringFormula;
 
 	public FilteredHierarchyEntityPredicate(@Nonnull HierarchyProducerContext context, @Nonnull FilterBy filterBy) {
+		this.filterBy = filterBy;
 		final QueryContext queryContext = context.queryContext();
 		try {
 			final String stepDescription = "Hierarchy statistics of `" + context.entitySchema().getName() + "`: " + filterBy.getChild().toString();

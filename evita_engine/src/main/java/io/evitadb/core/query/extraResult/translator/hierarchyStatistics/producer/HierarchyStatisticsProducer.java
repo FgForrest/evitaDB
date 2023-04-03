@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
 import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -194,6 +195,53 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		} finally {
 			context.set(null);
 		}
+	}
+
+	/**
+	 * Methods creates {@link RootStatisticsComputer} instance that computes result labeled as `outputName`
+	 * using defined predicates and entity fetcher.
+	 */
+	@Nonnull
+	public ExtraResultProducer computeRoot(
+		@Nonnull String outputName,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate filterPredicate,
+		@Nullable HierarchyEntityFetcher entityFetcher,
+		@Nullable StatisticsBase statisticsBase,
+		@Nonnull EnumSet<StatisticsType> statisticsTypes
+	) {
+		addComputer(
+			HierarchyChildren.class.getSimpleName(),
+			outputName,
+			ctx -> new RootStatisticsComputer(
+				ctx, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsTypes
+			)
+		);
+		return this;
+	}
+
+	/**
+	 * Methods creates {@link RootStatisticsComputer} instance that computes result labeled as `outputName`
+	 * using defined predicates and entity fetcher.
+	 */
+	@Nonnull
+	public ExtraResultProducer computeNodeRelative(
+		@Nonnull String outputName,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate filterPredicate,
+		@Nullable HierarchyEntityFetcher entityFetcher,
+		@Nullable StatisticsBase statisticsBase,
+		@Nonnull EnumSet<StatisticsType> statisticsTypes,
+		@Nonnull FilterBy parentId
+	) {
+		addComputer(
+			HierarchyChildren.class.getSimpleName(),
+			outputName,
+			ctx -> new NodeRelativeStatisticsComputer(
+				ctx, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsTypes, parentId
+			)
+		);
+		return this;
 	}
 
 	/**
