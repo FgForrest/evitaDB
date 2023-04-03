@@ -100,7 +100,7 @@ class SchemaUtilsTest {
 	void shouldGetLessThanSchemaFromFilterBy(Evita evita, OpenAPI openAPI) {
 		final PathItem pathItem = openAPI.getPaths().get(urlPathToProductList);
 
-		final String quantityLessThanConstraintName = "attribute_quantity_lessThan";
+		final String quantityLessThanConstraintName = "attributeQuantityLessThan";
 		final Schema lessThanSchema = SchemaUtils.getSchemaFromFilterBy(openAPI, pathItem.getPost(), quantityLessThanConstraintName);
 		assertNotNull(lessThanSchema);
 		assertEquals(quantityLessThanConstraintName, lessThanSchema.getName());
@@ -126,7 +126,7 @@ class SchemaUtilsTest {
 	void shouldGetPriorityNaturalSchemaFromOrderBy(Evita evita, OpenAPI openAPI) {
 		final PathItem pathItem = openAPI.getPaths().get(urlPathToProductList);
 
-		final String priorityNaturalConstraintName = "attribute_priority_natural";
+		final String priorityNaturalConstraintName = "attributePriorityNatural";
 		final Schema priorityNaturalSchema = SchemaUtils.getSchemaFromOrderBy(openAPI, pathItem.getPost(), priorityNaturalConstraintName);
 		assertNotNull(priorityNaturalSchema);
 		assertEquals(priorityNaturalConstraintName, priorityNaturalSchema.getName());

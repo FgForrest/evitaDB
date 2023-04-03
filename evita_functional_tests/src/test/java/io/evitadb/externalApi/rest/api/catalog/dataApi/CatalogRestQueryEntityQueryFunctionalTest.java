@@ -129,11 +129,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"entity_primaryKey_inSet\": [%d, %d]" +
+					"  \"entityPrimaryKeyInSet\": [%d, %d]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"attribute_content\": [\"code\"]" +
+					"  \"entityFetch\": {" +
+					"     \"attributeContent\": [\"code\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -184,12 +184,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]," +
-					"  \"entity_locale_equals\": \"en\"" +
+					"  \"attributeCodeInSet\": [\"%s\", \"%s\"]," +
+					"  \"entityLocaleEquals\": \"en\"" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"attribute_content\": [\"code\", \"name\"]" +
+					"  \"entityFetch\": {" +
+					"     \"attributeContent\": [\"code\", \"name\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -237,12 +237,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_url_inSet\": [\"%s\", \"%s\"]," +
-					"  \"entity_locale_equals\": \"en\"" +
+					"  \"attributeUrlInSet\": [\"%s\", \"%s\"]," +
+					"  \"entityLocaleEquals\": \"en\"" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"attribute_content\": [\"url\", \"name\"]" +
+					"  \"entityFetch\": {" +
+					"     \"attributeContent\": [\"url\", \"name\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -285,11 +285,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_url_inSet\": [\"%s\", \"%s\"]" +
+					"  \"attributeUrlInSet\": [\"%s\", \"%s\"]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"attribute_content\": [\"url\", \"name\"]" +
+					"  \"entityFetch\": {" +
+					"     \"attributeContent\": [\"url\", \"name\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -310,8 +310,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_url_inSet\": [\"some_url\"]," +
-					"  \"entity_locale_equals\": \"en\"" +
+					"  \"attributeUrlInSet\": [\"some_url\"]," +
+					"  \"entityLocaleEquals\": \"en\"" +
 					"} }"
 			)
 			.executeAndThen()
@@ -328,11 +328,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 				"\"filterBy\": {" +
-				"  \"attribute_url_inSet\": [\"xxx\"]" +
+				"  \"attributeUrlInSet\": [\"xxx\"]" +
 				"}," +
 				"\"require\": {" +
-				"  \"entity_fetch_xxx\": {" +
-				"     \"attribute_content\": [\"url\", \"name\"]" +
+				"  \"entityFetch_xxx\": {" +
+				"     \"attributeContent\": [\"url\", \"name\"]" +
 				"    }" +
 				"  }" +
 				"}"
@@ -353,7 +353,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_code_inSet\": \"%s\"" +
+					"  \"attributeCodeInSet\": \"%s\"" +
 					"}" +
 					"}",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE, String.class)
@@ -380,13 +380,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"""
                     {
 						"filterBy": {
-						    "attribute_code_inSet": ["%s", "%s"],
-						    "price_inCurrency": "CZK",
-						    "price_inPriceLists": ["basic"]
+						    "attributeCodeInSet": ["%s", "%s"],
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": ["basic"]
 						},
 						"require": {
-						    "entity_fetch": {
-						        "price_content": {
+						    "entityFetch": {
+						        "priceContent": {
 						            "contentMode": "RESPECTING_FILTER"
 					            }
 						    }
@@ -414,13 +414,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"""
                     {
 						"filterBy": {
-						  "attribute_code_inSet": ["%s", "%s"],
-						  "price_inCurrency": "CZK",
-						  "price_inPriceLists": ["nonexistent"]
+						  "attributeCodeInSet": ["%s", "%s"],
+						  "priceInCurrency": "CZK",
+						  "priceInPriceLists": ["nonexistent"]
 						},
 						"require": {
-							"entity_fetch": {
-								"price_content": {
+							"entityFetch": {
+								"priceContent": {
 									"contentMode": "RESPECTING_FILTER"
 								}
 							}
@@ -448,13 +448,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"""
                     {
 						"filterBy": {
-						    "attribute_code_inSet": ["%s", "%s"],
-						    "price_inCurrency": "AAA",
-						    "price_inPriceLists": ["basic"]
+						    "attributeCodeInSet": ["%s", "%s"],
+						    "priceInCurrency": "AAA",
+						    "priceInPriceLists": ["basic"]
 						},
 						"require": {
-						    "entity_fetch": {
-						        "price_content": {
+						    "entityFetch": {
+						        "priceContent": {
 						            "contentMode": "RESPECTING_FILTER"
 					            }
 						    }
@@ -486,13 +486,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"""
                     {
 						"filterBy": {
-						    "attribute_code_inSet": ["%s", "%s"],
-						    "price_inCurrency": "CZK",
-						    "price_inPriceLists": ["basic"]
+						    "attributeCodeInSet": ["%s", "%s"],
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": ["basic"]
 						},
 						"require": {
-						    "entity_fetch": {
-						        "price_content": {
+						    "entityFetch": {
+						        "priceContent": {
 						            "contentMode": "RESPECTING_FILTER"
 					            }
 						    }
@@ -526,12 +526,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]," +
-					"  \"entity_locale_equals\": \"en\"" +
+					"  \"attributeCodeInSet\": [\"%s\", \"%s\"]," +
+					"  \"entityLocaleEquals\": \"en\"" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"associatedData_content\": [\"labels\"]" +
+					"  \"entityFetch\": {" +
+					"     \"associatedDataContent\": [\"labels\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -562,11 +562,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]" +
+					"  \"attributeCodeInSet\": [\"%s\", \"%s\"]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"associatedData_content\": [\"labels\"]" +
+					"  \"entityFetch\": {" +
+					"     \"associatedDataContent\": [\"labels\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -605,13 +605,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]" +
+					"  \"attributeCodeInSet\": [\"%s\", \"%s\"]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"reference_brand_content\": {" +
-					"        \"entity_fetch\": {" +
-					"          \"attribute_content\": [\"marketShare\"]" +
+					"  \"entityFetch\": {" +
+					"     \"referenceBrandContent\": {" +
+					"        \"entityFetch\": {" +
+					"          \"attributeContent\": [\"marketShare\"]" +
 					"          }" +
 					"       }" +
 					"    }" +
@@ -651,13 +651,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]" +
+					"  \"attributeCodeInSet\": [\"%s\", \"%s\"]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"reference_store_content\": {" +
-					"        \"entity_fetch\": {" +
-					"          \"attribute_content\": [\"marketShare\"]" +
+					"  \"entityFetch\": {" +
+					"     \"referenceStoreContent\": {" +
+					"        \"entityFetch\": {" +
+					"          \"attributeContent\": [\"marketShare\"]" +
 					"          }" +
 					"       }" +
 					"    }" +
@@ -742,20 +742,20 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					"\"filterBy\": {" +
 					"\"or\": [" +
 					"    {" +
-					"        \"attribute_alias_equals\": %b," +
-					"        \"attribute_priority_equals\": \"%s\"" +
+					"        \"attributeAliasEquals\": %b," +
+					"        \"attributePriorityEquals\": \"%s\"" +
 					"    }," +
 					"    {" +
-					"        \"attribute_alias_equals\": %b," +
-					"        \"attribute_priority_equals\": \"%s\"" +
+					"        \"attributeAliasEquals\": %b," +
+					"        \"attributePriorityEquals\": \"%s\"" +
 					"    }," +
 					"    {" +
-					"        \"attribute_alias_equals\": false," +
-					"        \"attribute_priority_inSet\": [\"%s\", \"%s\", \"%s\", \"%s\"]" +
+					"        \"attributeAliasEquals\": false," +
+					"        \"attributePriorityInSet\": [\"%s\", \"%s\", \"%s\", \"%s\"]" +
 					"    }" +
 					"]," +
 					"\"not\": {" +
-					"    \"attribute_code_equals\": \"%s\"" +
+					"    \"attributeCodeEquals\": \"%s\"" +
 					"}" +
 					"}," +
 					"\"require\": {" +
@@ -818,11 +818,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 				"\"filterBy\": {" +
-				"  \"attribute_priority_lessThan\": 35000" +
+				"  \"attributePriorityLessThan\": 35000" +
 				"}," +
 				"\"orderBy\": {" +
-				"  \"attribute_created_natural\": \"DESC\"," +
-				"  \"attribute_manufactured_natural\": \"ASC\"" +
+				"  \"attributeCreatedNatural\": \"DESC\"," +
+				"  \"attributeManufacturedNatural\": \"ASC\"" +
 				"}," +
 				"\"require\": {" +
 				"  \"strip\": {" +
@@ -870,7 +870,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 				"\"filterBy\": {" +
-				"  \"attribute_priority_lessThan\": 35000" +
+				"  \"attributePriorityLessThan\": 35000" +
 				"}," +
 				"\"require\": {" +
 				"  \"page\": {" +
@@ -924,7 +924,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 				"\"filterBy\": {" +
-				"  \"attribute_priority_lessThan\": 35000" +
+				"  \"attributePriorityLessThan\": 35000" +
 				"}," +
 				"\"require\": {" +
 				"  \"strip\": {" +
@@ -976,14 +976,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_alias_is\": \"NOT_NULL\"" +
+					"  \"attributeAliasIs\": \"NOT_NULL\"" +
 					"}," +
 					"\"require\": {" +
 					"  \"page\": {" +
 					"     \"number\": 1," +
 					"     \"size\": %d" +
 					"    }," +
-					"  \"attribute_histogram\": {" +
+					"  \"attributeHistogram\": {" +
 					"     \"requestedBucketCount\": 20," +
 					"     \"attributeName\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
 					"    }" +
@@ -1008,14 +1008,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_alias_is\": \"NOT_NULL\"" +
+					"  \"attributeAliasIs\": \"NOT_NULL\"" +
 					"}," +
 					"\"require\": {" +
 					"  \"page\": {" +
 					"     \"number\": 1," +
 					"     \"size\": %d" +
 					"    }," +
-					"  \"attribute_histogram\": {" +
+					"  \"attributeHistogram\": {" +
 					"     \"attributeName\": [\"" + ATTRIBUTE_QUANTITY + "\"]" +
 					"    }" +
 					"  }" +
@@ -1023,7 +1023,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				Integer.MAX_VALUE)
 			.executeAndThen()
 			.statusCode(400)
-			.body("message", equalTo("Constraint `attribute_histogram` requires parameter `requestedBucketCount` to be non-null."));
+			.body("message", equalTo("Constraint `attributeHistogram` requires parameter `requestedBucketCount` to be non-null."));
 	}
 
 	@Test
@@ -1059,15 +1059,15 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"price_inCurrency\": \"EUR\"," +
-					"  \"price_inPriceLists\": [\"vip\",\"basic\"]" +
+					"  \"priceInCurrency\": \"EUR\"," +
+					"  \"priceInPriceLists\": [\"vip\",\"basic\"]" +
 					"}," +
 					"\"require\": {" +
 					"  \"page\": {" +
 					"     \"number\": 1," +
 					"     \"size\": %d" +
 					"    }," +
-					"  \"price_histogram\": 20" +
+					"  \"priceHistogram\": 20" +
 					"  }" +
 					"}",
 				Integer.MAX_VALUE)
@@ -1089,22 +1089,22 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"filterBy": {
-							"price_inCurrency": "EUR",
-							"price_inPriceLists": ["vip","basic"]
+							"priceInCurrency": "EUR",
+							"priceInPriceLists": ["vip","basic"]
 						},
 						"require": {
 							"page": {
 								"number": 1,
 								"size": %d
 							},
-							"price_histogram": null
+							"priceHistogram": null
 						}
 					}
 					""",
 				Integer.MAX_VALUE)
 			.executeAndThen()
 			.statusCode(400)
-			.body("message", equalTo("Constraint `price_histogram` requires non-null value."));
+			.body("message", equalTo("Constraint `priceHistogram` requires non-null value."));
 	}
 
 	@Test
@@ -1139,7 +1139,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"filterBy": {
-							"hierarchy_category_within": {
+							"hierarchyCategoryWithin": {
 								"ofParent": 95
 							}
 						},
@@ -1148,9 +1148,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 								"number": 1,
 								"size": %d
 							},
-							"hierarchy_category_parentsOfReference": {
-						        "entity_fetch": {
-									"attribute_content": [
+							"hierarchyCategoryParentsOfReference": {
+						        "entityFetch": {
+									"attributeContent": [
 										"code"
 									]
 						        }
@@ -1200,9 +1200,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 								"number": 1,
 								"size": %d
 							},
-							"hierarchy_parentsOfSelf": {
-						        "entity_fetch": {
-									"attribute_content": [
+							"hierarchyParentsOfSelf": {
+						        "entityFetch": {
+									"attributeContent": [
 										"code"
 									]
 						        }
@@ -1254,19 +1254,19 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"filterBy": {
-							"hierarchy_category_within": {
+							"hierarchyCategoryWithin": {
 								"ofParent": 95
 							},
-							"entity_locale_equals": "cs-CZ"
+							"entityLocaleEquals": "cs-CZ"
 						},
 						"require": {
 							"page": {
 								"number": 1,
 								"size": %d
 							},
-							"hierarchy_category_parentsOfReference": {
-						        "entity_fetch": {
-									"attribute_content": [
+							"hierarchyCategoryParentsOfReference": {
+						        "entityFetch": {
+									"attributeContent": [
 										"name"
 									]
 						        }
@@ -1293,16 +1293,16 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"filterBy": {
-							"entity_locale_equals": "cs-CZ"
+							"entityLocaleEquals": "cs-CZ"
 						},
 						"require": {
 							"page": {
 								"number": 1,
 								"size": %d
 							},
-							"hierarchy_parentsOfSelf": {
-						        "entity_fetch": {
-									"attribute_content": [
+							"hierarchyParentsOfSelf": {
+						        "entityFetch": {
+									"attributeContent": [
 										"name"
 									]
 						        }
@@ -1355,17 +1355,17 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"filterBy": {
-							"attribute_alias_equals": true,
-							"entity_locale_equals": "cs-CZ"
+							"attributeAliasEquals": true,
+							"entityLocaleEquals": "cs-CZ"
 						},
 						"require": {
 							"page": {
 								"number": 1,
 								"size": %d
 							},
-							"hierarchy_category_statisticsOfReference": {
-						        "entity_fetch": {
-									"attribute_content": [
+							"hierarchyCategoryStatisticsOfReference": {
+						        "entityFetch": {
+									"attributeContent": [
 										"name"
 									]
 						        }
@@ -1427,15 +1427,15 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"filterBy": {
-							"attribute_alias_equals": true,
-							"entity_locale_equals": "cs-CZ"
+							"attributeAliasEquals": true,
+							"entityLocaleEquals": "cs-CZ"
 						},
 						"require": {
 							"page": {
 								"number": 1,
 								"size": %d
 							},
-							"hierarchy_category_statisticsOfReference": {}
+							"hierarchyCategoryStatisticsOfReference": {}
 						}
 					}
 					""",
@@ -1477,7 +1477,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"require": {
-							"facet_summary": {
+							"facetSummary": {
 								"statisticsDepth":"COUNTS"
 					        }
 						}
@@ -1524,11 +1524,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody("""
 					{
 						"require": {
-							"facet_summary": {
+							"facetSummary": {
 								"statisticsDepth":"IMPACT",
 								"requirements": {
-					   				"entity_fetch": {
-					   					"attribute_content": ["code"]
+					   				"entityFetch": {
+					   					"attributeContent": ["code"]
 					      			}
 					   			}
 					        }

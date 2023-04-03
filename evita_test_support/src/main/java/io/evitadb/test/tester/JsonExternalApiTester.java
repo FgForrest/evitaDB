@@ -23,6 +23,7 @@
 
 package io.evitadb.test.tester;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -39,6 +40,7 @@ public abstract class JsonExternalApiTester<R> {
 	protected static final String ACCEPT_HEADER = "Accept";
 
 	@Nonnull
+	@Getter
 	protected final String baseUrl;
 
 	/**

@@ -49,8 +49,8 @@ public interface SetEntitySchemaWithPriceMutationDescriptor {
 			in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
 			customers.
 			
-			Specifying prices on entity allows usage of `price_validIn`, `price_inCurrency`
-			`price_between`, and `price_inPriceLists` filtering constraints and also price
+			Specifying prices on entity allows usage of `priceValidIn`, `priceInCurrency`
+			`priceBetween`, and `priceInPriceLists` filtering constraints and also price
 			ordering of the entities. Additional requirements
 			`priceHistogram` and `priceType` can be used in query as well.
 			""")

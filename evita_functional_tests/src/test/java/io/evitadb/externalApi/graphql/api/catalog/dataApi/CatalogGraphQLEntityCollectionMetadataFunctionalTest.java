@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class CatalogGraphQLEntityCollectionMetadataFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
 	private static final String ERRORS_PATH = "errors";
-	private static final String PRODUCT_COLLECTION_SIZE_PATH = "data.count_product";
+	private static final String PRODUCT_COLLECTION_SIZE_PATH = "data.countProduct";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -51,7 +51,7 @@ public class CatalogGraphQLEntityCollectionMetadataFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    count_product
+	                    countProduct
 	                }
 					"""
 			)

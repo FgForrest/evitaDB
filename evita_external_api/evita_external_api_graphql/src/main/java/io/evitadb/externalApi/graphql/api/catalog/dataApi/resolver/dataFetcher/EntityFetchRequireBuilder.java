@@ -58,7 +58,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -152,7 +152,7 @@ public class EntityFetchRequireBuilder {
         return currentEntitySchema.getReferences()
             .values()
             .stream()
-            .map(it -> it.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+            .map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
             .anyMatch(selectionSetWrapper::contains);
     }
 
@@ -166,7 +166,7 @@ public class EntityFetchRequireBuilder {
         final String[] neededAttributes = selectionSetWrapper.getFields(EntityDescriptor.ATTRIBUTES.name())
             .stream()
             .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-            .map(f -> currentEntitySchema.getAttributeByName(f.getName(), FIELD_NAME_NAMING_CONVENTION))
+            .map(f -> currentEntitySchema.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
             .filter(Optional::isPresent)
             .map(Optional::get)
             .map(AttributeSchemaContract::getName)
@@ -189,7 +189,7 @@ public class EntityFetchRequireBuilder {
         final String[] neededAssociatedData = selectionSetWrapper.getFields(EntityDescriptor.ASSOCIATED_DATA.name())
             .stream()
             .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-            .map(f -> currentEntitySchema.getAssociatedDataByName(f.getName(), FIELD_NAME_NAMING_CONVENTION))
+            .map(f -> currentEntitySchema.getAssociatedDataByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
             .filter(Optional::isPresent)
             .map(Optional::get)
             .map(AssociatedDataSchemaContract::getName)
@@ -260,7 +260,7 @@ public class EntityFetchRequireBuilder {
             .stream()
             .map(it -> new FieldsForReferenceHolder(
                 it,
-                selectionSetWrapper.getFields(it.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+                selectionSetWrapper.getFields(it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
             ))
             .filter(it -> !it.fields().isEmpty())
             .map(it -> new RequirementForReferenceHolder(

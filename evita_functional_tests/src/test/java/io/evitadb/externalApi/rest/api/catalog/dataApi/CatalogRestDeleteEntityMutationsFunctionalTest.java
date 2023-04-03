@@ -120,11 +120,11 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 			.requestBody("""
                     {
                         "filterBy": {
-	                        "attribute_quantity_lessThan": 5500
+	                        "attributeQuantityLessThan": 5500
 	                    },
 						"require": {
-				            "entity_fetch": {
-				                "attribute_content": ["code"]
+				            "entityFetch": {
+				                "attributeContent": ["code"]
 				            },
 				            "strip": {
 				                "offset": 0,
@@ -169,7 +169,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 			.requestBody("""
                     {
                         "filterBy": {
-	                        "attribute_quantity_greaterThan": "1000000"
+	                        "attributeQuantityGreaterThan": "1000000"
 	                    },
 						"require": {
 				            "strip": {

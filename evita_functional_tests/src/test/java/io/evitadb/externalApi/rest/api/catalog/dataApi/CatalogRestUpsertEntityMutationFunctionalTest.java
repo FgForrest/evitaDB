@@ -258,8 +258,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-							"attribute_content": [
+					    "entityFetch": {
+							"attributeContent": [
 								"name",
 								"quantity",
 								"deprecated"
@@ -280,11 +280,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d]
+						"entityPrimaryKeyInSet": [%d]
 					},
 					"require": {
-						"entity_fetch": {
-							"attribute_content": [
+						"entityFetch": {
+							"attributeContent": [
 								"name",
 								"quantity",
 								"deprecated"
@@ -350,8 +350,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-							"associatedData_content": [
+					    "entityFetch": {
+							"associatedDataContent": [
 								"labels",
 								"localization"
 							],
@@ -371,11 +371,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d]
+						"entityPrimaryKeyInSet": [%d]
 					},
 					"require": {
-						"entity_fetch": {
-							"associatedData_content": [
+						"entityFetch": {
+							"associatedDataContent": [
 								"labels",
 								"localization"
 							],
@@ -453,7 +453,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
+					    "entityFetch": {
 				        }
 					  }
 					}
@@ -491,7 +491,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
+					    "entityFetch": {
 				        }
 					  }
 					}
@@ -555,8 +555,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-							"price_content": {
+					    "entityFetch": {
+							"priceContent": {
 								"contentMode": "RESPECTING_FILTER"
 							}
 				        }
@@ -575,12 +575,12 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 					{
 						"filterBy": {
-							"entity_primaryKey_inSet": [%d],
-							"price_inPriceLists":["other"]
+							"entityPrimaryKeyInSet": [%d],
+							"priceInPriceLists":["other"]
 						},
 						"require": {
-							"entity_fetch": {
-								"price_content": {
+							"entityFetch": {
+								"priceContent": {
 									"contentMode": "RESPECTING_FILTER"
 								}
 							}
@@ -616,8 +616,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-							"price_content": {
+					    "entityFetch": {
+							"priceContent": {
 								"contentMode": "RESPECTING_FILTER"
 							}
 				        }
@@ -635,12 +635,12 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d],
-						"price_inPriceLists": ["other"]
+						"entityPrimaryKeyInSet": [%d],
+						"priceInPriceLists": ["other"]
 					},
 					"require": {
-						"entity_fetch": {
-							"price_content": {
+						"entityFetch": {
+							"priceContent": {
 								"contentMode": "RESPECTING_FILTER"
 							}
 				        }
@@ -697,8 +697,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-					        "price_content": {
+					    "entityFetch": {
+					        "priceContent": {
 					            "contentMode": "RESPECTING_FILTER"
 				            }
 				        }
@@ -716,12 +716,12 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d],
-						"price_inPriceLists": ["basic"]
+						"entityPrimaryKeyInSet": [%d],
+						"priceInPriceLists": ["basic"]
 					},
 					"require": {
-						"entity_fetch": {
-							"price_content": {
+						"entityFetch": {
+							"priceContent": {
 								"contentMode": "RESPECTING_FILTER"
 							}
 				        }
@@ -799,10 +799,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 				       }
 				   ],
 					"require": {
-					    "entity_fetch": {
-					        "attribute_contentAll": true,
-					        "reference_store_content": {
-					            "entity_fetch": {
+					    "entityFetch": {
+					        "attributeContentAll": true,
+					        "referenceStoreContent": {
+					            "entityFetch": {
 					            }
 					        }
 					    }
@@ -819,13 +819,13 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d]
+						"entityPrimaryKeyInSet": [%d]
 					},
 					"require": {
-						"entity_fetch": {
-							"attribute_contentAll": true,
-					        "reference_store_content": {
-					            "entity_fetch": {
+						"entityFetch": {
+							"attributeContentAll": true,
+					        "referenceStoreContent": {
+					            "entityFetch": {
 					            }
 					        }
 				        }
@@ -853,8 +853,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	                    }
 	                ],
 					"require": {
-					    "entity_fetch": {
-					        "attribute_contentAll": true
+					    "entityFetch": {
+					        "attributeContentAll": true
 					    }
 					}
 				}
@@ -869,11 +869,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d]
+						"entityPrimaryKeyInSet": [%d]
 					},
 					"require": {
-						"entity_fetch": {
-							"attribute_contentAll": true
+						"entityFetch": {
+							"attributeContentAll": true
 				        }
 					}
 				}
@@ -982,10 +982,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 					{
 						"filterBy": {
-							"entity_primaryKey_inSet": [%d]
+							"entityPrimaryKeyInSet": [%d]
 						},
 						"require": {
-							"entity_fetch": {
+							"entityFetch": {
 					        }
 						}
 					}

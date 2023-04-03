@@ -58,7 +58,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertEquals(
 			attributeNatural("CODE", OrderDirection.ASC),
 			resolver.resolve(
-				"attribute_code_natural",
+				"attributeCodeNatural",
 				OrderDirection.ASC
 			)
 		);
@@ -66,9 +66,9 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueOrderConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("attribute_code_natural", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attribute_code_natural", List.of()));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attribute_code_natural", Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("attributeCodeNatural", null));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attributeCodeNatural", List.of()));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attributeCodeNatural", Map.of()));
 	}
 
 	@Test
@@ -80,9 +80,9 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				random()
 			),
 			resolver.resolve(
-				"reference_category_property",
+				"referenceCategoryProperty",
 				mapOf(
-					"attribute_code_natural", OrderDirection.ASC,
+					"attributeCodeNatural", OrderDirection.ASC,
 					"random", true
 				)
 			)
@@ -91,9 +91,9 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveChildOrderConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("reference_category_property", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("reference_category_property", "abc"));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("reference_category_property", List.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("referenceCategoryProperty", null));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve("referenceCategoryProperty", "abc"));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve("referenceCategoryProperty", List.of()));
 	}
 
 	@Test
@@ -113,10 +113,10 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				resolver.resolve(
 					"orderBy",
 					mapOf(
-						"attribute_code_natural", OrderDirection.ASC,
-						"price_natural", OrderDirection.DESC,
-						"reference_category_property", mapOf(
-							"attribute_code_natural", OrderDirection.DESC,
+						"attributeCodeNatural", OrderDirection.ASC,
+						"priceNatural", OrderDirection.DESC,
+						"referenceCategoryProperty", mapOf(
+							"attributeCodeNatural", OrderDirection.DESC,
 							"random", true
 						)
 					)

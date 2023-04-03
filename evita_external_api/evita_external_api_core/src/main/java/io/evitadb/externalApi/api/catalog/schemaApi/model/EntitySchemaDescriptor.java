@@ -86,8 +86,8 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			in entity model. It is pretty common in B2B systems single product has assigned dozens of prices for the different
 			customers.
 			
-			Specifying prices on entity allows usage of `price_validIn`, `price_inCurrency`
-			`price_between`, and `price_inPriceLists` filtering constraints and also `price_natural`,
+			Specifying prices on entity allows usage of `priceValidIn`, `priceInCurrency`
+			`priceBetween`, and `priceInPriceLists` filtering constraints and also `priceNatural`,
 			ordering of the entities. Additional extra result
 			`priceHistogram` and requirement `priceType` can be used in query as well.
 			""")
@@ -109,7 +109,7 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 		.name("locales")
 		.description("""
 			Contains set of all `Locale` that could be used for localized `AttributeSchema` or `AssociatedDataSchema`.
-			Enables using `entity_locale_equals` filtering constraint in query.
+			Enables using `entityLocaleEquals` filtering constraint in query.
 			""")
 		.type(nonNull(Locale[].class))
 		.build();
@@ -223,7 +223,7 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			Evita.
 			
 			References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
-			The search query must contain specific `reference_content` requirement in order
+			The search query must contain specific `referenceContent` requirement in order
 			references are fetched along with the entity.
 			""")
 		// type is expected to be a map with reference names as keys and reference schemas as values
@@ -248,7 +248,7 @@ public interface EntitySchemaDescriptor extends VersionedDescriptor, NamedSchema
 			Evita.
 			
 			References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
-			The search query must contain specific `reference_content` requirement in order
+			The search query must contain specific `referenceContent` requirement in order
 			references are fetched along with the entity.
 			""")
 		.type(nonNullListRef(ReferenceSchemaDescriptor.THIS_GENERIC))

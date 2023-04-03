@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
  * Handles request for entities with full query, i.e. require constraint can contain not only basic fetch constraints but
@@ -67,7 +67,7 @@ public class QueryEntitiesHandler extends ListEntitiesHandler {
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 
 		final Map<String, String> referenceNameToFieldName = restApiHandlingContext.getEntitySchema().getReferences().values().stream()
-			.map(referenceSchema -> new SimpleEntry<>(referenceSchema.getName(), referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION)))
+			.map(referenceSchema -> new SimpleEntry<>(referenceSchema.getName(), referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION)))
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
 			restApiHandlingContext,

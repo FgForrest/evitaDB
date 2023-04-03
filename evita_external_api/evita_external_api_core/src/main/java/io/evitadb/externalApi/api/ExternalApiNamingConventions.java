@@ -38,8 +38,7 @@ public class ExternalApiNamingConventions {
 	public static final NamingConvention URL_NAME_NAMING_CONVENTION = NamingConvention.KEBAB_CASE;
 	public static final NamingConvention TYPE_NAME_NAMING_CONVENTION = NamingConvention.PASCAL_CASE;
 	public static final NamingConvention PROPERTY_NAME_NAMING_CONVENTION = NamingConvention.CAMEL_CASE;
-	public static final NamingConvention FIELD_NAME_NAMING_CONVENTION = NamingConvention.CAMEL_CASE;
-	public static final NamingConvention PREFIXED_FIELD_NAME_NAMING_CONVENTION = NamingConvention.PASCAL_CASE;
+	public static final NamingConvention PROPERTY_NAME_PART_NAMING_CONVENTION = NamingConvention.PASCAL_CASE;
 	public static final NamingConvention ARGUMENT_NAME_NAMING_CONVENTION = NamingConvention.CAMEL_CASE;
 	public static final NamingConvention CLASSIFIER_NAMING_CONVENTION = NamingConvention.CAMEL_CASE;
 }

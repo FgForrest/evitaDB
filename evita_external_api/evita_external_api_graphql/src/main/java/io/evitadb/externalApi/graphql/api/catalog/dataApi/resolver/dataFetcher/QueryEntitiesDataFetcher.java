@@ -92,7 +92,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
@@ -293,7 +293,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
             .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
             .forEach(f -> {
                 final AttributeSchemaContract attributeSchema = entitySchema
-                    .getAttributeByName(f.getName(), FIELD_NAME_NAMING_CONVENTION)
+                    .getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION)
                     .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + f.getName() + "`."));
                 final String originalAttributeName = attributeSchema.getName();
 
@@ -326,7 +326,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
                     .stream()
                     .map(a -> {
                         final AttributeSchemaContract attributeSchema = entitySchema
-                            .getAttributeByName(a, FIELD_NAME_NAMING_CONVENTION)
+                            .getAttributeByName(a, PROPERTY_NAME_NAMING_CONVENTION)
                             .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + a + "`."));
                         return attributeSchema.getName();
                     })
@@ -407,7 +407,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
             .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
             .forEach(f -> {
                 final String referenceName = f.getName();
-                final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, FIELD_NAME_NAMING_CONVENTION)
+                final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, PROPERTY_NAME_NAMING_CONVENTION)
                     .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
                 final String originalReferenceName = reference.getName();
                 references.add(originalReferenceName);
@@ -494,7 +494,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
                 if (referenceName.equals(HierarchyStatisticsDescriptor.SELF.name())) {
                     originalReferenceName = HierarchyStatisticsDescriptor.SELF.name();
                 } else {
-                    final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, FIELD_NAME_NAMING_CONVENTION)
+                    final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, PROPERTY_NAME_NAMING_CONVENTION)
                         .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
                     originalReferenceName = reference.getName();
                 }
@@ -562,7 +562,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
                 if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
                     originalReferenceName = HierarchyParentsDescriptor.SELF.name();
                 } else {
-                    final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, FIELD_NAME_NAMING_CONVENTION)
+                    final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, PROPERTY_NAME_NAMING_CONVENTION)
                         .orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
                     originalReferenceName = reference.getName();
                 }

@@ -59,8 +59,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
 	private static final String ERRORS_PATH = "errors";
-	private static final String DELETE_PRODUCT_PATH = "data.delete_product";
-	private static final String GET_PRODUCT_PATH = "data.get_product";
+	private static final String DELETE_PRODUCT_PATH = "data.deleteProduct";
+	private static final String GET_PRODUCT_PATH = "data.getProduct";
 	public static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE = GRAPHQL_THOUSAND_PRODUCTS + "forDelete";
 
 	@Override
@@ -107,9 +107,9 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                mutation {
-	                    delete_product(
+	                    deleteProduct(
 	                        filterBy: {
-	                            attribute_quantity_lessThan: "5500"
+	                            attributeQuantityLessThan: "5500"
 	                        },
 	                        limit: 2
 	                    ) {
@@ -156,9 +156,9 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                mutation {
-	                    delete_product(
+	                    deleteProduct(
 	                        filterBy: {
-	                            attribute_quantity_greaterThan: "1000000"
+	                            attributeQuantityGreaterThan: "1000000"
 	                        }
 	                        limit: 1
 	                    ) {
@@ -178,7 +178,7 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                    }
 	                }

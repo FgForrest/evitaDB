@@ -54,6 +54,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocato
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -76,6 +77,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_PART_NAMING_CONVENTION;
 
 /**
  * Builds part of the whole API schema for querying entities from {@link Constraint}s using {@link ConstraintDescriptor}s.
@@ -99,8 +102,8 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER
  * Key can have one of 3 formats depending on descriptor data:
  * <ul>
  *     <li>`{fullName}` - if it's generic constraint without classifier</li>
- *     <li>`{propertyType}_{fullName}` - if it's not generic constraint and doesn't have classifier</li>
- *     <li>`{propertyType}_{classifier}_{fullName}` - if it's not generic constraint and has classifier</li>
+ *     <li>`{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier</li>
+ *     <li>`{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier</li>
  * </ul>
  *
  * @param <CTX> type of API-specific context object
@@ -177,7 +180,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 */
 	@Nonnull
 	protected String getWrapperObjectObjectTypeName() {
-		return "WrapperObject_";
+		return "WrapperObject";
 	}
 
 	/**
@@ -691,8 +694,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * Key can have one of 3 formats depending on descriptor data:
 	 * <ul>
 	 *     <li>`{fullName}` - if it's generic query without classifier</li>
-	 *     <li>`{propertyType}_{fullName}` - if it's not generic query and doesn't have classifier</li>
-	 *     <li>`{propertyType}_{classifier}_{fullName}` - if it's not generic query and has classifier</li>
+	 *     <li>`{propertyType}{fullName}` - if it's not generic query and doesn't have classifier</li>
+	 *     <li>`{propertyType}{classifier}{fullName}` - if it's not generic query and has classifier</li>
 	 * </ul>
 	 *
 	 * @param constraintDescriptor query constraintDescriptor to represent by this key
@@ -702,19 +705,19 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected String buildConstraintKey(@Nonnull ConstraintDescriptor constraintDescriptor,
 	                                    @Nullable Supplier<String> classifierSupplier) {
-		final LinkedList<String> keyBuilder = new LinkedList<>();
+		final StringBuilder keyBuilder = new StringBuilder();
 
 		final ConstraintCreator creator = constraintDescriptor.creator();
 
 		final String prefix = ConstraintProcessingUtils.getPrefixByPropertyType(constraintDescriptor.propertyType())
 			.orElseThrow(() -> createSchemaBuildingError("Missing prefix pro query property type `" + constraintDescriptor.propertyType() + "`."));
 		if (!prefix.isEmpty()) {
-			keyBuilder.add(prefix);
+			keyBuilder.append(prefix);
 		}
 		if (creator.needsClassifier()) {
 			if (creator.hasImplicitClassifier()) {
 				if (creator.implicitClassifier() instanceof FixedImplicitClassifier fixedImplicitClassifier) {
-					keyBuilder.add(fixedImplicitClassifier.classifier());
+					keyBuilder.append(StringUtils.toSpecificCase(fixedImplicitClassifier.classifier(), PROPERTY_NAME_PART_NAMING_CONVENTION));
 				}
 			} else {
 				Assert.isPremiseValid(
@@ -723,12 +726,12 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 						"Constraint `" + constraintDescriptor.fullName() + "` requires classifier resolver but no resolver passed."
 					)
 				);
-				keyBuilder.add(classifierSupplier.get());
+				keyBuilder.append(StringUtils.toSpecificCase(classifierSupplier.get(), PROPERTY_NAME_PART_NAMING_CONVENTION));
 			}
 		}
-		keyBuilder.add(constraintDescriptor.fullName());
+		keyBuilder.append(StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_PART_NAMING_CONVENTION));
 
-		return String.join(ConstraintProcessingUtils.KEY_PARTS_DELIMITER, keyBuilder);
+		return StringUtils.toSpecificCase(keyBuilder.toString(), PROPERTY_NAME_NAMING_CONVENTION);
 	}
 
 	/**

@@ -35,8 +35,6 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
  */
 public interface CatalogRootDescriptor {
 
-    String OBJECT_TYPE_NAME_PART_DELIMITER = "_";
-
     ObjectDescriptor SCALAR_ENUM = ObjectDescriptor.builder()
         .name("Scalar")
         .description("""
