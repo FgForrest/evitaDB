@@ -241,10 +241,13 @@ public class Price implements PriceContract {
 		@Serial private static final long serialVersionUID = -4115511848409188910L;
 
 		/**
-		 * Contains identification of the price in the external systems. This id is expected to be used for the synchronization
-		 * of the price in relation with the primary source of the prices.
-		 *
-		 * This id is used to uniquely find a price within same price list and currency and is mandatory.
+		 * Contains the identification of the price in the external systems. This ID is expected to be used for
+		 * synchronization of the price in relation to the primary source of the prices. The price with the same ID
+		 * must be unique within the same entity. The prices with the same ID in multiple entities should represent
+		 * the same price in terms of other values - such as validity, currency, price list, the price itself, and all
+		 * other properties. These values can be different for a limited time (for example, the prices of Entity A and
+		 * Entity B can be the same, but Entity A is updated in a different session/transaction and at a different time
+		 * than Entity B).
 		 */
 		private final int priceId;
 		/**

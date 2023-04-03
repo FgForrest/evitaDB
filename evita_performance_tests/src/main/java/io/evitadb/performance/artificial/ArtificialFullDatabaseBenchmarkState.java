@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.performance.generators.TestDatasetGenerator;
 import io.evitadb.performance.setup.EvitaCatalogReusableSetup;
+import io.evitadb.test.TestConstants;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
@@ -84,7 +85,7 @@ public class ArtificialFullDatabaseBenchmarkState extends ArtificialBenchmarkSta
 	 * Returns name of the test catalog.
 	 */
 	protected String getCatalogName() {
-		return TEST_CATALOG;
+		return TestConstants.TEST_CATALOG;
 	}
 
 	/**

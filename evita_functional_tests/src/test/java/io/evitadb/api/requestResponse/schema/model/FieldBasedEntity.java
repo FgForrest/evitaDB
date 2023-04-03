@@ -38,6 +38,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
  * Example class for ClassSchemaAnalyzerTest.
@@ -82,7 +83,7 @@ public class FieldBasedEntity {
 	@Reference
 	private Brand[] licensingBrands;
 
-	record ReferencedFiles(@Nonnull int... fileId) {}
+	record ReferencedFiles(@Nonnull int... fileId) implements Serializable {}
 
 	public static class Brand {
 

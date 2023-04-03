@@ -38,6 +38,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaD
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemasDescriptor;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.utils.NamingConvention;
@@ -71,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
 	private static final String ERRORS_PATH = "errors";
-	private static final String PRODUCT_SCHEMA_PATH = "data.get_product";
+	private static final String PRODUCT_SCHEMA_PATH = "data.get_product_schema";
 	private static final Function<String, EntitySchemaContract> FAIL_ON_CALL = s -> {
 		fail("Should not be called!");
 		return null;
@@ -80,7 +81,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return basic properties from product schema")
-	void shouldReturnBasicPropertiesFromProductSchema(Evita evita) {
+	void shouldReturnBasicPropertiesFromProductSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -88,11 +89,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			}
 		).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							__typename
 							version
 							name
@@ -152,12 +154,13 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid basic property")
-	void shouldReturnErrorForInvalidBasicProperty(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidBasicProperty(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							reference
 						}
 					}
@@ -171,7 +174,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific attribute schema")
-	void shouldReturnSpecificAttributeSchema(Evita evita) {
+	void shouldReturnSpecificAttributeSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -183,11 +186,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final AttributeSchemaContract quantitySchema = productSchema.getAttribute(ATTRIBUTE_QUANTITY).orElseThrow();
 		final AttributeSchemaContract deprecatedSchema = productSchema.getAttribute(ATTRIBUTE_DEPRECATED).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							attributes {
 								__typename
 								url {
@@ -273,7 +277,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return correctly global attribute schema inside entity schema")
-	void shoudReturnCorrectlyGlobalAttributeSchemaInsideEntitySchema(Evita evita) {
+	void shoudReturnCorrectlyGlobalAttributeSchemaInsideEntitySchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -283,11 +287,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 
 		final GlobalAttributeSchemaContract codeSchema = (GlobalAttributeSchemaContract) productSchema.getAttribute(ATTRIBUTE_CODE).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							attributes {
 								__typename
 								code {
@@ -357,7 +362,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attribute schemas")
-	void shouldReturnAllAttributeSchemas(Evita evita) {
+	void shouldReturnAllAttributeSchemas(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -385,11 +390,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			})
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allAttributes {
 								... on AttributeSchema {
 									__typename
@@ -421,7 +427,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific associated data schema")
-	void shouldReturnSpecificAssociatedDataSchema(Evita evita) {
+	void shouldReturnSpecificAssociatedDataSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -432,11 +438,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final AssociatedDataSchemaContract labelsSchema = productSchema.getAssociatedData(ASSOCIATED_DATA_LABELS).orElseThrow();
 		final AssociatedDataSchemaContract localizationSchema = productSchema.getAssociatedData(ASSOCIATED_DATA_LOCALIZATION).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							associatedData {
 								__typename
 								labels {
@@ -502,7 +509,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all associated data schemas")
-	void shouldReturnAllAssociatedDataSchemas(Evita evita) {
+	void shouldReturnAllAssociatedDataSchemas(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -511,11 +518,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getAssociatedData().isEmpty());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allAssociatedData {
 								__typename
 								name
@@ -540,7 +548,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific reference schema")
-	void shouldReturnSpecificReferenceSchema(Evita evita) {
+	void shouldReturnSpecificReferenceSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -558,11 +566,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			}
 		).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							references {
 								__typename
 								brand {
@@ -692,7 +701,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific attribute schema for specific reference schema")
-	void shouldReturnSpecificAttributeSchemaForSpecificReferenceSchema(Evita evita) {
+	void shouldReturnSpecificAttributeSchemaForSpecificReferenceSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -703,11 +712,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final ReferenceSchemaContract brandReferenceSchema = productSchema.getReference(Entities.BRAND).orElseThrow();
 		final AttributeSchemaContract brandVisibleForB2CAttributeSchema = brandReferenceSchema.getAttribute(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							references {
 								brand {
 									attributes {
@@ -783,7 +793,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attribute schemas for specific reference schema")
-	void shouldReturnAllAttributeSchemasForSpecificReferenceSchema(Evita evita) {
+	void shouldReturnAllAttributeSchemasForSpecificReferenceSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -794,11 +804,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final ReferenceSchemaContract brandReferenceSchema = productSchema.getReference(Entities.BRAND).orElseThrow();
 		assertFalse(brandReferenceSchema.getAttributes().isEmpty());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							references {
 								brand {
 									allAttributes {
@@ -827,7 +838,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all reference schemas")
-	void shouldReturnAllReferenceSchemas(Evita evita) {
+	void shouldReturnAllReferenceSchemas(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -836,11 +847,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getReferences().isEmpty());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allReferences {
 								__typename
 								name
@@ -865,7 +877,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attribute schemas for all reference schemas")
-	void shouldReturnAllAttributeSchemasForAllReferenceSchemas(Evita evita) {
+	void shouldReturnAllAttributeSchemasForAllReferenceSchemas(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -885,11 +897,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 				.toList())
 			.collect(Collectors.toList());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allReferences {
 								allAttributes {
 									__typename
@@ -912,12 +925,13 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid field in all reference schemas")
-	void shouldReturnErrorForInvalidFieldInAllReferenceSchemas(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidFieldInAllReferenceSchemas(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						get_product_schema {
 							allReferences {
 								attributes {
 									brandVisibleForB2C {

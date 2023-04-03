@@ -349,7 +349,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				//noinspection unchecked
 				return (Optional<S>) of(EntityConverter.toSealedEntity(
 					entity -> schemaCache.getEntitySchemaOrThrow(
-						entity.getEntityType(), entity.getVersion(), this::fetchEntitySchema, this::getCatalogSchema
+						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 					),
 					new EvitaRequest(query, OffsetDateTime.now()),
 					sealedEntity
@@ -519,7 +519,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			Optional.of(
 				EntityConverter.toSealedEntity(
 					entity -> schemaCache.getEntitySchemaOrThrow(
-						entity.getEntityType(), entity.getVersion(), this::fetchEntitySchema, this::getCatalogSchema
+						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 					),
 					new EvitaRequest(
 						Query.query(
@@ -817,7 +817,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 			return EntityConverter.toSealedEntity(
 				entity -> schemaCache.getEntitySchemaOrThrow(
-					entity.getEntityType(), entity.getVersion(), this::fetchEntitySchema, this::getCatalogSchema
+					entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 				),
 				new EvitaRequest(
 					Query.query(
@@ -876,7 +876,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				of(
 					EntityConverter.toSealedEntity(
 						entity -> schemaCache.getEntitySchemaOrThrow(
-							entity.getEntityType(), entity.getVersion(), this::fetchEntitySchema, this::getCatalogSchema
+							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 						),
 						new EvitaRequest(
 							Query.query(
@@ -894,7 +894,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Override
-	public int deleteEntityAndItsHierarchy(@Nonnull String entityType, @Nonnull Integer primaryKey) {
+	public int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final GrpcDeleteEntityAndItsHierarchyResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
@@ -912,7 +912,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, @Nonnull Integer primaryKey, EntityContentRequire... require) {
+	public DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final StringWithParameters stringWithParameters = PrettyPrintingVisitor.toStringWithParameterExtraction(require);
@@ -937,7 +937,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				grpcResponse.hasDeletedRootEntity() ?
 					EntityConverter.toSealedEntity(
 						entity -> schemaCache.getEntitySchemaOrThrow(
-							entity.getEntityType(), entity.getVersion(), this::fetchEntitySchema, this::getCatalogSchema
+							entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 						),
 						new EvitaRequest(
 							Query.query(
@@ -1005,7 +1005,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				.stream()
 				.map(it -> EntityConverter.toSealedEntity(
 					entity -> schemaCache.getEntitySchemaOrThrow(
-						entity.getEntityType(), entity.getVersion(), this::fetchEntitySchema, this::getCatalogSchema
+						entity.getEntityType(), entity.getSchemaVersion(), this::fetchEntitySchema, this::getCatalogSchema
 					),
 					evitaRequest,
 					it

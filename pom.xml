@@ -299,6 +299,8 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<excludedGroups>integration,functional,longRunning</excludedGroups>
+							<parallel>all</parallel>
+							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -313,6 +315,8 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<excludedGroups>integration,longRunning</excludedGroups>
+							<parallel>all</parallel>
+							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -327,6 +331,8 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<groups>functional</groups>
+							<parallel>all</parallel>
+							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -355,6 +361,8 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<groups>longRunning</groups>
+							<parallel>all</parallel>
+							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
 					</plugin>
 				</plugins>

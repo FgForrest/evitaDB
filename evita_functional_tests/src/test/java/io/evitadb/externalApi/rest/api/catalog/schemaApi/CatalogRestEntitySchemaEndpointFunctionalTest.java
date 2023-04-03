@@ -34,9 +34,14 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
-import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
+import io.evitadb.externalApi.rest.RestProvider;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +51,7 @@ import java.util.Map;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENTITY_EMPTY;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -58,20 +64,22 @@ import static org.hamcrest.Matchers.nullValue;
  */
 class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEndpointFunctionalTest {
 
-	@Nonnull
+	private static final String REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE = REST_THOUSAND_PRODUCTS + "forEntitySchemaUpdate";
+
 	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
+	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
+	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		return super.setUpData(evita, evitaServer, 20);
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should return full product schema")
-	void shouldReturnFullProductSchema(Evita evita) {
+	void shouldReturnFullProductSchema(Evita evita, RestTester tester) {
 		final EntitySchemaContract productSchema = getEntitySchemaFromTestData(evita, Entities.PRODUCT);
 		final Map<String, Object> expectedBody = createEntitySchemaDto(evita, productSchema);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -80,10 +88,10 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should return error for missing mutations when updating entity schema")
-	void shouldReturnErrorForMissingMutationsWhenUpdatingEntitySchema(Evita evita) {
-		testRestCall()
+	void shouldReturnErrorForMissingMutationsWhenUpdatingEntitySchema(RestTester tester) {
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("{}")
@@ -92,12 +100,12 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should not update entity schema when no mutations")
-	void shouldNotUpdateCatalogSchemaWhenNoMutations(Evita evita) {
-		final int initialEntitySchemaVersion = getEntitySchemaVersion(ENTITY_EMPTY);
+	void shouldNotUpdateCatalogSchemaWhenNoMutations(Evita evita, RestTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -117,13 +125,13 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change entity schema itself")
-	void shouldChangeEntitySchemaItself(Evita evita) {
-		final int initialEntitySchemaVersion = getEntitySchemaVersion(ENTITY_EMPTY);
+	void shouldChangeEntitySchemaItself(Evita evita, RestTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
 		// allow new locales
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -149,7 +157,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);;
 
 		// revert
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -176,13 +184,13 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change attribute schema")
-	void shouldChangeAttributeSchema(Evita evita) {
-		final int initialEntitySchemaVersion = getEntitySchemaVersion(ENTITY_EMPTY);
+	void shouldChangeAttributeSchema(Evita evita, RestTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
 		// add new attribute
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -214,7 +222,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 
 		// verify new attribute schema
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -252,7 +260,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 
 		// update attribute schema
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -303,7 +311,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 
 		// remove attribute
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -330,13 +338,13 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change associated data schema")
-	void shouldChangeAssociatedDataSchema(Evita evita) {
-		final int initialEntitySchemaVersion = getEntitySchemaVersion(ENTITY_EMPTY);
+	void shouldChangeAssociatedDataSchema(Evita evita, RestTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
 		// add new associated data
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -364,7 +372,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 
 		// verify new associated data schema
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -397,7 +405,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 
 		// update associated data schema
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -443,7 +451,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 
 		// remove associated data
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -470,13 +478,13 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
 	@DisplayName("Should change reference schema")
-	void shouldChangeReferenceSchema(Evita evita) {
-		final int initialEntitySchemaVersion = getEntitySchemaVersion(ENTITY_EMPTY);
+	void shouldChangeReferenceSchema(Evita evita, RestTester tester) {
+		final int initialEntitySchemaVersion = getEntitySchemaVersion(tester, ENTITY_EMPTY);
 
 		// add new reference
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -506,7 +514,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 
 		// verify new reference schema
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
@@ -556,7 +564,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 
 		// update reference schema
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -597,7 +605,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 			);
 
 		// remove reference
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/empty/schema")
 			.httpMethod(Request.METHOD_PUT)
 			.requestBody("""
@@ -624,8 +632,8 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	}
 
 
-	private int getEntitySchemaVersion(@Nonnull String entityType) {
-		return testRestCall()
+	private int getEntitySchemaVersion(@Nonnull RestTester tester, @Nonnull String entityType) {
+		return tester.test(TEST_CATALOG)
 			.urlPathSuffix("/" + entityType + "/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()

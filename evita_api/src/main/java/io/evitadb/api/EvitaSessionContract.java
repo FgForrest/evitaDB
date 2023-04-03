@@ -709,7 +709,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @return number of removed entities
 	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
 	 */
-	int deleteEntityAndItsHierarchy(@Nonnull String entityType, @Nonnull Integer primaryKey);
+	int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey);
 
 	/**
 	 * Method removes existing hierarchical entity in collection by its primary key. Method also removes all entities
@@ -721,7 +721,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
 	 */
 	@Nonnull
-	DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, @Nonnull Integer primaryKey, EntityContentRequire... require);
+	DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require);
 
 	/**
 	 * Method removes all entities that match passed query. All entities of other entity types that reference removed

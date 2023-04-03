@@ -180,6 +180,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	private final CatalogIndex catalogIndex;
 	/**
+	 * Isolated sequence service for this catalog.
+	 */
+	private final SequenceService sequenceService = new SequenceService();
+	/**
 	 * Contains id of the transaction ({@link Transaction#getId()}) that was successfully committed to the disk.
 	 */
 	@Getter long lastCommittedTransactionId;
@@ -213,11 +217,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.state = new AtomicReference<>(CatalogState.WARMING_UP);
 		this.readWriteSessionCount = new AtomicInteger(0);
 		this.lastCommittedTransactionId = catalogBootstrap.getLastTransactionId();
-		this.txPkSequence = SequenceService.getOrCreateSequence(getName(), SequenceType.TRANSACTION, this.lastCommittedTransactionId);
+		this.txPkSequence = sequenceService.getOrCreateSequence(getName(), SequenceType.TRANSACTION, this.lastCommittedTransactionId);
 		this.cacheSupervisor = cacheSupervisor;
 		this.entityCollections = new TransactionalMap<>(createHashMap(0));
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0));
-		this.entityTypeSequence = SequenceService.getOrCreateSequence(
+		this.entityTypeSequence = sequenceService.getOrCreateSequence(
 			catalogSchema.getName(), SequenceType.ENTITY_COLLECTION, 1
 		);
 		this.catalogIndex = new CatalogIndex(this);
@@ -249,7 +253,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 		this.readWriteSessionCount = new AtomicInteger(0);
 		this.lastCommittedTransactionId = catalogBootstrap.getLastTransactionId();
-		this.txPkSequence = SequenceService.getOrCreateSequence(getName(), SequenceType.TRANSACTION, this.lastCommittedTransactionId);
+		this.txPkSequence = sequenceService.getOrCreateSequence(getName(), SequenceType.TRANSACTION, this.lastCommittedTransactionId);
 		this.cacheSupervisor = cacheSupervisor;
 
 		final Collection<EntityCollectionHeader> entityCollectionHeaders = catalogBootstrap.getEntityTypeHeaders();
@@ -259,13 +263,13 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			final String entityType = entityCollectionHeader.getEntityType();
 			final int entityTypePrimaryKey = entityCollectionHeader.getEntityTypePrimaryKey();
 			final EntityCollection collection = new EntityCollection(
-				this, entityTypePrimaryKey, entityType, ioService, cacheSupervisor
+				this, entityTypePrimaryKey, entityType, ioService, cacheSupervisor, sequenceService
 			);
 			collections.put(entityType, collection);
 			collectionIndex.put(MAX_POWER_OF_TWO, collection);
 		}
 		this.entityCollections = new TransactionalMap<>(collections);
-		this.entityTypeSequence = SequenceService.getOrCreateSequence(
+		this.entityTypeSequence = sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, catalogBootstrap.getCatalogHeader().getLastEntityCollectionPrimaryKey()
 		);
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
@@ -367,7 +371,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					createEntitySchemaMutation.getName()
 				);
 				final EntityCollection newCollection = new EntityCollection(
-					this, this.entityTypeSequence.incrementAndGet(), createEntitySchemaMutation.getName(), ioService, cacheSupervisor
+					this, this.entityTypeSequence.incrementAndGet(), createEntitySchemaMutation.getName(),
+					ioService, cacheSupervisor, sequenceService
 				);
 				this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);
 				this.entityCollections.put(newCollection.getEntityType(), newCollection);
@@ -519,7 +524,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 						EntityCollection::getEntityType,
 						it -> new EntityCollection(
 							this, it.getEntityTypePrimaryKey(), it.getEntityType(),
-							newIoService, cacheSupervisor
+							newIoService, cacheSupervisor, sequenceService
 						)
 					)
 				);
@@ -585,36 +590,43 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	@Override
 	public void terminate() {
-		ioService.executeWriteSafely(() -> {
-			final List<EntityCollectionHeader> entityHeaders;
-			boolean changeOccurred = false;
-			final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
-			entityHeaders = new ArrayList<>(this.entityCollections.size());
-			for (EntityCollection entityCollection : entityCollections.values()) {
-				// in warmup state try to persist all changes in volatile memory
-				if (warmingUpState) {
-					final long lastSeenVersion = entityCollection.getVersion();
-					entityHeaders.add(entityCollection.flush());
-					changeOccurred |= entityCollection.getVersion() != lastSeenVersion;
+		try {
+			ioService.executeWriteSafely(() -> {
+				final List<EntityCollectionHeader> entityHeaders;
+				boolean changeOccurred = false;
+				final boolean warmingUpState = getCatalogState() == CatalogState.WARMING_UP;
+				entityHeaders = new ArrayList<>(this.entityCollections.size());
+				for (EntityCollection entityCollection : entityCollections.values()) {
+					// in warmup state try to persist all changes in volatile memory
+					if (warmingUpState) {
+						final long lastSeenVersion = entityCollection.getVersion();
+						entityHeaders.add(entityCollection.flush());
+						changeOccurred |= entityCollection.getVersion() != lastSeenVersion;
+					}
+					// in all states terminate collection operations
+					entityCollection.terminate();
 				}
-				// in all states terminate collection operations
-				entityCollection.terminate();
-			}
 
-			// if any change occurred (this may happen only in warm up state)
-			if (changeOccurred) {
-				// store catalog header
-				this.ioService.storeHeader(
-					getCatalogState(),
-					this.lastCommittedTransactionId,
-					this.entityTypeSequence.get(),
-					entityHeaders
-				);
-			}
-			// close all resources here, here we just hand all objects to GC
-			entityCollections.clear();
-			return null;
-		});
+				// if any change occurred (this may happen only in warm up state)
+				if (changeOccurred) {
+					// store catalog header
+					this.ioService.storeHeader(
+						getCatalogState(),
+						this.lastCommittedTransactionId,
+						this.entityTypeSequence.get(),
+						entityHeaders
+					);
+				}
+				// close all resources here, here we just hand all objects to GC
+				entityCollections.clear();
+				return null;
+			});
+		} finally {
+			ioService.executeWriteSafely(() -> {
+				ioService.close();
+				return null;
+			});
+		}
 	}
 
 	/**

@@ -60,6 +60,12 @@ public class RestConfig extends AbstractApiConfiguration implements ApiWithSpeci
 		this.allowedOrigins = null;
 	}
 
+	public RestConfig(@Nonnull String host) {
+		super(true, host);
+		this.prefix = BASE_REST_PATH;
+		this.allowedOrigins = null;
+	}
+
 	@JsonCreator
 	public RestConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                  @Nonnull @JsonProperty("host") String host,

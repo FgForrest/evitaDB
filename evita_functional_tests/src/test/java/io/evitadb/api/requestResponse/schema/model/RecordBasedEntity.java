@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.annotation.SellingPrice;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 
 /**
  * Example class for ClassSchemaAnalyzerTest.
@@ -80,7 +81,7 @@ public record RecordBasedEntity(
 
 ) {
 
-	record ReferencedFiles(@Nonnull int... fileId) {}
+	record ReferencedFiles(@Nonnull int... fileId) implements Serializable {}
 
 	public record Brand(
 		@ReferencedEntity

@@ -24,6 +24,7 @@
 package io.evitadb.test.annotation;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.test.TestConstants;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -33,7 +34,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * This annotation bootstraps shared dataset to be used among multiple classes in single test class.
+ * This annotation bootstraps shared dataset to be used among multiple methods in entire test suite.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -49,7 +50,43 @@ public @interface DataSet {
 	String value();
 
 	/**
-	 * Defines the state the catalog is expected to be in.
+	 * Defines catalog name for the initial catalog. If annotation is not used, catalog name defaults to
+	 * {@link TestConstants#TEST_CATALOG}.
+	 */
+	String catalogName() default TestConstants.TEST_CATALOG;
+
+	/**
+	 * Defines list of web API that should be started along with the evita server instance. Use one of the following
+	 * codes:
+	 *
+	 * - {@link io.evitadb.externalApi.grpc.GrpcProvider#CODE}
+	 * - {@link io.evitadb.externalApi.graphql.GraphQLProvider#CODE}
+	 * - {@link io.evitadb.externalApi.rest.RestProvider#CODE}
+	 */
+	String[] openWebApi() default {};
+
+	/**
+	 * Marks the dataset as read-only after the initialization method has been finished. This is a safety lock.
+	 * When you need to write to a data set from the unit test methods, you'd probably don't want it to be shared with
+	 * other tests or only a controlled sub-set of them.
+	 *
+	 * If you disable readOnly safety lock, you should probably enable {@link #destroyAfterClass()} or
+	 * {@link UseDataSet#destroyAfterTest()} attributes to true.
+	 *
+	 * That's why readOnly is set to true by default, we want you to think about it before you switch off this safety
+	 * lock.
+	 */
+	boolean readOnly() default true;
+
+	/**
+	 * If set to true the evitaDB server instance is closed and deleted after all test methods of the set where
+	 * {@link DataSet} annotation is used were executed.
+	 */
+	boolean destroyAfterClass() default false;
+
+	/**
+	 * Defines the state the catalog is expected to be in. By default, evita is automatically switched to
+	 * the transactional {@link CatalogState#ALIVE} mode.
 	 */
 	CatalogState expectedCatalogState() default CatalogState.ALIVE;
 

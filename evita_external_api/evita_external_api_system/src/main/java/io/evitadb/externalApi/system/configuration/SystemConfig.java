@@ -26,46 +26,66 @@ package io.evitadb.externalApi.system.configuration;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * System API specific configuration.
  *
  * @author Tomáš Pozler, 2023
  */
-public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
+public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix, ApiWithOriginControl {
 	/**
 	 * Port on which will server be run and on which will channel be opened.
 	 */
 	public static final int DEFAULT_SYSTEM_PORT = 5557;
 	private static final String BASE_SYSTEM_PATH = "system";
+	private static final Pattern ORIGIN_PATTERN = Pattern.compile("([a-z]+)://([\\w.]+)(:(\\d+))?");
+
 	/**
 	 * Controls the prefix System API will react on.
 	 * Default value is `system`.
 	 */
 	@Getter private final String prefix;
+	@Getter private final String[] allowedOrigins;
 
 	public SystemConfig() {
 		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, true);
 		this.prefix = BASE_SYSTEM_PATH;
+		this.allowedOrigins = null;
 	}
 
-	public SystemConfig(@Nullable Boolean enabled,
-	                    @Nonnull String host) {
-		super(enabled, host, true);
+	public SystemConfig(@Nonnull String host) {
+		super(true, host, true);
 		this.prefix = BASE_SYSTEM_PATH;
+		this.allowedOrigins = null;
 	}
 
 	@JsonCreator
 	public SystemConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 						@Nonnull @JsonProperty("host") String host,
-						@JsonProperty("prefix") String prefix) {
+						@Nullable @JsonProperty("prefix") String prefix,
+						@Nullable @JsonProperty("allowedOrigins") String allowedOrigins) {
 		super(enabled, host, true);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_SYSTEM_PATH);
+		if (allowedOrigins == null) {
+			this.allowedOrigins = null;
+		} else {
+			this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+				.peek(origin -> {
+					final Matcher matcher = ORIGIN_PATTERN.matcher(origin);
+					Assert.isTrue(matcher.matches(), "Invalid origin definition: " + origin);
+				})
+				.toArray(String[]::new);
+		}
 	}
 }

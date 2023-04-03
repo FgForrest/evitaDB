@@ -204,7 +204,7 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	/**
 	 * Interface that simply combines writer and builder contracts together.
 	 */
-	interface PricesBuilder extends PricesEditor<PricesEditor.PricesBuilder>, Builder<Prices> {
+	interface PricesBuilder extends PricesEditor<PricesEditor.PricesBuilder>, BuilderContract<Prices> {
 
 		@Nonnull
 		@Override

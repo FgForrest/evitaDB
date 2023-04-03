@@ -2480,12 +2480,12 @@ public class EvitaQLParser extends Parser {
 		}
 	}
 	public static class PriceContentConstraintContext extends RequireConstraintContext {
-		public ValueArgsContext args;
+		public ValueListArgsContext args;
 		public EmptyArgsContext emptyArgs() {
 			return getRuleContext(EmptyArgsContext.class,0);
 		}
-		public ValueArgsContext valueArgs() {
-			return getRuleContext(ValueArgsContext.class,0);
+		public ValueListArgsContext valueListArgs() {
+			return getRuleContext(ValueListArgsContext.class,0);
 		}
 		public PriceContentConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
 		@Override
@@ -3011,7 +3011,7 @@ public class EvitaQLParser extends Parser {
 				case 2:
 					{
 					setState(286);
-					((PriceContentConstraintContext)_localctx).args = valueArgs();
+					((PriceContentConstraintContext)_localctx).args = valueListArgs();
 					}
 					break;
 				}
@@ -7342,7 +7342,7 @@ public class EvitaQLParser extends Parser {
 		"\u0118\5&\24\2\u0116\u0118\5\60\31\2\u0117\u0115\3\2\2\2\u0117\u0116\3"+
 		"\2\2\2\u0118\u0162\3\2\2\2\u0119\u011c\7\65\2\2\u011a\u011d\5&\24\2\u011b"+
 		"\u011d\5B\"\2\u011c\u011a\3\2\2\2\u011c\u011b\3\2\2\2\u011d\u0162\3\2"+
-		"\2\2\u011e\u0121\7\66\2\2\u011f\u0122\5&\24\2\u0120\u0122\5<\37\2\u0121"+
+		"\2\2\u011e\u0121\7\66\2\2\u011f\u0122\5&\24\2\u0120\u0122\5> \2\u0121"+
 		"\u011f\3\2\2\2\u0121\u0120\3\2\2\2\u0122\u0162\3\2\2\2\u0123\u0124\7\67"+
 		"\2\2\u0124\u0162\5&\24\2\u0125\u0128\78\2\2\u0126\u0129\5&\24\2\u0127"+
 		"\u0129\5B\"\2\u0128\u0126\3\2\2\2\u0128\u0127\3\2\2\2\u0129\u0162\3\2"+

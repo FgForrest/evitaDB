@@ -42,6 +42,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUnion;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiConstants;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
@@ -60,8 +61,6 @@ import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNam
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_LIST;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.newEnum;
-import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.FORMAT_CURRENCY;
-import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.FORMAT_LOCALE;
 
 /**
  * Builds data API part of catalog's REST API. Building of whole REST API is handled by {@link io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder}.
@@ -185,7 +184,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			final OpenApiEnum.Builder localeEnumBuilder = newEnum()
 				.name(ENTITY_LOCALE_ENUM.name(entitySchema))
 				.description(ENTITY_LOCALE_ENUM.description())
-				.format(FORMAT_LOCALE);
+				.format(OpenApiConstants.FORMAT_LOCALE);
 			entitySchema.getLocales().forEach(l -> localeEnumBuilder.item(l.toLanguageTag()));
 
 			buildingContext.registerCustomEnumIfAbsent(localeEnumBuilder.build());
@@ -195,7 +194,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			final OpenApiEnum.Builder currencyEnumBuilder = newEnum()
 				.name(ENTITY_CURRENCY_ENUM.name(entitySchema))
 				.description(ENTITY_CURRENCY_ENUM.description())
-				.format(FORMAT_CURRENCY);
+				.format(OpenApiConstants.FORMAT_CURRENCY);
 			entitySchema.getCurrencies().forEach(c -> currencyEnumBuilder.item(c.toString()));
 
 			buildingContext.registerCustomEnumIfAbsent(currencyEnumBuilder.build());

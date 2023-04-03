@@ -7,7 +7,7 @@ server:
   readOnly: ${server.readOnly:false}
 
 storage:
-  storageDirectory: ${java.io.tmpdir}/evita
+  storageDirectory: ${storage.storageDirectory}
   lockTimeoutSeconds: ${storage.lockTimeoutSeconds:50}
   waitOnCloseSeconds: ${storage.waitOnCloseSeconds:50}
   outputBufferSize: ${storage.outputBufferSize:4MB}
@@ -27,7 +27,7 @@ api:
   ioThreads: ${api.ioThreads:4}
   certificate:
     generateAndUseSelfSigned: ${api.certificate.generateAndUseSelfSigned:true}
-    folderPath: ${java.io.tmpdir}/evita-server-certificates
+    folderPath: ${storage.storageDirectory}-certificates
     custom:
       certificate: ${api.certificate.custom.certificate:null}
       privateKey: ${api.certificate.custom.privateKey:null}
@@ -36,6 +36,7 @@ api:
     system:
       enabled: ${api.endpoints.system.enabled:true}
       host: ${api.endpoints.system.host:localhost:5557}
+      allowedOrigins: ${api.endpoints.system.allowedOrigins:null}
     graphQL:
       enabled: ${api.endpoints.graphQL.enabled:true}
       host: ${api.endpoints.graphQL.host:localhost:5555}

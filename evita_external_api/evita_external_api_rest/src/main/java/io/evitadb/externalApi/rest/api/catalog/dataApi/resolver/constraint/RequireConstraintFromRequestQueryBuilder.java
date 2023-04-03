@@ -97,8 +97,8 @@ public class RequireConstraintFromRequestQueryBuilder {
 			contentRequires.add(new ReferenceContent((String[]) parameters.get(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT.name())));
 		}
 		if (isParameterPresent(parameters, FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT)) {
-			final String priceContentMode = (String) parameters.get(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name());
-			contentRequires.add(new PriceContent(PriceContentMode.valueOf(priceContentMode)));
+			final PriceContentMode priceContentMode = (PriceContentMode) parameters.get(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name());
+			contentRequires.add(new PriceContent(priceContentMode));
 		}
 		if (parameters.containsKey(FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES.name())) {
 			contentRequires.add(new DataInLocales((Locale[]) parameters.get(FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES.name())));

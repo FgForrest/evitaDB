@@ -30,6 +30,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
@@ -62,8 +63,8 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should be alive")
-	void shouldBeAlive(Evita evita) {
-		testGraphQLCall()
+	void shouldBeAlive(GraphQLTester tester) {
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					query {
@@ -80,10 +81,10 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific catalog")
-	void shouldReturnSpecificCatalog(Evita evita) {
+	void shouldReturnSpecificCatalog(Evita evita, GraphQLTester tester) {
 		final CatalogContract testCatalog = evita.getCatalogInstanceOrThrowException(TEST_CATALOG);
 
-		testGraphQLCall()
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					query {
@@ -118,8 +119,8 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all catalogs")
-	void shouldReturnAllCatalogs(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnAllCatalogs(Evita evita, GraphQLTester tester) {
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
 					query {
@@ -162,8 +163,8 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error if specific Evita catalog doesn't exist")
-	void shouldReturnErrorIfSpecificCatalogDoesntExist(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorIfSpecificCatalogDoesntExist(GraphQLTester tester) {
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
                 query {
@@ -181,8 +182,8 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return errors query schema is invalid")
-	void shouldReturnNullIfSpecificCatalogDoesntExist(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnNullIfSpecificCatalogDoesntExist(GraphQLTester tester) {
+		tester.test(SYSTEM_URL)
 			.document(
 				"""
                 query {

@@ -118,7 +118,8 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 
 	/**
 	 * Default value is used when the entity is created without this attribute specified. Default values allow to pass
-	 * non-null checks even if no attributes of such name are specified.
+	 * non-null checks even if no attributes of such name are specified. The default value is used when new entity is
+	 * created and the attribute has no value defined.
 	 *
 	 * @see #isNullable()
 	 */

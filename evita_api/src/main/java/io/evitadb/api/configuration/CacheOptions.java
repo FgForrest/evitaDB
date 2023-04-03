@@ -94,6 +94,13 @@ public record CacheOptions(
 		return new Builder();
 	}
 
+	/**
+	 * Builder for the cache options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	public static CacheOptions.Builder builder(@Nonnull CacheOptions cacheOptions) {
+		return new Builder(cacheOptions);
+	}
+
 	public CacheOptions() {
 		this(
 			ReflectionCachingBehaviour.CACHE,
@@ -130,6 +137,16 @@ public record CacheOptions(
 		private long cacheSizeInBytes = DEFAULT_CACHE_SIZE;
 
 		Builder() {
+		}
+
+		Builder(@Nonnull CacheOptions cacheOptions) {
+			this.reflection = cacheOptions.reflection;
+			this.enabled = cacheOptions.enabled;
+			this.reevaluateEachSeconds = cacheOptions.reevaluateEachSeconds;
+			this.anteroomRecordCount = cacheOptions.anteroomRecordCount;
+			this.minimalComplexityThreshold = cacheOptions.minimalComplexityThreshold;
+			this.minimalUsageThreshold = cacheOptions.minimalUsageThreshold;
+			this.cacheSizeInBytes = cacheOptions.cacheSizeInBytes;
 		}
 
 		public Builder reflection(ReflectionCachingBehaviour reflection) {

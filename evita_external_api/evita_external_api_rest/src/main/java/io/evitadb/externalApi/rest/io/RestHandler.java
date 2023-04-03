@@ -75,9 +75,15 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
     @Nonnull
     protected final CTX restApiHandlingContext;
+    @Nonnull
+    protected final DataDeserializer dataDeserializer;
 
     protected RestHandler(@Nonnull CTX restApiHandlingContext) {
         this.restApiHandlingContext = restApiHandlingContext;
+        this.dataDeserializer = new DataDeserializer(
+            this.restApiHandlingContext.getOpenApi(),
+            this.restApiHandlingContext.getEnumMapping()
+        );
     }
 
     @Override
@@ -87,6 +93,7 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
         final Optional<Object> result = doHandleRequest(exchange);
         if (result == null) {
             sendSuccessResponse(exchange);
+            return;
         }
 
         final Object resultObject = result
@@ -269,8 +276,7 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
                                                      @Nonnull Parameter parameter) {
         final Deque<String> queryParam = queryParameters.get(parameter.getName());
         if (queryParam != null) {
-            return Optional.ofNullable(DataDeserializer.deserializeValue(
-                restApiHandlingContext.getOpenApi(),
+            return Optional.ofNullable(dataDeserializer.deserializeValue(
                 getParameterSchema(parameter),
                 queryParam.toArray(String[]::new)
             ));

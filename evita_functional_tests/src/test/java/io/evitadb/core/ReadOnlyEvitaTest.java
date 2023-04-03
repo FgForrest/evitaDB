@@ -30,9 +30,9 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.ReadOnlyException;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.test.Entities;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.test.EvitaTestSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -47,16 +47,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class ReadOnlyEvitaTest implements TestFileSupport {
+class ReadOnlyEvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
-	private static final String TEST_CATALOG = "testCatalog";
+	public static final String DIR_READ_ONLY_EVITA_TEST = "readOnlyEvitaTest";
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() throws IOException {
-		SequenceService.reset();
-		cleanTestDirectory();
+		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
 		evita = new Evita(
 			getEvitaConfiguration(false)
 		);
@@ -80,6 +79,11 @@ class ReadOnlyEvitaTest implements TestFileSupport {
 		evita = new Evita(
 			getEvitaConfiguration(true)
 		);
+	}
+
+	@AfterEach
+	void tearDown() {
+		evita.close();
 	}
 
 	@Test
@@ -127,7 +131,7 @@ class ReadOnlyEvitaTest implements TestFileSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getTestDirectory())
+					.storageDirectory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST))
 					.build()
 			)
 			.build();

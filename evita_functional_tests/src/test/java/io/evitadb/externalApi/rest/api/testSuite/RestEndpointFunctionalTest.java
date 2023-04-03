@@ -28,31 +28,24 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Range;
-import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
-import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.externalApi.rest.RestProviderRegistrar;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
-import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
-import io.evitadb.externalApi.rest.configuration.RestConfig;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
-import lombok.SneakyThrows;
+import io.evitadb.test.tester.RestTester;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 
 /**
@@ -71,52 +64,30 @@ public abstract class RestEndpointFunctionalTest {
 
 	public static final String TYPENAME_FIELD = "__typename";
 
-	private static ExternalApiServer server;
-	private static RestTester tester;
-
-
-	@SneakyThrows
-	@BeforeEach
-	void setUp() {
-		 tester = new RestTester("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/rest" + getEndpointPath());
-	}
-
-	@Nonnull
-	protected abstract String getEndpointPath();
-
-	@DataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
-	List<SealedEntity> setUp(Evita evita) {
-		TestDataGenerator.generateMockCatalogs(evita);
-		final List<SealedEntity> entities = TestDataGenerator.generateMainCatalogEntities(evita);
-
-		server = new ExternalApiServer(
-			evita,
-			new ApiOptions(null, new CertificateSettings.Builder().build(), Map.of(RestProvider.CODE, new RestConfig())),
-			Collections.singleton(new RestProviderRegistrar())
-		);
-		server.start();
-
-		return entities;
-	}
-
-	@AfterAll
-	static void tearDown() {
-		if (server != null) {
-			server.close();
-			server = null;
-		}
-	}
-
-	/**
-	 * Test single request to REST API.
-	 */
-	protected Request testRestCall() {
-		return tester.test();
-	}
 
 	@Nonnull
 	protected static EntitySchema createEmptyEntitySchema(@Nonnull String entityType) {
 		return EntitySchema._internalBuild(entityType);
+	}
+
+
+	@DataSet(value = REST_THOUSAND_PRODUCTS, openWebApi = RestProvider.CODE)
+	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
+		return setUpData(evita, evitaServer, 1000);
+	}
+
+	@Nonnull
+	protected DataCarrier setUpData(Evita evita, EvitaServer evitaServer, int productCount) {
+		TestDataGenerator.generateMockCatalogs(evita);
+		final List<SealedEntity> entities = TestDataGenerator.generateMainCatalogEntities(evita, productCount);
+		final HostDefinition[] host = evitaServer.getExternalApiServer().getApiOptions()
+			.getEndpointConfiguration(RestProvider.CODE)
+			.getHost();
+
+		return new DataCarrier(
+			"entities", entities,
+			"tester"
+		);
 	}
 
 	@Nullable

@@ -41,7 +41,6 @@
 	    <module>evita_external_api_grpc/client</module>
 	    <module>evita_external_api_grpc/server</module>
 	    <module>evita_external_api_grpc/shared</module>
-	    <module>evita_external_api_grpc/test</module>
 	    <module>evita_external_api_rest</module>
 	    <module>evita_external_api_system</module>
     </modules>

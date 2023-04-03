@@ -131,9 +131,9 @@ public interface GetterBasedEntityWithNonDefaults {
 	)
 	Brand[] getLicensingBrands();
 
-	record ReferencedFiles(@Nonnull int... fileId) {}
+	record ReferencedFiles(@Nonnull int... fileId) implements Serializable {}
 
-	record LocalizedTexts(@Nonnull String... texts) {}
+	record LocalizedTexts(@Nonnull String... texts) implements Serializable {}
 
 	interface Brand extends Serializable {
 

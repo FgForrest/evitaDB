@@ -115,15 +115,6 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
         </dependency>
-
-        <!-- TESTS -->
-
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>evita_test_support</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
-
     </dependencies>
     <build>
         <plugins>

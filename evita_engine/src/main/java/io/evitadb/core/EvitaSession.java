@@ -616,7 +616,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Override
-	public int deleteEntityAndItsHierarchy(@Nonnull String entityType, @Nonnull Integer primaryKey) {
+	public int deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
@@ -630,7 +630,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, @Nonnull Integer primaryKey, EntityContentRequire... require) {
+	public DeletedHierarchy deleteEntityAndItsHierarchy(@Nonnull String entityType, int primaryKey, EntityContentRequire... require) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
@@ -686,7 +686,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public long openTransaction() {
 		assertTransactionIsNotOpened();
-		//noinspection resource
 		final Transaction transaction = createAndInitTransaction();
 		this.transactionAccessor.set(transaction);
 		return transaction.getId();

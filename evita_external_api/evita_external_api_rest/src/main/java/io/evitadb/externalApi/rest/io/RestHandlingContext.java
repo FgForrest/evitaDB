@@ -31,6 +31,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 
 /**
  * This class contains information required to process REST API requests. Not all attributes has to be set
@@ -46,6 +47,7 @@ public class RestHandlingContext {
 	@Nonnull @Getter protected final Evita evita;
 
 	@Nonnull @Getter private final OpenAPI openApi;
+	@Nonnull @Getter private final Map<String, Class<? extends Enum<?>>> enumMapping;
 	@Nonnull @Getter private final Operation endpointOperation;
 
 	@Getter private final boolean localized;

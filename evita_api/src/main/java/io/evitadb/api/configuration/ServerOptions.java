@@ -27,6 +27,8 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.ToString;
 
+import javax.annotation.Nonnull;
+
 /**
  * DTO contains base server wide settings for the evitaDB.
  *
@@ -68,6 +70,13 @@ public record ServerOptions(
 		return new Builder();
 	}
 
+	/**
+	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	public static ServerOptions.Builder builder(@Nonnull ServerOptions serverOptions) {
+		return new Builder(serverOptions);
+	}
+
 	public ServerOptions() {
 		this(
 			DEFAULT_CORE_THREAD_COUNT,
@@ -92,6 +101,15 @@ public record ServerOptions(
 		private boolean readOnly = false;
 
 		Builder() {
+		}
+
+		Builder(@Nonnull ServerOptions serverOptions) {
+			this.coreThreadCount = serverOptions.coreThreadCount;
+			this.maxThreadCount = serverOptions.maxThreadCount;
+			this.threadPriority = serverOptions.threadPriority;
+			this.queueSize = serverOptions.queueSize;
+			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity;
+			this.readOnly = serverOptions.readOnly;
 		}
 
 		public ServerOptions.Builder coreThreadCount(int coreThreadCount) {

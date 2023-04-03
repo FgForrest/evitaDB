@@ -57,6 +57,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static io.evitadb.externalApi.rest.api.openApi.OpenApiConstants.*;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -100,26 +101,6 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		SCALAR_SCHEMA_MAPPINGS.put(Any.class, OpenApiScalar::createAnySchema);
 		SCALAR_SCHEMA_MAPPINGS.put(GenericObject.class, OpenApiScalar::createGenericObjectSchema);
 	}
-
-	public static final String TYPE_ARRAY = "array";
-	public static final String TYPE_OBJECT = "object";
-	public static final String TYPE_STRING = "string";
-	public static final String TYPE_INTEGER = "integer";
-	public static final String TYPE_BOOLEAN = "boolean";
-
-	public static final String FORMAT_DATE_TIME = "date-time";
-	public static final String FORMAT_LOCAL_DATE_TIME = "local-date-time";
-	public static final String FORMAT_DATE = "date";
-	public static final String FORMAT_LOCAL_TIME = "local-time";
-	public static final String FORMAT_INT_16 = "int16";
-	public static final String FORMAT_INT_32 = "int32";
-	public static final String FORMAT_INT_64 = "int64";
-	public static final String FORMAT_CURRENCY = "iso-4217";
-	public static final String FORMAT_BYTE = "int8";
-	public static final String FORMAT_CHAR = "char";
-	public static final String FORMAT_DECIMAL = "decimal";
-	public static final String FORMAT_LOCALE = "locale";
-	public static final String FORMAT_RANGE = "range";
 
 	@Nonnull
 	private final Class<?> javaType;

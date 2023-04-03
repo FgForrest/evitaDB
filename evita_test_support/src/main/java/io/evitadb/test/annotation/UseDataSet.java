@@ -50,7 +50,6 @@ public @interface UseDataSet {
 
 	/**
 	 * If set to TRUE the used Evita instance is destroyed along with all data (and possible committed changes in it).
-	 * Use with
 	 */
 	boolean destroyAfterTest() default false;
 

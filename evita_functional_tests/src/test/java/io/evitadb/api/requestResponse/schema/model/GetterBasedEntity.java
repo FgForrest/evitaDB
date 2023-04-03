@@ -81,7 +81,7 @@ public interface GetterBasedEntity {
 	@Reference
 	Brand[] getLicensingBrands();
 
-	record ReferencedFiles(@Nonnull int... fileId) {}
+	record ReferencedFiles(@Nonnull int... fileId) implements Serializable {}
 
 	interface Brand extends Serializable {
 

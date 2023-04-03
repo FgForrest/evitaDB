@@ -49,6 +49,13 @@ public record EvitaConfiguration(
 		return new Builder();
 	}
 
+	/**
+	 * Builder for the evitaDB options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	public static EvitaConfiguration.Builder builder(@Nonnull EvitaConfiguration configuration) {
+		return new Builder(configuration);
+	}
+
 	public EvitaConfiguration() {
 		this(
 			new ServerOptions(),
@@ -67,6 +74,12 @@ public record EvitaConfiguration(
 		private CacheOptions cache = new CacheOptions();
 
 		Builder() {
+		}
+
+		Builder(@Nonnull EvitaConfiguration configuration) {
+			this.server = configuration.server;
+			this.storage = configuration.storage;
+			this.cache = configuration.cache;
 		}
 
 		public EvitaConfiguration.Builder server(ServerOptions server) {

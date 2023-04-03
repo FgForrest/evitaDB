@@ -9,15 +9,15 @@ proofreading: "done"
 ---
 
 This document lists all data types supported by evitaDB that can be used in
-[attributes](entity.md#attributes-unique-filterable-sortable-localized) or [associated data](entity.md#associated-data) 
+[attributes](data-model.md#attributes-unique-filterable-sortable-localized) or [associated data](data-model.md#associated-data) 
 for storing client relevant information. 
 
 There are two categories of data types:
 
 1. [simple data types](#simple-data-types) that can be used both for 
-    [attributes](entity.md#attributes-unique-filterable-sortable-localized) and
-    [associated data](entity.md#associated-data)
-2. [complex data types](#complex-data-types) that can be used only for [associated data](entity.md#associated-data)
+    [attributes](data-model.md#attributes-unique-filterable-sortable-localized) and
+    [associated data](data-model.md#associated-data)
+2. [complex data types](#complex-data-types) that can be used only for [associated data](data-model.md#associated-data)
 
 ## Simple data types
 

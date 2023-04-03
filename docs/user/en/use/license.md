@@ -6,6 +6,7 @@ perex: |
     license.
 date: '22.2.2023'
 author: 'Ing. Jan Novotný'
+proofreading: 'needed'
 ---
 evitaDB is licensed under the [Business Source License 1.1](https://github.com/FgForrest/evitaDB/blob/dev/LICENSE). Technically, it is not
 an open source license, but is an [open source friendly](https://itsfoss.com/making-the-business-source-license-open-source-compliant/) 

@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
@@ -494,7 +495,10 @@ public class ClassSchemaAnalyzer {
 				);
 				final Class<?> associatedDataType = getter.getReturnType();
 				//noinspection unchecked
-				defineAssociatedData(entityBuilder, associatedDataAnnotation, associatedDataName, getter.toGenericString(), (Class<? extends Serializable>) associatedDataType);
+				defineAssociatedData(
+					entityBuilder, associatedDataAnnotation, associatedDataName,
+					getter.toGenericString(), (Class<? extends Serializable>) associatedDataType
+				);
 			}
 			final Reference referenceAnnotation = reflectionLookup.getAnnotationInstance(getter, Reference.class);
 			if (referenceAnnotation != null) {
@@ -695,8 +699,20 @@ public class ClassSchemaAnalyzer {
 		} else {
 			associatedDataDefined.put(associatedDataName, definer);
 		}
+		final boolean supportedTypeOrItsArray = EvitaDataTypes.isSupportedTypeOrItsArray(associatedDataType);
+		final boolean serializable = Serializable.class.isAssignableFrom(associatedDataType);
+
+		if (!supportedTypeOrItsArray && !serializable) {
+			throw new InvalidSchemaMutationException(
+				"The type `" + associatedDataType + "` cannot be used for associated data `" + associatedDataName + "`. " +
+				"It is not a directly supported evitaDB type and cannot be converted to a ComplexDataObject, because " +
+				"it doesn't implement `Serializable` interface."
+			);
+		}
+
 		entityBuilder.withAssociatedData(
-			associatedDataName, associatedDataType,
+			associatedDataName,
+			supportedTypeOrItsArray ? associatedDataType : ComplexDataObject.class,
 			whichIs -> {
 				if (!associatedDataAnnotation.description().isBlank()) {
 					whichIs.withDescription(associatedDataAnnotation.description());

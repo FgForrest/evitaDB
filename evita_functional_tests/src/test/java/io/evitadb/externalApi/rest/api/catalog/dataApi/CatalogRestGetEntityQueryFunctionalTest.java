@@ -26,12 +26,12 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.GetEntityEndpointHeaderDescriptor;
-import io.evitadb.externalApi.rest.api.testSuite.RestTester.Request;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,22 +57,16 @@ import static org.hamcrest.Matchers.equalTo;
  */
 class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
-	}
-
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by primary key")
-	void shouldReturnSingleProductByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleProductByPrimaryKey(List<SealedEntity> originalProductEntities, RestTester tester) {
 		final SealedEntity entity = findEntity(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
 		);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -103,7 +98,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by non-localized attribute")
-	void shouldReturnSingleProductByNonLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleProductByNonLocalizedAttribute(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
 		final SealedEntity entityWithCode = findEntity(
 			originalProductEntities,
@@ -114,7 +109,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -154,7 +149,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by non-localized attribute with locale in URL")
-	void shouldReturnSingleProductByNonLocalizedAttributeWithLocaleInUrl(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleProductByNonLocalizedAttributeWithLocaleInUrl(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
 		final SealedEntity entityWithCode = findEntity(
 			originalProductEntities,
@@ -165,7 +160,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/" + CZECH_LOCALE.toLanguageTag() + "/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -198,13 +193,13 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attributes for single product")
-	void shouldReturnAllAttributesForSingleProduct(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAllAttributesForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntity(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
 		);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -243,14 +238,14 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by localized attribute")
-	void shouldReturnSingleProductByLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleProductByLocalizedAttribute(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final String urlAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH);
 		final SealedEntity entityWithUrl = findEntity(
 			originalProductEntities,
 			it -> Objects.equals(it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH), urlAttribute)
 		);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -286,10 +281,10 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter single product by non-existent price")
-	void shouldFilterSingleProductByNonExistentPrice(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFilterSingleProductByNonExistentPrice(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -305,10 +300,10 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for filtering product by non-existent currency")
-	void shouldReturnErrorForFilteringProductByNonExistentCurrency(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForFilteringProductByNonExistentCurrency(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -324,10 +319,10 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for single product")
-	void shouldReturnCustomPriceForSaleForSingleProduct(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnCustomPriceForSaleForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -345,10 +340,10 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for single product")
-	void shouldReturnFilteredPricesForSingleProduct(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFilteredPricesForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntityWithPrice(originalProductEntities);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -368,13 +363,13 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data for single product")
-	void shouldReturnAssociatedDataForSingleProduct(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntity(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -391,13 +386,13 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data for single product with locale in URL")
-	void shouldReturnAssociatedDataForSingleProductWithLocaleInUrl(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataForSingleProductWithLocaleInUrl(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntity(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
@@ -413,13 +408,13 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference list for single product")
-	void shouldReturnReferenceListForSingleProduct(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferenceListForSingleProduct(RestTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = findEntity(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() > 1
 		);
 
-		testRestCall()
+		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()

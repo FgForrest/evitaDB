@@ -25,8 +25,8 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +35,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,7 +54,7 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should correctly handle multiple parallel queries")
-	void shouldCorrectlyHandleMultipleParallelQueries(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldCorrectlyHandleMultipleParallelQueries(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String singleQueryTemplate = """
 				product%d: get_product(primaryKey: %d) {
 					primaryKey
@@ -81,7 +82,7 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 			});
 		queryBuilder.append("}");
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(queryBuilder.toString())
 			.executeAndThen()
 			.statusCode(200)
