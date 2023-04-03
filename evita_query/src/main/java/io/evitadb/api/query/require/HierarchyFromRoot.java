@@ -60,14 +60,14 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 			Assert.isTrue(
 				requireConstraint instanceof HierarchyOutputRequireConstraint ||
 					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchyFromRoot accepts only FilterBy, HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
+				"Constraint HierarchyFromRoot accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 			);
 		}
 		for (Constraint<?> additionalConstraint : additionalChildren) {
 			Assert.isTrue(
 				additionalConstraint instanceof FilterBy ||
 					additionalConstraint == null,
-				"Constraint HierarchyFromRoot accepts only FilterBy, HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
+				"Constraint HierarchyFromRoot accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 			);
 		}
 	}

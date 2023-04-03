@@ -24,10 +24,21 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.query.require.HierarchySiblings;
+import io.evitadb.api.query.require.HierarchyStatistics;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyFilteringPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyTraversalPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.SiblingsStatisticsComputer;
+
+import java.util.EnumSet;
+import java.util.Optional;
 
 /**
  * TODO JNO - document me
@@ -39,7 +50,32 @@ public class HierarchySiblingsTranslator
 	implements RequireConstraintTranslator<HierarchySiblings>, SelfTraversingTranslator {
 
 	@Override
-	public ExtraResultProducer apply(HierarchySiblings requireConstraints, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
-		return getHierarchyStatisticsProducer(extraResultPlanningVisitor);
+	public ExtraResultProducer apply(HierarchySiblings siblings, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+		final HierarchyStatisticsProducer producer = getHierarchyStatisticsProducer(extraResultPlanningVisitor);
+		final Optional<HierarchyStatistics> statistics = siblings.getStatistics();
+		final HierarchyProducerContext context = producer.getContext(siblings.getName());
+		final HierarchyFilteringPredicate filteringPredicate = siblings.getFilterBy()
+			.map(it -> (HierarchyFilteringPredicate) new FilteredHierarchyEntityPredicate(context, it))
+			.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
+		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
+			.map(it -> stopAtConstraintToPredicate(context, it))
+			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
+		producer.addComputer(
+			siblings.getName(),
+			siblings.getOutputName(),
+			new SiblingsStatisticsComputer(
+				context,
+				createEntityFetcher(
+					siblings,
+					siblings.getEntityFetch().orElse(null),
+					producer
+				),
+				scopePredicate,
+				filteringPredicate,
+				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
+				statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
+			)
+		);
+		return producer;
 	}
 }

@@ -24,15 +24,11 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
 import io.evitadb.api.query.filter.EntityLocaleEquals;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
-import io.evitadb.api.query.require.HierarchyChildren;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
-import io.evitadb.api.query.require.StatisticsBase;
-import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
@@ -53,14 +49,12 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
@@ -198,73 +192,24 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Methods creates {@link RootStatisticsComputer} instance that computes result labeled as `outputName`
-	 * using defined predicates and entity fetcher.
+	 * Methods registers a specific implementation {@link AbstractHierarchyStatisticsComputer} instance for computing
+	 * a result labeled as `outputName`.
 	 */
-	@Nonnull
-	public ExtraResultProducer computeRoot(
+	public void addComputer(
+		@Nonnull String constraintName,
 		@Nonnull String outputName,
-		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
-		@Nullable HierarchyEntityFetcher entityFetcher,
-		@Nullable StatisticsBase statisticsBase,
-		@Nonnull EnumSet<StatisticsType> statisticsTypes
+		@Nonnull AbstractHierarchyStatisticsComputer computer
 	) {
-		addComputer(
-			HierarchyChildren.class.getSimpleName(),
-			outputName,
-			ctx -> new RootStatisticsComputer(
-				ctx, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsTypes
-			)
-		);
-		return this;
-	}
-
-	/**
-	 * Methods creates {@link RootStatisticsComputer} instance that computes result labeled as `outputName`
-	 * using defined predicates and entity fetcher.
-	 */
-	@Nonnull
-	public ExtraResultProducer computeNodeRelative(
-		@Nonnull String outputName,
-		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
-		@Nullable HierarchyEntityFetcher entityFetcher,
-		@Nullable StatisticsBase statisticsBase,
-		@Nonnull EnumSet<StatisticsType> statisticsTypes,
-		@Nonnull FilterBy parentId
-	) {
-		addComputer(
-			HierarchyChildren.class.getSimpleName(),
-			outputName,
-			ctx -> new NodeRelativeStatisticsComputer(
-				ctx, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsTypes, parentId
-			)
-		);
-		return this;
-	}
-
-	/**
-	 * Methods creates {@link ChildrenStatisticsComputer} instance that computes result labeled as `outputName`
-	 * using defined predicates and entity fetcher.
-	 */
-	@Nonnull
-	public ExtraResultProducer computeChildren(
-		@Nonnull String outputName,
-		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
-		@Nullable HierarchyEntityFetcher entityFetcher,
-		@Nullable StatisticsBase statisticsBase,
-		@Nonnull EnumSet<StatisticsType> statisticsTypes
-	) {
-		addComputer(
-			HierarchyChildren.class.getSimpleName(),
-			outputName,
-			ctx -> new ChildrenStatisticsComputer(
-				ctx, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsTypes
-			)
-		);
-		return this;
+		final HierarchyProducerContext ctx = getContext(constraintName);
+		if (ctx.referenceSchema() == null) {
+			this.selfHierarchyRequest.put(outputName, computer);
+		} else {
+			this.hierarchyRequests.computeIfAbsent(
+					ctx.referenceSchema().getName(),
+					s -> new HashMap<>(16)
+				)
+				.put(outputName, computer);
+		}
 	}
 
 	/**
@@ -280,27 +225,6 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 						"constraint container!"
 				)
 			);
-	}
-
-	/**
-	 * Methods registers a specific implementation {@link AbstractHierarchyStatisticsComputer} instance for computing
-	 * a result labeled as `outputName`.
-	 */
-	private void addComputer(
-		@Nonnull String constraintName,
-		@Nonnull String outputName,
-		@Nonnull Function<HierarchyProducerContext, AbstractHierarchyStatisticsComputer> computer
-	) {
-		final HierarchyProducerContext ctx = getContext(constraintName);
-		if (ctx.referenceSchema() == null) {
-			this.selfHierarchyRequest.put(outputName, computer.apply(ctx));
-		} else {
-			this.hierarchyRequests.computeIfAbsent(
-					ctx.referenceSchema().getName(),
-					s -> new HashMap<>(16)
-				)
-				.put(outputName, computer.apply(ctx));
-		}
 	}
 
 }

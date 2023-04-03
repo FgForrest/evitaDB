@@ -61,17 +61,21 @@ public class HierarchyChildrenTranslator
 		final HierarchyTraversalPredicate scopePredicate = children.getStopAt()
 			.map(it -> stopAtConstraintToPredicate(context, it))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
-		producer.computeChildren(
+		producer.addComputer(
+			children.getName(),
 			children.getOutputName(),
-			scopePredicate,
-			filteringPredicate,
-			createEntityFetcher(
-				children,
-				children.getEntityFetch().orElse(null),
-				producer
-			),
-			statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
-			statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
+			new ChildrenStatisticsComputer(
+				context,
+				createEntityFetcher(
+					children,
+					children.getEntityFetch().orElse(null),
+					producer
+				),
+				scopePredicate,
+				filteringPredicate,
+				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
+				statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
+			)
 		);
 		return producer;
 	}

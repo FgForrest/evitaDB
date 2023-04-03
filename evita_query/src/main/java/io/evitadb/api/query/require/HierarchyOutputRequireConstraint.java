@@ -32,7 +32,6 @@ import io.evitadb.api.query.RequireConstraint;
  *
  * - {@link HierarchyChildren}
  * - {@link HierarchyParents}
- * - {@link HierarchySiblings}
  * - {@link HierarchyFromRoot}
  * - {@link HierarchyFromNode}
  *

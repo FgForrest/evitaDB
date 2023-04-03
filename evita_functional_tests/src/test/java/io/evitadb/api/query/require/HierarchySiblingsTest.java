@@ -40,7 +40,7 @@ class HierarchySiblingsTest {
 		final HierarchySiblings hierarchySiblings = siblings("megaMenu");
 		assertEquals("megaMenu", hierarchySiblings.getOutputName());
 		assertFalse(hierarchySiblings.getEntityFetch().isPresent());
-		assertNull(hierarchySiblings.getFilterBy());
+		assertFalse(hierarchySiblings.getFilterBy().isPresent());
 		assertFalse(hierarchySiblings.getStatistics().isPresent());
 	}
 
@@ -48,7 +48,7 @@ class HierarchySiblingsTest {
 	void shouldCreateWithEntityFetchViaFactoryClassWorkAsExpected() {
 		final HierarchySiblings hierarchySiblings = siblings("megaMenu", entityFetchAll());
 		assertEquals("megaMenu", hierarchySiblings.getOutputName());
-		assertNull(hierarchySiblings.getFilterBy());
+		assertFalse(hierarchySiblings.getFilterBy().isPresent());
 		assertEquals(entityFetchAll(), hierarchySiblings.getEntityFetch().orElse(null));
 	}
 
@@ -56,7 +56,7 @@ class HierarchySiblingsTest {
 	void shouldCreateWithStatisticsViaFactoryClassWorkAsExpected() {
 		final HierarchySiblings hierarchySiblings = siblings("megaMenu", statistics());
 		assertEquals("megaMenu", hierarchySiblings.getOutputName());
-		assertNull(hierarchySiblings.getFilterBy());
+		assertFalse(hierarchySiblings.getFilterBy().isPresent());
 		assertFalse(hierarchySiblings.getEntityFetch().isPresent());
 		assertEquals(statistics(), hierarchySiblings.getStatistics().orElse(null));
 	}
@@ -65,14 +65,14 @@ class HierarchySiblingsTest {
 	void shouldCreateWithFilterByViaFactoryClassWorkAsExpected() {
 		final HierarchySiblings hierarchySiblings = siblings("megaMenu", filterBy(entityPrimaryKeyInSet(1)));
 		assertEquals("megaMenu", hierarchySiblings.getOutputName());
-		assertEquals(filterBy(entityPrimaryKeyInSet(1)), hierarchySiblings.getFilterBy());
+		assertEquals(filterBy(entityPrimaryKeyInSet(1)), hierarchySiblings.getFilterBy().orElse(null));
 		assertFalse(hierarchySiblings.getEntityFetch().isPresent());
 		assertFalse(hierarchySiblings.getStatistics().isPresent());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertTrue(new HierarchySiblings().isApplicable());
+		assertTrue(new HierarchySiblings(null).isApplicable());
 		assertTrue(siblings("megaMenu", filterBy(entityPrimaryKeyInSet(1))).isApplicable());
 		assertTrue(siblings("megaMenu", entityFetchAll()).isApplicable());
 		assertTrue(siblings("megaMenu", statistics()).isApplicable());

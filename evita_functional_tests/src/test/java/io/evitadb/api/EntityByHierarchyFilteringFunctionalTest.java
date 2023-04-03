@@ -42,6 +42,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -603,7 +604,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 	@DisplayName("Should return children for categories without statistics")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
-	void shouldReturnCardinalitiesForCategories(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	void shouldReturnCardinalitiesForCategoriesWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -638,6 +639,274 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						computeChildren(
 							session, null, categoryHierarchy,
 							null, false, false
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children for categories without statistics for category 1")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesForRequestedNodeWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityLocaleEquals(CZECH_LOCALE)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								fromNode(
+									"megaMenu",
+									node(filterBy(entityPrimaryKeyInSet(1))),
+									entityFetch(attributeContent())
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					1, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, 1, categoryHierarchy,
+							null, false, false
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children for categories without statistics for requested category 1")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								children(
+									"megaMenu",
+									entityFetch(attributeContent())
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					1, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, 1, categoryHierarchy,
+							null, false, false
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return siblings children for categories without statistics for requested root category 1")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForSiblingCategoriesWhenRootSubTreeIsRequestedWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								siblings(
+									"megaMenu",
+									entityFetch(attributeContent())
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					1, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeSiblings(
+							session, 1, categoryHierarchy,
+							null, false
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return siblings children for categories without statistics for requested category 2")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForSiblingCategoriesWhenSubTreeIsRequestedWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(2)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								siblings(
+									"megaMenu",
+									entityFetch(attributeContent())
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					2, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeSiblings(
+							session, 2, categoryHierarchy,
+							null, false
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return siblings for requested category 1 without statistics")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesForSiblingsWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								siblings(
+									"megaMenu",
+									entityFetch(attributeContent())
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					1, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeSiblings(
+							session, 1, categoryHierarchy,
+							null, false
 						)
 					)
 				);
@@ -702,6 +971,70 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						computeChildren(
 							session, 2, categoryHierarchy,
 							categoryCardinalities, false, true
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children for sibling categories with all statistics within requested category 2")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategorySiblingsWhenSubTreeIsRequested(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(6)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								siblings(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate categoryPredicate = (sealedEntity, parentItems) -> {
+					// has parent node 2
+					return sealedEntity.getPrimaryKey() == 1 || (
+						parentItems
+							.stream()
+							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()))
+					);
+				};
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					1, categoryHierarchy, originalCategoryEntities,
+					languagePredicate,
+					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity),
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeSiblings(
+							session, 6, categoryHierarchy,
+							categoryCardinalities, true
 						)
 					)
 				);
@@ -897,6 +1230,73 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						computeChildren(
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false, true
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children for requested category siblings with all statistics in distance 1")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForRequestedCategorySiblingsInDistanceOne(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(6)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								siblings(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(1)),
+									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+					final int level = parentItems.size() + 1;
+					// has parent node 1
+					final boolean hasParentNode = parentItems
+						.stream()
+						.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
+					return languagePredicate.test(sealedEntity) &&
+						(sealedEntity.getPrimaryKey() == 1 || hasParentNode) &&
+						(level <= 2);
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					1, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeSiblings(
+							session, 6, categoryHierarchy,
+							categoryCardinalities, true
 						)
 					)
 				);
@@ -1226,6 +1626,73 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return siblings for categories with all statistics until shortcut category is reached within requested category 6")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnSiblingsCardinalitiesForRequestedCategoryAndStopAtShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(6)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								siblings(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+					final int level = parentItems.size() + 1;
+					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
+						parentItems
+							.stream()
+							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
+					return languagePredicate.test(sealedEntity) && withinCategory1 &&
+						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class) &&
+						level <= 2;
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					1, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeSiblings(
+							session, 6, categoryHierarchy,
+							categoryCardinalities, true
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return children for categories with all statistics except shortcut categories")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
@@ -1339,6 +1806,72 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						computeChildren(
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false, true
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children categories with all statistics except shortcut categories for siblings of category 6")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnSiblingCardinalitiesForCategoriesWhenSubTreeIsRequestedExceptShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(6)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								siblings(
+									"megaMenu",
+									filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)),
+									entityFetch(attributeContent()),
+									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate =
+					sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
+						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
+						parentItems
+							.stream()
+							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
+					return languagePredicate.test(sealedEntity) && withinCategory1;
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					1, categoryHierarchy, originalCategoryEntities,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeSiblings(
+							session, 6, categoryHierarchy,
+							categoryCardinalities, true
 						)
 					)
 				);
@@ -1711,6 +2244,40 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						fetchHierarchyStatisticsEntity(session, categoryId),
 						ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null),
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,
+						childrenStatistics
+					)
+				);
+			}
+		}
+		return levelInfo;
+	}
+
+	@Nonnull
+	private List<LevelInfo> computeSiblings(
+		@Nonnull EvitaSessionContract session,
+		int categoryId,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nullable Cardinalities categoryCardinalities,
+		boolean computeChildrenCount
+	) {
+		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
+		final HierarchyItem theNode = categoryHierarchy.getItem(String.valueOf(categoryId));
+		Assert.notNull(theNode, "Node with id `" + categoryId + "` is not present!");
+		final HierarchyItem parent = categoryHierarchy.getParentItem(String.valueOf(categoryId));
+		final List<HierarchyItem> items = parent == null ?
+			categoryHierarchy.getRootItems() : categoryHierarchy.getChildItems(parent.getCode());
+
+		for (HierarchyItem rootItem : items) {
+			final int cid = Integer.parseInt(rootItem.getCode());
+			if (categoryCardinalities == null || categoryCardinalities.isValid(cid)) {
+				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
+					session, cid, categoryHierarchy, categoryCardinalities, computeChildrenCount
+				);
+				levelInfo.add(
+					new LevelInfo(
+						fetchHierarchyStatisticsEntity(session, cid),
+						ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null),
+						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
 						childrenStatistics
 					)
 				);

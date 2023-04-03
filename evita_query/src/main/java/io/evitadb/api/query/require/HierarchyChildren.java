@@ -61,14 +61,14 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 			Assert.isTrue(
 				requireConstraint instanceof HierarchyOutputRequireConstraint ||
 					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchyChildren accepts only FilterBy, HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
+				"Constraint HierarchyChildren accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 			);
 		}
 		for (Constraint<?> additionalConstraint : additionalChildren) {
 			Assert.isTrue(
 				additionalConstraint instanceof FilterBy ||
 					additionalConstraint == null,
-				"Constraint HierarchyChildren accepts only FilterBy, HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
+				"Constraint HierarchyChildren accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 			);
 		}
 	}

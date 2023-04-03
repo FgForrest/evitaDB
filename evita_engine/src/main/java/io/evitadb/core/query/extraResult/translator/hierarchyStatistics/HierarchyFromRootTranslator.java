@@ -35,6 +35,7 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyTraversalPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.RootStatisticsComputer;
 
 import java.util.EnumSet;
 import java.util.Optional;
@@ -59,17 +60,21 @@ public class HierarchyFromRootTranslator
 		final HierarchyTraversalPredicate scopePredicate = fromRoot.getStopAt()
 			.map(it -> stopAtConstraintToPredicate(context, it))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
-		producer.computeRoot(
+		producer.addComputer(
+			fromRoot.getName(),
 			fromRoot.getOutputName(),
-			scopePredicate,
-			filteringPredicate,
-			createEntityFetcher(
-				fromRoot,
-				fromRoot.getEntityFetch().orElse(null),
-				producer
-			),
-			statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
-			statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
+			new RootStatisticsComputer(
+				context,
+				createEntityFetcher(
+					fromRoot,
+					fromRoot.getEntityFetch().orElse(null),
+					producer
+				),
+				scopePredicate,
+				filteringPredicate,
+				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
+				statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
+			)
 		);
 		return producer;
 	}

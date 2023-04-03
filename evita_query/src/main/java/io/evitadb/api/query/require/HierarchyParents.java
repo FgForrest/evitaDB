@@ -64,6 +64,17 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		super(CONSTRAINT_NAME, new Serializable[] {outputName}, requirements);
 	}
 
+	public HierarchyParents(@Nonnull String outputName, @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[] {outputName},
+			ArrayUtils.mergeArrays(
+				new RequireConstraint[] {siblings},
+				requirements
+			)
+		);
+	}
+
 	public HierarchyParents(@Nonnull String outputName, @Nonnull EntityFetch entityFetch) {
 		super(CONSTRAINT_NAME, new Serializable[] {outputName}, entityFetch);
 	}
@@ -74,6 +85,17 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 			new Serializable[] {outputName},
 			ArrayUtils.mergeArrays(
 				new RequireConstraint[]{entityFetch},
+				requirements
+			)
+		);
+	}
+
+	public HierarchyParents(@Nonnull String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[] {outputName},
+			ArrayUtils.mergeArrays(
+				new RequireConstraint[]{entityFetch, siblings},
 				requirements
 			)
 		);
@@ -152,7 +174,7 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 			Assert.isTrue(
 				requireConstraint instanceof HierarchyOutputRequireConstraint ||
 					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchyParents accepts only HierarchyStopAt, HierarchyStopAt, HierarchySiblings and EntityFetch as inner constraints!"
+				"Constraint HierarchyParents accepts only HierarchyStopAt, HierarchyStatistics, HierarchySiblings and EntityFetch as inner constraints!"
 			);
 		}
 		Assert.isTrue(ArrayUtils.isEmpty(additionalChildren), "Inner constraints of different type than `require` are not expected.");

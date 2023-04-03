@@ -28,6 +28,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -49,76 +50,66 @@ import static java.util.Optional.of;
 	shortDescription = "The constraint triggers computing the sibling axis for currently requested hierarchy node in filter by constraint or processed node by hierarchy parents axis.",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
-public class HierarchySiblings extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint, HierarchyOutputRequireConstraint {
+public class HierarchySiblings extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {
 	@Serial private static final long serialVersionUID = 6203461550836216251L;
 	private static final String CONSTRAINT_NAME = "siblings";
 
-	private HierarchySiblings(@Nullable String outputName, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, children, additionalChildren);
+	private HierarchySiblings(@Nullable String outputName, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children, additionalChildren);
+		for (RequireConstraint requireConstraint : children) {
+			Assert.isTrue(
+				requireConstraint instanceof HierarchyOutputRequireConstraint ||
+					requireConstraint instanceof EntityFetch,
+				"Constraint HierarchySiblings accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
+			);
+		}
+		for (Constraint<?> additionalConstraint : additionalChildren) {
+			Assert.isTrue(
+				additionalConstraint instanceof FilterBy ||
+					additionalConstraint == null,
+				"Constraint HierarchySiblings accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
+			);
+		}
 	}
 
-	public HierarchySiblings() {
-		super(CONSTRAINT_NAME);
+	public HierarchySiblings(@Nullable String outputName, @Nullable FilterBy filterBy, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[]{outputName},
+			ArrayUtils.mergeArrays(
+				new RequireConstraint[]{entityFetch},
+				requirements
+			),
+			filterBy
+		);
 	}
 
-	public HierarchySiblings(@Nonnull FilterBy filterBy) {
-		super(CONSTRAINT_NAME, new RequireConstraint[0], filterBy);
+	public HierarchySiblings(@Nullable String outputName, @Nullable FilterBy filterBy, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[]{outputName},
+			requirements,
+			filterBy
+		);
 	}
 
-	public HierarchySiblings(@Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, statistics);
+	public HierarchySiblings(@Nullable String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[]{outputName},
+			ArrayUtils.mergeArrays(
+				new RequireConstraint[]{entityFetch},
+				requirements
+			)
+		);
 	}
 
-	public HierarchySiblings(@Nonnull EntityFetch entityFetch) {
-		super(CONSTRAINT_NAME, entityFetch);
-	}
-
-	public HierarchySiblings(@Nonnull FilterBy filterBy, @Nonnull EntityFetch entityFetch) {
-		super(CONSTRAINT_NAME, new RequireConstraint[] {entityFetch}, filterBy);
-	}
-
-	public HierarchySiblings(@Nonnull FilterBy filterBy, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, new RequireConstraint[] {statistics}, filterBy);
-	}
-
-	public HierarchySiblings(@Nonnull EntityFetch entityFetch, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, entityFetch, statistics);
-	}
-
-	public HierarchySiblings(@Nonnull FilterBy filterBy, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, new RequireConstraint[] {entityFetch, statistics}, filterBy);
-	}
-
-	public HierarchySiblings(@Nonnull String outputName) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName});
-	}
-
-	public HierarchySiblings(@Nonnull String outputName, @Nonnull FilterBy filterBy) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, new RequireConstraint[0], filterBy);
-	}
-
-	public HierarchySiblings(@Nonnull String outputName, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, statistics);
-	}
-
-	public HierarchySiblings(@Nonnull String outputName, @Nonnull EntityFetch entityFetch) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, entityFetch);
-	}
-
-	public HierarchySiblings(@Nonnull String outputName, @Nonnull FilterBy filterBy, @Nonnull EntityFetch entityFetch) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, new RequireConstraint[] {entityFetch}, filterBy);
-	}
-
-	public HierarchySiblings(@Nonnull String outputName, @Nonnull FilterBy filterBy, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, new RequireConstraint[] {statistics}, filterBy);
-	}
-
-	public HierarchySiblings(@Nonnull String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, entityFetch, statistics);
-	}
-
-	public HierarchySiblings(@Nonnull String outputName, @Nonnull FilterBy filterBy, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyStatistics statistics) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, new RequireConstraint[] {entityFetch, statistics}, filterBy);
+	public HierarchySiblings(@Nullable String outputName, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[]{outputName},
+			requirements
+		);
 	}
 
 	/**
@@ -127,6 +118,19 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 	@Nullable
 	public String getOutputName() {
 		return (String) getArguments()[0];
+	}
+
+	/**
+	 * Returns the condition that limits the top-down hierarchy traversal.
+	 */
+	@Nonnull
+	public Optional<HierarchyStopAt> getStopAt() {
+		for (RequireConstraint constraint : getChildren()) {
+			if (constraint instanceof HierarchyStopAt hierarchyStopAt) {
+				return of(hierarchyStopAt);
+			}
+		}
+		return empty();
 	}
 
 	/**
@@ -171,32 +175,16 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		for (RequireConstraint constraint : children) {
-			Assert.isTrue(
-				constraint instanceof HierarchyOutputRequireConstraint ||
-					constraint instanceof EntityFetch,
-				"Constraint HierarchySiblings accepts only FilterBy, HierarchyStopAt and EntityFetch as inner constraints!"
-			);
-		}
-		for (Constraint<?> constraint : additionalChildren) {
-			Assert.isTrue(
-				constraint instanceof FilterBy,
-				"Constraint HierarchySiblings accepts only FilterBy, HierarchyStopAt and EntityFetch as inner constraints!"
-			);
-		}
-		if (additionalChildren.length == 0) {
-			return new HierarchySiblings(getOutputName());
-		} else {
-			return new HierarchySiblings(getOutputName(), (FilterBy) additionalChildren[0]);
-		}
+		return new HierarchySiblings(getOutputName(), children, additionalChildren);
 	}
 
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		Assert.isTrue(
-			newArguments.length == 1 && newArguments[0] instanceof String,
-			"HierarchySiblings container accepts only single String argument!"
+			newArguments.length == 0 ||
+			(newArguments.length == 1 && newArguments[0] instanceof String),
+			"HierarchySiblings container accepts zero or only single String argument!"
 		);
 		return new HierarchySiblings((String) newArguments[0], getChildren(), getAdditionalChildren());
 	}

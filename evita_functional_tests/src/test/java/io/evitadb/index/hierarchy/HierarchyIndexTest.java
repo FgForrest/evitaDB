@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -51,9 +52,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of {@link HierarchyIndex} class.
@@ -103,6 +102,13 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
 			nodeIds.getArray()
 		);
+	}
+
+	@Test
+	void shouldFindParentNode() {
+		assertEquals(6, hierarchyIndex.getParentNode(3).getAsInt());
+		assertTrue(hierarchyIndex.getParentNode(6).isEmpty());
+		assertThrows(EvitaInvalidUsageException.class, () -> hierarchyIndex.getParentNode(99));
 	}
 
 	@Test

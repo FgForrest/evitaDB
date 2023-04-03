@@ -29,6 +29,7 @@ import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.OptionalInt;
 
 /**
  * HierarchyIndexContract describes the API of {@link HierarchyIndex} that maintains data structures for fast accessing
@@ -181,6 +182,15 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	Bitmap getHierarchyNodesForParent(int parentNode);
+
+	/**
+	 * Returns primary key of the parent node for the node with primary key passed in argument.
+	 *
+	 * @param forNode primary key of the node whose parent should be returned
+	 * @return empty result if the node is the root node
+	 */
+	@Nonnull
+	OptionalInt getParentNode(int forNode);
 
 	/**
 	 * Method traverses entire hierarchy of (non-orphan) nodes, depth first. Visitor will first visit the leaf nodes

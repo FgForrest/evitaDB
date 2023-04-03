@@ -62,15 +62,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntBinaryOperator;
@@ -431,6 +423,16 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	public Bitmap getHierarchyNodesForParent(int parentNode) {
 		final int[] childrenIds = this.levelIndex.get(parentNode);
 		return ArrayUtils.isEmpty(childrenIds) ? EmptyBitmap.INSTANCE : new BaseBitmap(childrenIds);
+	}
+
+	@Nonnull
+	@Override
+	public OptionalInt getParentNode(int forNode) {
+		final HierarchyNode node = this.itemIndex.get(forNode);
+		Assert.notNull(node, () -> "Hierarchy node with id `" + forNode + "` doesn't exist!");
+		return Optional.ofNullable(node.parentEntityPrimaryKey())
+			.map(OptionalInt::of)
+			.orElse(OptionalInt.empty());
 	}
 
 	@Override

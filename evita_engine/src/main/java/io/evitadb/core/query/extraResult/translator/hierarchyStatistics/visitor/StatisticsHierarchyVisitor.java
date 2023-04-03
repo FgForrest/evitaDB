@@ -133,7 +133,7 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 					queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
 				);
 			}
-			// but deeply
+			// traverse sub-tree
 			childrenTraverser.run();
 		} else {
 			if (filterPredicate.test(entityPrimaryKey)) {

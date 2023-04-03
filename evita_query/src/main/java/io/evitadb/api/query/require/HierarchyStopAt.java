@@ -114,7 +114,7 @@ public class HierarchyStopAt extends AbstractRequireConstraintContainer implemen
 			Assert.isTrue(
 				requireConstraint instanceof HierarchyStopAtRequireConstraint ||
 					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchyChildren accepts only HierarchyStopAt, HierarchyStopAt and EntityFetch as inner constraints!"
+				"Constraint HierarchyChildren accepts only HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 			);
 		}
 

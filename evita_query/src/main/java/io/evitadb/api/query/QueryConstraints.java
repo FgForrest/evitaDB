@@ -2041,12 +2041,12 @@ public interface QueryConstraints {
 		@Nullable String outputName,
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityFetch,
-		@Nullable HierarchyStatistics hierarchyStatistics
+		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
 		if (outputName == null) {
 			return null;
 		} else {
-			return new HierarchySiblings(outputName, filterBy, entityFetch, hierarchyStatistics);
+			return new HierarchySiblings(outputName, filterBy, entityFetch, requirements);
 		}
 	}
 
@@ -2057,12 +2057,12 @@ public interface QueryConstraints {
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
 		@Nullable EntityFetch entityFetch,
-		@Nullable HierarchyStatistics hierarchyStatistics
+		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
 		if (outputName == null) {
 			return null;
 		} else {
-			return new HierarchySiblings(outputName, entityFetch, hierarchyStatistics);
+			return new HierarchySiblings(outputName, entityFetch, requirements);
 		}
 	}
 
@@ -2072,42 +2072,12 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
-		@Nullable EntityFetch entityFetch
+		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
 		if (outputName == null) {
 			return null;
 		} else {
-			return new HierarchySiblings(outputName, entityFetch);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(
-		@Nullable String outputName,
-		@Nullable HierarchyStatistics hierarchyStatistics
-	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchySiblings(outputName, hierarchyStatistics);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(
-		@Nullable String outputName,
-		@Nullable FilterBy filterBy
-	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchySiblings(outputName, filterBy);
+			return new HierarchySiblings(outputName, requirements);
 		}
 	}
 
@@ -2118,40 +2088,12 @@ public interface QueryConstraints {
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
 		@Nullable FilterBy filterBy,
-		@Nullable EntityFetch entityFetch
+		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
 		if (outputName == null) {
 			return null;
 		} else {
-			return new HierarchySiblings(outputName, filterBy, entityFetch);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(
-		@Nullable String outputName,
-		@Nullable FilterBy filterBy,
-		@Nullable HierarchyStatistics statistics
-	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchySiblings(outputName, filterBy, statistics);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(@Nullable String outputName) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchySiblings(outputName);
+			return new HierarchySiblings(outputName, filterBy, requirements);
 		}
 	}
 
@@ -2162,9 +2104,9 @@ public interface QueryConstraints {
 	static HierarchySiblings siblings(
 		@Nullable FilterBy filterBy,
 		@Nullable EntityFetch entityFetch,
-		@Nullable HierarchyStatistics hierarchyStatistics
+		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
-		return new HierarchySiblings(filterBy, entityFetch, hierarchyStatistics);
+		return new HierarchySiblings(null, filterBy, entityFetch, requirements);
 	}
 
 	/**
@@ -2173,63 +2115,25 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable EntityFetch entityFetch,
-		@Nullable HierarchyStatistics hierarchyStatistics
+		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
-		return new HierarchySiblings(entityFetch, hierarchyStatistics);
+		return new HierarchySiblings(null, entityFetch, requirements);
 	}
 
 	/**
 	 * TOBEDONE JNO: docs
 	 */
 	@Nullable
-	static HierarchySiblings siblings(@Nullable EntityFetch entityFetch) {
-		return new HierarchySiblings(entityFetch);
+	static HierarchySiblings siblings(@Nullable HierarchyOutputRequireConstraint... requirementss) {
+		return new HierarchySiblings(null, requirementss);
 	}
 
 	/**
 	 * TOBEDONE JNO: docs
 	 */
 	@Nullable
-	static HierarchySiblings siblings(@Nullable HierarchyStatistics hierarchyStatistics) {
-		return new HierarchySiblings(hierarchyStatistics);
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(@Nullable FilterBy filterBy) {
-		return new HierarchySiblings(filterBy);
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(
-		@Nullable FilterBy filterBy,
-		@Nullable EntityFetch entityFetch
-	) {
-		return new HierarchySiblings(filterBy, entityFetch);
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(
-		@Nullable FilterBy filterBy,
-		@Nullable HierarchyStatistics statistics
-	) {
-		return new HierarchySiblings(filterBy, statistics);
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings() {
-		return new HierarchySiblings();
+	static HierarchySiblings siblings(@Nullable FilterBy filterBy, @Nullable HierarchyOutputRequireConstraint... requirements) {
+		return new HierarchySiblings(null, filterBy, requirements);
 	}
 
 	/**
@@ -2254,12 +2158,51 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchyParents parents(
 		@Nullable String outputName,
+		@Nullable EntityFetch entityFetch,
+		@Nullable HierarchySiblings siblings,
+		@Nullable HierarchyOutputRequireConstraint... requirements
+	) {
+		if (outputName == null) {
+			return null;
+		} else if (siblings == null) {
+			return entityFetch == null ?
+				new HierarchyParents(outputName, requirements) : new HierarchyParents(outputName, entityFetch, requirements);
+		} else {
+			return entityFetch == null ?
+				new HierarchyParents(outputName, siblings, requirements) : new HierarchyParents(outputName, entityFetch, siblings, requirements);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyParents parents(
+		@Nullable String outputName,
 		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
 		if (outputName == null) {
 			return null;
 		} else {
 			return new HierarchyParents(outputName, requirements);
+		}
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyParents parents(
+		@Nullable String outputName,
+		@Nullable HierarchySiblings siblings,
+		@Nullable HierarchyOutputRequireConstraint... requirements
+	) {
+		if (outputName == null) {
+			return null;
+		} else {
+			return siblings == null ?
+				new HierarchyParents(outputName, requirements) :
+				new HierarchyParents(outputName, siblings, requirements);
 		}
 	}
 
