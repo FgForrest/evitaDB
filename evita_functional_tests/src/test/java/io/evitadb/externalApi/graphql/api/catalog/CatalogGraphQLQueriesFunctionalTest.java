@@ -21,36 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi;
+package io.evitadb.externalApi.graphql.api.catalog;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
-import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests for GraphQL catalog collections query.
+ * Tests for auxiliary catalog endpoints.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CatalogGraphQLCollectionsQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
-
-	private static final String COLLECTIONS_PATH = "data.collections";
+public class CatalogGraphQLQueriesFunctionalTest extends GraphQLEndpointFunctionalTest {
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should returns all collections")
-	void shouldReturnAllCollections(Evita evita, GraphQLTester tester) {
-		final String[] expectedCollections = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getAllEntityTypes)
-			.toArray(String[]::new);
-
+	@DisplayName("Should ignore trailing slash in endpoint URLs")
+	void shouldIgnoreTrailingSlashInEndpointUrls(Evita evita, GraphQLTester tester) {
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
@@ -61,7 +55,19 @@ public class CatalogGraphQLCollectionsQueryFunctionalTest extends CatalogGraphQL
 			)
 			.executeAndThen()
 			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
-			.body(COLLECTIONS_PATH, containsInAnyOrder(expectedCollections));
+			.body(ERRORS_PATH, nullValue());
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/")
+			.document(
+				"""
+					query {
+						collections
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue());
 	}
 }

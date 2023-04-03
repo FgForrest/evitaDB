@@ -60,7 +60,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String PRODUCT_PATH = "data.getProduct";
 
 	@Test

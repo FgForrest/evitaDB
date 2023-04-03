@@ -40,9 +40,11 @@ import io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler;
 import io.evitadb.externalApi.graphql.io.GraphQLHandler;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsPreflightHandler;
+import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.undertow.Handlers;
+import io.undertow.server.HttpHandler;
 import io.undertow.server.RoutingHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.util.Headers;
@@ -81,7 +83,7 @@ public class GraphQLManager {
 	/**
 	 * GraphQL specific endpoint router.
 	 */
-	@Nonnull @Getter private final RoutingHandler graphQLRouter = Handlers.routing();
+	@Nonnull private final RoutingHandler graphQLRouter = Handlers.routing();
 	/**
 	 * Already registered catalogs (corresponds to existing endpoints as well)
 	 */
@@ -98,6 +100,11 @@ public class GraphQLManager {
 		this.evita.getCatalogs().forEach(catalog -> registerCatalog(catalog.getName()));
 
 		log.info("Built GraphQL API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
+	}
+
+	@Nonnull
+	public HttpHandler getGraphQLRouter() {
+		return new PathNormalizingHandler(graphQLRouter);
 	}
 
 	/**

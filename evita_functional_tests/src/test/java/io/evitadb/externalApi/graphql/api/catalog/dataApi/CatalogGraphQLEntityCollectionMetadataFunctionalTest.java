@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class CatalogGraphQLEntityCollectionMetadataFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String PRODUCT_COLLECTION_SIZE_PATH = "data.countProduct";
 
 	@Test

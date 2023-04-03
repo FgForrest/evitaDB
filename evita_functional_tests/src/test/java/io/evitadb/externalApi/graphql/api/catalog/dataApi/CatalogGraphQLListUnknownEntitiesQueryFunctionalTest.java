@@ -65,7 +65,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String ENTITY_LIST_PATH = "data.listEntity";
 
 	@Test

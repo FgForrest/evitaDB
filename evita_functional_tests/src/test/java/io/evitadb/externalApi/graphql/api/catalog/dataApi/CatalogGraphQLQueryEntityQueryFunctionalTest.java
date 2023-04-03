@@ -100,7 +100,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	private static final String PRODUCT_QUERY_PATH = "data.queryProduct";
 	private static final String CATEGORY_QUERY_PATH = "data.queryCategory";
-	private static final String ERRORS_PATH = "errors";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)

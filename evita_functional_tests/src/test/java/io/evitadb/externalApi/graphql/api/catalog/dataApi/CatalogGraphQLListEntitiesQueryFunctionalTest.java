@@ -72,7 +72,6 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	private static final int SEED = 40;
 
 	private static final String PRODUCT_LIST_PATH = "data.listProduct";
-	private static final String ERRORS_PATH = "errors";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)

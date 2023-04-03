@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String CATALOG_SCHEMA_PATH = "data.getCatalogSchema";
 	private static final String UPDATE_CATALOG_SCHEMA_PATH = "data.updateCatalogSchema";
 	private static final String MY_NEW_COLLECTION_SCHEMA_PATH = "data.getMyNewCollectionSchema";

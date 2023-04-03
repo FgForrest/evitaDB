@@ -69,7 +69,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String GET_PRODUCT_PATH = "data.getProduct";
 	private static final String GET_CATEGORY_PATH = "data.getCategory";
 	private static final String UPSERT_PRODUCT_PATH = "data.upsertProduct";
