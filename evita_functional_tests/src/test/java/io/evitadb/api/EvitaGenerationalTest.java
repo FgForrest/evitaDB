@@ -42,6 +42,7 @@ import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.extern.apachecommons.CommonsLog;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -234,6 +235,11 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 		);
 		// create product iterator
 		this.productIterator = getProductStream().iterator();
+	}
+
+	@AfterEach
+	void tearDown() {
+		this.evita.close();
 	}
 
 	@Test

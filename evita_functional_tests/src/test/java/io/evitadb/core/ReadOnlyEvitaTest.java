@@ -32,6 +32,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -78,6 +79,11 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 		evita = new Evita(
 			getEvitaConfiguration(true)
 		);
+	}
+
+	@AfterEach
+	void tearDown() {
+		evita.close();
 	}
 
 	@Test
