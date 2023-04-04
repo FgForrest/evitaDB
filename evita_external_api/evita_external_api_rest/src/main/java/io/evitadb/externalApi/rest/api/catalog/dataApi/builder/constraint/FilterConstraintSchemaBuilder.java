@@ -21,16 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
-import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
+import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -38,24 +40,26 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 /**
- * Implementation of {@link GraphQLConstraintSchemaBuilder} for building filter query tree starting from {@link FilterBy}.
+ * Implementation of {@link OpenApiConstraintSchemaBuilder} for building filter constraint tree starting from {@link FilterBy}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class FilterBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
+public class FilterConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder {
+	private static final Set<Class<? extends Constraint<?>>> FORBIDDEN_CONSTRAINTS = Set.of(FilterBy.class);
+	private static final Set<Class<? extends Constraint<?>>> FORBIDDEN_CONSTRAINTS_WITH_LOCALE = Set.of(FilterBy.class, EntityLocaleEquals.class);
 
-	public FilterBySchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                             @Nonnull String rootEntityType) {
+	public FilterConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
+	                                     @Nonnull String rootEntityType,
+	                                     boolean forbidLocaleInQuery) {
 		super(
 			constraintSchemaBuildingCtx,
 			rootEntityType,
 			Set.of(),
-			Set.of(FilterBy.class)
+			forbidLocaleInQuery?FORBIDDEN_CONSTRAINTS_WITH_LOCALE:FORBIDDEN_CONSTRAINTS
 		);
 	}
 
 	@Nonnull
-	@Override
 	protected ConstraintType getConstraintType() {
 		return ConstraintType.FILTER;
 	}
@@ -66,11 +70,11 @@ public class FilterBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
-			() -> new GraphQLSchemaBuildingError("Could not find `filterBy` filter query.")
+			() -> new OpenApiBuildingError("Could not find `filterBy` filter query.")
 		);
 		Assert.isPremiseValid(
 			descriptors.size() == 1,
-			() -> new GraphQLSchemaBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
+			() -> new OpenApiBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
 		);
 		return descriptors.iterator().next();
 	}

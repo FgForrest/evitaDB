@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -57,24 +58,19 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchySta
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
-import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.text.NumberFormat;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.not;
@@ -1534,6 +1530,113 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return filtered and ordered reference list for products")
+	void shouldReturnFilteredAndOrderedReferenceListForProducts(GraphQLTester tester, List<SealedEntity> originalProductsEntities, List<SealedEntity> originalStoreEntities) {
+		final Map<Integer, SealedEntity> storesIndexedByPk = originalStoreEntities.stream()
+			.collect(Collectors.toMap(
+				EntityContract::getPrimaryKey,
+				Function.identity()
+			));
+
+		final Map<Integer, Set<String>> productsWithLotsOfStores = originalProductsEntities.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 4 && it.getLocales().contains(CZECH_LOCALE))
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getReferences(Entities.STORE)
+						.stream()
+						.map(ref -> ref.getReferenceKey().primaryKey())
+						.map(storesIndexedByPk::get)
+						.map(store -> store.getAttribute(ATTRIBUTE_CODE, String.class))
+						.collect(Collectors.toSet())
+				)
+			);
+
+		final AtomicBoolean atLeastFirst = new AtomicBoolean();
+		final Random rnd = new Random(5);
+		final String[] randomStores = productsWithLotsOfStores
+			.values()
+			.stream()
+			.flatMap(Collection::stream)
+			.filter(it -> atLeastFirst.compareAndSet(false, true) || rnd.nextInt(10) == 0)
+			.distinct()
+			.toArray(String[]::new);
+
+		final var expectedBody = createBasicPageResponse(
+			productsWithLotsOfStores.keySet()
+				.stream()
+				.map(id -> originalProductsEntities.stream()
+					.filter(it -> it.getPrimaryKey().equals(id))
+					.findFirst()
+					.orElseThrow())
+				.toList(),
+			entity -> {
+				final var references = entity.getReferences(Entities.STORE)
+					.stream()
+					.map(reference ->
+						map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+							.build())
+					.toList();
+
+				return map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+					.e("store", references)
+					.build();
+			}
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%s],
+	                            entityLocaleEquals: cs_CZ
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage(number: 1, size: %d) {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            store(
+		                                filterBy: {
+		                                    entityHaving: {
+		                                        attributeCodeInSet: [%s]
+		                                    }
+		                                },
+		                                orderBy: {
+		                                    entityProperty: {
+		                                        attributeNameNatural: DESC
+		                                    }
+		                                }
+		                            ) {
+		                                referencedEntity {
+		                                    primaryKey
+		                                }
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				productsWithLotsOfStores.keySet().stream().map(Object::toString).collect(Collectors.joining(",")),
+				Integer.MAX_VALUE,
+				Arrays.stream(randomStores).map(it -> "\"" + it + "\"").collect(Collectors.joining(","))
 			)
 			.executeAndThen()
 			.statusCode(200)

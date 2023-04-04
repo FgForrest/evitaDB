@@ -25,7 +25,6 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
 
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
-import graphql.schema.GraphQLType;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -67,12 +66,12 @@ public class CollectionGraphQLSchemaBuildingContext {
 	/**
 	 * Set built filterBy object corresponding to this schema. Can be set only once before all other methods need it.
 	 */
-	public void setFilterByInputObject(@Nonnull GraphQLType filterByInputObject) {
+	public void setFilterByInputObject(@Nonnull GraphQLInputType filterByInputObject) {
 		Assert.isPremiseValid(
 			this.filterByInputObject == null,
 			() -> new GraphQLSchemaBuildingError("FilterBy input object for schema `" + schema.getName() + "` has been already initialized.")
 		);
-		this.filterByInputObject = (GraphQLInputType) filterByInputObject;
+		this.filterByInputObject = filterByInputObject;
 	}
 
 	/**
@@ -86,12 +85,12 @@ public class CollectionGraphQLSchemaBuildingContext {
 	/**
 	 * Set built orderBy object corresponding to this schema. Can be set only once before all other methods need it.
 	 */
-	public void setOrderByInputObject(@Nonnull GraphQLType orderByInputObject) {
+	public void setOrderByInputObject(@Nonnull GraphQLInputType orderByInputObject) {
 		Assert.isPremiseValid(
 			this.orderByInputObject == null,
 			() -> new GraphQLSchemaBuildingError("OrderBy input object for schema `" + schema.getName() + "` has been already initialized.")
 		);
-		this.orderByInputObject = (GraphQLInputType) orderByInputObject;
+		this.orderByInputObject = orderByInputObject;
 	}
 
 	/**

@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -319,8 +320,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		if (additionalChildren.length > 1 || (additionalChildren.length == 1 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()))) {
-			throw new IllegalArgumentException("Expected single or no additional filter child query.");
+		if (additionalChildren.length > 2 || (additionalChildren.length == 2 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) && !OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType()))) {
+			throw new IllegalArgumentException("Expected single or no additional filter and order child query.");
 		}
 		final RequireConstraint[] requireChildren = Arrays.stream(children)
 			.map(c -> (RequireConstraint) c)

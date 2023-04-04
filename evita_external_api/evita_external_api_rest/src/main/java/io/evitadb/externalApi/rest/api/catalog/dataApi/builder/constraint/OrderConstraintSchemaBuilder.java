@@ -45,10 +45,10 @@ import java.util.function.Predicate;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-public class OrderBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
+public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder {
 
-	public OrderBySchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                            @Nonnull String rootEntityType) {
+	public OrderConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
+	                                    @Nonnull String rootEntityType) {
 		super(
 			constraintSchemaBuildingCtx,
 			rootEntityType,

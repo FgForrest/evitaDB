@@ -161,4 +161,22 @@ public interface EntityHeaderDescriptor {
 			// type is expected to be a locale enum
 			.build();
 	}
+
+	interface ReferenceFieldHeaderDescriptor {
+
+		PropertyDescriptor FILTER_BY = PropertyDescriptor.builder()
+			.name("filterBy")
+			.description("""
+				Complex filter query to filter result references by.
+				""")
+			// type is expected to be tree of filter constraints
+			.build();
+		PropertyDescriptor ORDER_BY = PropertyDescriptor.builder()
+			.name("orderBy")
+			.description("""
+				Complex order query to order result references by.
+				""")
+			// type is expected to be tree of order constraints
+			.build();
+	}
 }

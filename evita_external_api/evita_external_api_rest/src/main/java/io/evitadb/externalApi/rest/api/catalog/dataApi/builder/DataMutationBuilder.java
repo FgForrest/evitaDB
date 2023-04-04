@@ -43,7 +43,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Remov
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.OpenApiConstraintSchemaBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireSchemaBuilder;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUpsertRequestDescriptor;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
@@ -103,14 +103,14 @@ public class DataMutationBuilder {
 				.to(propertyBuilderTransformer)
 				.type(nonNull(arrayOf(localMutationSchema.get())))));
 
-		final RequireSchemaBuilder requireSchemaBuilder = new RequireSchemaBuilder(
+		final RequireConstraintSchemaBuilder requireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
 			constraintSchemaBuildingContext,
 			entitySchema.getName(),
-			RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_UPSERT
+			RequireConstraintSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_UPSERT
 		);
 		upsertEntityObjectBuilder.property(EntityUpsertRequestDescriptor.REQUIRE
 			.to(propertyBuilderTransformer)
-			.type(nonNull(requireSchemaBuilder.build())));
+			.type(nonNull(requireConstraintSchemaBuilder.build())));
 
 		return buildingContext.registerType(upsertEntityObjectBuilder.build());
 	}

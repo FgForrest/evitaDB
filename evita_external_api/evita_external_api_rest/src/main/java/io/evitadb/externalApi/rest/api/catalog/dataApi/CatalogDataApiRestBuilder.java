@@ -34,10 +34,10 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiEndpointBu
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataMutationBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.EntityObjectBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.FullResponseObjectBuilder;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.FilterBySchemaBuilder;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.OpenApiConstraintSchemaBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.OrderBySchemaBuilder;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireSchemaBuilder;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUnion;
@@ -58,7 +58,7 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityListRequestBodyObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityQueryRequestBodyObjectName;
-import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_LIST;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_LIST;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.newEnum;
 
@@ -247,7 +247,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	@Nonnull
 	private OpenApiSimpleType buildFilterBySchema(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
 	                                              boolean localized) {
-		return new FilterBySchemaBuilder(
+		return new FilterConstraintSchemaBuilder(
 			constraintBuildingContext,
 			collectionBuildingContext.getSchema().getName(),
 			localized
@@ -256,7 +256,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 
 	@Nonnull
 	private OpenApiSimpleType buildOrderBySchema(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
-		return new OrderBySchemaBuilder(
+		return new OrderConstraintSchemaBuilder(
 			constraintBuildingContext,
 			collectionBuildingContext.getSchema().getName()
 		).build();
@@ -264,7 +264,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 
 	@Nonnull
 	private OpenApiSimpleType buildRequireSchemaForList(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingCtx) {
-		return new RequireSchemaBuilder(
+		return new RequireConstraintSchemaBuilder(
 			constraintBuildingContext,
 			entitySchemaBuildingCtx.getSchema().getName(),
 			ALLOWED_CONSTRAINTS_FOR_LIST
@@ -273,7 +273,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 
 	@Nonnull
 	private OpenApiSimpleType buildRequireSchemaForQuery(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingCtx) {
-		return new RequireSchemaBuilder(
+		return new RequireConstraintSchemaBuilder(
 			constraintBuildingContext,
 			entitySchemaBuildingCtx.getSchema().getName()
 		).build();
@@ -281,10 +281,10 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 
 	@Nonnull
 	private OpenApiSimpleType buildRequireSchemaForDelete(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingCtx) {
-		return new RequireSchemaBuilder(
+		return new RequireConstraintSchemaBuilder(
 			constraintBuildingContext,
 			entitySchemaBuildingCtx.getSchema().getName(),
-			RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_DELETE
+			RequireConstraintSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_DELETE
 		).build();
 	}
 

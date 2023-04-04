@@ -26,7 +26,6 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint;
 import graphql.schema.GraphQLInputObjectField;
 import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
-import graphql.schema.GraphQLType;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
@@ -36,12 +35,14 @@ import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.AllowedCons
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKey;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter.ConvertedEnum;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,32 +67,32 @@ import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRoo
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLType, GraphQLType, GraphQLInputObjectField> {
+public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLInputType, GraphQLInputType, GraphQLInputObjectField> {
 
-	@Nonnull
-	protected final String rootEntityType;
+	@Nonnull @Getter protected final DataLocator rootDataLocator;
 
-	protected GraphQLConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext, @Nonnull String rootEntityType) {
+	protected GraphQLConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
+	                                         @Nonnull DataLocator rootDataLocator) {
 		super(sharedContext);
-		this.rootEntityType = rootEntityType;
+		this.rootDataLocator = rootDataLocator;
 	}
 
 	protected GraphQLConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
-	                                         @Nonnull String rootEntityType,
+											 @Nonnull DataLocator rootDataLocator,
 	                                         @Nonnull Set<Class<? extends Constraint<?>>> allowedConstraints,
 	                                         @Nonnull Set<Class<? extends Constraint<?>>> forbiddenConstraints) {
 		super(sharedContext, allowedConstraints, forbiddenConstraints);
-		this.rootEntityType = rootEntityType;
+		this.rootDataLocator = rootDataLocator;
 	}
 
 	@Nonnull
 	@Override
-	protected GraphQLType buildContainer(@Nonnull BuildContext buildContext,
+	protected GraphQLInputType buildContainer(@Nonnull BuildContext buildContext,
 	                                     @Nonnull ContainerKey containerKey,
 	                                     @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		final String containerName = constructContainerName(containerKey);
 		final GraphQLInputObjectType.Builder containerBuilder = newInputObject().name(containerName);
-		final GraphQLType containerPointer = typeRef(containerName);
+		final GraphQLInputType containerPointer = typeRef(containerName);
 		// cache new container for reuse
 		sharedContext.cacheContainer(containerKey, containerPointer);
 
@@ -130,7 +131,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 	@Override
 	protected GraphQLInputObjectField buildFieldFromConstraintDescriptor(@Nonnull ConstraintDescriptor constraintDescriptor,
 	                                                                     @Nonnull String constraintKey,
-	                                                                     @Nonnull GraphQLType constraintValue) {
+	                                                                     @Nonnull GraphQLInputType constraintValue) {
 		return newInputObjectField()
 			.name(constraintKey)
 			.description(constructConstraintDescription(constraintDescriptor))
@@ -190,7 +191,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 
 	@Nonnull
 	@Override
-	protected GraphQLType buildWrapperRangeConstraintValue(@Nonnull BuildContext buildContext,
+	protected GraphQLInputType buildWrapperRangeConstraintValue(@Nonnull BuildContext buildContext,
 	                                                       @Nonnull List<ValueParameterDescriptor> valueParameters,
 	                                                       @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final boolean itemsAreRequired = valueParameters.get(0).required() && valueParameters.get(1).required();
@@ -205,9 +206,9 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 
 	@Nonnull
 	@Override
-	protected GraphQLType buildChildConstraintValue(@Nonnull BuildContext buildContext,
+	protected GraphQLInputType buildChildConstraintValue(@Nonnull BuildContext buildContext,
 	                                                @Nonnull ChildParameterDescriptor childParameter) {
-		final GraphQLType childContainer = obtainContainer(buildContext, childParameter);
+		final GraphQLInputType childContainer = obtainContainer(buildContext, childParameter);
 
 		if (childContainer.equals(GraphQLScalars.BOOLEAN)) {
 			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
@@ -223,14 +224,14 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 
 	@Nonnull
 	@Override
-	protected GraphQLType buildWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
+	protected GraphQLInputType buildWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
 															@Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                        @Nonnull List<ValueParameterDescriptor> valueParameters,
 	                                                        @Nullable ChildParameterDescriptor childParameter,
 	                                                        @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
 		final GraphQLInputObjectType.Builder wrapperObjectBuilder = newInputObject().name(wrapperObjectName);
-		final GraphQLType wrapperObjectPointer = typeRef(wrapperObjectName);
+		final GraphQLInputType wrapperObjectPointer = typeRef(wrapperObjectName);
 		// cache wrapper object for reuse
 		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
 
@@ -249,7 +250,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 
 		// build child value
 		if (childParameter != null) {
-			GraphQLType nestedChildConstraintValue = buildChildConstraintValue(buildContext, childParameter);
+			GraphQLInputType nestedChildConstraintValue = buildChildConstraintValue(buildContext, childParameter);
 			if (childParameter.required() &&
 				!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
 			) {
@@ -258,7 +259,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 
 			wrapperObjectBuilder.field(newInputObjectField()
 				.name(childParameter.name())
-				.type((GraphQLInputType) nestedChildConstraintValue));
+				.type(nestedChildConstraintValue));
 		}
 
 		sharedContext.addNewType(wrapperObjectBuilder.build());

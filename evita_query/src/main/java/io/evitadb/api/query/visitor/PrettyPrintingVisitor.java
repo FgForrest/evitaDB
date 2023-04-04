@@ -285,7 +285,7 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	}
 
 	private void printContainer(ConstraintContainer<?> constraint) {
-		if (constraint.getChildren().length == 0) {
+		if (constraint.getChildren().length == 0 && constraint.getAdditionalChildren().length == 0) {
 			printLeaf(constraint);
 			return;
 		}

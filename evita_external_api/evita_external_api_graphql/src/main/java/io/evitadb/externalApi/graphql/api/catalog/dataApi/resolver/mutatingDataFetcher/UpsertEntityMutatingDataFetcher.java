@@ -63,6 +63,11 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 
 	private final GraphQLEntityUpsertMutationConverter entityUpsertMutationResolver;
 
+	/**
+	 * Schema of catalog in which the collection is placed.
+	 */
+	@Nonnull
+	private final CatalogSchemaContract catalogSchema;
 	@Nonnull
 	private EntitySchemaContract entitySchema;
 	/**
@@ -74,6 +79,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	public UpsertEntityMutatingDataFetcher(@Nonnull ObjectMapper objectMapper,
 										   @Nonnull CatalogSchemaContract catalogSchema,
 	                                       @Nonnull EntitySchemaContract entitySchema) {
+		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
 		this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
 		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationConverter(objectMapper, entitySchema);
@@ -100,6 +106,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	@Nonnull
 	private EntityContentRequire[] buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment) {
 		final EntityFetch entityFetch = EntityFetchRequireBuilder.buildEntityRequirement(
+			catalogSchema,
 			SelectionSetWrapper.from(environment.getSelectionSet()),
 			null,
 			entitySchema,

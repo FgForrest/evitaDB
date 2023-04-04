@@ -52,7 +52,11 @@ import java.util.Set;
 public class RequireConstraintResolver extends GraphQLConstraintResolver<RequireConstraint> {
 
 	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String rootEntityType) {
-		super(catalogSchema, rootEntityType);
+		super(catalogSchema, new GenericDataLocator(rootEntityType));
+	}
+
+	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull DataLocator rootDataLocator) {
+		super(catalogSchema, rootDataLocator);
 	}
 
 	@Override
@@ -70,12 +74,6 @@ public class RequireConstraintResolver extends GraphQLConstraintResolver<Require
 	@Nonnull
 	protected ConstraintDescriptor getWrapperContainer() {
 		throw new GraphQLInternalError("Wrapper container is not supported for `require` constraints.");
-	}
-
-	@Nonnull
-	@Override
-	protected DataLocator getRootDataLocator() {
-		return new GenericDataLocator(rootEntityType);
 	}
 
 	@Nonnull

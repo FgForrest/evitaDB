@@ -43,13 +43,23 @@ import java.util.function.Predicate;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class OrderBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
+public class OrderConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder {
 
-	public OrderBySchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                            @Nonnull String rootEntityType) {
+	public OrderConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
+	                                    @Nonnull String rootEntityType) {
 		super(
 			constraintSchemaBuildingCtx,
-			rootEntityType,
+			new EntityDataLocator(rootEntityType),
+			Set.of(),
+			Set.of(OrderBy.class)
+		);
+	}
+
+	public OrderConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
+	                                    @Nonnull DataLocator rootDataLocator) {
+		super(
+			constraintSchemaBuildingCtx,
+			rootDataLocator,
 			Set.of(),
 			Set.of(OrderBy.class)
 		);
@@ -76,12 +86,6 @@ public class OrderBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
 			)
 		);
 		return descriptors.iterator().next();
-	}
-
-	@Nonnull
-	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(rootEntityType);
 	}
 
 	@Nonnull
