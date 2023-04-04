@@ -155,6 +155,7 @@ public class EvitaServer {
 		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io\n\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		ConsoleWriter.write("Log config: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + " (file " + (EvitaServer.class.getClassLoader().getResource("META-INF/logback.xml") == null ? "not " : "") + "present)\n", ConsoleColor.DARK_GRAY);
 
 		final Path configFilePath = ofNullable(options.get(OPTION_EVITA_CONFIGURATION_FILE))
 			.map(it -> Paths.get("").resolve(it))
@@ -259,7 +260,7 @@ public class EvitaServer {
 		if (externalApiServer != null) {
 			externalApiServer.close();
 		}
-		ConsoleWriter.write("Server stopped, bye.");
+		ConsoleWriter.write("Server stopped, bye.\n\n");
 	}
 
 	/**
