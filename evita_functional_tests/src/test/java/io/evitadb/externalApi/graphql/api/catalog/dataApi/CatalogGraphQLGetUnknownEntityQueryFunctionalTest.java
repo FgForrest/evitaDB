@@ -59,8 +59,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
-	private static final String GET_ENTITY_PATH = "data.get_entity";
+	private static final String GET_ENTITY_PATH = "data.getEntity";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -76,7 +75,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
 	                        __typename
 	                        primaryKey
 	                        type
@@ -114,7 +113,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(url: "%s") {
+	                    getEntity(url: "%s") {
 	                        primaryKey
 	                        type
 	                        ... on Product {
@@ -154,7 +153,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 		            query {
-		                get_entity(limit: 2) {
+		                getEntity(limit: 2) {
 		                    primaryKey
 		                    type
 		                }
@@ -175,7 +174,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 		            query {
-		                get_entity(code: "%s") {
+		                getEntity(code: "%s") {
 		                    primaryKey
 		                    code
 		                }
@@ -198,7 +197,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
 	                        primaryKey
 	                        type
                             ... on Product {
@@ -244,7 +243,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
                             ... on Product {
                                 priceForSale(currency: CZK, priceList: "basic", locale: cs_CZ) {
 		                            priceWithTax(formatted: true, withCurrency: true)
@@ -271,7 +270,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
                             ... on Product {
                                 priceForSale(currency: CZK, priceList: "basic") {
 		                            priceWithTax(formatted: true, withCurrency: true)
@@ -297,7 +296,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
 	                        primaryKey
 	                        type
                             ... on Product {
@@ -329,7 +328,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
                             ... on Product {
                                 price(priceList: "basic", currency: CZK, locale: cs_CZ) {
 	                                priceWithTax(formatted: true, withCurrency: true)
@@ -356,7 +355,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
                             ... on Product {
                                 price(priceList: "basic", currency: CZK) {
 	                                priceWithTax(formatted: true, withCurrency: true)
@@ -385,7 +384,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
                             ... on Product {
 	                            prices {
 	                                priceWithTax
@@ -415,7 +414,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
 	                        primaryKey
 	                        type
                             ... on Product {
@@ -463,7 +462,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
                             ... on Product {
                                 prices(priceLists: ["basic", "vip"], currency: CZK) {
 	                                priceWithTax
@@ -504,7 +503,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
                             ... on Product {
                                 prices(priceLists: "basic", currency: CZK, locale: cs_CZ) {
 	                                priceWithTax(formatted: true, withCurrency: true)
@@ -531,7 +530,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
                             ... on Product {
                                 prices(priceLists: "basic", currency: CZK) {
 	                                priceWithTax(formatted: true, withCurrency: true)
@@ -561,7 +560,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
 	                        primaryKey
 	                        type
                             ... on Product {
@@ -609,7 +608,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
 	                        primaryKey
 	                        type
                             ... on Product {
@@ -692,7 +691,7 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 			.document(
 				"""
 	                query {
-	                    get_entity(code: "%s") {
+	                    getEntity(code: "%s") {
 	                        primaryKey
 	                        type
                             ... on Product {

@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String LIVENESS_PATH = "data.liveness";
 	private static final String CATALOG_PATH = "data.catalog";
 	private static final String CATALOGS_PATH = "data.catalogs";

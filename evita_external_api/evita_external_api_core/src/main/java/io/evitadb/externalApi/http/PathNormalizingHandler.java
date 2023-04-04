@@ -21,31 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.test.tester;
+package io.evitadb.externalApi.http;
 
-import lombok.Getter;
+import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * Ancestor for testing JSON external APIs.
+ * Normalizes request path for all subsequent handlers. Currently, it removes trailing slash if present to support
+ * endpoints on URLs with and without trailing slash because the {@link io.undertow.server.RoutingHandler} doesn't
+ * accept multiple same URL one with slash and one without.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public abstract class JsonExternalApiTester<R> {
+public class PathNormalizingHandler implements HttpHandler {
 
-	protected static final String CONTENT_TYPE_HEADER = "Content-Type";
-	protected static final String ACCEPT_HEADER = "Accept";
+	@Nonnull private final HttpHandler next;
 
-	@Nonnull
-	@Getter
-	protected final String baseUrl;
-
-	/**
-	 * Test single request to the API.
-	 */
-	@Nonnull
-	public abstract R test(@Nonnull String catalogName);
+	@Override
+	public void handleRequest(@Nonnull HttpServerExchange exchange) throws Exception {
+		if (exchange.getRequestURI().endsWith("/")) {
+			exchange.setRequestURI(exchange.getRequestURI().substring(0, exchange.getRequestURI().length() - 1));
+			exchange.setRelativePath(exchange.getRelativePath().substring(0, exchange.getRelativePath().length() - 1));
+		}
+		next.handleRequest(exchange);
+	}
 }

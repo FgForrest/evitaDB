@@ -65,8 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
-	private static final String ENTITY_LIST_PATH = "data.list_entity";
+	private static final String ENTITY_LIST_PATH = "data.listEntity";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -87,7 +86,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(code: ["%s","%s"]) {
+	                    listEntity(code: ["%s","%s"]) {
 	                        __typename
 	                        primaryKey
 	                        type
@@ -140,7 +139,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(url: ["%s","%s"]) {
+	                    listEntity(url: ["%s","%s"]) {
 	                        primaryKey
 	                        type
 	                        ... on Product {
@@ -194,7 +193,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(primaryKey: 1, 2) {
+	                    listEntity(primaryKey: 1, 2) {
 	                        primaryKey
 	                        type
 	                        ... on Product {
@@ -222,7 +221,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(code: ["%s","%s"]) {
+	                    listEntity(code: ["%s","%s"]) {
 	                        primaryKey
 	                        code
 	                    }
@@ -261,7 +260,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(
+	                    listEntity(
 	                        code: ["%s", "%s"]
 	                    ) {
 	                        primaryKey
@@ -311,7 +310,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(
+	                    listEntity(
 	                        code: ["%s", "%s"]
 	                    ) {
 	                        primaryKey
@@ -349,7 +348,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(
+	                    listEntity(
 	                        code: ["%s", "%s"]
 	                    ) {
 	                        primaryKey
@@ -400,7 +399,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(
+	                    listEntity(
 		                    code: ["%s", "%s"]
 	                    ) {
 	                        primaryKey
@@ -450,7 +449,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(
+	                    listEntity(
 		                    code: ["%s", "%s"]
 	                    ) {
                             ... on Product {
@@ -498,7 +497,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(
+	                    listEntity(
 	                        code: ["%s", "%s"]
 	                    ) {
 	                        primaryKey
@@ -581,7 +580,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(
+	                    listEntity(
 	                        code: ["%s", "%s"]
 	                    ) {
 	                        primaryKey
@@ -656,7 +655,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.document(
 				"""
 	                query {
-	                    list_entity(
+	                    listEntity(
 	                        code: ["%s", "%s"]
 	                    ) {
 	                        primaryKey

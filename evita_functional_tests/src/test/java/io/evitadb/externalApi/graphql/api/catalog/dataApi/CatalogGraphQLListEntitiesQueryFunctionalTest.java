@@ -71,8 +71,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 
 	private static final int SEED = 40;
 
-	private static final String PRODUCT_LIST_PATH = "data.list_product";
-	private static final String ERRORS_PATH = "errors";
+	private static final String PRODUCT_LIST_PATH = "data.listProduct";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -103,9 +102,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            entity_primaryKey_inSet: [%d, %d]
+	                            entityPrimaryKeyInSet: [%d, %d]
 	                        }
 	                    ) {
 	                        __typename
@@ -159,9 +158,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -197,9 +196,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
                         ) {
 	                        primaryKey
@@ -247,10 +246,10 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"],
-	                            entity_locale_equals: cs_CZ
+	                            attributeCodeInSet: ["%s", "%s"],
+	                            entityLocaleEquals: cs_CZ
 	                        }
 	                    ) {
 	                        primaryKey
@@ -303,10 +302,10 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_url_inSet: ["%s", "%s"]
-	                            entity_locale_equals: en
+	                            attributeUrlInSet: ["%s", "%s"]
+	                            entityLocaleEquals: en
 	                        }
 	                    ) {
 	                        primaryKey
@@ -339,9 +338,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -365,7 +364,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(code: "product") {
+	                    listProduct(code: "product") {
 	                        primaryKey
 	                        type
 	                    }
@@ -391,11 +390,11 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic"
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
 	                        primaryKey
@@ -429,11 +428,11 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "nonexistent"
+	                            attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "nonexistent"
 	                        }
                         ) {
 	                        primaryKey
@@ -460,11 +459,11 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: AAA,
-		                        price_inPriceLists: "basic"
+	                            attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: AAA,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
 	                        primaryKey
@@ -495,9 +494,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            entity_primaryKey_inSet: [%d, %d]
+	                            entityPrimaryKeyInSet: [%d, %d]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -534,12 +533,12 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic",
-		                        entity_locale_equals: cs_CZ
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic",
+		                        entityLocaleEquals: cs_CZ
 	                        }
                         ) {
 	                        priceForSale(locale: cs_CZ) {
@@ -571,11 +570,11 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic"
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
                             priceForSale(locale: cs_CZ) {
@@ -603,11 +602,11 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic"
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
                             priceForSale {
@@ -638,11 +637,11 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-	                            price_inCurrency: CZK
-	                            price_inPriceLists: "basic"
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            priceInCurrency: CZK
+	                            priceInPriceLists: "basic"
 	                        }
                         ) {
 	                        primaryKey
@@ -679,9 +678,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -718,10 +717,10 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"],
-	                            entity_locale_equals: cs_CZ
+	                            attributeCodeInSet: ["%s", "%s"],
+	                            entityLocaleEquals: cs_CZ
 	                        }
 	                    ) {
                             price(priceList: "basic", currency: CZK) {
@@ -749,9 +748,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -784,9 +783,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -835,9 +834,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
 	                        primaryKey
@@ -885,9 +884,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
                             prices(priceLists: ["basic", "vip"], currency: CZK) {
@@ -919,10 +918,10 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d],
-		                        entity_locale_equals: cs_CZ
+		                        entityPrimaryKeyInSet: [%d, %d],
+		                        entityLocaleEquals: cs_CZ
 		                    }
 	                    ) {
                             prices(priceLists: "basic", currency: CZK) {
@@ -954,9 +953,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
                             prices(priceLists: "basic", currency: CZK, locale: cs_CZ) {
@@ -988,9 +987,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
 	                        primaryKey
@@ -1027,10 +1026,10 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-	                            entity_locale_equals: en
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            entityLocaleEquals: en
 	                        }
                         ) {
 	                        primaryKey
@@ -1068,9 +1067,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -1151,9 +1150,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -1226,9 +1225,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -1318,24 +1317,24 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
 	                            or: [
 	                                {
-	                                    attribute_alias_equals: %b
-	                                    attribute_priority_equals: "%s"
+	                                    attributeAliasEquals: %b
+	                                    attributePriorityEquals: "%s"
 	                                },
 	                                {
-	                                    attribute_alias_equals: %b
-	                                    attribute_priority_equals: "%s"
+	                                    attributeAliasEquals: %b
+	                                    attributePriorityEquals: "%s"
 	                                },
 	                                {
-	                                    attribute_alias_equals: false
-	                                    attribute_priority_inSet: ["%s", "%s", "%s", "%s"]
+	                                    attributeAliasEquals: false
+	                                    attributePriorityInSet: ["%s", "%s", "%s", "%s"]
 	                                }
 	                            ]
 	                            not: {
-	                                attribute_code_equals: "%s"
+	                                attributeCodeEquals: "%s"
 	                            }
 	                        }
 	                        limit: %d
@@ -1395,13 +1394,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 		            query {
-		                list_product(
+		                listProduct(
 		                    filterBy: {
-		                        attribute_priority_lessThan: "35000"
+		                        attributePriorityLessThan: "35000"
 		                    }
 		                    orderBy: {
-		                        attribute_created_natural: DESC,
-		                        attribute_manufactured_natural: ASC
+		                        attributeCreatedNatural: DESC,
+		                        attributeManufacturedNatural: ASC
 		                    }
 		                    limit: 30
 		                ) {
@@ -1447,9 +1446,9 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.document(
 				"""
 		            query {
-		                list_product(
+		                listProduct(
 		                    filterBy: {
-		                        attribute_priority_lessThan: "35000"
+		                        attributePriorityLessThan: "35000"
 		                    }
 		                    limit: 5
 		                ) {

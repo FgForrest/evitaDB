@@ -49,7 +49,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
  * Handles serializing of {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract} into JSON structure
@@ -99,7 +99,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		final ObjectNode attributeSchemasMap = objectJsonSerializer.objectNode();
 		if (!attributeSchemas.isEmpty()) {
 			attributeSchemas.forEach(attributeSchema -> attributeSchemasMap.set(
-				attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+				attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 				serializeAttributeSchema(attributeSchema)
 			));
 		}
@@ -141,7 +141,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		final ObjectNode associatedDataSchemasMap = objectJsonSerializer.objectNode();
 		if (!associatedDataSchemas.isEmpty()) {
 			associatedDataSchemas.forEach(associatedDataSchema -> associatedDataSchemasMap.set(
-				associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+				associatedDataSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 				serializeAssociatedDataSchema(associatedDataSchema))
 			);
 		}
@@ -171,7 +171,7 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		final ObjectNode referenceSchemasMap = objectJsonSerializer.objectNode();
 		if (!referenceSchemas.isEmpty()) {
 			referenceSchemas.forEach(referenceSchema -> referenceSchemasMap.set(
-				referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+				referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 				serializeReferenceSchema(entitySchemaFetcher, referenceSchema)
 			));
 		}

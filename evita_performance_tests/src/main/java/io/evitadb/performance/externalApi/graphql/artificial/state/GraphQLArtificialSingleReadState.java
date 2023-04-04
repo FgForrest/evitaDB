@@ -114,7 +114,7 @@ public class GraphQLArtificialSingleReadState extends AbstractGraphQLArtificialS
 				.filter(it -> benchmarkState.getProductSchema().getReference(it).isPresent())
 				.forEach(ref -> {
 					final String refFieldName = StringUtils.toCamelCase(ref);
-					outputFields.add(refFieldName + " { " + refFieldName + " { primaryKey } }");
+					outputFields.add(refFieldName + " { referencedEntity { primaryKey } }");
 				});
 		}
 
@@ -129,12 +129,12 @@ public class GraphQLArtificialSingleReadState extends AbstractGraphQLArtificialS
 			String.format(
 				"""
 				query {
-					get_%s(%s) {
+					get%s(%s) {
 						%s
 					}
 				}
 				""",
-				StringUtils.toCamelCase(Entities.PRODUCT),
+				StringUtils.toPascalCase(Entities.PRODUCT),
 				String.format(
 					"primaryKey: %d, locale: %s %s",
 					benchmarkState.getRandom().nextInt(PRODUCT_COUNT) + 1,

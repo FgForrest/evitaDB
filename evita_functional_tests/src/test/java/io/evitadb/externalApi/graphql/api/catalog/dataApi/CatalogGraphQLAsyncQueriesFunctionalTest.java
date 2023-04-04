@@ -48,7 +48,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String DATA_PATH = "data";
 
 	@Test
@@ -56,7 +55,7 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 	@DisplayName("Should correctly handle multiple parallel queries")
 	void shouldCorrectlyHandleMultipleParallelQueries(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String singleQueryTemplate = """
-				product%d: get_product(primaryKey: %d) {
+				product%d: getProduct(primaryKey: %d) {
 					primaryKey
 				}
 			""";

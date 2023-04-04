@@ -1239,7 +1239,7 @@ public interface GraphQLRandomQueryGenerator {
 			return String.format(
 				"""
                     query {
-			            query_%s(
+			            query%s(
 			                %s
 			                %s
 			                %s
@@ -1254,7 +1254,7 @@ public interface GraphQLRandomQueryGenerator {
 			            }
 		            }
 					""",
-				StringUtils.toCamelCase(collectionName),
+				StringUtils.toPascalCase(collectionName),
 				filterBy != null ?
 					new GraphQLConstraint(
 						FilterBy.class,
@@ -1455,20 +1455,20 @@ public interface GraphQLRandomQueryGenerator {
 
 		@Override
 		public String toString() {
-			final List<String> keyBuilder = new LinkedList<>();
+			final StringBuilder keyBuilder = new StringBuilder();
 			if (constraintDescriptor.propertyType() != ConstraintPropertyType.GENERIC) {
-				keyBuilder.add(ConstraintProcessingUtils.getPrefixByPropertyType(constraintDescriptor.propertyType()).orElseThrow());
+				keyBuilder.append(ConstraintProcessingUtils.getPrefixByPropertyType(constraintDescriptor.propertyType()).orElseThrow());
 			}
 
 			if (classifier != null) {
-				keyBuilder.add(StringUtils.toCamelCase(classifier));
+				keyBuilder.append(StringUtils.toPascalCase(classifier));
 			} else if (constraintDescriptor.creator().hasImplicitClassifier() && constraintDescriptor.creator().implicitClassifier() instanceof FixedImplicitClassifier fixedImplicitClassifier) {
-				keyBuilder.add(fixedImplicitClassifier.classifier());
+				keyBuilder.append(StringUtils.toPascalCase(fixedImplicitClassifier.classifier()));
 			}
 
-			keyBuilder.add(constraintDescriptor.fullName());
+			keyBuilder.append(constraintDescriptor.propertyType() != ConstraintPropertyType.GENERIC ? StringUtils.toPascalCase(constraintDescriptor.fullName()) : constraintDescriptor.fullName());
 
-			return String.join("_", keyBuilder) + ": " + value;
+			return StringUtils.toCamelCase(keyBuilder.toString()) + ": " + value;
 		}
 	}
 

@@ -89,7 +89,7 @@ public class OrderBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
 	@Nonnull
 	@Override
 	protected String getContainerObjectTypeName() {
-		return "OrderContainer_";
+		return "OrderContainer";
 	}
 
 	@Override

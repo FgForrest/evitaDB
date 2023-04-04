@@ -85,7 +85,7 @@ import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.OBJECT;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
@@ -285,7 +285,7 @@ public class FullResponseObjectBuilder {
 			.name(AttributeHistogramDescriptor.THIS.name(entitySchema));
 		attributeSchemas.forEach(attributeSchema ->
 			attributeHistogramsObjectBuilder.field(f -> f
-				.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+				.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 				.type(typeRef(HistogramDescriptor.THIS.name())))
 		);
 
@@ -384,7 +384,7 @@ public class FullResponseObjectBuilder {
 		);
 
 		final GraphQLFieldDefinition facetGroupStatisticsField =  newFieldDefinition()
-			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.type(list(nonNull(facetGroupStatisticsObject)))
 			.build();
 
@@ -555,7 +555,7 @@ public class FullResponseObjectBuilder {
 		final GraphQLObjectType parentsOfEntityObject = buildParentsOfEntityObject(entitySchema, referenceSchema);
 
 		final GraphQLFieldDefinition singleParentsField = newFieldDefinition()
-			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.type(list(nonNull(parentsOfEntityObject)))
 			.build();
 
@@ -710,7 +710,7 @@ public class FullResponseObjectBuilder {
 	                                                 @Nonnull ReferenceSchemaContract referenceSchema) {
 		final GraphQLObjectType levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema);
 		final GraphQLFieldDefinition levelInfoField = newFieldDefinition()
-			.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.type(list(nonNull(levelInfoObject)))
 			.build();
 		return new BuiltFieldDescriptor(levelInfoField, null);

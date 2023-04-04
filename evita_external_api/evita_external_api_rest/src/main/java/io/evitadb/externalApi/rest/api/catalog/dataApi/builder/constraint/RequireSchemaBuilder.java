@@ -136,7 +136,7 @@ public class RequireSchemaBuilder extends OpenApiConstraintSchemaBuilder {
 	@Nonnull
 	@Override
 	protected String getContainerObjectTypeName() {
-		return "RequireContainer_";
+		return "RequireContainer";
 	}
 
 	@Nonnull

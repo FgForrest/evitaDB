@@ -65,7 +65,7 @@ import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
@@ -277,7 +277,7 @@ public class EntityObjectBuilder {
 	@Nonnull
 	private static BuiltFieldDescriptor buildAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
 		final GraphQLFieldDefinition.Builder attributeFieldBuilder = newFieldDefinition()
-			.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())
 			.deprecate(attributeSchema.getDeprecationNotice());
 		final DataFetcher<?> attributeFieldDataFetcher;
@@ -365,7 +365,7 @@ public class EntityObjectBuilder {
 		}
 
 		associatedDataFieldBuilder
-			.name(associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(associatedDataSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(associatedDataSchema.getDescription())
 			.deprecate(associatedDataSchema.getDeprecationNotice());
 
@@ -384,7 +384,7 @@ public class EntityObjectBuilder {
 				final GraphQLObjectType referenceObject = buildReferenceObject(collectionBuildingContext, referenceSchema);
 
 				final GraphQLFieldDefinition.Builder referenceFieldBuilder = newFieldDefinition()
-					.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+					.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 					.description(referenceSchema.getDescription())
 					.deprecate(referenceSchema.getDeprecationNotice());
 
