@@ -145,7 +145,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 				final List<LevelInfo> siblings = siblingsStatisticsComputer.createStatistics(
 					filteredEntityPks,
 					next.getEntity().getPrimaryKey(),
-					startNode.entity().getPrimaryKey()
+					current.entity().getPrimaryKey()
 				);
 				siblings.forEach(next::add);
 			}
@@ -156,13 +156,15 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 			return Collections.singletonList(current);
 		} else {
 			return Stream.concat(
-				siblingsStatisticsComputer.createStatistics(
-					filteredEntityPks,
-					null,
-					startNode.entity().getPrimaryKey()
-				).stream(),
-				Stream.of(current)
-			).collect(Collectors.toList());
+					siblingsStatisticsComputer.createStatistics(
+						filteredEntityPks,
+						null,
+						current.entity().getPrimaryKey()
+					).stream(),
+					Stream.of(current)
+				)
+				.sorted()
+				.collect(Collectors.toList());
 		}
 	}
 
