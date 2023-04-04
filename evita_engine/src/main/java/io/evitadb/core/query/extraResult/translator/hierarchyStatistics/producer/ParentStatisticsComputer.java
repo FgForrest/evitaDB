@@ -23,15 +23,14 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
-import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.filter.HierarchyFilterConstraint;
+import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
-import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ParentStatisticsHierarchyVisitor;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -40,27 +39,24 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsComputer {
-	private final FilterBy parentId;
+public class ParentStatisticsComputer extends AbstractHierarchyStatisticsComputer {
+	@Nullable private final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer;
 
-	public NodeRelativeStatisticsComputer(
+	public ParentStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType,
-		@Nonnull FilterBy parentId
+		@Nullable SiblingsStatisticsTravelingComputer siblingsStatisticsComputer
 	) {
-		super(context, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsType);
-		this.parentId = parentId;
+		super(context, entityFetcher, scopePredicate, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE, statisticsBase, statisticsType);
+		this.siblingsStatisticsComputer = siblingsStatisticsComputer;
 	}
 
 	@Nonnull
@@ -70,36 +66,45 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final FilteredHierarchyEntityPredicate parentIdPredicate = new FilteredHierarchyEntityPredicate(context, parentId);
-		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();
+		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
+			final EntityIndex entityIndex = context.entityIndex();
 
-		if (!parentId.isEmpty()) {
-			Assert.isTrue(
-				parentId.size() == 1,
-				() -> "The filter by constraint: `" + parentIdPredicate.getFilterBy() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
-					"Hierarchy statistics computation expects only single node will be matched (due to performance reasons)."
-			);
-			// we always start at specific node, but we respect the excluded children
-			final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
+			final ChildrenStatisticsHierarchyVisitor childVisitor = new ChildrenStatisticsHierarchyVisitor(
 				context.removeEmptyResults(),
-				scopePredicate, filterPredicate,
+				(hierarchyNodeId, level, distance) -> distance == 0,
+				filterPredicate,
 				filteredEntityPks,
 				context.hierarchyReferencingEntityPks(), entityFetcher,
 				statisticsType
 			);
-			context.entityIndex().traverseHierarchyFromNode(
-				visitor,
-				parentId.getFirst(),
+			entityIndex.traverseHierarchyFromNode(
+				childVisitor,
+				hierarchyWithin.getParentId(),
 				false,
-				ofNullable(context.hierarchyFilter())
-					.map(HierarchyFilterConstraint::getExcludedChildrenIds)
-					.orElse(EMPTY_IDS)
+				hierarchyWithin.getExcludedChildrenIds()
 			);
-			return visitor.getResult();
+
+			final List<LevelInfo> childVisitorResult = childVisitor.getResult();
+			Assert.isPremiseValid(childVisitorResult.size() == 1, "Expected exactly one node!");
+			final LevelInfo startNode = childVisitorResult.get(0);
+
+			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
+				context.removeEmptyResults(),
+				scopePredicate,
+				filterPredicate.and(value -> value != startNode.entity().getPrimaryKey()),
+				filteredEntityPks,
+				context.hierarchyReferencingEntityPks(), entityFetcher,
+				statisticsType,
+				siblingsStatisticsComputer
+			);
+			entityIndex.traverseHierarchyToRoot(
+				parentVisitor,
+				hierarchyWithin.getParentId()
+			);
+			return parentVisitor.getResult(startNode, filteredEntityPks);
 		} else {
 			return Collections.emptyList();
 		}
-
 	}
 
 }

@@ -26,11 +26,13 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -43,9 +45,13 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class Accumulator {
 	/**
+	 * The node that originates in {@link io.evitadb.index.hierarchy.HierarchyIndex}.
+	 */
+	private final HierarchyNode hierarchyNode;
+	/**
 	 * The hierarchical entity in proper form.
 	 */
-	private final EntityClassifier entity;
+	@Getter private final EntityClassifier entity;
 	/**
 	 * The count of queried entities directly referencing this hierarchical entity (respecting current query filter).
 	 */
@@ -79,7 +85,10 @@ public class Accumulator {
 	 */
 	@Nonnull
 	public LevelInfo toLevelInfo(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
+		// sort by their order in hierarchy
+		Collections.sort(children);
 		return new LevelInfo(
+			hierarchyNode.order(),
 			entity,
 			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? getQueriedEntityCount() : null,
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? getChildrenCount() : null,

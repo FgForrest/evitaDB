@@ -66,9 +66,8 @@ public class HierarchyFromRootTranslator
 			new RootStatisticsComputer(
 				context,
 				createEntityFetcher(
-					fromRoot,
 					fromRoot.getEntityFetch().orElse(null),
-					producer
+					producer.getContext(fromRoot.getName())
 				),
 				scopePredicate,
 				filteringPredicate,

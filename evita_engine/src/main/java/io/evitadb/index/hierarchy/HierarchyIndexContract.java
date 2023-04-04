@@ -200,6 +200,11 @@ public interface HierarchyIndexContract {
 	void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot, @Nullable int... excludingNodes);
 
 	/**
+	 * Method traverses entire hierarchy of (non-orphan) nodes from the node up to the root node.
+	 */
+	void traverseHierarchyToRoot(@Nonnull HierarchyVisitor visitor, int node);
+
+	/**
 	 * Method traverses entire hierarchy of (non-orphan) nodes, depth first. Visitor will first visit the leaf nodes
 	 * according to ordering specified on nodes and progresses up to the root. When one root node is examined, next
 	 * one leafs will be visited next.

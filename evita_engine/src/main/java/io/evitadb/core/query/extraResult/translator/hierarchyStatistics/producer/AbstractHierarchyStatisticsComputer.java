@@ -67,20 +67,20 @@ abstract class AbstractHierarchyStatisticsComputer {
 	 * The predicate that controls the scope that will be returned in the form of {@link LevelInfo}.
 	 */
 	@Nonnull
-	private final HierarchyTraversalPredicate scopePredicate;
+	protected final HierarchyTraversalPredicate scopePredicate;
 	/**
 	 * The predicate controlling which hierarchical entities will be taken into an account
 	 * in {@link LevelInfo#childrenCount()} and {@link LevelInfo#queriedEntityCount()}.
 	 */
 	@Nonnull
-	private final HierarchyFilteringPredicate filterPredicate;
+	protected final HierarchyFilteringPredicate filterPredicate;
 	/**
 	 * Controls the scope of the query filter by, that should be used for computing the queried entity count
 	 * in the {@link LevelInfo#queriedEntityCount()} statistics. Might be null if the count is not required to be
 	 * computed at all.
 	 */
 	@Nullable
-	private final StatisticsBase statisticsBase;
+	protected final StatisticsBase statisticsBase;
 
 	public AbstractHierarchyStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,

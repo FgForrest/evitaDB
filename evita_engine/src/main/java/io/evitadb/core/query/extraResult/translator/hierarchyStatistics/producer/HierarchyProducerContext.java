@@ -46,7 +46,7 @@ import java.util.function.IntFunction;
  * @param queryContext                  Reference to the query context that allows to access entity bodies.
  * @param entitySchema                  Target entity schema of the entity.
  * @param referenceSchema               Target entity schema of the entity.
- * @param hierarchyWithin               Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter.
+ * @param hierarchyFilter               Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter.
  * @param entityIndex                   Contains reference to the owner {@link EntityIndex} of the {@link HierarchyIndex}.
  * @param hierarchyReferencingEntityPks Contains a function that produces bitmap of queried entity ids connected with particular hierarchical entity.
  * @param removeEmptyResults            Contains true if hierarchy statistics should be stripped of results with zero occurrences.
@@ -55,7 +55,7 @@ public record HierarchyProducerContext(
 	@Nonnull QueryContext queryContext,
 	@Nonnull EntitySchemaContract entitySchema,
 	@Nullable ReferenceSchemaContract referenceSchema,
-	@Nullable HierarchyFilterConstraint hierarchyWithin,
+	@Nullable HierarchyFilterConstraint hierarchyFilter,
 	@Nonnull EntityIndex entityIndex,
 	@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
 	boolean removeEmptyResults

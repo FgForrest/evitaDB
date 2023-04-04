@@ -67,9 +67,8 @@ public class HierarchyChildrenTranslator
 			new ChildrenStatisticsComputer(
 				context,
 				createEntityFetcher(
-					children,
 					children.getEntityFetch().orElse(null),
-					producer
+					producer.getContext(children.getName())
 				),
 				scopePredicate,
 				filteringPredicate,

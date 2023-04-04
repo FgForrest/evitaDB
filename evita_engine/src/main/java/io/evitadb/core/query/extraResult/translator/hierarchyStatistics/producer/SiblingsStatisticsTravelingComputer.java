@@ -23,13 +23,18 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
+import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.OptionalInt;
 
 /**
@@ -37,9 +42,10 @@ import java.util.OptionalInt;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComputer {
+public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatisticsComputer {
+	private Integer parentNodeId;
 
-	public SiblingsStatisticsComputer(
+	public SiblingsStatisticsTravelingComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
@@ -53,14 +59,35 @@ public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComput
 		);
 	}
 
+	/**
+	 * Fabricates single collection of {@link LevelInfo} for requested hierarchical entity type. It respects
+	 * the {@link EntityLocaleEquals} and {@link HierarchyWithin} constraints used in the query. It also uses
+	 * `filteringFormula` to limit the reported cardinalities in level info objects.
+	 */
+	@Nonnull
+	public List<LevelInfo> createStatistics(
+		@Nonnull Formula filteredEntityPks,
+		@Nullable Integer parentNodeId,
+		int exceptNodeId
+	) {
+		try {
+			Assert.isPremiseValid(this.parentNodeId == null, "The context was not properly cleared!");
+			this.parentNodeId = parentNodeId;
+			// the language predicate is used to filter out entities that doesn't have requested language variant
+			return createStatistics(
+				filteredEntityPks,
+				scopePredicate,
+				filterPredicate.and(nodeId -> nodeId != exceptNodeId)
+			);
+		} finally {
+			this.parentNodeId = null;
+		}
+	}
+
 	@Override
 	@Nonnull
 	protected OptionalInt getParentNodeId(@Nonnull HierarchyProducerContext context) {
-		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
-			return context.entityIndex().getParentNode(hierarchyWithin.getParentId());
-		} else {
-			return OptionalInt.empty();
-		}
+		return parentNodeId == null ? OptionalInt.empty() : OptionalInt.of(parentNodeId);
 	}
 
 }

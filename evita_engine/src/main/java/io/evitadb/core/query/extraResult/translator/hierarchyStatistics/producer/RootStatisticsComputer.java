@@ -28,14 +28,11 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.StatisticsHierarchyVisitor;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Deque;
 import java.util.EnumSet;
-import java.util.LinkedList;
 import java.util.List;
 
 import static java.util.Optional.ofNullable;
@@ -65,27 +62,22 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final Deque<Accumulator> accumulator = new LinkedList<>();
-
-		// accumulator is used to gather information about its children gradually
-		final Accumulator root = new Accumulator(null, () -> 0);
-		accumulator.add(root);
-
 		// we always start with root nodes, but we respect the children exclusion
+		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
+			context.removeEmptyResults(),
+			scopePredicate, filterPredicate,
+			filteredEntityPks,
+			context.hierarchyReferencingEntityPks(), entityFetcher,
+			statisticsType
+		);
 		context.entityIndex().traverseHierarchy(
-			new StatisticsHierarchyVisitor(
-				context.removeEmptyResults(),
-				scopePredicate, filterPredicate,
-				filteredEntityPks, accumulator,
-				context.hierarchyReferencingEntityPks(), entityFetcher,
-				statisticsType
-			),
-			ofNullable(context.hierarchyWithin())
+			visitor,
+			ofNullable(context.hierarchyFilter())
 				.map(HierarchyFilterConstraint::getExcludedChildrenIds)
 				.orElse(EMPTY_IDS)
 		);
 
-		return root.getChildren();
+		return visitor.getResult();
 	}
 
 }

@@ -29,10 +29,7 @@ import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -284,6 +281,7 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 */
 
 	public record LevelInfo(
+		@Nonnull int order,
 		@Nonnull EntityClassifier entity,
 		@Nullable Integer queriedEntityCount,
 		@Nullable Integer childrenCount,
@@ -300,13 +298,7 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 
 		@Override
 		public int compareTo(@Nonnull LevelInfo other) {
-			if (entity instanceof EntityReferenceContract<?> entityReferenceContract) {
-				return Integer.compare(entityReferenceContract.getPrimaryKey(), entityReferenceContract.getPrimaryKey());
-			} else if (entity instanceof EntityContract entityContract) {
-				return Integer.compare(Objects.requireNonNull(entityContract.getPrimaryKey()), entityContract.getPrimaryKey());
-			} else {
-				throw new EvitaInvalidUsageException("Cannot compare: " + entity.getClass());
-			}
+			return Integer.compare(order, other.order);
 		}
 
 	}

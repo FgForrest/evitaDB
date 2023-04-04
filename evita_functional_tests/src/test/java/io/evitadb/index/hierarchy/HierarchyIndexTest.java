@@ -203,6 +203,25 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldTraverseEntireTreeToRoot() {
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
+		hierarchyIndex.traverseHierarchyToRoot(
+			(node, level, distance, childrenTraverser) -> {
+				childrenTraverser.run();
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
+			},
+			12
+		);
+		assertEquals("|6|8|9|12|", nodeIds.toString());
+		assertEquals("|1|2|3|4|", levels.toString());
+		assertEquals("|3|2|1|0|", distances.toString());
+	}
+
+	@Test
 	void shouldTraverseEntireTreeFromParentExcludingIt() {
 		final StringBuilder nodeIds = new StringBuilder("|");
 		final StringBuilder levels = new StringBuilder("|");

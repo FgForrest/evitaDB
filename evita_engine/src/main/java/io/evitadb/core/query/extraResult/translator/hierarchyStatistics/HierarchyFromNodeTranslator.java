@@ -68,9 +68,8 @@ public class HierarchyFromNodeTranslator
 			new NodeRelativeStatisticsComputer(
 				context,
 				createEntityFetcher(
-					fromNode,
 					fromNode.getEntityFetch().orElse(null),
-					producer
+					producer.getContext(fromNode.getName())
 				),
 				scopePredicate,
 				filteringPredicate,

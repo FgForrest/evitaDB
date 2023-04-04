@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
-import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyDistance;
 import io.evitadb.api.query.require.HierarchyLevel;
@@ -103,13 +102,11 @@ public abstract class AbstractHierarchyTranslator {
 	 * - {@link SealedEntity} with varying content according to requirements
 	 */
 	@Nonnull
-	protected HierarchyEntityFetcher createEntityFetcher(
-		@Nonnull RequireConstraint constraint,
+	protected static HierarchyEntityFetcher createEntityFetcher(
 		@Nullable EntityFetch entityFetch,
-		@Nonnull HierarchyStatisticsProducer producer
+		@Nonnull HierarchyProducerContext context
 	) {
 		// first create the `entityFetcher` that either returns simple integer primary keys or full entities
-		final HierarchyProducerContext context = producer.getContext(constraint.getName());
 		final String hierarchicalEntityType = context.entitySchema().getName();
 		if (entityFetch == null) {
 			return entityPk -> new EntityReference(hierarchicalEntityType, entityPk);

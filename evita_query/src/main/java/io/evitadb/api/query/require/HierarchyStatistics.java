@@ -66,7 +66,9 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 			"statistics",
 			ArrayUtils.mergeArrays(
 				statisticsBase == null ? new Serializable[0] : new Serializable[] {statisticsBase},
-				statisticsType
+				ArrayUtils.isEmpty(statisticsType) ?
+					new StatisticsType[] {StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT} :
+					statisticsType
 			)
 		);
 	}

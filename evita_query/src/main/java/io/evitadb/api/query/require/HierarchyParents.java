@@ -31,6 +31,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
@@ -53,36 +54,21 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 	private static final String CONSTRAINT_NAME = "parents";
 
 	private HierarchyParents(@Nonnull String outputName, @Nonnull RequireConstraint[] children) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, children);
+		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children);
+		for (RequireConstraint requireConstraint : children) {
+			Assert.isTrue(
+				requireConstraint instanceof HierarchyOutputRequireConstraint ||
+					requireConstraint instanceof HierarchySiblings ||
+					requireConstraint instanceof EntityFetch,
+				"Constraint HierarchyParents accepts only HierarchyStopAt, HierarchyStatistics, HierarchySiblings and EntityFetch as inner constraints!"
+			);
+		}
 	}
 
-	public HierarchyParents(@Nonnull String outputName) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName});
-	}
-
-	public HierarchyParents(@Nonnull String outputName, @Nonnull HierarchyOutputRequireConstraint... requirements) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, requirements);
-	}
-
-	public HierarchyParents(@Nonnull String outputName, @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	public HierarchyParents(@Nullable String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
-			new Serializable[] {outputName},
-			ArrayUtils.mergeArrays(
-				new RequireConstraint[] {siblings},
-				requirements
-			)
-		);
-	}
-
-	public HierarchyParents(@Nonnull String outputName, @Nonnull EntityFetch entityFetch) {
-		super(CONSTRAINT_NAME, new Serializable[] {outputName}, entityFetch);
-	}
-
-	public HierarchyParents(@Nonnull String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
-		super(
-			CONSTRAINT_NAME,
-			new Serializable[] {outputName},
+			new Serializable[]{outputName},
 			ArrayUtils.mergeArrays(
 				new RequireConstraint[]{entityFetch},
 				requirements
@@ -90,12 +76,31 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		);
 	}
 
-	public HierarchyParents(@Nonnull String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	public HierarchyParents(@Nullable String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
-			new Serializable[] {outputName},
+			new Serializable[]{outputName},
 			ArrayUtils.mergeArrays(
 				new RequireConstraint[]{entityFetch, siblings},
+				requirements
+			)
+		);
+	}
+
+	public HierarchyParents(@Nullable String outputName, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[]{outputName},
+			requirements
+		);
+	}
+
+	public HierarchyParents(@Nullable String outputName,  @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+		super(
+			CONSTRAINT_NAME,
+			new Serializable[]{outputName},
+			ArrayUtils.mergeArrays(
+				new RequireConstraint[] {siblings},
 				requirements
 			)
 		);
@@ -129,8 +134,8 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 	@Nonnull
 	public Optional<HierarchySiblings> getSiblings() {
 		for (RequireConstraint constraint : getChildren()) {
-			if (constraint instanceof HierarchySiblings hierarchySiblings) {
-				return of(hierarchySiblings);
+			if (constraint instanceof HierarchySiblings siblings) {
+				return of(siblings);
 			}
 		}
 		return empty();
@@ -170,13 +175,6 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		for (Serializable requireConstraint : children) {
-			Assert.isTrue(
-				requireConstraint instanceof HierarchyOutputRequireConstraint ||
-					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchyParents accepts only HierarchyStopAt, HierarchyStatistics, HierarchySiblings and EntityFetch as inner constraints!"
-			);
-		}
 		Assert.isTrue(ArrayUtils.isEmpty(additionalChildren), "Inner constraints of different type than `require` are not expected.");
 		return new HierarchyParents(getOutputName(), children);
 	}
@@ -190,5 +188,5 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		);
 		return new HierarchyParents((String) newArguments[0], getChildren());
 	}
-	
+
 }

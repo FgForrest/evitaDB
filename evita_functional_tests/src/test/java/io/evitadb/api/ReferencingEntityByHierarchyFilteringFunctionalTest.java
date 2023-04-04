@@ -840,7 +840,12 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 			final Integer cardinality = categoryCardinalities.get(categoryId);
 			if (cardinality != null) {
 				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(new LevelInfo(category, cardinality, 0, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
+				levelInfo.add(
+					new LevelInfo(
+						rootItem.getOrder(), category, cardinality, 0,
+						fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)
+					)
+				);
 			}
 		}
 		return new HierarchyStatisticsTuple(outputName, levelInfo);
@@ -884,7 +889,13 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 			final Integer cardinality = categoryCardinalities.get(categoryId);
 			if (cardinality != null) {
 				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(new LevelInfo(category, cardinality, 0, fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)));
+				levelInfo.add(
+					new LevelInfo(
+						item.getOrder(),
+						category, cardinality, 0,
+						fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)
+					)
+				);
 			}
 		}
 		return levelInfo;

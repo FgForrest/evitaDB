@@ -428,8 +428,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Nonnull
 	@Override
 	public OptionalInt getParentNode(int forNode) {
-		final HierarchyNode node = this.itemIndex.get(forNode);
-		Assert.notNull(node, () -> "Hierarchy node with id `" + forNode + "` doesn't exist!");
+		final HierarchyNode node = getHierarchyNodeOrThrowException(forNode);
 		return Optional.ofNullable(node.parentEntityPrimaryKey())
 			.map(OptionalInt::of)
 			.orElse(OptionalInt.empty());
@@ -438,6 +437,39 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	public void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot, int... excludingNodes) {
 		traverseHierarchyInternal(visitor, rootNode, excludingRoot, excludingNodes);
+	}
+
+	@Override
+	public void traverseHierarchyToRoot(@Nonnull HierarchyVisitor visitor, int node) {
+		final HierarchyNode theNode = getHierarchyNodeOrThrowException(node);
+		HierarchyNode hierarchyNode = theNode;
+		int nodeLevel = 1;
+		while (hierarchyNode.parentEntityPrimaryKey() != null) {
+			nodeLevel++;
+			hierarchyNode = getParentNodeOrThrowException(hierarchyNode);
+		}
+
+		final AtomicReference<TraverserFactory> factoryHolder = new AtomicReference<>();
+		final TraverserFactory childrenTraverseCreator = (nodeId, level, distance) ->
+			() -> {
+				final HierarchyNode parent = getHierarchyNodeOrThrowException(nodeId);
+				visitor.visit(
+					parent, level, distance,
+					ofNullable(parent.parentEntityPrimaryKey())
+						.map(it -> factoryHolder.get().apply(it, level - 1, distance + 1))
+						.orElse(() -> {})
+				);
+			};
+		factoryHolder.set(childrenTraverseCreator);
+
+		int finalNodeLevel = nodeLevel;
+		visitor.visit(
+			theNode,
+			nodeLevel, 0,
+			ofNullable(theNode.parentEntityPrimaryKey())
+				.map(it -> childrenTraverseCreator.apply(it, finalNodeLevel - 1, 1))
+				.orElse(() -> {})
+		);
 	}
 
 	@Override

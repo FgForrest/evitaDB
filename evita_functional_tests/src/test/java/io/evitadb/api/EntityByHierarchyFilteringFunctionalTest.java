@@ -632,7 +632,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					null, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -684,7 +684,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -738,13 +738,177 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
 							null, false, false
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return parents for categories without statistics for requested category 6")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesForParentsWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent())
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalCategoryEntities,
+					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeParents(
+							session, 30, categoryHierarchy,
+							null, null, false
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return parents with siblings for categories without statistics for requested category 6")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesForParentsWithSiblingsWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									siblings(entityFetch(attributeContent()))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalCategoryEntities,
+					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeParents(
+							session, 30, categoryHierarchy,
+							null, entity -> true, false
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return parents for categories with statistics for requested category 6")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesForParentsWithStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statistics()
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalCategoryEntities,
+					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeParents(
+							session, 30, categoryHierarchy,
+							categoryCardinalities, null, true
 						)
 					)
 				);
@@ -792,7 +956,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -846,7 +1010,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					2, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -900,7 +1064,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -963,7 +1127,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					);
 				};
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					2, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate,
 					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1027,7 +1191,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					);
 				};
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate,
 					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1094,7 +1258,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					);
 				};
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					2, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate,
 					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1156,7 +1320,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					null, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1223,7 +1387,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1290,7 +1454,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1357,7 +1521,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1417,7 +1581,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					null, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1474,7 +1638,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> languagePredicate.test(sealedEntity) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					null, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1539,7 +1703,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					null, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1606,7 +1770,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					null, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1673,7 +1837,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1733,7 +1897,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					languagePredicate.test(sealedEntity);
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					null, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1799,7 +1963,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1865,7 +2029,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1932,7 +2096,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -1992,7 +2156,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					null, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -2057,7 +2221,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -2123,7 +2287,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					1, categoryHierarchy, originalCategoryEntities,
+					categoryHierarchy, originalCategoryEntities,
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
@@ -2145,7 +2309,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 	@Nonnull
 	private Cardinalities computeCardinalities(
-		Integer parentCategoryId,
 		Hierarchy categoryHierarchy,
 		List<SealedEntity> allCategories,
 		Predicate<SealedEntity> filterPredicate,
@@ -2184,10 +2347,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 							categoryCardinalities.recordDistantChild(cid);
 						}
 					}
-					if (parentCategoryId != null && cid == parentCategoryId) {
-						// we have encountered requested parent
-						break;
-					}
 				}
 			}
 		}
@@ -2196,14 +2355,13 @@ public class EntityByHierarchyFilteringFunctionalTest {
 
 	@Nonnull
 	private HierarchyStatistics computeExpectedStatistics(
-		Integer parentCategoryId,
 		Hierarchy categoryHierarchy,
 		List<SealedEntity> allCategories,
 		Predicate<SealedEntity> filterPredicate,
 		TestHierarchyPredicate treePredicate,
 		Function<Cardinalities, HierarchyStatisticsTuple> statisticsComputer
 	) {
-		final Cardinalities categoryCardinalities = computeCardinalities(parentCategoryId, categoryHierarchy, allCategories, filterPredicate, treePredicate);
+		final Cardinalities categoryCardinalities = computeCardinalities(categoryHierarchy, allCategories, filterPredicate, treePredicate);
 		final HierarchyStatisticsTuple result = statisticsComputer.apply(categoryCardinalities);
 		final Map<String, List<LevelInfo>> theResults = Map.of(
 			result.name(), result.levelInfos()
@@ -2241,6 +2399,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				);
 				levelInfo.add(
 					new LevelInfo(
+						rootItem.getOrder(),
 						fetchHierarchyStatisticsEntity(session, categoryId),
 						ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null),
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,
@@ -2275,6 +2434,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				);
 				levelInfo.add(
 					new LevelInfo(
+						rootItem.getOrder(),
 						fetchHierarchyStatisticsEntity(session, cid),
 						ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null),
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
@@ -2284,6 +2444,60 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			}
 		}
 		return levelInfo;
+	}
+
+	@Nonnull
+	private List<LevelInfo> computeParents(
+		@Nonnull EvitaSessionContract session,
+		int categoryId,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nullable Cardinalities categoryCardinalities,
+		@Nullable Predicate<SealedEntity> siblingsPredicate,
+		boolean computeChildrenCount
+	) {
+		final HierarchyItem theNode = categoryHierarchy.getItem(String.valueOf(categoryId));
+		Assert.notNull(theNode, "Node with id `" + categoryId + "` is not present!");
+		final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(categoryId));
+		parentItems.add(theNode);
+
+		List<LevelInfo> nextLevel = new LinkedList<>();
+		for (int i = parentItems.size() - 1; i >= 0; i--) {
+			final HierarchyItem parentItem = parentItems.get(i);
+			final int cid = Integer.parseInt(parentItem.getCode());
+			final LevelInfo currentNodeInfo = new LevelInfo(
+				parentItem.getOrder(),
+				fetchHierarchyStatisticsEntity(session, cid),
+				ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null),
+				computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
+				nextLevel
+			);
+			if (siblingsPredicate == null) {
+				nextLevel = List.of(currentNodeInfo);
+			} else {
+				final List<HierarchyItem> siblings = i == 0 ?
+					categoryHierarchy.getRootItems() :
+					categoryHierarchy.getChildItems(parentItems.get(i - 1).getCode());
+
+				nextLevel = siblings
+					.stream()
+					.map(sibling -> {
+						if (Objects.equals(sibling.getCode(), parentItem.getCode())) {
+							return currentNodeInfo;
+						} else {
+							final int siblingCid = Integer.parseInt(sibling.getCode());
+							return new LevelInfo(
+								sibling.getOrder(),
+								fetchHierarchyStatisticsEntity(session, siblingCid),
+								ofNullable(categoryCardinalities).map(it -> it.getCardinality(siblingCid)).orElse(null),
+								computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(siblingCid)).orElse(null) : null,
+								Collections.emptyList()
+							);
+						}
+					})
+					.collect(Collectors.toList());
+			}
+		}
+		return nextLevel;
 	}
 
 	private List<LevelInfo> fetchLevelInfo(
@@ -2302,6 +2516,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				);
 				levelInfo.add(
 					new LevelInfo(
+						item.getOrder(),
 						fetchHierarchyStatisticsEntity(session, categoryId),
 						ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null),
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,

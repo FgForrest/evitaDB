@@ -33,22 +33,31 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyFilteringPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyTraversalPredicate;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.SiblingsStatisticsTravelingComputer;
 import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.EnumSet;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.function.IntFunction;
 import java.util.function.ToIntBiFunction;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This {@link HierarchyVisitor} implementation is called for each hierarchical entity and cooperates
  * with {@link Accumulator} to compose a tree of {@link LevelInfo} objects.
  */
-public class StatisticsHierarchyVisitor implements HierarchyVisitor {
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	/**
 	 * Contains true if hierarchy statistics should be stripped of results with zero occurrences.
 	 */
@@ -67,7 +76,7 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 	/**
 	 * Deque of accumulators allow to compose a tree of results
 	 */
-	@Nonnull private final Deque<Accumulator> accumulator;
+	@Nonnull private final Deque<Accumulator> accumulator = new LinkedList<>();
 	/**
 	 * Function that allows to fetch {@link SealedEntity} for `entityType` + `primaryKey` combination. SealedEntity
 	 * is fetched to the depth specified by {@link RequireConstraint[]}.
@@ -82,21 +91,24 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 	 * {@link HierarchyNode}.
 	 */
 	private final ToIntBiFunction<HierarchyNode, Formula> queriedEntityComputer;
+	/**
+	 * TODO JNO - document me
+	 */
+	private final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer;
 
-	public StatisticsHierarchyVisitor(
+	public ParentStatisticsHierarchyVisitor(
 		boolean removeEmptyResults,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nonnull Formula filteredEntityPks,
-		@Nonnull Deque<Accumulator> accumulator,
 		@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
-		@Nonnull EnumSet<StatisticsType> statisticsType
+		@Nonnull EnumSet<StatisticsType> statisticsType,
+		@Nullable SiblingsStatisticsTravelingComputer siblingsStatisticsComputer
 	) {
 		this.removeEmptyResults = removeEmptyResults;
 		this.scopePredicate = scopePredicate;
 		this.filterPredicate = filterPredicate;
-		this.accumulator = accumulator;
 		this.entityFetcher = entityFetcher;
 		this.statisticsType = statisticsType;
 		this.queriedEntityComputer = (hierarchyNode, predicateFilteringFormula) -> {
@@ -118,63 +130,61 @@ public class StatisticsHierarchyVisitor implements HierarchyVisitor {
 			}
 			return completedFormula.compute().size();
 		};
+		this.siblingsStatisticsComputer = siblingsStatisticsComputer;
+	}
+
+	@Nonnull
+	public List<LevelInfo> getResult(@Nonnull LevelInfo startNode, @Nonnull Formula filteredEntityPks) {
+		final Iterator<Accumulator> it = accumulator.iterator();
+		LevelInfo current = startNode;
+
+		while (it.hasNext()) {
+			final Accumulator next = it.next();
+			next.add(current);
+			if (siblingsStatisticsComputer != null) {
+				final List<LevelInfo> siblings = siblingsStatisticsComputer.createStatistics(
+					filteredEntityPks,
+					next.getEntity().getPrimaryKey(),
+					startNode.entity().getPrimaryKey()
+				);
+				siblings.forEach(next::add);
+			}
+			current = next.toLevelInfo(statisticsType);
+		}
+
+		if (siblingsStatisticsComputer == null) {
+			return Collections.singletonList(current);
+		} else {
+			return Stream.concat(
+				siblingsStatisticsComputer.createStatistics(
+					filteredEntityPks,
+					null,
+					startNode.entity().getPrimaryKey()
+				).stream(),
+				Stream.of(current)
+			).collect(Collectors.toList());
+		}
 	}
 
 	@Override
-	public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable childrenTraverser) {
-		final int entityPrimaryKey = node.entityPrimaryKey();
-		// get current accumulator
-		final Accumulator topAccumulator = Objects.requireNonNull(accumulator.peek());
+	public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable traverser) {
+		// traverse parents - filling up the accumulator
+		traverser.run();
 
-		if (topAccumulator.isInOmissionBlock()) {
+		final int entityPrimaryKey = node.entityPrimaryKey();
+		if (scopePredicate.test(entityPrimaryKey, level, distance)) {
 			if (filterPredicate.test(entityPrimaryKey)) {
-				// in omission block compute only cardinality of queued entities
-				topAccumulator.registerOmittedCardinality(
-					queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
+				// now fetch the appropriate form of the hierarchical entity
+				final EntityClassifier hierarchyEntity = entityFetcher.apply(entityPrimaryKey);
+				// and create element in accumulator that will be filled in
+				accumulator.push(
+					new Accumulator(
+						node, hierarchyEntity,
+						() -> queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
+					)
 				);
-			}
-			// traverse sub-tree
-			childrenTraverser.run();
-		} else {
-			if (filterPredicate.test(entityPrimaryKey)) {
-				if (scopePredicate.test(entityPrimaryKey, level, distance)) {
-					// now fetch the appropriate form of the hierarchical entity
-					final EntityClassifier hierarchyEntity = entityFetcher.apply(entityPrimaryKey);
-					// and create element in accumulator that will be filled in
-					accumulator.push(new Accumulator(hierarchyEntity, () -> queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())));
-					// traverse subtree - filling up the accumulator on previous row
-					childrenTraverser.run();
-					// now remove current accumulator from stack
-					final Accumulator finalizedAccumulator = accumulator.pop();
-					// and if its cardinality is greater than zero (contains at least one queried entity)
-					// add it to the result
-					if (removeEmptyResults) {
-						Optional.of(finalizedAccumulator.toLevelInfo(statisticsType))
-							.filter(it -> it.queriedEntityCount() > 0)
-							.ifPresent(topAccumulator::add);
-					} else {
-						topAccumulator.add(
-							finalizedAccumulator.toLevelInfo(statisticsType)
-						);
-					}
-				} else if (!statisticsType.isEmpty()) {
-					// if we need to compute statistics, but the positional predicate stops traversal
-					// we need to traverse the rest of the tree in the omission block
-					topAccumulator.executeOmissionBlock(childrenTraverser);
-					// when we exit the omission block we may resolve the children count
-					if (statisticsType.contains(StatisticsType.CHILDREN_COUNT)) {
-						if (!(topAccumulator.getChildrenCount() == 0 && removeEmptyResults)) {
-							topAccumulator.registerOmittedChild();
-						}
-					}
-					// and compute overall cardinality
-					if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
-						topAccumulator.registerOmittedCardinality(
-							queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
-						);
-					}
-				}
 			}
 		}
 	}
+
 }

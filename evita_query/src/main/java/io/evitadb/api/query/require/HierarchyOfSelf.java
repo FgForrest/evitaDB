@@ -109,6 +109,7 @@ import java.util.Arrays;
  * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
  *
  * TOBEDONE JNO: review docs
+ * TODO JNO: add support for different ordering
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

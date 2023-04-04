@@ -29,14 +29,11 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.StatisticsHierarchyVisitor;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Deque;
 import java.util.EnumSet;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -45,7 +42,6 @@ import java.util.List;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsComputer {
-
 
 	public ChildrenStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
@@ -65,34 +61,23 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final Deque<Accumulator> accumulator = new LinkedList<>();
-
-		// accumulator is used to gather information about its children gradually
-		final Accumulator root = new Accumulator(null, () -> 0);
-		accumulator.add(root);
-
-		if (context.hierarchyWithin() instanceof HierarchyWithinRoot hierarchyWithinRoot) {
+		final ChildrenStatisticsHierarchyVisitor childrenVisitor = new ChildrenStatisticsHierarchyVisitor(
+			context.removeEmptyResults(),
+			scopePredicate, filterPredicate,
+			filteredEntityPks,
+			context.hierarchyReferencingEntityPks(), entityFetcher,
+			statisticsType
+		);
+		if (context.hierarchyFilter() instanceof HierarchyWithinRoot hierarchyWithinRoot) {
 			// if there is within hierarchy root query we start at root nodes
 			context.entityIndex().traverseHierarchy(
-				new StatisticsHierarchyVisitor(
-					context.removeEmptyResults(),
-					scopePredicate, filterPredicate,
-					filteredEntityPks, accumulator,
-					context.hierarchyReferencingEntityPks(), entityFetcher,
-					statisticsType
-				),
+				childrenVisitor,
 				hierarchyWithinRoot.getExcludedChildrenIds()
 			);
-		} else if (context.hierarchyWithin() instanceof HierarchyWithin hierarchyWithin) {
+		} else if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
 			// if root node is set, use different traversal method
 			context.entityIndex().traverseHierarchyFromNode(
-				new StatisticsHierarchyVisitor(
-					context.removeEmptyResults(),
-					scopePredicate, filterPredicate,
-					filteredEntityPks, accumulator,
-					context.hierarchyReferencingEntityPks(), entityFetcher,
-					statisticsType
-				),
+				childrenVisitor,
 				hierarchyWithin.getParentId(),
 				false,
 				hierarchyWithin.getExcludedChildrenIds()
@@ -100,18 +85,11 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		} else {
 			// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
 			context.entityIndex().traverseHierarchy(
-				new StatisticsHierarchyVisitor(
-					context.removeEmptyResults(),
-					scopePredicate, filterPredicate,
-					filteredEntityPks, accumulator,
-					context.hierarchyReferencingEntityPks(),
-					entityFetcher,
-					statisticsType
-				)
+				childrenVisitor
 			);
 		}
 
-		return root.getChildren();
+		return childrenVisitor.getResult();
 	}
 
 }
