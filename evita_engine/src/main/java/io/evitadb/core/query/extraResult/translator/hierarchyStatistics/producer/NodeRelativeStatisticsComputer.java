@@ -82,6 +82,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 			// we always start at specific node, but we respect the excluded children
 			final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 				context.removeEmptyResults(),
+				0,
 				scopePredicate, filterPredicate,
 				filteredEntityPks,
 				context.hierarchyReferencingEntityPks(), entityFetcher,

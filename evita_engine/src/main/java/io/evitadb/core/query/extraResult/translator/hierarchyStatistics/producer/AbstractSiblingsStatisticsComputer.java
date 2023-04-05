@@ -77,6 +77,7 @@ public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarc
 
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
+			getDistanceModifier(),
 			scopePredicate,
 			filterPredicate,
 			filteredEntityPks,
@@ -104,6 +105,12 @@ public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarc
 
 		return visitor.getResult();
 	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	protected abstract int getDistanceModifier();
 
 	/**
 	 * TODO JNO - document me

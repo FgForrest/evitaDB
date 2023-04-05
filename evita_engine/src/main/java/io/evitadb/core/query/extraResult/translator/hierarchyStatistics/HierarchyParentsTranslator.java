@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyParents;
 import io.evitadb.api.query.require.HierarchySiblings;
 import io.evitadb.api.query.require.HierarchyStatistics;
@@ -42,8 +43,11 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * TODO JNO - document me
@@ -63,7 +67,7 @@ public class HierarchyParentsTranslator
 			.map(it -> stopAtConstraintToPredicate(context, it))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer = parents.getSiblings()
-			.map(it -> createComputer(context, it))
+			.map(it -> createComputer(context, it, parents.getEntityFetch().orElse(null), statistics.orElse(null)))
 			.orElse(null);
 
 		if (context.hierarchyFilter() instanceof HierarchyWithin) {
@@ -94,18 +98,23 @@ public class HierarchyParentsTranslator
 	 * TODO JNO - document me
 	 */
 	@Nonnull
-	private SiblingsStatisticsTravelingComputer createComputer(@Nonnull HierarchyProducerContext context, @Nonnull HierarchySiblings siblings) {
-		final Optional<HierarchyStatistics> statistics = siblings.getStatistics();
+	private SiblingsStatisticsTravelingComputer createComputer(
+		@Nonnull HierarchyProducerContext context,
+		@Nonnull HierarchySiblings siblings,
+		@Nullable EntityFetch parentEntityFetch,
+		@Nullable HierarchyStatistics parentStatistics
+	) {
+		final Optional<HierarchyStatistics> statistics = siblings.getStatistics().or(() -> ofNullable(parentStatistics));
 		final HierarchyFilteringPredicate filteringPredicate = siblings.getFilterBy()
 			.map(it -> (HierarchyFilteringPredicate) new FilteredHierarchyEntityPredicate(context, it))
 			.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
 			.map(it -> stopAtConstraintToPredicate(context, it))
-			.orElse(HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS);
+			.orElse((hierarchyNodeId, level, distance) -> distance == 0);
 		return new SiblingsStatisticsTravelingComputer(
 			context,
 			createEntityFetcher(
-				siblings.getEntityFetch().orElse(null),
+				siblings.getEntityFetch().orElse(parentEntityFetch),
 				context
 			),
 			scopePredicate,

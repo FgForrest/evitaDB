@@ -59,6 +59,11 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 		);
 	}
 
+	@Override
+	protected int getDistanceModifier() {
+		return -1;
+	}
+
 	/**
 	 * Fabricates single collection of {@link LevelInfo} for requested hierarchical entity type. It respects
 	 * the {@link EntityLocaleEquals} and {@link HierarchyWithin} constraints used in the query. It also uses

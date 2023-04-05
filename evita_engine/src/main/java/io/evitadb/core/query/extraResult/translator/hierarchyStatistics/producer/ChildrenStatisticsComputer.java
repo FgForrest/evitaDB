@@ -63,6 +63,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 	) {
 		final ChildrenStatisticsHierarchyVisitor childrenVisitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
+			0,
 			scopePredicate, filterPredicate,
 			filteredEntityPks,
 			context.hierarchyReferencingEntityPks(), entityFetcher,

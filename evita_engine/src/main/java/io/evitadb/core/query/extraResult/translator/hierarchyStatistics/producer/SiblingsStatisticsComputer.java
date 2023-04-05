@@ -54,6 +54,11 @@ public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComput
 	}
 
 	@Override
+	protected int getDistanceModifier() {
+		return 0;
+	}
+
+	@Override
 	@Nonnull
 	protected OptionalInt getParentNodeId(@Nonnull HierarchyProducerContext context) {
 		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {

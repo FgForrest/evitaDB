@@ -72,6 +72,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 
 			final ChildrenStatisticsHierarchyVisitor childVisitor = new ChildrenStatisticsHierarchyVisitor(
 				context.removeEmptyResults(),
+				0,
 				(hierarchyNodeId, level, distance) -> distance == 0,
 				filterPredicate,
 				filteredEntityPks,

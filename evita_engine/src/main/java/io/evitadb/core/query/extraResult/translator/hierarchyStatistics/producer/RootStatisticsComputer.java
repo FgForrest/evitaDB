@@ -65,6 +65,7 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 		// we always start with root nodes, but we respect the children exclusion
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
+			0,
 			scopePredicate, filterPredicate,
 			filteredEntityPks,
 			context.hierarchyReferencingEntityPks(), entityFetcher,

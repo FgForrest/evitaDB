@@ -59,6 +59,10 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 	 */
 	private final boolean removeEmptyResults;
 	/**
+	 * TODO JNO - document me
+	 */
+	private final int distanceModifier;
+	/**
 	 * The predicate that controls the scope that will be returned in the form of {@link LevelInfo}.
 	 */
 	@Nonnull
@@ -94,6 +98,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 
 	public ChildrenStatisticsHierarchyVisitor(
 		boolean removeEmptyResults,
+		int distanceModifier,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nonnull Formula filteredEntityPks,
@@ -102,6 +107,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
 		this.removeEmptyResults = removeEmptyResults;
+		this.distanceModifier = distanceModifier;
 		this.scopePredicate = scopePredicate;
 		this.filterPredicate = filterPredicate;
 		this.accumulator = new LinkedList<>();
@@ -155,7 +161,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 			traverser.run();
 		} else {
 			if (filterPredicate.test(entityPrimaryKey)) {
-				if (scopePredicate.test(entityPrimaryKey, level, distance)) {
+				if (scopePredicate.test(entityPrimaryKey, level, distance + distanceModifier)) {
 					// now fetch the appropriate form of the hierarchical entity
 					final EntityClassifier hierarchyEntity = entityFetcher.apply(entityPrimaryKey);
 					// and create element in accumulator that will be filled in

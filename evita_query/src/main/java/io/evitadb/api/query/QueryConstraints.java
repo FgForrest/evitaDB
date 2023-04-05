@@ -2124,8 +2124,8 @@ public interface QueryConstraints {
 	 * TOBEDONE JNO: docs
 	 */
 	@Nullable
-	static HierarchySiblings siblings(@Nullable HierarchyOutputRequireConstraint... requirementss) {
-		return new HierarchySiblings(null, requirementss);
+	static HierarchySiblings siblings(@Nullable HierarchyOutputRequireConstraint... requirements) {
+		return new HierarchySiblings(null, requirements);
 	}
 
 	/**
