@@ -1574,6 +1574,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final var expectedBody = createBasicPageResponse(
 			productsWithLotsOfStores.keySet()
 				.stream()
+				.sorted()
 				.map(id -> originalProductsEntities.stream()
 					.filter(it -> it.getPrimaryKey().equals(id))
 					.findFirst()
@@ -1582,10 +1583,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			entity -> {
 				final var references = entity.getReferences(Entities.STORE)
 					.stream()
+					.map(it -> storesIndexedByPk.get(it.getReferencedPrimaryKey()))
+					.sorted(Comparator.comparing(it -> (String) it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE), Comparator.reverseOrder()))
 					.map(reference ->
 						map()
 							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey()))
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getPrimaryKey()))
 							.build())
 					.toList();
 
