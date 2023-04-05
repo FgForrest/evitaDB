@@ -1022,8 +1022,16 @@ public class EntityDecorator implements SealedEntity {
 		@Nullable Function<Integer, SealedEntity> referenceEntityFetcher,
 		@Nullable Function<Integer, SealedEntity> referenceGroupEntityFetcher
 	) {
-		final SealedEntity referencedEntity = referenceSchema.isReferencedEntityTypeManaged() && referenceEntityFetcher != null ?
-			referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey()) : null;
+		final SealedEntity referencedEntity;
+		if (referenceSchema.isReferencedEntityTypeManaged() && referenceEntityFetcher != null) {
+			referencedEntity = referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey());
+			if (referencedEntity == null) {
+				return null;
+			}
+		} else {
+			referencedEntity = null;
+		}
+
 		final SealedEntity referencedGroupEntity = referenceSchema.isReferencedGroupTypeManaged() && referenceGroupEntityFetcher != null && referencedEntity != null ?
 			reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) : null;
 		return new ReferenceDecorator(

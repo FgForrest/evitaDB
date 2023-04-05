@@ -40,7 +40,7 @@ import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContentAnd;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllAnd;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static java.util.Optional.of;
@@ -100,7 +100,7 @@ public abstract class ClientDataFullDatabaseState extends ClientDataState {
 							Query.query(
 								collection(entityType),
 								require(
-									entityFetchAllContentAnd(
+									entityFetchAllAnd(
 										page(pageNumber++, 1000)
 									)
 								)
