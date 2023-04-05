@@ -64,4 +64,21 @@ public interface FacetCalculator {
 		@Nonnull Bitmap[] facetEntityIds
 	);
 
+	/**
+	 * Method returns {@link Bitmap} of all entity primary keys that posses any facet of group `facetGroupId`.
+	 * The bitmap respects all mandatory filtering constraints which gets enriched by additional query that represents
+	 * single facet.
+	 *
+	 * @param referenceSchema {@link ReferenceSchema} of the facet
+	 * @param facetGroupId    {@link GroupEntityReference#getPrimaryKey()} the facet is part of
+	 * @param facetEntityIds  bitmaps that represent primary keys of all entities that posses this facet
+	 * @return computed {@link Formula} that returns all entity primary keys, that posses the facet
+	 */
+	@Nonnull
+	Formula createGroupCountFormula(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer facetGroupId,
+		@Nonnull Bitmap[] facetEntityIds
+	);
+
 }

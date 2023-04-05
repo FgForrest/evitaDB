@@ -147,7 +147,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 						.stream()
 						.sorted(Entry.comparingByKey())
 						.map(groupById ->
-							"\t" + groupsByReferenceName.getKey() + (groupById.getKey() == null ? "" : " " + groupById.getKey()) + ":\n" +
+							"\t" + groupsByReferenceName.getKey() + (groupById.getKey() == null ? "" : " " + groupById.getKey()) + " [" + groupById.getValue().getCount() + "]:\n" +
 								groupById.getValue()
 									.getFacetStatistics()
 									.stream()
@@ -267,6 +267,11 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		@Nullable
 		private final EntityClassifier groupEntity;
 		/**
+		 * Contains number of distinct entities in the response that possess any reference in this group.
+		 */
+		@Getter
+		private final int count;
+		/**
 		 * Contains statistics of individual facets.
 		 */
 		@Getter(value = AccessLevel.NONE)
@@ -274,7 +279,12 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		@Nonnull
 		private final Map<Integer, FacetStatistics> facetStatistics;
 
-		public FacetGroupStatistics(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable EntityClassifier groupEntity, @Nonnull Map<Integer, FacetStatistics> facetStatistics) {
+		public FacetGroupStatistics(
+			@Nonnull ReferenceSchemaContract referenceSchema,
+			@Nullable EntityClassifier groupEntity,
+			int count,
+			@Nonnull Map<Integer, FacetStatistics> facetStatistics
+		) {
 			if (groupEntity != null) {
 				Assert.isPremiseValid(
 					groupEntity.getType().equals(Optional.ofNullable(referenceSchema.getReferencedGroupType()).orElse(referenceSchema.getReferencedEntityType())),
@@ -283,10 +293,16 @@ public class FacetSummary implements EvitaResponseExtraResult {
 			}
 			this.referenceName = referenceSchema.getName();
 			this.groupEntity = groupEntity;
+			this.count = count;
 			this.facetStatistics = facetStatistics;
 		}
 
-		public FacetGroupStatistics(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable EntityClassifier groupEntity, @Nonnull Collection<FacetStatistics> facetStatistics) {
+		public FacetGroupStatistics(
+			@Nonnull ReferenceSchemaContract referenceSchema,
+			@Nullable EntityClassifier groupEntity,
+			int count,
+			@Nonnull Collection<FacetStatistics> facetStatistics
+		) {
 			if (groupEntity != null) {
 				Assert.isPremiseValid(
 					groupEntity.getType().equals(Optional.ofNullable(referenceSchema.getReferencedGroupType()).orElse(referenceSchema.getReferencedEntityType())),
@@ -295,6 +311,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 			}
 			this.referenceName = referenceSchema.getName();
 			this.groupEntity = groupEntity;
+			this.count = count;
 			this.facetStatistics = facetStatistics
 				.stream()
 				.collect(
@@ -331,6 +348,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 				Optional.ofNullable(groupEntity)
 					.map(EntityClassifier::getPrimaryKey)
 					.orElse(null),
+				count,
 				facetStatistics
 			);
 		}
@@ -341,6 +359,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 			if (o == null || getClass() != o.getClass()) return false;
 			final FacetGroupStatistics that = (FacetGroupStatistics) o;
 			return referenceName.equals(that.referenceName) &&
+				count == that.count &&
 				Objects.equals(groupEntity, that.getGroupEntity()) &&
 				facetStatistics.equals(that.facetStatistics);
 		}
