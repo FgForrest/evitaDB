@@ -281,7 +281,7 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 */
 
 	public record LevelInfo(
-		@Nonnull int order,
+		int order,
 		@Nonnull EntityClassifier entity,
 		@Nullable Integer queriedEntityCount,
 		@Nullable Integer childrenCount,

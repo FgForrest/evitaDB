@@ -38,6 +38,7 @@ import java.util.function.Predicate;
 public interface HierarchyTraversalPredicate {
 
 	HierarchyTraversalPredicate NEVER_STOP_PREDICATE = (hierarchyNodeId, level, distance) -> true;
+	HierarchyTraversalPredicate ONLY_DIRECT_DESCENDANTS = (hierarchyNodeId, level, distance) -> distance <= 1;
 
 	/**
 	 * Method should return true or false in case the predicate matches the traversed node or its position in the tree.

@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
@@ -88,14 +89,27 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			Assert.isPremiseValid(childVisitorResult.size() == 1, "Expected exactly one node!");
 			final LevelInfo startNode = childVisitorResult.get(0);
 
+			final SiblingsStatisticsTravelingComputer siblingsComputerToUse;
+			if (siblingsStatisticsComputer != null) {
+				siblingsComputerToUse = siblingsStatisticsComputer;
+			} else if (statisticsType.isEmpty()) {
+				siblingsComputerToUse = null;
+			} else {
+				siblingsComputerToUse = new SiblingsStatisticsTravelingComputer(
+					context, entityPk -> new EntityReference(context.entitySchema().getName(), entityPk),
+					HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS,
+					filterPredicate, statisticsBase, statisticsType
+				);
+			}
+
 			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
-				context.removeEmptyResults(),
 				scopePredicate,
 				filterPredicate.and(value -> value != startNode.entity().getPrimaryKey()),
 				filteredEntityPks,
 				context.hierarchyReferencingEntityPks(), entityFetcher,
 				statisticsType,
-				siblingsStatisticsComputer
+				siblingsComputerToUse,
+				siblingsStatisticsComputer == null
 			);
 			entityIndex.traverseHierarchyToRoot(
 				parentVisitor,

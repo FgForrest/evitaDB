@@ -59,10 +59,6 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	/**
-	 * Contains true if hierarchy statistics should be stripped of results with zero occurrences.
-	 */
-	private final boolean removeEmptyResults;
-	/**
 	 * The predicate that controls the scope that will be returned in the form of {@link LevelInfo}.
 	 */
 	@Nonnull
@@ -95,18 +91,18 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	 * TODO JNO - document me
 	 */
 	private final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer;
+	private final boolean omitSiblings;
 
 	public ParentStatisticsHierarchyVisitor(
-		boolean removeEmptyResults,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nonnull Formula filteredEntityPks,
 		@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nonnull EnumSet<StatisticsType> statisticsType,
-		@Nullable SiblingsStatisticsTravelingComputer siblingsStatisticsComputer
+		@Nullable SiblingsStatisticsTravelingComputer siblingsStatisticsComputer,
+		boolean omitSiblings
 	) {
-		this.removeEmptyResults = removeEmptyResults;
 		this.scopePredicate = scopePredicate;
 		this.filterPredicate = filterPredicate;
 		this.entityFetcher = entityFetcher;
@@ -131,6 +127,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 			return completedFormula.compute().size();
 		};
 		this.siblingsStatisticsComputer = siblingsStatisticsComputer;
+		this.omitSiblings = omitSiblings;
 	}
 
 	@Nonnull
@@ -147,12 +144,19 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 					next.getEntity().getPrimaryKey(),
 					current.entity().getPrimaryKey()
 				);
-				siblings.forEach(next::add);
+				if (omitSiblings) {
+					siblings.forEach(s -> {
+						next.registerOmittedChild();
+						next.registerOmittedCardinality(s.queriedEntityCount());
+					});
+				} else {
+					siblings.forEach(next::add);
+				}
 			}
 			current = next.toLevelInfo(statisticsType);
 		}
 
-		if (siblingsStatisticsComputer == null) {
+		if (siblingsStatisticsComputer == null || omitSiblings) {
 			return Collections.singletonList(current);
 		} else {
 			return Stream.concat(

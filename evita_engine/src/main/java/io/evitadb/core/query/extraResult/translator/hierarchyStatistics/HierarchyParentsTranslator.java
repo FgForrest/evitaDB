@@ -101,7 +101,7 @@ public class HierarchyParentsTranslator
 			.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
 			.map(it -> stopAtConstraintToPredicate(context, it))
-			.orElse((hierarchyNodeId, level, distance) -> distance <= 1);
+			.orElse(HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS);
 		return new SiblingsStatisticsTravelingComputer(
 			context,
 			createEntityFetcher(

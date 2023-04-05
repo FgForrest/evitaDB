@@ -59,7 +59,7 @@ public class HierarchySiblingsTranslator
 			.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
 			.map(it -> stopAtConstraintToPredicate(context, it))
-			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
+			.orElse(HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS);
 		producer.addComputer(
 			siblings.getName(),
 			siblings.getOutputName(),

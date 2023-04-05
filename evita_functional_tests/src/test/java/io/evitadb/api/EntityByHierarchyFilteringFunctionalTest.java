@@ -630,10 +630,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					languagePredicate, languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeChildren(
@@ -682,10 +682,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					languagePredicate, languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeChildren(
@@ -736,10 +736,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					languagePredicate, languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeChildren(
@@ -790,10 +790,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					languagePredicate, languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeParents(
@@ -845,10 +845,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					languagePredicate, languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeParents(
@@ -900,10 +900,15 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final Set<Integer> allowedParents = Stream.of(1, 6, 21, 30).collect(Collectors.toSet());
+				final TestHierarchyPredicate filterPredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate scopePredicate =
+					(entity, parentItems) ->
+						entity.getLocales().contains(CZECH_LOCALE) &&
+							(allowedParents.contains(entity.getPrimaryKey()) || parentItems.stream().anyMatch(it -> it.getCode().equals("30")));
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					filterPredicate, scopePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeParents(
@@ -954,15 +959,17 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate scopePredicate = (entity, parentItems) -> parentItems.isEmpty() && languagePredicate.test(entity, parentItems);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					languagePredicate,
+					scopePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeSiblings(
 							session, 1, categoryHierarchy,
-							null, false
+							categoryCardinalities, false, false
 						)
 					)
 				);
@@ -1008,15 +1015,16 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate scopePredicate = (entity, parentItems) -> parentItems.isEmpty() && languagePredicate.test(entity, parentItems);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					languagePredicate, scopePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeSiblings(
 							session, 2, categoryHierarchy,
-							null, false
+							categoryCardinalities, false, false
 						)
 					)
 				);
@@ -1062,15 +1070,16 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate scopePredicate = (entity, parentItems) -> parentItems.isEmpty() && languagePredicate.test(entity, parentItems);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, (entity, parentItems) -> languagePredicate.test(entity),
+					languagePredicate, scopePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeSiblings(
 							session, 1, categoryHierarchy,
-							null, false
+							categoryCardinalities, false, false
 						)
 					)
 				);
@@ -1117,7 +1126,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate categoryPredicate = (sealedEntity, parentItems) -> {
 					// has parent node 2
 					return sealedEntity.getPrimaryKey() == 2 || (
@@ -1129,7 +1138,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
 					languagePredicate,
-					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity),
+					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity, parentItems),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeChildren(
@@ -1181,24 +1190,20 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate categoryPredicate = (sealedEntity, parentItems) -> {
-					// has parent node 2
-					return sealedEntity.getPrimaryKey() == 1 || (
-						parentItems
-							.stream()
-							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()))
-					);
+					// has parent node 1
+					return parentItems.size() == 1 && "1".equals(parentItems.get(0).getCode());
 				};
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
 					languagePredicate,
-					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity),
+					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity, parentItems),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true
+							categoryCardinalities, true, true
 						)
 					)
 				);
@@ -1246,7 +1251,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate categoryPredicate = (sealedEntity, parentItems) -> {
 					final Integer categoryId = sealedEntity.getPrimaryKey();
 					// has parent node 2
@@ -1260,7 +1265,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
 					languagePredicate,
-					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity),
+					(entity, parentItems) -> categoryPredicate.test(entity, parentItems) && languagePredicate.test(entity, parentItems),
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeChildren(
@@ -1313,10 +1318,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
-					return languagePredicate.test(sealedEntity) && (level <= 1);
+					return languagePredicate.test(sealedEntity, parentItems) && (level <= 1);
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
@@ -1374,14 +1379,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
 					// has parent node 1
 					final boolean hasParentNode = parentItems
 						.stream()
 						.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) &&
+					return languagePredicate.test(sealedEntity, parentItems) &&
 						(sealedEntity.getPrimaryKey() == 1 || hasParentNode) &&
 						(level <= 2);
 				};
@@ -1441,14 +1446,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
 					// has parent node 1
 					final boolean hasParentNode = parentItems
 						.stream()
 						.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) &&
+					return languagePredicate.test(sealedEntity, parentItems) &&
 						(sealedEntity.getPrimaryKey() == 1 || hasParentNode) &&
 						(level <= 2);
 				};
@@ -1460,7 +1465,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true
+							categoryCardinalities, true, true
 						)
 					)
 				);
@@ -1509,14 +1514,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
 					// has parent node 1
 					final boolean hasParentNode = parentItems
 						.stream()
 						.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) &&
+					return languagePredicate.test(sealedEntity, parentItems) &&
 						(sealedEntity.getPrimaryKey() == 1 || hasParentNode) && (level <= 2);
 				};
 
@@ -1574,10 +1579,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
-					return languagePredicate.test(sealedEntity) && (level <= 1);
+					return languagePredicate.test(sealedEntity, parentItems) && (level <= 1);
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
@@ -1634,8 +1639,8 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
-				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> languagePredicate.test(sealedEntity) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> languagePredicate.test(sealedEntity, parentItems) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
@@ -1692,13 +1697,13 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) && withinCategory1 &&
+					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 				};
 
@@ -1757,14 +1762,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) && withinCategory1 &&
+					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class) &&
 						level <= 2;
 				};
@@ -1824,14 +1829,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) && withinCategory1 &&
+					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class) &&
 						level <= 2;
 				};
@@ -1843,7 +1848,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true
+							categoryCardinalities, true, true
 						)
 					)
 				);
@@ -1890,15 +1895,13 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate =
-					sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
-						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
-				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) ->
-					languagePredicate.test(sealedEntity);
+				final TestHierarchyPredicate languagePredicate =
+					(entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE) &&
+						!entity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, treePredicate,
+					languagePredicate, languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeChildren(
@@ -1951,15 +1954,15 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate =
-					sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
+				final TestHierarchyPredicate languagePredicate =
+					(sealedEntity, parentItems) -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) && withinCategory1;
+					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1;
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
@@ -2017,15 +2020,15 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate =
-					sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
+				final TestHierarchyPredicate languagePredicate =
+					(sealedEntity, parentItems) -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) && withinCategory1;
+					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1;
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
@@ -2035,7 +2038,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true
+							categoryCardinalities, true, true
 						)
 					)
 				);
@@ -2084,15 +2087,15 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate =
-					sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
+				final TestHierarchyPredicate languagePredicate =
+					(sealedEntity, parentItems) -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) && withinCategory1;
+					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1;
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
@@ -2149,10 +2152,10 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
-					return languagePredicate.test(sealedEntity) && level <= 2;
+					return languagePredicate.test(sealedEntity, parentItems) && level <= 2;
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
@@ -2210,14 +2213,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) && withinCategory1 && level <= 2;
+					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 && level <= 2;
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
@@ -2276,14 +2279,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = sealedEntity -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity) && withinCategory1 && level <= 2;
+					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 && level <= 2;
 				};
 
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
@@ -2311,7 +2314,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 	private Cardinalities computeCardinalities(
 		Hierarchy categoryHierarchy,
 		List<SealedEntity> allCategories,
-		Predicate<SealedEntity> filterPredicate,
+		TestHierarchyPredicate filterPredicate,
 		TestHierarchyPredicate treePredicate
 	) {
 		final Map<Integer, SealedEntity> categoryIndex = allCategories
@@ -2328,13 +2331,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		final Cardinalities categoryCardinalities = new Cardinalities();
 		for (SealedEntity category : allCategories) {
 			final int categoryId = category.getPrimaryKey();
+			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(categoryId));
 			final List<Integer> categoryPath = Stream.concat(
-				categoryHierarchy.getParentItems(String.valueOf(categoryId))
+				parentItems
 					.stream()
 					.map(it -> Integer.parseInt(it.getCode())),
 				Stream.of(categoryId)
 			).toList();
-			if (categoryPath.stream().allMatch(cid -> filterPredicate.test(categoryIndex.get(cid)))) {
+			if (categoryPath.stream().allMatch(cid -> filterPredicate.test(categoryIndex.get(cid), parentItems))) {
 				final int levels = categoryPath.size() - 1;
 				for (int i = levels; i >= 0; i--) {
 					int cid = categoryPath.get(i);
@@ -2357,7 +2361,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 	private HierarchyStatistics computeExpectedStatistics(
 		Hierarchy categoryHierarchy,
 		List<SealedEntity> allCategories,
-		Predicate<SealedEntity> filterPredicate,
+		TestHierarchyPredicate filterPredicate,
 		TestHierarchyPredicate treePredicate,
 		Function<Cardinalities, HierarchyStatisticsTuple> statisticsComputer
 	) {
@@ -2395,7 +2399,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			final int categoryId = Integer.parseInt(rootItem.getCode());
 			if (categoryCardinalities == null || categoryCardinalities.isValid(categoryId)) {
 				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
-					session, categoryId, categoryHierarchy, categoryCardinalities, computeChildrenCount
+					session, categoryId, categoryHierarchy, categoryCardinalities, true, computeChildrenCount
 				);
 				levelInfo.add(
 					new LevelInfo(
@@ -2417,6 +2421,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		int categoryId,
 		@Nonnull Hierarchy categoryHierarchy,
 		@Nullable Cardinalities categoryCardinalities,
+		boolean queuedEntityStatistics,
 		boolean computeChildrenCount
 	) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
@@ -2430,13 +2435,13 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			final int cid = Integer.parseInt(rootItem.getCode());
 			if (categoryCardinalities == null || categoryCardinalities.isValid(cid)) {
 				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
-					session, cid, categoryHierarchy, categoryCardinalities, computeChildrenCount
+					session, cid, categoryHierarchy, categoryCardinalities, queuedEntityStatistics, computeChildrenCount
 				);
 				levelInfo.add(
 					new LevelInfo(
 						rootItem.getOrder(),
 						fetchHierarchyStatisticsEntity(session, cid),
-						ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null),
+						queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null) : null,
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
 						childrenStatistics
 					)
@@ -2505,6 +2510,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		int parentCategoryId,
 		@Nonnull Hierarchy categoryHierarchy,
 		@Nullable Cardinalities categoryCardinalities,
+		boolean queuedEntityStatistics,
 		boolean computeChildrenCount
 	) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
@@ -2512,13 +2518,14 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			final int categoryId = Integer.parseInt(item.getCode());
 			if (categoryCardinalities == null || categoryCardinalities.isValid(categoryId)) {
 				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
-					session, categoryId, categoryHierarchy, categoryCardinalities, computeChildrenCount
+					session, categoryId, categoryHierarchy, categoryCardinalities,
+					queuedEntityStatistics, computeChildrenCount
 				);
 				levelInfo.add(
 					new LevelInfo(
 						item.getOrder(),
 						fetchHierarchyStatisticsEntity(session, categoryId),
-						ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null),
+						queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null) : null,
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,
 						childrenStatistics
 					)
