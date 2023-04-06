@@ -477,7 +477,7 @@ public class EntityObjectBuilder {
 
 		final GraphQLFieldDefinition referencedEntityField = ReferenceDescriptor.REFERENCED_ENTITY
 			.to(fieldBuilderTransformer)
-			.type(nonNull(referencedEntityObject))
+			.type(referencedEntityObject)
 			.build();
 
 		return new BuiltFieldDescriptor(

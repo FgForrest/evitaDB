@@ -710,22 +710,17 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 		var expectedBody = entity.getReferences(Entities.STORE)
 			.stream()
 			.map(r -> map()
+				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
-					.build())
-				.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 					.build())
 				.build())
 			.toList();
 		expectedBody = new LinkedList<>(expectedBody);
 		expectedBody.add(map()
+			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), 1_000_000_000)
 			.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)
-				.build())
-			.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-				.e(EntityDescriptor.PRIMARY_KEY.name(), 1_000_000_000)
-				.build())
+				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true))
 			.build());
 
 		tester.test(TEST_CATALOG)
@@ -758,11 +753,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                        ]
                         ) {
 	                        store {
+	                            referencedPrimaryKey
 	                            attributes {
 	                                storeVisibleForB2C
-	                            }
-	                            referencedEntity {
-	                                primaryKey
 	                            }
 	                        }
 	                    }
@@ -773,7 +766,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(UPSERT_PRODUCT_PATH + ".store", containsInAnyOrder(expectedBody.toArray()));
+			.body(UPSERT_PRODUCT_PATH + ".store", equalTo(expectedBody));
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -781,11 +774,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                query {
 	                    getProduct(primaryKey: %d) {
 	                        store {
+	                            referencedPrimaryKey,
 	                            attributes {
 	                                storeVisibleForB2C
-	                            }
-	                            referencedEntity {
-	                                primaryKey
 	                            }
 	                        }
 	                    }
@@ -796,7 +787,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(GET_PRODUCT_PATH + ".store", containsInAnyOrder(expectedBody.toArray()));
+			.body(GET_PRODUCT_PATH + ".store", equalTo(expectedBody));
 
 
 		tester.test(TEST_CATALOG)

@@ -570,7 +570,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					.e(EntityDescriptor.LOCALES.name(), new ArrayList<>(0))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true))
+					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true, true))
 					.build();
 			})
 			.toList();

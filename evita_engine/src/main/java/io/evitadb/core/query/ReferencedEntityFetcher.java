@@ -234,7 +234,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					// first look up whether we already have the entity prefetched somewhere (in case enrichment occurs)
 					final Optional<SealedEntity> existingEntity = existingEntityRetriever.apply(referencedRecordId);
 					if (existingEntity.isPresent()) {
-						return (EntityDecorator)existingEntity.get();
+						return (EntityDecorator) existingEntity.get();
 					} else {
 						// if not, fetch the fresh entity from the collection
 						referencedCollection.getEntity(
@@ -545,6 +545,36 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		entityNestedQueryComparator.initSorter(nestedQueryContext, sorter);
 	}
 
+	@Nonnull
+	private static FilterByVisitor getFilterByVisitor(@Nonnull QueryContext queryContext, @Nonnull AtomicReference<FilterByVisitor> filterByVisitor) {
+		return ofNullable(filterByVisitor.get()).orElseGet(() -> {
+			final FilterByVisitor newVisitor = createFilterVisitor(queryContext);
+			filterByVisitor.set(newVisitor);
+			return newVisitor;
+		});
+	}
+
+	@Nonnull
+	private static FilterByVisitor createFilterVisitor(@Nonnull QueryContext queryContext) {
+		return new FilterByVisitor(
+			queryContext,
+			Collections.emptyList(),
+			TargetIndexes.EMPTY,
+			false
+		);
+	}
+
+	@Nonnull
+	private static Formula toFormula(@Nullable int[] recordIds) {
+		return ArrayUtils.isEmpty(recordIds) ?
+			EmptyFormula.INSTANCE :
+			new ConstantFormula(
+				new BaseBitmap(
+					recordIds
+				)
+			);
+	}
+
 	/**
 	 * Constructor that is used to further enrich already rich entity.
 	 */
@@ -579,16 +609,135 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		this.existingEntityRetriever = existingEntityRetriever;
 	}
 
+	@Nonnull
+	@Override
+	public <T extends SealedEntity> T initReferenceIndex(@Nonnull T entity, @Nonnull EntityCollectionContract entityCollection) {
+		// we need to ensure that references are fetched in order to be able to provide information about them
+		final T richEnoughEntity = ((EntityCollection) entityCollection).ensureReferencesFetched(entity);
+		// prefetch the entities
+		prefetchEntities(
+			requirementContext,
+			queryContext,
+			existingEntityRetriever,
+			(referenceName, entityPk) -> toFormula(
+				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
+					.getReferences(referenceName)
+					.stream()
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray()
+			),
+			(referenceName, entityPk) -> toFormula(
+				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
+					.getReferences(referenceName)
+					.stream()
+					.map(ReferenceContract::getGroup)
+					.filter(Optional::isPresent)
+					.map(Optional::get)
+					.mapToInt(GroupEntityReference::getPrimaryKey)
+					.toArray()
+			),
+			new int[]{richEnoughEntity.getPrimaryKey()}
+		);
+
+		return richEnoughEntity;
+	}
+
+	@Nonnull
+	@Override
+	public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
+		// we need to ensure that references are fetched in order to be able to provide information about them
+		final List<T> richEnoughEntities = new ArrayList<>(entities.size());
+		for (T entity : entities) {
+			richEnoughEntities.add(((EntityCollection) entityCollection).ensureReferencesFetched(entity));
+		}
+		// prefetch the entities
+		prefetchEntities(
+			requirementContext,
+			queryContext,
+			existingEntityRetriever,
+			(referenceName, entityPk) -> toFormula(
+				richEnoughEntities.stream()
+					.map(it -> (it instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : it))
+					.flatMap(it -> it.getReferences(referenceName).stream())
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray()
+			),
+			(referenceName, entityPk) -> toFormula(
+				richEnoughEntities.stream()
+					.map(it -> (it instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : it))
+					.flatMap(it -> it.getReferences(referenceName).stream())
+					.map(ReferenceContract::getGroup)
+					.filter(Optional::isPresent)
+					.map(Optional::get)
+					.mapToInt(GroupEntityReference::getPrimaryKey)
+					.toArray()
+			),
+			entities.stream()
+				.mapToInt(SealedEntity::getPrimaryKey)
+				.toArray()
+		);
+
+		return richEnoughEntities;
+	}
+
+	@Nullable
+	@Override
+	public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+			.map(prefetchedEntities -> (Function<Integer, SealedEntity>) prefetchedEntities::getEntity)
+			.orElse(null);
+	}
+
+	@Nullable
+	@Override
+	public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+			.map(prefetchedEntities -> (Function<Integer, SealedEntity>) prefetchedEntities::getGroupEntity)
+			.orElse(null);
+	}
+
+	@Nonnull
+	@Override
+	public Comparator<ReferenceContract> getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+			.map(PrefetchedEntities::referenceComparator)
+			.orElse(ReferenceComparator.DEFAULT);
+	}
+
+	@Nullable
+	@Override
+	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return ofNullable(requirementContext.get(referenceSchema.getName()))
+			.map(it -> {
+				if (it.filterBy() == null) {
+					return null;
+				} else {
+					final PrefetchedEntities prefetchedEntities = fetchedEntities.get(referenceSchema.getName());
+					if (prefetchedEntities != null) {
+						final ValidEntityToReferenceMapping validityMapping = prefetchedEntities.validityMapping();
+						if (validityMapping != null) {
+							return (BiPredicate<Integer, ReferenceDecorator>) (entityPrimaryKey, referenceDecorator) ->
+								ofNullable(referenceDecorator)
+									.map(refDec -> validityMapping.isReferenceSelected(entityPrimaryKey, refDec.getReferencedPrimaryKey()))
+									.orElse(false);
+						}
+					}
+					return null;
+				}
+			})
+			.orElse(null);
+	}
+
 	/**
 	 * Method executes all the necessary referenced entities fetch. It loads only those referenced entities that are
 	 * mentioned in `requirementContext`. Execution reuses potentially existing fetched referenced entities from
 	 * the last enrichment of the same entity.
 	 *
-	 * @param queryContext query context used for querying the entity
-	 * @param existingEntityRetriever function that provides access to already fetched referenced entities (relict of last enrichment)
-	 * @param referencedEntityIdsFormula the formula containing superset of all possible referenced entities
+	 * @param queryContext                    query context used for querying the entity
+	 * @param existingEntityRetriever         function that provides access to already fetched referenced entities (relict of last enrichment)
+	 * @param referencedEntityIdsFormula      the formula containing superset of all possible referenced entities
 	 * @param referencedEntityGroupIdsFormula the formula containing superset of all possible referenced entity groups
-	 * @param entityPrimaryKey the array of top entity primary keys for which the references are being fetched
+	 * @param entityPrimaryKey                the array of top entity primary keys for which the references are being fetched
 	 */
 	private void prefetchEntities(
 		@Nonnull Map<String, RequirementContext> requirementContext,
@@ -669,153 +818,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					}
 				)
 			);
-	}
-
-	@Nonnull
-	@Override
-	public <T extends SealedEntity> T initReferenceIndex(@Nonnull T entity, @Nonnull EntityCollectionContract entityCollection) {
-		// we need to ensure that references are fetched in order to be able to provide information about them
-		final T richEnoughEntity = ((EntityCollection)entityCollection).ensureReferencesFetched(entity);
-		// prefetch the entities
-		prefetchEntities(
-			requirementContext,
-			queryContext,
-			existingEntityRetriever,
-			(referenceName, entityPk) -> toFormula(
-				(richEnoughEntity instanceof  EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
-					.getReferences(referenceName)
-					.stream()
-					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray()
-			),
-			(referenceName, entityPk) -> toFormula(
-				(richEnoughEntity instanceof  EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
-					.getReferences(referenceName)
-					.stream()
-					.map(ReferenceContract::getGroup)
-					.filter(Optional::isPresent)
-					.map(Optional::get)
-					.mapToInt(GroupEntityReference::getPrimaryKey)
-					.toArray()
-			),
-			new int[] {richEnoughEntity.getPrimaryKey()}
-		);
-
-		return richEnoughEntity;
-	}
-
-	@Nonnull
-	@Override
-	public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
-		// we need to ensure that references are fetched in order to be able to provide information about them
-		final List<T> richEnoughEntities = new ArrayList<>(entities.size());
-		for (T entity : entities) {
-			richEnoughEntities.add(((EntityCollection) entityCollection).ensureReferencesFetched(entity));
-		}
-		// prefetch the entities
-		prefetchEntities(
-			requirementContext,
-			queryContext,
-			existingEntityRetriever,
-			(referenceName, entityPk) -> toFormula(
-				richEnoughEntities.stream()
-					.map(it -> (it instanceof  EntityDecorator entityDecorator ? entityDecorator.getDelegate() : it))
-					.flatMap(it -> it.getReferences(referenceName).stream())
-					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray()
-			),
-			(referenceName, entityPk) -> toFormula(
-				richEnoughEntities.stream()
-					.map(it -> (it instanceof  EntityDecorator entityDecorator ? entityDecorator.getDelegate() : it))
-					.flatMap(it -> it.getReferences(referenceName).stream())
-					.map(ReferenceContract::getGroup)
-					.filter(Optional::isPresent)
-					.map(Optional::get)
-					.mapToInt(GroupEntityReference::getPrimaryKey)
-					.toArray()
-			),
-			entities.stream()
-				.mapToInt(SealedEntity::getPrimaryKey)
-				.toArray()
-		);
-
-		return richEnoughEntities;
-	}
-
-	@Nonnull
-	private static FilterByVisitor getFilterByVisitor(@Nonnull QueryContext queryContext, @Nonnull AtomicReference<FilterByVisitor> filterByVisitor) {
-		return ofNullable(filterByVisitor.get()).orElseGet(() -> {
-			final FilterByVisitor newVisitor = createFilterVisitor(queryContext);
-			filterByVisitor.set(newVisitor);
-			return newVisitor;
-		});
-	}
-
-	@Nonnull
-	private static FilterByVisitor createFilterVisitor(@Nonnull QueryContext queryContext) {
-		return new FilterByVisitor(
-			queryContext,
-			Collections.emptyList(),
-			TargetIndexes.EMPTY,
-			false
-		);
-	}
-
-	@Nonnull
-	private static Formula toFormula(@Nullable int[] recordIds) {
-		return ArrayUtils.isEmpty(recordIds) ?
-			EmptyFormula.INSTANCE :
-			new ConstantFormula(
-				new BaseBitmap(
-					recordIds
-				)
-			);
-	}
-
-	@Nullable
-	@Override
-	public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return entityPrimaryKey -> ofNullable(fetchedEntities.get(referenceSchema.getName()))
-			.map(it -> it.getEntity(entityPrimaryKey))
-			.orElse(null);
-	}
-
-	@Nullable
-	@Override
-	public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return entityPrimaryKey -> ofNullable(fetchedEntities.get(referenceSchema.getName()))
-			.map(it -> it.getGroupEntity(entityPrimaryKey))
-			.orElse(null);
-	}
-
-	@Nonnull
-	@Override
-	public Comparator<ReferenceContract> getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
-			.map(PrefetchedEntities::referenceComparator)
-			.orElse(ReferenceComparator.DEFAULT);
-	}
-
-	@Nullable
-	@Override
-	public BiPredicate<Integer, ReferenceDecorator> getEntityFilter(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return ofNullable(requirementContext.get(referenceSchema.getName()))
-			.map(it -> {
-				if (it.filterBy() == null) {
-					return null;
-				} else {
-					final PrefetchedEntities prefetchedEntities = fetchedEntities.get(referenceSchema.getName());
-					if (prefetchedEntities != null) {
-						final ValidEntityToReferenceMapping validityMapping = prefetchedEntities.validityMapping();
-						if (validityMapping != null) {
-							return (BiPredicate<Integer, ReferenceDecorator>) (entityPrimaryKey, referenceDecorator) ->
-								validityMapping.isReferenceSelected(entityPrimaryKey, referenceDecorator.getReferencedPrimaryKey());
-						}
-					}
-					return null;
-				}
-			})
-			.orElse(null);
 	}
 
 	/**

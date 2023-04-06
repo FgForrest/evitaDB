@@ -502,7 +502,7 @@ public class EvitaRequest {
 				this.entityPrices = PriceContentMode.NONE;
 				this.additionalPriceLists = PriceContent.EMPTY_PRICE_LISTS;
 			} else {
-				final Optional<PriceContent> priceContentRequirement = ofNullable(QueryUtils.findConstraint(entityFetch, PriceContent.class));
+				final Optional<PriceContent> priceContentRequirement = ofNullable(QueryUtils.findConstraint(entityFetch, PriceContent.class, SeparateEntityContentRequireContainer.class));
 				this.entityPrices = priceContentRequirement
 					.map(PriceContent::getFetchMode)
 					.orElse(PriceContentMode.NONE);
