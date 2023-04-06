@@ -522,8 +522,10 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 					return new HierarchyExcluding();
 				}
 				return new HierarchyExcluding(
-					/* TODO LHO - refactor please */
-					//ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+					ctx.args.constraints
+						.stream()
+						.map(fc -> fc.accept(this))
+						.toArray(FilterConstraint[]::new)
 				);
 			}
 		);
