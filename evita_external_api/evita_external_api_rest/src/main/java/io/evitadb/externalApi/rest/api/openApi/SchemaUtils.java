@@ -179,7 +179,15 @@ public class SchemaUtils {
 			.get(rootPropertyName);
 
 		if (rootSchema != null) {
-			final Optional<Schema> propertySchema = getSchemaFromPropertiesByPropertyName(openAPI, getTargetSchemaFromRefOrOneOf(rootSchema, openAPI).getProperties(), new LinkedList<>(), propertyName);
+			final Schema targetSchema = getTargetSchemaFromRefOrOneOf(rootSchema, openAPI);
+			final Map<String, Schema> properties;
+			if (targetSchema instanceof ArraySchema || OpenApiConstants.TYPE_ARRAY.equals(targetSchema.getType())) {
+				properties = getTargetSchemaFromRefOrOneOf(targetSchema.getItems(), openAPI).getProperties();
+			} else {
+				properties = targetSchema.getProperties();
+			}
+
+			final Optional<Schema> propertySchema = getSchemaFromPropertiesByPropertyName(openAPI, properties, new LinkedList<>(), propertyName);
 			if(propertySchema.isPresent()) {
 				return propertySchema.get();
 			}

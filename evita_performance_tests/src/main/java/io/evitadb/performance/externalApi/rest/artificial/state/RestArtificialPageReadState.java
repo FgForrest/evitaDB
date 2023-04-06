@@ -143,9 +143,9 @@ public class RestArtificialPageReadState extends AbstractRestArtificialState {
 		this.requestBody = String.format(
 			"""
 				{
-					"filterBy": {
+					"filterBy": [{
 						%s
-					},
+					}],
 					"require": {
 						%s
 					}

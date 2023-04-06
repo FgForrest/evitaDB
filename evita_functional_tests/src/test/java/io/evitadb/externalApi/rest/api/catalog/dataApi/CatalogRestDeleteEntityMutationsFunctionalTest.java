@@ -119,9 +119,9 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 			.urlPathSuffix("/product")
 			.requestBody("""
                     {
-                        "filterBy": {
+                        "filterBy": [{
 	                        "attribute_quantity_lessThan": 5500
-	                    },
+	                    }],
 						"require": {
 				            "entity_fetch": {
 				                "attribute_content": ["code"]
@@ -168,9 +168,9 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 			.urlPathSuffix("/product")
 			.requestBody("""
                     {
-                        "filterBy": {
+                        "filterBy": [{
 	                        "attribute_quantity_greaterThan": "1000000"
-	                    },
+	                    }],
 						"require": {
 				            "strip": {
 				                "offset": 0,

@@ -128,9 +128,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"entity_primaryKey_inSet\": [%d, %d]" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"entity_fetch\": {" +
 					"     \"attribute_content\": [\"code\"]" +
@@ -183,10 +183,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]," +
 					"  \"entity_locale_equals\": \"en\"" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"entity_fetch\": {" +
 					"     \"attribute_content\": [\"code\", \"name\"]" +
@@ -236,10 +236,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_url_inSet\": [\"%s\", \"%s\"]," +
 					"  \"entity_locale_equals\": \"en\"" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"entity_fetch\": {" +
 					"     \"attribute_content\": [\"url\", \"name\"]" +
@@ -284,9 +284,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_url_inSet\": [\"%s\", \"%s\"]" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"entity_fetch\": {" +
 					"     \"attribute_content\": [\"url\", \"name\"]" +
@@ -309,10 +309,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_url_inSet\": [\"some_url\"]," +
 					"  \"entity_locale_equals\": \"en\"" +
-					"} }"
+					"}] }"
 			)
 			.executeAndThen()
 			.statusCode(400)
@@ -327,9 +327,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-				"\"filterBy\": {" +
+				"\"filterBy\": [{" +
 				"  \"attribute_url_inSet\": [\"xxx\"]" +
-				"}," +
+				"}]," +
 				"\"require\": {" +
 				"  \"entity_fetch_xxx\": {" +
 				"     \"attribute_content\": [\"url\", \"name\"]" +
@@ -352,9 +352,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_code_inSet\": \"%s\"" +
-					"}" +
+					"}]" +
 					"}",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE, String.class)
 			)
@@ -379,11 +379,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody(
 				"""
                     {
-						"filterBy": {
+						"filterBy": [{
 						    "attribute_code_inSet": ["%s", "%s"],
 						    "price_inCurrency": "CZK",
 						    "price_inPriceLists": ["basic"]
-						},
+						}],
 						"require": {
 						    "entity_fetch": {
 						        "price_content": {
@@ -413,11 +413,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody(
 				"""
                     {
-						"filterBy": {
+						"filterBy": [{
 						  "attribute_code_inSet": ["%s", "%s"],
 						  "price_inCurrency": "CZK",
 						  "price_inPriceLists": ["nonexistent"]
-						},
+						}],
 						"require": {
 							"entity_fetch": {
 								"price_content": {
@@ -447,11 +447,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody(
 				"""
                     {
-						"filterBy": {
+						"filterBy": [{
 						    "attribute_code_inSet": ["%s", "%s"],
 						    "price_inCurrency": "AAA",
 						    "price_inPriceLists": ["basic"]
-						},
+						}],
 						"require": {
 						    "entity_fetch": {
 						        "price_content": {
@@ -485,11 +485,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.requestBody(
 				"""
                     {
-						"filterBy": {
+						"filterBy": [{
 						    "attribute_code_inSet": ["%s", "%s"],
 						    "price_inCurrency": "CZK",
 						    "price_inPriceLists": ["basic"]
-						},
+						}],
 						"require": {
 						    "entity_fetch": {
 						        "price_content": {
@@ -525,10 +525,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]," +
 					"  \"entity_locale_equals\": \"en\"" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"entity_fetch\": {" +
 					"     \"associatedData_content\": [\"labels\"]" +
@@ -561,9 +561,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"entity_fetch\": {" +
 					"     \"associatedData_content\": [\"labels\"]" +
@@ -604,9 +604,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"entity_fetch\": {" +
 					"     \"reference_brand_content\": {" +
@@ -650,9 +650,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_code_inSet\": [\"%s\", \"%s\"]" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"entity_fetch\": {" +
 					"     \"reference_store_content\": {" +
@@ -739,25 +739,25 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
-					"\"or\": [" +
-					"    {" +
-					"        \"attribute_alias_equals\": %b," +
-					"        \"attribute_priority_equals\": \"%s\"" +
-					"    }," +
-					"    {" +
-					"        \"attribute_alias_equals\": %b," +
-					"        \"attribute_priority_equals\": \"%s\"" +
-					"    }," +
-					"    {" +
-					"        \"attribute_alias_equals\": false," +
-					"        \"attribute_priority_inSet\": [\"%s\", \"%s\", \"%s\", \"%s\"]" +
-					"    }" +
-					"]," +
-					"\"not\": {" +
-					"    \"attribute_code_equals\": \"%s\"" +
-					"}" +
-					"}," +
+					"\"filterBy\": [{" +
+					"   \"or\": [" +
+					"       {" +
+					"           \"attribute_alias_equals\": %b," +
+					"           \"attribute_priority_equals\": \"%s\"" +
+					"       }," +
+					"       {" +
+					"           \"attribute_alias_equals\": %b," +
+					"           \"attribute_priority_equals\": \"%s\"" +
+					"       }," +
+					"       {" +
+					"           \"attribute_alias_equals\": false," +
+					"           \"attribute_priority_inSet\": [\"%s\", \"%s\", \"%s\", \"%s\"]" +
+					"       }" +
+					"   ]," +
+					"   \"not\": {" +
+					"       \"attribute_code_equals\": \"%s\"" +
+					"   }" +
+					"}]," +
 					"\"require\": {" +
 					"  \"strip\": {" +
 					"     \"limit\": %d" +
@@ -817,9 +817,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-				"\"filterBy\": {" +
+				"\"filterBy\": [{" +
 				"  \"attribute_priority_lessThan\": 35000" +
-				"}," +
+				"}]," +
 				"\"orderBy\": {" +
 				"  \"attribute_created_natural\": \"DESC\"," +
 				"  \"attribute_manufactured_natural\": \"ASC\"" +
@@ -869,9 +869,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-				"\"filterBy\": {" +
+				"\"filterBy\": [{" +
 				"  \"attribute_priority_lessThan\": 35000" +
-				"}," +
+				"}]," +
 				"\"require\": {" +
 				"  \"page\": {" +
 				"     \"number\": 2," +
@@ -923,9 +923,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-				"\"filterBy\": {" +
+				"\"filterBy\": [{" +
 				"  \"attribute_priority_lessThan\": 35000" +
-				"}," +
+				"}]," +
 				"\"require\": {" +
 				"  \"strip\": {" +
 				"     \"offset\": 2," +
@@ -975,9 +975,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_alias_is\": \"NOT_NULL\"" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"page\": {" +
 					"     \"number\": 1," +
@@ -1007,9 +1007,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"attribute_alias_is\": \"NOT_NULL\"" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"page\": {" +
 					"     \"number\": 1," +
@@ -1058,10 +1058,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/product/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
-					"\"filterBy\": {" +
+					"\"filterBy\": [{" +
 					"  \"price_inCurrency\": \"EUR\"," +
 					"  \"price_inPriceLists\": [\"vip\",\"basic\"]" +
-					"}," +
+					"}]," +
 					"\"require\": {" +
 					"  \"page\": {" +
 					"     \"number\": 1," +
@@ -1088,10 +1088,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
+						"filterBy": [{
 							"price_inCurrency": "EUR",
 							"price_inPriceLists": ["vip","basic"]
-						},
+						}],
 						"require": {
 							"page": {
 								"number": 1,
@@ -1138,11 +1138,11 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
+						"filterBy": [{
 							"hierarchy_category_within": {
 								"ofParent": 95
 							}
-						},
+						}],
 						"require": {
 							"page": {
 								"number": 1,
@@ -1253,12 +1253,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
+						"filterBy": [{
 							"hierarchy_category_within": {
 								"ofParent": 95
 							},
 							"entity_locale_equals": "cs-CZ"
-						},
+						}],
 						"require": {
 							"page": {
 								"number": 1,
@@ -1292,9 +1292,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
+						"filterBy": [{
 							"entity_locale_equals": "cs-CZ"
-						},
+						}],
 						"require": {
 							"page": {
 								"number": 1,
@@ -1364,10 +1364,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
+						"filterBy": [{
 							"attribute_alias_equals": true,
 							"entity_locale_equals": "cs-CZ"
-						},
+						}],
 						"require": {
 							"page": {
 								"number": 1,
@@ -1439,10 +1439,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
+						"filterBy": [{
 							"attribute_alias_equals": true,
 							"entity_locale_equals": "cs-CZ"
-						},
+						}],
 						"require": {
 							"page": {
 								"number": 1,

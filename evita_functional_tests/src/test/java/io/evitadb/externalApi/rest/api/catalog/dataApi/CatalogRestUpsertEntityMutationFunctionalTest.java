@@ -634,10 +634,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
-					"filterBy": {
+					"filterBy": [{
 						"entity_primaryKey_inSet": [%d],
 						"price_inPriceLists": ["other"]
-					},
+					}],
 					"require": {
 						"entity_fetch": {
 							"price_content": {
@@ -981,9 +981,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
+						"filterBy": [{
 							"entity_primaryKey_inSet": [%d]
-						},
+						}],
 						"require": {
 							"entity_fetch": {
 					        }

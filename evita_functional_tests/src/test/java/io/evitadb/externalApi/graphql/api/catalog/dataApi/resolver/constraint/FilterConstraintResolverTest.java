@@ -238,24 +238,30 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 			QueryPurifierVisitor.purify(
 				resolver.resolve(
 					"filterBy",
-					mapOf(
-						"attribute_code_equals", "123",
-						"or", List.of(
-							mapOf(
-								"attribute_age_is", AttributeSpecialValue.NULL
+					List.of(
+						mapOf(
+							"attribute_code_equals", "123",
+							"or", List.of(
+								mapOf(
+									"attribute_age_is", AttributeSpecialValue.NULL
+								),
+								mapOf(
+									"price_between", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
+									"facet_brand_inSet", List.of(10, 20, 30)
+								)
 							),
-							mapOf(
-								"price_between", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
-								"facet_brand_inSet", List.of(10, 20, 30)
-							)
-						),
-						"reference_category_having", mapOf(
-							"attribute_code_startsWith", "ab",
-							"entity_primaryKey_inSet", List.of(2),
-							"entity_having", mapOf(
-								"attribute_name_equals", "cd",
-								"reference_relatedProducts_having", mapOf(
-									"attribute_order_equals", 1
+							"reference_category_having", List.of(
+								mapOf(
+									"attribute_code_startsWith", "ab",
+									"entity_primaryKey_inSet", List.of(2),
+									"entity_having", mapOf(
+										"attribute_name_equals", "cd",
+										"reference_relatedProducts_having", List.of(
+											mapOf(
+												"attribute_order_equals", 1
+											)
+										)
+									)
 								)
 							)
 						)
