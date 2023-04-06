@@ -39,6 +39,7 @@ import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
@@ -48,6 +49,9 @@ import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.hierarchy.predicate.FilteredHierarchyEntityPredicate;
+import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -144,17 +148,21 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					// we may quickly return empty result
 					targetIndexes.add(TargetIndexes.EMPTY);
 				} else {
-					final int[] requestedHierarchyNodes;
+					final Formula requestedHierarchyNodesFormula;
 					if (constraint instanceof final HierarchyWithinRoot hierarchyWithinRoot) {
-						requestedHierarchyNodes = HierarchyWithinRootTranslator.createFormulaFromHierarchyIndexForDifferentEntity(
-							hierarchyWithinRoot.getExcludedChildrenIds(),
+						requestedHierarchyNodesFormula = HierarchyWithinRootTranslator.createFormulaFromHierarchyIndex(
+							ArrayUtils.isEmpty(hierarchyWithinRoot.getExcludedChildrenFilter()) ?
+								null :
+								new FilteredHierarchyEntityPredicate(queryContext, targetHierarchyIndex, new FilterBy(hierarchyWithinRoot.getExcludedChildrenFilter())),
 							hierarchyWithinRoot.isDirectRelation(),
 							targetHierarchyIndex
 						);
 					} else if (constraint instanceof final HierarchyWithin hierarchyWithin) {
-						requestedHierarchyNodes = HierarchyWithinTranslator.createFormulaFromHierarchyIndexForDifferentEntity(
+						requestedHierarchyNodesFormula = HierarchyWithinTranslator.createFormulaFromHierarchyIndexForDifferentEntity(
 							hierarchyWithin.getParentId(),
-							hierarchyWithin.getExcludedChildrenIds(),
+							ArrayUtils.isEmpty(hierarchyWithin.getExcludedChildrenFilter()) ?
+								null :
+								new FilteredHierarchyEntityPredicate(queryContext, targetHierarchyIndex, new FilterBy(hierarchyWithin.getExcludedChildrenFilter())),
 							hierarchyWithin.isDirectRelation(),
 							hierarchyWithin.isExcludingRoot(),
 							targetHierarchyIndex
@@ -164,7 +172,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						throw new EvitaInternalError("Should never happen");
 					}
 					// locate all hierarchy indexes
-					final List<EntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.length);
+					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
+					final List<EntityIndex> theTargetIndexes = new ArrayList<>(requestedHierarchyNodes.size());
 					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
 						ofNullable(
 							(EntityIndex) queryContext.getIndex(
@@ -179,7 +188,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					this.targetIndexes.add(
 						new TargetIndexes(
 							EntityIndexType.REFERENCED_HIERARCHY_NODE.name() +
-								" composed of " + requestedHierarchyNodes.length + " indexes",
+								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
 							theTargetIndexes
 						)

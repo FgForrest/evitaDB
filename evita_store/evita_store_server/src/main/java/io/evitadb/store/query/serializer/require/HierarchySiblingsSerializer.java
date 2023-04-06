@@ -27,7 +27,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchySiblings;
 import io.evitadb.api.query.require.HierarchyStatistics;
@@ -44,7 +43,6 @@ public class HierarchySiblingsSerializer extends Serializer<HierarchySiblings> {
 	@Override
 	public void write(Kryo kryo, Output output, HierarchySiblings object) {
 		output.writeString(object.getOutputName());
-		kryo.writeObjectOrNull(output, object.getFilterBy(), FilterBy.class);
 		kryo.writeObjectOrNull(output, object.getEntityFetch().orElse(null), EntityFetch.class);
 		kryo.writeObjectOrNull(output, object.getStatistics().orElse(null), HierarchyStatistics.class);
 	}
@@ -52,10 +50,9 @@ public class HierarchySiblingsSerializer extends Serializer<HierarchySiblings> {
 	@Override
 	public HierarchySiblings read(Kryo kryo, Input input, Class<? extends HierarchySiblings> type) {
 		final String outputName = input.readString();
-		final FilterBy filterBy = kryo.readObjectOrNull(input, FilterBy.class);
 		final EntityFetch entityFetch = kryo.readObjectOrNull(input, EntityFetch.class);
 		final HierarchyStatistics statistics = kryo.readObjectOrNull(input, HierarchyStatistics.class);
-		return new HierarchySiblings(outputName, filterBy, entityFetch, statistics);
+		return new HierarchySiblings(outputName, entityFetch, statistics);
 	}
 
 }

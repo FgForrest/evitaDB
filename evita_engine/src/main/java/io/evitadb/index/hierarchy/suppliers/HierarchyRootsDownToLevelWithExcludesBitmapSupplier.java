@@ -27,11 +27,10 @@ import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  * Implementation of {@link BitmapSupplier} that provides access to the data stored in {@link HierarchyIndex}
@@ -49,9 +48,9 @@ public class HierarchyRootsDownToLevelWithExcludesBitmapSupplier extends Abstrac
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
-	private final int[] excludedNodeTrees;
+	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyRootsDownToLevelWithExcludesBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int levels, int[] excludedNodeTrees) {
+	public HierarchyRootsDownToLevelWithExcludesBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
 		this.levels = levels;
 		this.excludedNodeTrees = excludedNodeTrees;
@@ -59,11 +58,11 @@ public class HierarchyRootsDownToLevelWithExcludesBitmapSupplier extends Abstrac
 
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInts(
-			Stream.of(
-				IntStream.of(CLASS_ID, levels),
-				IntStream.of(excludedNodeTrees).sorted()
-			).flatMapToInt(it -> it).toArray()
+		return hashFunction.hashLongs(
+			new long[]{
+				hashFunction.hashInts(new int[]{CLASS_ID, levels}),
+				excludedNodeTrees.computeHash(hashFunction)
+			}
 		);
 	}
 

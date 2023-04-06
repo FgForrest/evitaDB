@@ -36,13 +36,13 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
-import io.evitadb.test.tester.RestTester;
-import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -279,9 +279,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
-					"filterBy": {
+					"filterBy": [{
 						"entity_primaryKey_inSet": [%d]
-					},
+					}],
 					"require": {
 						"entity_fetch": {
 							"attribute_content": [
@@ -370,9 +370,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
-					"filterBy": {
+					"filterBy": [{
 						"entity_primaryKey_inSet": [%d]
-					},
+					}],
 					"require": {
 						"entity_fetch": {
 							"associatedData_content": [
@@ -574,10 +574,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
-						"filterBy": {
+						"filterBy": [{
 							"entity_primaryKey_inSet": [%d],
 							"price_inPriceLists":["other"]
-						},
+						}],
 						"require": {
 							"entity_fetch": {
 								"price_content": {
@@ -715,10 +715,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
-					"filterBy": {
+					"filterBy": [{
 						"entity_primaryKey_inSet": [%d],
 						"price_inPriceLists": ["basic"]
-					},
+					}],
 					"require": {
 						"entity_fetch": {
 							"price_content": {
@@ -818,9 +818,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
-					"filterBy": {
+					"filterBy": [{
 						"entity_primaryKey_inSet": [%d]
-					},
+					}],
 					"require": {
 						"entity_fetch": {
 							"attribute_contentAll": true,
@@ -868,9 +868,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
-					"filterBy": {
+					"filterBy": [{
 						"entity_primaryKey_inSet": [%d]
-					},
+					}],
 					"require": {
 						"entity_fetch": {
 							"attribute_contentAll": true

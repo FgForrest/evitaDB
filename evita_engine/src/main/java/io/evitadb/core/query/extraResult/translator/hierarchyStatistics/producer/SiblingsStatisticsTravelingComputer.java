@@ -29,6 +29,9 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
+import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -82,7 +85,7 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 			return createStatistics(
 				filteredEntityPks,
 				scopePredicate,
-				filterPredicate.and(nodeId -> nodeId != exceptNodeId)
+				filterPredicate.and(new MatchNodeIdHierarchyFilteringPredicate(exceptNodeId))
 			);
 		} finally {
 			this.parentNodeId = null;

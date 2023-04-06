@@ -30,12 +30,11 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyFilteringPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyTraversalPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.SiblingsStatisticsComputer;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
+import io.evitadb.index.hierarchy.predicate.LocaleHierarchyEntityPredicate;
 
 import java.util.EnumSet;
 import java.util.Optional;
@@ -54,9 +53,6 @@ public class HierarchySiblingsTranslator
 		final HierarchyStatisticsProducer producer = getHierarchyStatisticsProducer(extraResultPlanningVisitor);
 		final Optional<HierarchyStatistics> statistics = siblings.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(siblings.getName());
-		final HierarchyFilteringPredicate filteringPredicate = siblings.getFilterBy()
-			.map(it -> (HierarchyFilteringPredicate) new FilteredHierarchyEntityPredicate(context, it))
-			.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
 			.map(it -> stopAtConstraintToPredicate(context, it))
 			.orElse(HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS);
@@ -70,7 +66,7 @@ public class HierarchySiblingsTranslator
 					context
 				),
 				scopePredicate,
-				filteringPredicate,
+				new LocaleHierarchyEntityPredicate(context.entityIndex(), context.queryContext().getLocale()),
 				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 				statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
 			)

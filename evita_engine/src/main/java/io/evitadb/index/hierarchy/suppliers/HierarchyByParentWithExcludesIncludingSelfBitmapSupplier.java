@@ -27,11 +27,10 @@ import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  * Implementation of {@link BitmapSupplier} that provides access to the data stored in {@link HierarchyIndex}
@@ -49,9 +48,9 @@ public class HierarchyByParentWithExcludesIncludingSelfBitmapSupplier extends Ab
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
-	private final int[] excludedNodeTrees;
+	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyByParentWithExcludesIncludingSelfBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, int[] excludedNodeTrees) {
+	public HierarchyByParentWithExcludesIncludingSelfBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
 		this.parentNode = parentNode;
 		this.excludedNodeTrees = excludedNodeTrees;
@@ -59,11 +58,11 @@ public class HierarchyByParentWithExcludesIncludingSelfBitmapSupplier extends Ab
 
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInts(
-			Stream.of(
-				IntStream.of(CLASS_ID, parentNode),
-				IntStream.of(excludedNodeTrees).sorted()
-			).flatMapToInt(it -> it).toArray()
+		return hashFunction.hashLongs(
+			new long[]{
+				hashFunction.hashInts(new int[]{CLASS_ID, parentNode}),
+				excludedNodeTrees.computeHash(hashFunction)
+			}
 		);
 	}
 

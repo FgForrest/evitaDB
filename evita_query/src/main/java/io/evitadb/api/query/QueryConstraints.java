@@ -902,11 +902,11 @@ public interface QueryConstraints {
 	 * they're part of the excluded sub-trees.
 	 */
 	@Nullable
-	static HierarchyExcluding excluding(@Nullable Integer... excludeChildTree) {
-		if (excludeChildTree == null) {
+	static HierarchyExcluding excluding(@Nullable FilterConstraint... excludeChildTreeConstraints) {
+		if (ArrayUtils.isEmpty(excludeChildTreeConstraints)) {
 			return null;
 		}
-		return new HierarchyExcluding(excludeChildTree);
+		return new HierarchyExcluding(excludeChildTreeConstraints);
 	}
 
 	/**
@@ -1856,24 +1856,6 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchyFromRoot fromRoot(
 		@Nullable String outputName,
-		@Nullable FilterBy filterBy,
-		@Nullable HierarchyOutputRequireConstraint... requirement
-	) {
-		if (outputName == null) {
-			return null;
-		} else if (filterBy == null) {
-			return requirement == null ? new HierarchyFromRoot(outputName) : new HierarchyFromRoot(outputName, requirement);
-		} else {
-			return requirement == null ? new HierarchyFromRoot(outputName, filterBy) : new HierarchyFromRoot(outputName, filterBy, requirement);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchyFromRoot fromRoot(
-		@Nullable String outputName,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
@@ -1888,23 +1870,6 @@ public interface QueryConstraints {
 	 * TOBEDONE JNO: docs
 	 */
 	@Nullable
-	static HierarchyFromRoot fromRoot(
-		@Nullable String outputName,
-		@Nullable FilterBy filterBy,
-		@Nullable EntityFetch entityFetch,
-		@Nullable HierarchyOutputRequireConstraint... requirement
-	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return entityFetch == null ? new HierarchyFromRoot(outputName, filterBy, requirement) : new HierarchyFromRoot(outputName, filterBy, entityFetch, requirement);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
 		@Nonnull HierarchyNode node,
@@ -1926,29 +1891,6 @@ public interface QueryConstraints {
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
 		@Nonnull HierarchyNode node,
-		@Nullable FilterBy filterBy,
-		@Nullable HierarchyOutputRequireConstraint... requirement
-	) {
-		if (outputName == null) {
-			return null;
-		} else if (filterBy == null) {
-			return requirement == null ?
-				new HierarchyFromNode(outputName, node) :
-				new HierarchyFromNode(outputName, node, requirement);
-		} else {
-			return requirement == null ?
-				new HierarchyFromNode(outputName, node, filterBy) :
-				new HierarchyFromNode(outputName, node, filterBy, requirement);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchyFromNode fromNode(
-		@Nullable String outputName,
-		@Nonnull HierarchyNode node,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
@@ -1958,47 +1900,6 @@ public interface QueryConstraints {
 			return entityFetch == null ?
 				new HierarchyFromNode(outputName, node, requirement) :
 				new HierarchyFromNode(outputName, node, entityFetch, requirement);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchyFromNode fromNode(
-		@Nullable String outputName,
-		@Nonnull HierarchyNode node,
-		@Nullable FilterBy filterBy,
-		@Nullable EntityFetch entityFetch,
-		@Nullable HierarchyOutputRequireConstraint... requirement
-	) {
-		if (outputName == null) {
-			return null;
-		} else if (filterBy == null) {
-			return entityFetch == null ?
-				new HierarchyFromNode(outputName, node, requirement) :
-				new HierarchyFromNode(outputName, node, entityFetch, requirement);
-		} else {
-			return entityFetch == null ?
-				new HierarchyFromNode(outputName, node, filterBy, requirement) :
-				new HierarchyFromNode(outputName, node, filterBy, entityFetch, requirement);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchyChildren children(
-		@Nullable String outputName,
-		@Nullable FilterBy filterBy,
-		@Nullable EntityFetch entityFetch,
-		@Nullable HierarchyOutputRequireConstraint... requirement
-	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchyChildren(outputName, filterBy, entityFetch, requirement);
 		}
 	}
 
@@ -2039,23 +1940,6 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchySiblings siblings(
 		@Nullable String outputName,
-		@Nullable FilterBy filterBy,
-		@Nullable EntityFetch entityFetch,
-		@Nullable HierarchyOutputRequireConstraint... requirements
-	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchySiblings(outputName, filterBy, entityFetch, requirements);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(
-		@Nullable String outputName,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
@@ -2086,34 +1970,6 @@ public interface QueryConstraints {
 	 */
 	@Nullable
 	static HierarchySiblings siblings(
-		@Nullable String outputName,
-		@Nullable FilterBy filterBy,
-		@Nullable HierarchyOutputRequireConstraint... requirements
-	) {
-		if (outputName == null) {
-			return null;
-		} else {
-			return new HierarchySiblings(outputName, filterBy, requirements);
-		}
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(
-		@Nullable FilterBy filterBy,
-		@Nullable EntityFetch entityFetch,
-		@Nullable HierarchyOutputRequireConstraint... requirements
-	) {
-		return new HierarchySiblings(null, filterBy, entityFetch, requirements);
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirements
 	) {
@@ -2126,14 +1982,6 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchySiblings siblings(@Nullable HierarchyOutputRequireConstraint... requirements) {
 		return new HierarchySiblings(null, requirements);
-	}
-
-	/**
-	 * TOBEDONE JNO: docs
-	 */
-	@Nullable
-	static HierarchySiblings siblings(@Nullable FilterBy filterBy, @Nullable HierarchyOutputRequireConstraint... requirements) {
-		return new HierarchySiblings(null, filterBy, requirements);
 	}
 
 	/**

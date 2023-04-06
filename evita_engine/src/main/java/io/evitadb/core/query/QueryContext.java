@@ -580,6 +580,17 @@ public class QueryContext {
 	}
 
 	/**
+	 * Adds new step of query evaluation.
+	 */
+	public void pushStep(@Nonnull QueryPhase phase, @Nonnull Supplier<String> messageSupplier) {
+		if (!telemetryStack.isEmpty()) {
+			telemetryStack.push(
+				telemetryStack.peek().addStep(phase, messageSupplier.get())
+			);
+		}
+	}
+
+	/**
 	 * Returns current step of the evaluation.
 	 */
 	@Nullable

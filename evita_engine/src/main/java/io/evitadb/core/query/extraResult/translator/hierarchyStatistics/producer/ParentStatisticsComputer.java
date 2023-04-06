@@ -32,6 +32,9 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ParentStatisticsHierarchyVisitor;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
+import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -83,7 +86,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				childVisitor,
 				hierarchyWithin.getParentId(),
 				false,
-				hierarchyWithin.getExcludedChildrenIds()
+				filterPredicate
 			);
 
 			final List<LevelInfo> childVisitorResult = childVisitor.getResult();
@@ -105,7 +108,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 
 			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
 				scopePredicate,
-				filterPredicate.and(value -> value != startNode.entity().getPrimaryKey()),
+				filterPredicate.and(new MatchNodeIdHierarchyFilteringPredicate(startNode.entity().getPrimaryKey())),
 				filteredEntityPks,
 				context.hierarchyReferencingEntityPks(), entityFetcher,
 				statisticsType,

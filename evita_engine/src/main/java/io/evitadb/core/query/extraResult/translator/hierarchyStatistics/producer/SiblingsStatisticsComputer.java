@@ -26,6 +26,8 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

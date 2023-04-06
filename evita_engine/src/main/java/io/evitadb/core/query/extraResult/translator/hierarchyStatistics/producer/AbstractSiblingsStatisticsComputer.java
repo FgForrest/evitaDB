@@ -23,13 +23,13 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
-import io.evitadb.api.query.filter.HierarchyWithin;
-import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,15 +66,6 @@ public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarc
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		final OptionalInt parentNode = getParentNodeId(context);
-		final int[] excludedChildrenIds;
-		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
-			excludedChildrenIds = hierarchyWithin.getExcludedChildrenIds();
-		} else if (context.hierarchyFilter() instanceof HierarchyWithinRoot hierarchyWithinRoot) {
-			excludedChildrenIds = hierarchyWithinRoot.getExcludedChildrenIds();
-		} else {
-			excludedChildrenIds = EMPTY_IDS;
-		}
-
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
 			getDistanceModifier(),
@@ -91,14 +82,14 @@ public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarc
 					visitor,
 					parentNodeId,
 					true,
-					excludedChildrenIds
+					filterPredicate
 				);
 			},
 			() -> {
 				// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
 				context.entityIndex().traverseHierarchy(
 					visitor,
-					excludedChildrenIds
+					filterPredicate
 				);
 			}
 		);

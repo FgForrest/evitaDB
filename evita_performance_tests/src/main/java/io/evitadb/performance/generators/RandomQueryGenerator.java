@@ -273,7 +273,7 @@ public interface RandomQueryGenerator {
 			for (int i = 0; i < 5; i++) {
 				excludedIds[i] = categoryIds.get(Math.abs(rndKey * (i + 1)) % (categoryIds.size()));
 			}
-			specification.add(excluding(excludedIds));
+			specification.add(excluding(entityPrimaryKeyInSet(excludedIds)));
 		} else {
 			excludedIds = null;
 		}

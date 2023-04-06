@@ -27,7 +27,6 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -60,36 +59,12 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 			Assert.isTrue(
 				requireConstraint instanceof HierarchyOutputRequireConstraint ||
 					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchySiblings accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
+				"Constraint HierarchySiblings accepts only HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 			);
 		}
-		for (Constraint<?> additionalConstraint : additionalChildren) {
-			Assert.isTrue(
-				additionalConstraint instanceof FilterBy ||
-					additionalConstraint == null,
-				"Constraint HierarchySiblings accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
-			);
-		}
-	}
-
-	public HierarchySiblings(@Nullable String outputName, @Nullable FilterBy filterBy, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
-		super(
-			CONSTRAINT_NAME,
-			new Serializable[]{outputName},
-			ArrayUtils.mergeArrays(
-				new RequireConstraint[]{entityFetch},
-				requirements
-			),
-			filterBy
-		);
-	}
-
-	public HierarchySiblings(@Nullable String outputName, @Nullable FilterBy filterBy, @Nonnull HierarchyOutputRequireConstraint... requirements) {
-		super(
-			CONSTRAINT_NAME,
-			new Serializable[]{outputName},
-			requirements,
-			filterBy
+		Assert.isTrue(
+			ArrayUtils.isEmpty(additionalChildren),
+			"Constraint HierarchySiblings accepts only HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 		);
 	}
 
@@ -107,7 +82,7 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 	public HierarchySiblings(@Nullable String outputName, @Nonnull HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
-			new Serializable[]{outputName},
+			outputName == null ? NO_ARGS : new Serializable[]{outputName},
 			requirements
 		);
 	}
@@ -131,14 +106,6 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 			}
 		}
 		return empty();
-	}
-
-	/**
-	 * Contains filtering condition filters out hierarchy nodes that should not be part of the result.
-	 */
-	@Nonnull
-	public Optional<FilterBy> getFilterBy() {
-		return Optional.ofNullable(getAdditionalChild(FilterBy.class));
 	}
 
 	/**

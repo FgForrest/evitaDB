@@ -27,7 +27,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.HierarchyNode;
 import lombok.RequiredArgsConstructor;
@@ -42,13 +41,13 @@ public class HierarchyNodeSerializer extends Serializer<HierarchyNode> {
 
 	@Override
 	public void write(Kryo kryo, Output output, HierarchyNode object) {
-		kryo.writeClassAndObject(output, object.getFilterBy().getChild());
+		kryo.writeClassAndObject(output, object.getFilterBy());
 	}
 
 	@Override
 	public HierarchyNode read(Kryo kryo, Input input, Class<? extends HierarchyNode> type) {
-		final FilterConstraint filterConstraint = (FilterConstraint) kryo.readClassAndObject(input);
-		return new HierarchyNode(new FilterBy(filterConstraint));
+		final FilterBy filterConstraint = (FilterBy) kryo.readClassAndObject(input);
+		return new HierarchyNode(filterConstraint);
 	}
 
 }

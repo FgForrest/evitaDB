@@ -28,12 +28,10 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
@@ -61,27 +59,12 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 			Assert.isTrue(
 				requireConstraint instanceof HierarchyOutputRequireConstraint ||
 					requireConstraint instanceof EntityFetch,
-				"Constraint HierarchyChildren accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
+				"Constraint HierarchyChildren accepts only HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 			);
 		}
-		for (Constraint<?> additionalConstraint : additionalChildren) {
-			Assert.isTrue(
-				additionalConstraint instanceof FilterBy ||
-					additionalConstraint == null,
-				"Constraint HierarchyChildren accepts only FilterBy, HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
-			);
-		}
-	}
-
-	public HierarchyChildren(@Nonnull String outputName, @Nullable FilterBy filterBy, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
-		super(
-			CONSTRAINT_NAME,
-			new Serializable[]{outputName},
-			ArrayUtils.mergeArrays(
-				new RequireConstraint[]{entityFetch},
-				requirements
-			),
-			filterBy
+		Assert.isTrue(
+			ArrayUtils.isEmpty(additionalChildren),
+			"Constraint HierarchyChildren accepts only HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 		);
 	}
 
@@ -123,14 +106,6 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 			}
 		}
 		return empty();
-	}
-
-	/**
-	 * Contains filtering condition filters out hierarchy nodes that should not be part of the result.
-	 */
-	@Nonnull
-	public Optional<FilterBy> getFilterBy() {
-		return Optional.ofNullable(getAdditionalChild(FilterBy.class));
 	}
 
 	/**

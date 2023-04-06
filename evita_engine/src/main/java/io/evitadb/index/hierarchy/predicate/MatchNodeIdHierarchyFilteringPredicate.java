@@ -21,32 +21,37 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.filter.translator.bool;
+package io.evitadb.index.hierarchy.predicate;
 
-import io.evitadb.api.query.filter.And;
-import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
-import io.evitadb.core.query.algebra.AbstractFormula;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import java.io.Serial;
+import java.io.Serializable;
 
 /**
- * This implementation of {@link FilteringConstraintTranslator} converts {@link And} to {@link AbstractFormula}.
+ * TODO JNO - document me
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class AndTranslator implements FilteringConstraintTranslator<And> {
+public class MatchNodeIdHierarchyFilteringPredicate implements HierarchyFilteringPredicate, Serializable {
+	@Serial private static final long serialVersionUID = -785434923550857430L;
+	private static final int CLASS_ID = -550857430;
+	private final int exceptNodeId;
 
-	@Nonnull
+	public MatchNodeIdHierarchyFilteringPredicate(int exceptNodeId) {
+		this.exceptNodeId = exceptNodeId;
+	}
+
 	@Override
-	public Formula translate(@Nonnull And andConstraint, @Nonnull FilterByVisitor filterByVisitor) {
-		return FutureNotFormula.postProcess(
-			filterByVisitor.getCollectedFormulasOnCurrentLevel(),
-			FormulaFactory::and
+	public long computeHash(@Nonnull LongHashFunction hashFunction) {
+		return hashFunction.hashInts(
+			new int[]{CLASS_ID, exceptNodeId}
 		);
 	}
 
+	@Override
+	public boolean test(int nodeId) {
+		return nodeId == exceptNodeId;
+	}
 }

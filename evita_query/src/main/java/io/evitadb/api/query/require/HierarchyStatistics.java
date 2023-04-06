@@ -64,12 +64,14 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		// unnecessary to duplicate the hierarchy prefix
 		super(
 			"statistics",
-			ArrayUtils.mergeArrays(
-				statisticsBase == null ? new Serializable[0] : new Serializable[] {statisticsBase},
-				ArrayUtils.isEmpty(statisticsType) ?
-					new StatisticsType[] {StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT} :
-					statisticsType
-			)
+			statisticsBase == null ?
+				new Serializable[0] :
+				ArrayUtils.mergeArrays(
+					new Serializable[]{statisticsBase},
+					ArrayUtils.isEmpty(statisticsType) ?
+						new StatisticsType[]{StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT} :
+						statisticsType
+				)
 		);
 	}
 

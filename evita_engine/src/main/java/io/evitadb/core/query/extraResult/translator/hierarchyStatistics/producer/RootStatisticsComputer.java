@@ -23,19 +23,18 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
-import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.List;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * TODO JNO - document me
@@ -73,9 +72,7 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 		);
 		context.entityIndex().traverseHierarchy(
 			visitor,
-			ofNullable(context.hierarchyFilter())
-				.map(HierarchyFilterConstraint::getExcludedChildrenIds)
-				.orElse(EMPTY_IDS)
+			filterPredicate
 		);
 
 		return visitor.getResult();

@@ -205,7 +205,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.CATEGORY),
-						filterBy(hierarchyWithinRootSelf(excluding(excluded.toArray(new Integer[0])))),
+						filterBy(hierarchyWithinRootSelf(excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -348,7 +348,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.CATEGORY),
-						filterBy(hierarchyWithinSelf(1, excluding(excluded.toArray(new Integer[0])))),
+						filterBy(hierarchyWithinSelf(1, excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -401,7 +401,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 									attributeLessThan(ATTRIBUTE_PRIORITY, 25000),
 									attributeStartsWith(ATTRIBUTE_CODE, "E")
 								),
-								hierarchyWithinSelf(1, excluding(excluded.toArray(new Integer[0])))
+								hierarchyWithinSelf(1, excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))))
 							)
 						),
 						require(
@@ -1019,7 +1019,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(30)
+								hierarchyWithinSelf(30, excluding(entityPrimaryKeyInSet(3, 9)))
 							)
 						),
 						require(
@@ -1031,10 +1031,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 								parents(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									/* TODO JNO - dořešit obecně co má dělat filterBy */
-									/* TODO JNO - podle mě koliduje s excluded, který by se mohl naučit filter by podmínky */
-									/* co přináší navíc? */
-									siblings(filterBy(entityPrimaryKeyInSet(3, 9))),
+									siblings(),
 									statistics()
 								)
 							)
@@ -2091,7 +2088,12 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						collection(Entities.CATEGORY),
 						filterBy(
 							and(
-								entityLocaleEquals(CZECH_LOCALE)
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRootSelf(
+									excluding(
+										attributeEqualsFalse(ATTRIBUTE_SHORTCUT)
+									)
+								)
 							)
 						),
 						require(
@@ -2102,7 +2104,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 							hierarchyOfSelf(
 								fromRoot(
 									"megaMenu",
-									filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)),
 									entityFetch(attributeContent()),
 									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
 								)
@@ -2150,7 +2151,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(1)
+								hierarchyWithinSelf(1, excluding(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))
 							)
 						),
 						require(
@@ -2161,7 +2162,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 							hierarchyOfSelf(
 								children(
 									"megaMenu",
-									filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)),
 									entityFetch(attributeContent()),
 									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
 								)
@@ -2216,7 +2216,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(6)
+								hierarchyWithinSelf(6, excluding(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))
 							)
 						),
 						require(
@@ -2227,7 +2227,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 							hierarchyOfSelf(
 								siblings(
 									"megaMenu",
-									filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)),
 									entityFetch(attributeContent()),
 									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
 								)
@@ -2282,7 +2281,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(6)
+								hierarchyWithinSelf(6, excluding(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))
 							)
 						),
 						require(
@@ -2294,7 +2293,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
-									filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)),
 									entityFetch(attributeContent()),
 									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
 								)

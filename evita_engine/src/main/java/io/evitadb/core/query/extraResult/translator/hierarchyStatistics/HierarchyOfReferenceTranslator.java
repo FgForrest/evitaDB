@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
@@ -100,7 +101,11 @@ public class HierarchyOfReferenceTranslator
 					.map(EntityIndex::getAllPrimaryKeysFormula)
 					.orElse(EmptyFormula.INSTANCE),
 				hierarchyStatsConstraint.getEmptyHierarchicalEntityBehaviour(),
-				() -> hierarchyStatsConstraint.accept(extraResultPlanner)
+				() -> {
+					for (RequireConstraint child : hierarchyStatsConstraint) {
+						child.accept(extraResultPlanner);
+					}
+				}
 			);
 		}
 		return hierarchyStatisticsProducer;

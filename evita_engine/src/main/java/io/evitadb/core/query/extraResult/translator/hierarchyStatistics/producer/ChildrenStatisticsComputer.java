@@ -30,6 +30,8 @@ import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -73,7 +75,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			// if there is within hierarchy root query we start at root nodes
 			context.entityIndex().traverseHierarchy(
 				childrenVisitor,
-				hierarchyWithinRoot.getExcludedChildrenIds()
+				filterPredicate
 			);
 		} else if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
 			// if root node is set, use different traversal method
@@ -81,7 +83,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 				childrenVisitor,
 				hierarchyWithin.getParentId(),
 				false,
-				hierarchyWithin.getExcludedChildrenIds()
+				filterPredicate
 			);
 		} else {
 			// if there is not within hierarchy constraint query we start at root nodes and use no exclusions

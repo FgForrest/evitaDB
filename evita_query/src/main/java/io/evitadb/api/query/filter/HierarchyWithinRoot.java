@@ -118,7 +118,7 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 	@ConstraintCreatorDef
 	public HierarchyWithinRoot(@Nonnull @ConstraintClassifierParamDef String entityType,
 	                           @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
-		super(entityType, with);
+		super(new Serializable[]{entityType}, with);
 		checkInnerConstraintValidity(with);
 	}
 
@@ -140,16 +140,16 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 	}
 
 	/**
-	 * Returns ids of child entities which hierarchies should be excluded from search.
+	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
 	 */
 	@Override
 	@Nonnull
-	public int[] getExcludedChildrenIds() {
+	public FilterConstraint[] getExcludedChildrenFilter() {
 		return Arrays.stream(getChildren())
 			.filter(HierarchyExcluding.class::isInstance)
-			.map(it -> ((HierarchyExcluding) it).getPrimaryKeys())
+			.map(it -> ((HierarchyExcluding) it).getFiltering())
 			.findFirst()
-			.orElseGet(() -> new int[0]);
+			.orElseGet(() -> new FilterConstraint[0]);
 	}
 
 	@Override

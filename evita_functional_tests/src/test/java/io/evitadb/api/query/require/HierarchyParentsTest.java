@@ -103,7 +103,7 @@ class HierarchyParentsTest {
 		assertEquals("parents('megaMenu',entityFetch(attributeContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", hierarchyParents2.toString());
 
 		final HierarchyParents hierarchyParents3 = parents("megaMenu", statistics());
-		assertEquals("parents('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchyParents3.toString());
+		assertEquals("parents('megaMenu',statistics(WITHOUT_USER_FILTER,CHILDREN_COUNT,QUERIED_ENTITY_COUNT))", hierarchyParents3.toString());
 
 		final HierarchyParents hierarchyParents4 = parents("megaMenu", siblings());
 		assertEquals("parents('megaMenu',siblings())", hierarchyParents4.toString());

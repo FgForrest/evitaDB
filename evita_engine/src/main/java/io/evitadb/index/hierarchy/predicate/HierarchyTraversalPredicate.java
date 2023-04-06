@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
+package io.evitadb.index.hierarchy.predicate;
 
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 

@@ -26,6 +26,7 @@ package io.evitadb.index.hierarchy;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -176,7 +177,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				levels.append(level).append("|");
 				distances.append(distance).append("|");
 			},
-			6, false, 9
+			6, false, new MatchNodeIdHierarchyFilteringPredicate(9)
 		);
 		assertEquals("|8|2|1|3|6|", nodeIds.toString());
 		assertEquals("|2|3|3|2|1|", levels.toString());
@@ -263,7 +264,10 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListEntireTreeExcludingParts() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromRoot(9, 5);
+		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromRoot(
+			new MatchNodeIdHierarchyFilteringPredicate(9)
+				.or(new MatchNodeIdHierarchyFilteringPredicate(5))
+		);
 		assertArrayEquals(
 			new int[]{1, 2, 3, 4, 6, 7, 8},
 			nodeIds.getArray()
@@ -281,7 +285,11 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListSubTreeIncludingItselfExcludingSubTrees() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(6, 3, 9);
+		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(
+			6,
+			new MatchNodeIdHierarchyFilteringPredicate(3)
+				.or(new MatchNodeIdHierarchyFilteringPredicate(9))
+		);
 		assertArrayEquals(
 			new int[]{6, 8},
 			nodeIds.getArray()
@@ -299,7 +307,10 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListSubTreeExcludingSubTrees() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParent(6, 3, 9);
+		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParent(
+			6,
+			new MatchNodeIdHierarchyFilteringPredicate(3).or(new MatchNodeIdHierarchyFilteringPredicate(9))
+		);
 		assertArrayEquals(
 			new int[]{8},
 			nodeIds.getArray()

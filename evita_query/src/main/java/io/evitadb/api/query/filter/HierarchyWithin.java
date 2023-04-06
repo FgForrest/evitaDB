@@ -139,7 +139,7 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 	@ConstraintCreatorDef(suffix = "self", silentImplicitClassifier = true)
 	public HierarchyWithin(@Nonnull @ConstraintValueParamDef Integer ofParent,
 	                       @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
-		super(ofParent, with);
+		super(new Serializable[]{ofParent}, with);
 		checkInnerConstraintValidity(with);
 	}
 
@@ -147,7 +147,7 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 	public HierarchyWithin(@Nonnull @ConstraintClassifierParamDef String referenceName,
 	                       @Nonnull @ConstraintValueParamDef Integer ofParent,
 	                       @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
-		super(referenceName, ofParent, with);
+		super(new Serializable[]{referenceName, ofParent}, with);
 		checkInnerConstraintValidity(with);
 	}
 
@@ -168,16 +168,16 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 	}
 
 	/**
-	 * Returns ids of child entities which hierarchies should be excluded from search.
+	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
 	 */
 	@Override
 	@Nonnull
-	public int[] getExcludedChildrenIds() {
+	public FilterConstraint[] getExcludedChildrenFilter() {
 		return Arrays.stream(getChildren())
 			.filter(HierarchyExcluding.class::isInstance)
-			.map(it -> ((HierarchyExcluding) it).getPrimaryKeys())
+			.map(it -> ((HierarchyExcluding) it).getFiltering())
 			.findFirst()
-			.orElseGet(() -> new int[0]);
+			.orElseGet(() -> new FilterConstraint[0]);
 	}
 
 	/**

@@ -139,7 +139,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		final ConstraintDescriptor rootDescriptor = getRootConstraintContainerDescriptor();
 
 		// build root container which will serve as root for all other constraints
-		return obtainContainer(
+		return buildChildConstraintValue(
 			new BuildContext(getRootDataLocator()),
 			rootDescriptor.creator()
 				.childParameter()

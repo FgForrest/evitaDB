@@ -29,6 +29,7 @@ import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -44,24 +45,48 @@ abstract class AbstractFilterConstraintContainer extends ConstraintContainer<Fil
 		super(arguments, children, additionalChildren);
 	}
 
+	protected AbstractFilterConstraintContainer(@Nullable String name, @Nonnull Serializable[] arguments, @Nonnull FilterConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(name, arguments, children, additionalChildren);
+	}
+
 	protected AbstractFilterConstraintContainer(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
 		super(children, additionalChildren);
+	}
+
+	protected AbstractFilterConstraintContainer(@Nullable String name, @Nonnull FilterConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(name, NO_ARGS, children, additionalChildren);
 	}
 
 	protected AbstractFilterConstraintContainer(Serializable[] arguments, FilterConstraint... children) {
 		super(arguments, children);
 	}
 
+	protected AbstractFilterConstraintContainer(@Nullable String name, Serializable[] arguments, FilterConstraint... children) {
+		super(name, arguments, children);
+	}
+
 	protected AbstractFilterConstraintContainer(Serializable argument, FilterConstraint... children) {
 		super(new Serializable[] {argument}, children);
+	}
+
+	protected AbstractFilterConstraintContainer(@Nullable String name, Serializable argument, FilterConstraint... children) {
+		super(name, new Serializable[] {argument}, children);
 	}
 
 	protected AbstractFilterConstraintContainer(Serializable argument1, Serializable argument2, FilterConstraint... children) {
 		super(new Serializable[] {argument1, argument2}, children);
 	}
 
+	protected AbstractFilterConstraintContainer(@Nullable String name, Serializable argument1, Serializable argument2, FilterConstraint... children) {
+		super(name, new Serializable[] {argument1, argument2}, children);
+	}
+
 	protected AbstractFilterConstraintContainer(FilterConstraint... children) {
 		super(children);
+	}
+
+	protected AbstractFilterConstraintContainer(@Nullable String name, FilterConstraint... children) {
+		super(name, children);
 	}
 
 	@Nonnull

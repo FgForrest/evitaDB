@@ -34,11 +34,11 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyTraversalPredicate;
+import io.evitadb.index.hierarchy.predicate.FilteredHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -88,7 +88,7 @@ public abstract class AbstractHierarchyTranslator {
 			final int requiredDistance = distanceCnt.getDistance();
 			return (hierarchyNodeId, level, distance) -> distance > -1 && distance <= requiredDistance;
 		} else if (filter instanceof HierarchyNode node) {
-			return new FilteredHierarchyEntityPredicate(context, node.getFilterBy());
+			return new FilteredHierarchyEntityPredicate(context.queryContext(), context.entityIndex(), node.getFilterBy());
 		} else {
 			return null;
 		}

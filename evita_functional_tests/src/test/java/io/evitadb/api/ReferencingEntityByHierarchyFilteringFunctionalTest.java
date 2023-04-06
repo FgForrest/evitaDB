@@ -263,7 +263,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithinRoot(Entities.CATEGORY, excluding(excluded.toArray(new Integer[0])))),
+						filterBy(hierarchyWithinRoot(Entities.CATEGORY, excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -419,7 +419,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 1, excluding(excluded.toArray(new Integer[0])))),
+						filterBy(hierarchyWithin(Entities.CATEGORY, 1, excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -485,7 +485,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 									Entities.STORE,
 									attributeGreaterThan(ATTRIBUTE_CAPACITY, 50000)
 								),
-								hierarchyWithin(Entities.CATEGORY, 1, excluding(excluded.toArray(new Integer[0])))
+								hierarchyWithin(Entities.CATEGORY, 1, excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))))
 							)
 						),
 						require(

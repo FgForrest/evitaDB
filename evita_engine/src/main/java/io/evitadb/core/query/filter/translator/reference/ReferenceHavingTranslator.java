@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.filter.translator.reference;
 
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -46,8 +48,11 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static io.evitadb.utils.Assert.isTrue;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -98,7 +103,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 					),
 					(entityContract, attributeName, locale) -> entityContract.getReferences(referenceSchema.getName()).stream().map(it -> it.getAttributeValue(attributeName, locale)),
 					() -> {
-						filterConstraint.getConstraint().accept(filterByVisitor);
+						getFilterByFormula(filterConstraint).ifPresent(it -> it.accept(filterByVisitor));
 						final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
 						return switch (collectedFormulas.length) {
 							case 0 -> filterByVisitor.getSuperSetFormula();
@@ -113,6 +118,18 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		return FormulaFactory.or(
 			referencedEntityFormulas.toArray(EMPTY_FORMULA)
 		);
+	}
+
+	@Nonnull
+	private static Optional<FilterConstraint> getFilterByFormula(@Nonnull ReferenceHaving filterConstraint) {
+		final FilterConstraint[] children = filterConstraint.getChildren();
+		if (children.length == 0) {
+			return empty();
+		} else if (children.length == 1) {
+			return of(children[0]);
+		} else {
+			return of(new And(children));
+		}
 	}
 
 	@Nonnull

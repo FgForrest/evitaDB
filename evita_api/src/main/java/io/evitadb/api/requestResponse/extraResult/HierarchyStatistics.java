@@ -183,6 +183,12 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 		if (o == null || getClass() != o.getClass()) return false;
 		final HierarchyStatistics that = (HierarchyStatistics) o;
 
+		if (selfStatistics == null && that.selfStatistics != null) {
+			return false;
+		} else if (selfStatistics != null && that.selfStatistics == null) {
+			return false;
+		}
+
 		for (Entry<String, List<LevelInfo>> entry : selfStatistics.entrySet()) {
 			final List<LevelInfo> stats = entry.getValue();
 			final List<LevelInfo> otherStats = that.selfStatistics.get(entry.getKey());

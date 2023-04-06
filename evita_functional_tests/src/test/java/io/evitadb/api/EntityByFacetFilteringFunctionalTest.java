@@ -831,7 +831,7 @@ public class EntityByFacetFilteringFunctionalTest {
 					collection(Entities.PRODUCT),
 					filterBy(
 						and(
-							hierarchyWithin(Entities.CATEGORY, 1, excluding(excludedSubTrees)),
+							hierarchyWithin(Entities.CATEGORY, 1, excluding(entityPrimaryKeyInSet(excludedSubTrees))),
 							userFilter(
 								facetInSet(Entities.BRAND, 1),
 								facetInSet(Entities.STORE, 5, 6, 7, 8),

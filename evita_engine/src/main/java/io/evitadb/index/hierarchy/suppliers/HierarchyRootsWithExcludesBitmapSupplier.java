@@ -27,11 +27,10 @@ import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  * Implementation of {@link BitmapSupplier} that provides access to the data stored in {@link HierarchyIndex}
@@ -41,24 +40,21 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class HierarchyRootsWithExcludesBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final int CLASS_ID = -946906775;
+	private static final long CLASS_ID = -946906775L;
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
-	private final int[] excludedNodeTrees;
+	private final @Nonnull HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyRootsWithExcludesBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int[] excludedNodeTrees) {
+	public HierarchyRootsWithExcludesBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalId, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
 		this.excludedNodeTrees = excludedNodeTrees;
 	}
 
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInts(
-			Stream.of(
-				IntStream.of(CLASS_ID),
-				IntStream.of(excludedNodeTrees).sorted()
-			).flatMapToInt(it -> it).toArray()
+		return hashFunction.hashLongs(
+			new long[]{CLASS_ID, excludedNodeTrees.computeHash(hashFunction)}
 		);
 	}
 

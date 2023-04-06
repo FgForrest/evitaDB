@@ -24,14 +24,15 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate.FilteredHierarchyEntityPredicate;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.hierarchy.predicate.FilteredHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -39,8 +40,6 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * TODO JNO - document me
@@ -70,7 +69,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final FilteredHierarchyEntityPredicate parentIdPredicate = new FilteredHierarchyEntityPredicate(context, parentId);
+		final FilteredHierarchyEntityPredicate parentIdPredicate = new FilteredHierarchyEntityPredicate(context.queryContext(), context.entityIndex(), parentId);
 		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();
 
 		if (!parentId.isEmpty()) {
@@ -92,9 +91,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				visitor,
 				parentId.getFirst(),
 				false,
-				ofNullable(context.hierarchyFilter())
-					.map(HierarchyFilterConstraint::getExcludedChildrenIds)
-					.orElse(EMPTY_IDS)
+				filterPredicate
 			);
 			return visitor.getResult();
 		} else {

@@ -21,11 +21,11 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.predicate;
+package io.evitadb.index.hierarchy.predicate;
 
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyFilteringPredicate;
 import io.evitadb.index.EntityIndex;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,6 +48,11 @@ public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredica
 	@Override
 	public Formula getFilteringFormula() {
 		return filteringFormula;
+	}
+
+	@Override
+	public long computeHash(@Nonnull LongHashFunction hashFunction) {
+		return filteringFormula.computeHash(hashFunction);
 	}
 
 	@Override

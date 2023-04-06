@@ -27,7 +27,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyFromRoot;
 import io.evitadb.api.query.require.HierarchyStatistics;
@@ -48,7 +47,6 @@ public class HierarchyFromRootSerializer extends Serializer<HierarchyFromRoot> {
 		kryo.writeObjectOrNull(output, object.getStopAt().orElse(null), HierarchyStopAt.class);
 		kryo.writeObjectOrNull(output, object.getEntityFetch().orElse(null), EntityFetch.class);
 		kryo.writeObjectOrNull(output, object.getStatistics().orElse(null), HierarchyStatistics.class);
-		kryo.writeObjectOrNull(output, object.getFilterBy().orElse(null), FilterBy.class);
 	}
 
 	@Override
@@ -57,8 +55,7 @@ public class HierarchyFromRootSerializer extends Serializer<HierarchyFromRoot> {
 		final HierarchyStopAt stopAt = kryo.readObjectOrNull(input, HierarchyStopAt.class);
 		final EntityFetch entityFetch = kryo.readObjectOrNull(input, EntityFetch.class);
 		final HierarchyStatistics statistics = kryo.readObjectOrNull(input, HierarchyStatistics.class);
-		final FilterBy filterBy = kryo.readObjectOrNull(input, FilterBy.class);
-		return new HierarchyFromRoot(outputName, filterBy, entityFetch, stopAt, statistics);
+		return new HierarchyFromRoot(outputName, entityFetch, stopAt, statistics);
 	}
 
 }
