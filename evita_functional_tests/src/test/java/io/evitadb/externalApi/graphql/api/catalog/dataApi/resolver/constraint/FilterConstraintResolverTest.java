@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -195,10 +196,10 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 			EvitaInternalError.class,
 			() -> resolver.resolve(
 				"attribute_age_between",
-				mapOf(
-					"from", 1,
-					"to", 2
-				)
+				map()
+					.e("from", 1)
+					.e("to", 2)
+					.build()
 			)
 		);
 	}
@@ -238,57 +239,35 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 			QueryPurifierVisitor.purify(
 				resolver.resolve(
 					"filterBy",
-					List.of(
-						mapOf(
-							"attribute_code_equals", "123",
-							"or", List.of(
-								mapOf(
-									"attribute_age_is", AttributeSpecialValue.NULL
-								),
-								mapOf(
-									"price_between", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
-									"facet_brand_inSet", List.of(10, 20, 30)
+					map()
+						.e("attribute_code_equals", "123")
+						.e("or", List.of(
+							map()
+								.e("attribute_age_is", AttributeSpecialValue.NULL)
+								.build(),
+							map()
+								.e("price_between", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)))
+								.e("facet_brand_inSet", List.of(10, 20, 30))
+								.build()
+						))
+						.e("reference_category_having", List.of(
+							map()
+								.e("attribute_code_startsWith", "ab")
+								.e("entity_primaryKey_inSet", List.of(2))
+								.e("entity_having", map()
+									.e("attribute_name_equals", "cd")
+									.e("reference_relatedProducts_having", List.of(
+										map()
+											.e("attribute_order_equals", 1)
+											.build()
+									))
 								)
-							),
-							"reference_category_having", List.of(
-								mapOf(
-									"attribute_code_startsWith", "ab",
-									"entity_primaryKey_inSet", List.of(2),
-									"entity_having", mapOf(
-										"attribute_name_equals", "cd",
-										"reference_relatedProducts_having", List.of(
-											mapOf(
-												"attribute_order_equals", 1
-											)
-										)
-									)
-								)
+								.build()
 							)
 						)
-					)
+						.build()
 				)
 			)
 		);
-	}
-
-	private <K, V> Map<K, V> mapOf(K k1, V v1) {
-		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
-		map.put(k1, v1);
-		return map;
-	}
-
-	private <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2) {
-		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
-		map.put(k1, v1);
-		map.put(k2, v2);
-		return map;
-	}
-
-	private <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2, K k3, V v3) {
-		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
-		map.put(k1, v1);
-		map.put(k2, v2);
-		map.put(k3, v3);
-		return map;
 	}
 }
