@@ -683,21 +683,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nullable
 	@Override
 	public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final PrefetchedEntities prefetchedEntities = ofNullable(fetchedEntities.get(referenceSchema.getName()))
-			.filter(PrefetchedEntities::fetched)
+		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+			.map(prefetchedEntities -> (Function<Integer, SealedEntity>) prefetchedEntities::getEntity)
 			.orElse(null);
-		if (prefetchedEntities == null) {
-			return null;
-		} else {
-			return prefetchedEntities::getEntity;
-		}
 	}
 
 	@Nullable
 	@Override
 	public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return entityPrimaryKey -> ofNullable(fetchedEntities.get(referenceSchema.getName()))
-			.map(it -> it.getGroupEntity(entityPrimaryKey))
+		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+			.map(prefetchedEntities -> (Function<Integer, SealedEntity>) prefetchedEntities::getGroupEntity)
 			.orElse(null);
 	}
 
@@ -770,7 +765,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 						final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(entityPrimaryKey.length);
 						final Map<Integer, SealedEntity> entityIndex;
-						final boolean fetched;
 						// are we requested to (are we able to) fetch the entity bodies?
 						if (referenceSchema.isReferencedEntityTypeManaged() && requirements.entityFetch() != null) {
 							// if so, fetch them
@@ -787,11 +781,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								requirements.filterBy(),
 								validityMapping
 							);
-							fetched = true;
 						} else {
 							// if not, leave the index empty
 							entityIndex = Collections.emptyMap();
-							fetched = false;
 						}
 
 						final Map<Integer, SealedEntity> entityGroupIndex;
@@ -815,7 +807,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						}
 
 						return new PrefetchedEntities(
-							fetched,
 							entityIndex,
 							validityMapping,
 							entityGroupIndex,
@@ -972,13 +963,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	/**
 	 * The carrier DTO for carrying all prefetched entities and groups for specific reference.
 	 *
-	 * @param fetched          contains true if the entities were attempted to fetch (requirements required it and entity was managed)
 	 * @param entityIndex      prefetched entity bodies indexed by {@link EntityContract#getPrimaryKey()}
 	 * @param validityMapping  see detailed description in {@link ValidEntityToReferenceMapping}
 	 * @param entityGroupIndex prefetched entity group bodies indexed by {@link EntityContract#getPrimaryKey()}
 	 */
 	private record PrefetchedEntities(
-		boolean fetched,
 		@Nonnull Map<Integer, SealedEntity> entityIndex,
 		@Nullable ValidEntityToReferenceMapping validityMapping,
 		@Nonnull Map<Integer, SealedEntity> entityGroupIndex,

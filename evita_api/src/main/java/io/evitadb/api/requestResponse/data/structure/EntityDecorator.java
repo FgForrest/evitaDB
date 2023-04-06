@@ -1025,9 +1025,6 @@ public class EntityDecorator implements SealedEntity {
 		final SealedEntity referencedEntity;
 		if (referenceSchema.isReferencedEntityTypeManaged() && referenceEntityFetcher != null) {
 			referencedEntity = referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey());
-			if (referencedEntity == null) {
-				return null;
-			}
 		} else {
 			referencedEntity = null;
 		}

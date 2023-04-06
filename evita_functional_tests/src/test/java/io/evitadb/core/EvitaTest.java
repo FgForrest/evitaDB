@@ -2657,8 +2657,11 @@ class EvitaTest implements EvitaTestSupport {
 
 				// we get only single brand because when brand with PK=2 was fetched it was not found, yet it should
 				// be present since entity maps to evita managed entity
-				assertEquals(1, fullEntity.getReferences(Entities.BRAND).size());
+				assertEquals(2, fullEntity.getReferences(Entities.BRAND).size());
 				assertEquals(1, fullEntity.getReferences(Entities.PARAMETER).size());
+
+				assertTrue(fullEntity.getReference(Entities.BRAND, 1).orElseThrow().getReferencedEntity().isPresent());
+				assertFalse(fullEntity.getReference(Entities.BRAND, 2).orElseThrow().getReferencedEntity().isPresent());
 
 				final SealedEntity shortEntity = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
 					.orElseThrow();
