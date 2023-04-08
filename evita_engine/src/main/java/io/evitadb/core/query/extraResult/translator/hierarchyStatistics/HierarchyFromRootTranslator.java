@@ -34,7 +34,6 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.RootStatisticsComputer;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
-import io.evitadb.index.hierarchy.predicate.LocaleHierarchyEntityPredicate;
 
 import java.util.EnumSet;
 import java.util.Optional;
@@ -65,8 +64,8 @@ public class HierarchyFromRootTranslator
 					fromRoot.getEntityFetch().orElse(null),
 					producer.getContext(fromRoot.getName())
 				),
+				extraResultPlanningVisitor.getQueryContext().getHierarchyExclusionPredicate(),
 				scopePredicate,
-				new LocaleHierarchyEntityPredicate(context.entityIndex(), context.queryContext().getLocale()),
 				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 				statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
 			)

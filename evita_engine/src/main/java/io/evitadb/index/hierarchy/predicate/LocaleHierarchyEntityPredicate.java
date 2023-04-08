@@ -28,7 +28,6 @@ import io.evitadb.index.EntityIndex;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Locale;
 
 /**
@@ -42,12 +41,6 @@ public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredica
 
 	public LocaleHierarchyEntityPredicate(@Nonnull EntityIndex targetIndex, @Nonnull Locale language) {
 		this.filteringFormula = targetIndex.getRecordsWithLanguageFormula(language);
-	}
-
-	@Nullable
-	@Override
-	public Formula getFilteringFormula() {
-		return filteringFormula;
 	}
 
 	@Override

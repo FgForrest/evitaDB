@@ -36,7 +36,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.hierarchy.predicate.FilteredHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -51,7 +51,7 @@ import javax.annotation.Nullable;
  */
 public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<HierarchyWithin> {
 
-	public static Formula createFormulaFromHierarchyIndexForDifferentEntity(
+	public static Formula createFormulaFromHierarchyIndex(
 		int parentId,
 		@Nullable HierarchyFilteringPredicate excludedChildren,
 		boolean directRelation,
@@ -96,14 +96,17 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		);
 
 		if (referenceName == null) {
-			final EntityIndex globalIndex = filterByVisitor.getGlobalEntityIndex();
-			final FilterConstraint[] excludedChildrenFormula = hierarchyWithin.getExcludedChildrenFilter();
-			final HierarchyFilteringPredicate exclusionPredicate = ArrayUtils.isEmpty(excludedChildrenFormula) ?
-				null : new FilteredHierarchyEntityPredicate(queryContext, globalIndex, new FilterBy(excludedChildrenFormula));
-			return createFormulaFromHierarchyIndexForDifferentEntity(
-				parentId,
-				exclusionPredicate,
-				directRelation, excludingRoot, globalIndex
+			return queryContext.computeOnlyOnce(
+				hierarchyWithin,
+				() -> createFormulaFromHierarchyIndex(
+					parentId,
+					createAndStoreExclusionPredicate(
+						queryContext,
+						hierarchyWithin.getExcludedChildrenFilter(),
+						filterByVisitor.getGlobalEntityIndex()
+					),
+					directRelation, excludingRoot, filterByVisitor.getGlobalEntityIndex()
+				)
 			);
 		} else {
 			// when we target the hierarchy indexes and there are filtering constraints in conjunction scope that target
@@ -122,8 +125,8 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 					final EntityIndex foreignEntityIndex = filterByVisitor.getGlobalEntityIndex(referenceName);
 					final FilterConstraint[] excludedChildrenFormula = hierarchyWithin.getExcludedChildrenFilter();
 					final HierarchyFilteringPredicate exclusionPredicate = ArrayUtils.isEmpty(excludedChildrenFormula) ?
-						null : new FilteredHierarchyEntityPredicate(queryContext, foreignEntityIndex, new FilterBy(excludedChildrenFormula));
-					final Formula referencedIds = createFormulaFromHierarchyIndexForDifferentEntity(
+						null : new FilteringFormulaHierarchyEntityPredicate(queryContext, foreignEntityIndex, new FilterBy(excludedChildrenFormula));
+					final Formula referencedIds = createFormulaFromHierarchyIndex(
 						parentId, exclusionPredicate, directRelation, excludingRoot, foreignEntityIndex
 					);
 					return getReferencedEntityFormulas(filterByVisitor, referenceName, referencedIds.compute().getArray());

@@ -42,7 +42,6 @@ import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
-import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -50,8 +49,6 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.hierarchy.predicate.FilteredHierarchyEntityPredicate;
-import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -61,6 +58,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
+import static io.evitadb.core.query.filter.translator.hierarchy.AbstractHierarchyTranslator.createAndStoreExclusionPredicate;
+import static io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator.createFormulaFromHierarchyIndex;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -150,22 +149,32 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 				} else {
 					final Formula requestedHierarchyNodesFormula;
 					if (constraint instanceof final HierarchyWithinRoot hierarchyWithinRoot) {
-						requestedHierarchyNodesFormula = HierarchyWithinRootTranslator.createFormulaFromHierarchyIndex(
-							ArrayUtils.isEmpty(hierarchyWithinRoot.getExcludedChildrenFilter()) ?
-								null :
-								new FilteredHierarchyEntityPredicate(queryContext, targetHierarchyIndex, new FilterBy(hierarchyWithinRoot.getExcludedChildrenFilter())),
-							hierarchyWithinRoot.isDirectRelation(),
-							targetHierarchyIndex
+						requestedHierarchyNodesFormula = queryContext.computeOnlyOnce(
+							hierarchyWithinRoot,
+							() -> HierarchyWithinRootTranslator.createFormulaFromHierarchyIndex(
+								createAndStoreExclusionPredicate(
+									queryContext,
+									hierarchyWithinRoot.getExcludedChildrenFilter(),
+									targetHierarchyIndex
+								),
+								hierarchyWithinRoot.isDirectRelation(),
+								targetHierarchyIndex
+							)
 						);
 					} else if (constraint instanceof final HierarchyWithin hierarchyWithin) {
-						requestedHierarchyNodesFormula = HierarchyWithinTranslator.createFormulaFromHierarchyIndexForDifferentEntity(
-							hierarchyWithin.getParentId(),
-							ArrayUtils.isEmpty(hierarchyWithin.getExcludedChildrenFilter()) ?
-								null :
-								new FilteredHierarchyEntityPredicate(queryContext, targetHierarchyIndex, new FilterBy(hierarchyWithin.getExcludedChildrenFilter())),
-							hierarchyWithin.isDirectRelation(),
-							hierarchyWithin.isExcludingRoot(),
-							targetHierarchyIndex
+						requestedHierarchyNodesFormula = queryContext.computeOnlyOnce(
+							hierarchyWithin,
+							() -> createFormulaFromHierarchyIndex(
+								hierarchyWithin.getParentId(),
+								createAndStoreExclusionPredicate(
+									queryContext,
+									hierarchyWithin.getExcludedChildrenFilter(),
+									targetHierarchyIndex
+								),
+								hierarchyWithin.isDirectRelation(),
+								hierarchyWithin.isExcludingRoot(),
+								targetHierarchyIndex
+							)
 						);
 					} else {
 						//sanity check only

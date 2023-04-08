@@ -23,17 +23,16 @@
 
 package io.evitadb.core.query.algebra.hierarchy;
 
-import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
+import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
+import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.utils.Assert;
+import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Hierarchy formula envelopes {@link Formula} that compute {@link io.evitadb.api.query.FilterConstraint} targeted
@@ -44,29 +43,25 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HierarchyFormula extends AbstractFormula implements NonCacheableFormula {
+public class HierarchyFormula extends DeferredFormula implements NonCacheableFormula {
 	private static final long CLASS_ID = -8687554987155455428L;
-	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
+	@Getter
+	private final Formula reducedNodeFormula;
 
-	public HierarchyFormula(@Nonnull Formula innerFormula) {
-		super(innerFormula);
+	public HierarchyFormula(@Nonnull BitmapSupplier retrieveLambda) {
+		super(retrieveLambda);
+		this.reducedNodeFormula = null;
+	}
+
+	public HierarchyFormula(@Nonnull BitmapSupplier retrieveLambda, @Nullable Formula reducedNodeFormula) {
+		super(retrieveLambda);
+		this.reducedNodeFormula = reducedNodeFormula;
 	}
 
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
-		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new HierarchyFormula(innerFormulas[0]);
-	}
-
-	@Override
-	public long getOperationCost() {
-		return 1;
-	}
-
-	@Override
-	public int getEstimatedCardinality() {
-		return innerFormulas[0].getEstimatedCardinality();
+		throw new UnsupportedOperationException("Hierarchy formula is a terminal formula and cannot have children!");
 	}
 
 	@Override
@@ -74,21 +69,29 @@ public class HierarchyFormula extends AbstractFormula implements NonCacheableFor
 		return "HIERARCHY FILTER";
 	}
 
-	@Nonnull
-	@Override
-	protected Bitmap computeInternal() {
-		if (innerFormulas.length == 0) {
-			return EmptyBitmap.INSTANCE;
-		} else if (innerFormulas.length == 1) {
-			return innerFormulas[0].compute();
-		} else {
-			throw new EvitaInternalError(ERROR_SINGLE_FORMULA_EXPECTED);
-		}
+	@Nullable
+	public Formula getAllReducedNodeFormulaOrNull() {
+		return reducedNodeFormula;
 	}
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
+		if (reducedNodeFormula == null) {
+			return hashFunction.hashLongs(
+				new long[]{
+					CLASS_ID,
+					super.includeAdditionalHash(hashFunction)
+				}
+			);
+		} else {
+			return hashFunction.hashLongs(
+				new long[]{
+					CLASS_ID,
+					super.includeAdditionalHash(hashFunction),
+					reducedNodeFormula.computeHash(hashFunction)
+				}
+			);
+		}
 	}
 
 	@Override

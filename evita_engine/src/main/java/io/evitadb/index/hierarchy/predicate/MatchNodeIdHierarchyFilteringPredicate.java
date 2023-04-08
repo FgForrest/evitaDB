@@ -37,21 +37,21 @@ import java.io.Serializable;
 public class MatchNodeIdHierarchyFilteringPredicate implements HierarchyFilteringPredicate, Serializable {
 	@Serial private static final long serialVersionUID = -785434923550857430L;
 	private static final int CLASS_ID = -550857430;
-	private final int exceptNodeId;
+	private final int matchNodeId;
 
-	public MatchNodeIdHierarchyFilteringPredicate(int exceptNodeId) {
-		this.exceptNodeId = exceptNodeId;
+	public MatchNodeIdHierarchyFilteringPredicate(int matchNodeId) {
+		this.matchNodeId = matchNodeId;
 	}
 
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashInts(
-			new int[]{CLASS_ID, exceptNodeId}
+			new int[]{CLASS_ID, matchNodeId}
 		);
 	}
 
 	@Override
 	public boolean test(int nodeId) {
-		return nodeId == exceptNodeId;
+		return nodeId == matchNodeId;
 	}
 }

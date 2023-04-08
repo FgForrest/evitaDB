@@ -193,7 +193,10 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		this.priceRecords.add(priceRecord);
 		// make index dirty
 		this.dirty.setToTrue();
-		this.memoizedIndexedPriceIds = null;
+		/* TODO JNO - podmínku na transakčnost přidat i do ostatních - transakce by neměly ovlivňovat sdílený stav */
+		if (!isTransactionAvailable()) {
+			this.memoizedIndexedPriceIds = null;
+		}
 	}
 
 	/**
@@ -224,7 +227,9 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		}
 		// make index dirty
 		this.dirty.setToTrue();
-		this.memoizedIndexedPriceIds = null;
+		if (!isTransactionAvailable()) {
+			this.memoizedIndexedPriceIds = null;
+		}
 	}
 
 	/**

@@ -48,12 +48,11 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 	public ChildrenStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
-		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
+		@Nonnull HierarchyFilteringPredicate exclusionPredicate, @Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Nonnull
@@ -63,19 +62,23 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
+		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
+			filterPredicate :
+			exclusionPredicate.negate().and(filterPredicate);
 		final ChildrenStatisticsHierarchyVisitor childrenVisitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
 			0,
-			scopePredicate, filterPredicate,
+			scopePredicate,
+			combinedFilteringPredicate,
 			filteredEntityPks,
 			context.hierarchyReferencingEntityPks(), entityFetcher,
 			statisticsType
 		);
-		if (context.hierarchyFilter() instanceof HierarchyWithinRoot hierarchyWithinRoot) {
+		if (context.hierarchyFilter() instanceof HierarchyWithinRoot) {
 			// if there is within hierarchy root query we start at root nodes
 			context.entityIndex().traverseHierarchy(
 				childrenVisitor,
-				filterPredicate
+				combinedFilteringPredicate.negate()
 			);
 		} else if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
 			// if root node is set, use different traversal method
@@ -83,12 +86,13 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 				childrenVisitor,
 				hierarchyWithin.getParentId(),
 				false,
-				filterPredicate
+				combinedFilteringPredicate.negate()
 			);
 		} else {
 			// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
 			context.entityIndex().traverseHierarchy(
-				childrenVisitor
+				childrenVisitor,
+				combinedFilteringPredicate.negate()
 			);
 		}
 

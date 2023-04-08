@@ -47,15 +47,12 @@ public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarc
 	public AbstractSiblingsStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(
-			context, entityFetcher, scopePredicate,
-			filterPredicate, statisticsBase, statisticsType
-		);
+		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Nonnull
@@ -65,12 +62,15 @@ public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarc
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
+		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
+			filterPredicate :
+			exclusionPredicate.negate().and(filterPredicate);
 		final OptionalInt parentNode = getParentNodeId(context);
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
 			getDistanceModifier(),
 			scopePredicate,
-			filterPredicate,
+			combinedFilteringPredicate,
 			filteredEntityPks,
 			context.hierarchyReferencingEntityPks(), entityFetcher,
 			statisticsType
@@ -82,14 +82,14 @@ public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarc
 					visitor,
 					parentNodeId,
 					true,
-					filterPredicate
+					combinedFilteringPredicate.negate()
 				);
 			},
 			() -> {
 				// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
 				context.entityIndex().traverseHierarchy(
 					visitor,
-					filterPredicate
+					combinedFilteringPredicate.negate()
 				);
 			}
 		);

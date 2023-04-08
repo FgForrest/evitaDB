@@ -48,7 +48,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.IntFunction;
-import java.util.function.ToIntBiFunction;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -86,7 +86,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	 * Internal function that creates a formula that computes the number of queried entities linked to the processed
 	 * {@link HierarchyNode}.
 	 */
-	private final ToIntBiFunction<HierarchyNode, Formula> queriedEntityComputer;
+	private final ToIntFunction<HierarchyNode> queriedEntityComputer;
 	/**
 	 * TODO JNO - document me
 	 */
@@ -107,23 +107,14 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 		this.filterPredicate = filterPredicate;
 		this.entityFetcher = entityFetcher;
 		this.statisticsType = statisticsType;
-		this.queriedEntityComputer = (hierarchyNode, predicateFilteringFormula) -> {
+		this.queriedEntityComputer = hierarchyNode -> {
 			// get all queried entity primary keys that refer to this hierarchical node
 			final Formula allEntitiesReferencingEntity = hierarchyReferencingEntityPks.apply(hierarchyNode.entityPrimaryKey());
 			// now combine them with primary keys that are really returned by the query and compute matching count
-			final Formula completedFormula;
-			if (predicateFilteringFormula == null) {
-				completedFormula = FormulaFactory.and(
-					allEntitiesReferencingEntity,
-					filteredEntityPks
-				);
-			} else {
-				completedFormula = FormulaFactory.and(
-					allEntitiesReferencingEntity,
-					predicateFilteringFormula,
-					filteredEntityPks
-				);
-			}
+			final Formula completedFormula = FormulaFactory.and(
+				allEntitiesReferencingEntity,
+				filteredEntityPks
+			);
 			return completedFormula.compute().size();
 		};
 		this.siblingsStatisticsComputer = siblingsStatisticsComputer;
@@ -141,6 +132,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 			if (siblingsStatisticsComputer != null) {
 				final List<LevelInfo> siblings = siblingsStatisticsComputer.createStatistics(
 					filteredEntityPks,
+					filterPredicate,
 					next.getEntity().getPrimaryKey(),
 					current.entity().getPrimaryKey()
 				);
@@ -162,7 +154,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 			return Stream.concat(
 					siblingsStatisticsComputer.createStatistics(
 						filteredEntityPks,
-						null,
+						filterPredicate, null,
 						current.entity().getPrimaryKey()
 					).stream(),
 					Stream.of(current)
@@ -186,7 +178,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 				accumulator.push(
 					new Accumulator(
 						node, hierarchyEntity,
-						() -> queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
+						() -> queriedEntityComputer.applyAsInt(node)
 					)
 				);
 			}

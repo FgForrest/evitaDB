@@ -44,15 +44,12 @@ public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComput
 	public SiblingsStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(
-			context, entityFetcher, scopePredicate,
-			filterPredicate, statisticsBase, statisticsType
-		);
+		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Override

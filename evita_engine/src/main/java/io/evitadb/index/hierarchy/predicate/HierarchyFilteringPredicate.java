@@ -23,21 +23,15 @@
 
 package io.evitadb.index.hierarchy.predicate;
 
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.core.query.algebra.base.OrFormula;
-import io.evitadb.index.bitmap.Bitmap;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * The predicate controls the visibility for the hierarchical entities that take part in hierarchy statistics
@@ -50,15 +44,6 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 
 	HierarchyFilteringPredicate REJECT_ALL_NODES_PREDICATE = new HierarchyFilteringRejectAllPredicate();
 	HierarchyFilteringPredicate ACCEPT_ALL_NODES_PREDICATE = new HierarchyFilteringAcceptAllPredicate();
-
-	/**
-	 * Method returns the {@link Formula} that produces the {@link Bitmap} of hierarchical entity primary keys, that
-	 * are matched by this predicate.
-	 */
-	@Nullable
-	default Formula getFilteringFormula() {
-		return null;
-	}
 
 	/**
 	 * The copy of the {@link Predicate#and(Predicate)} that combines two {@link HierarchyFilteringPredicate} producing
@@ -85,7 +70,10 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 
 	@Override
 	default HierarchyFilteringPredicate negate() {
-		return new NegatedHierarchyFilteringPredicate(this);
+		return this instanceof NegatedHierarchyFilteringPredicate negatedHierarchyFilteringPredicate ?
+			// double negation means unwrapping
+			negatedHierarchyFilteringPredicate.getPredicate() :
+			new NegatedHierarchyFilteringPredicate(this);
 	}
 
 	/**
@@ -97,17 +85,6 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		@Serial private static final long serialVersionUID = 1384400346650986235L;
 		private final HierarchyFilteringPredicate first;
 		private final HierarchyFilteringPredicate second;
-
-		@Nullable
-		@Override
-		public Formula getFilteringFormula() {
-			return ofNullable(first.getFilteringFormula())
-				.map(formula -> ofNullable(second.getFilteringFormula())
-					.map(it -> (Formula) new AndFormula(formula, it))
-					.orElse(formula)
-				)
-				.orElse(second.getFilteringFormula());
-		}
 
 		@Override
 		public long computeHash(@Nonnull LongHashFunction hashFunction) {
@@ -129,17 +106,6 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 		@Serial private static final long serialVersionUID = 2547741955086633818L;
 		private final HierarchyFilteringPredicate first;
 		private final HierarchyFilteringPredicate second;
-
-		@Nullable
-		@Override
-		public Formula getFilteringFormula() {
-			return ofNullable(first.getFilteringFormula())
-				.map(formula -> ofNullable(second.getFilteringFormula())
-					.map(it -> (Formula) new OrFormula(formula, it))
-					.orElse(formula)
-				)
-				.orElse(second.getFilteringFormula());
-		}
 
 		@Override
 		public long computeHash(@Nonnull LongHashFunction hashFunction) {
@@ -182,7 +148,7 @@ public interface HierarchyFilteringPredicate extends IntPredicate {
 
 	@RequiredArgsConstructor
 	class NegatedHierarchyFilteringPredicate implements HierarchyFilteringPredicate {
-		private final HierarchyFilteringPredicate predicate;
+		@Getter private final HierarchyFilteringPredicate predicate;
 
 		@Override
 		public long computeHash(@Nonnull LongHashFunction hashFunction) {

@@ -39,7 +39,6 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.SiblingsStatisticsTravelingComputer;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
-import io.evitadb.index.hierarchy.predicate.LocaleHierarchyEntityPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -79,6 +78,7 @@ public class HierarchyParentsTranslator
 						parents.getEntityFetch().orElse(null),
 						producer.getContext(parents.getName())
 					),
+					extraResultPlanningVisitor.getQueryContext().getHierarchyExclusionPredicate(),
 					scopePredicate,
 					statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 					statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class)),
@@ -113,8 +113,8 @@ public class HierarchyParentsTranslator
 				siblings.getEntityFetch().orElse(parentEntityFetch),
 				context
 			),
+			context.queryContext().getHierarchyExclusionPredicate(),
 			scopePredicate,
-			new LocaleHierarchyEntityPredicate(context.entityIndex(), context.queryContext().getLocale()),
 			statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 			statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))
 		);

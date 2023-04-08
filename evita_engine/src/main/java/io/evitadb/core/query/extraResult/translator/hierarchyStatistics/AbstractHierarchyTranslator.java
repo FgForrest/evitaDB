@@ -37,7 +37,7 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
-import io.evitadb.index.hierarchy.predicate.FilteredHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
 import javax.annotation.Nonnull;
@@ -59,7 +59,7 @@ public abstract class AbstractHierarchyTranslator {
 	@Nonnull
 	protected static HierarchyStatisticsProducer getHierarchyStatisticsProducer(
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
-	) {
+		) {
 		return ofNullable(extraResultPlanner.findExistingProducer(HierarchyStatisticsProducer.class))
 			.orElseGet(
 				() -> new HierarchyStatisticsProducer(
@@ -88,7 +88,7 @@ public abstract class AbstractHierarchyTranslator {
 			final int requiredDistance = distanceCnt.getDistance();
 			return (hierarchyNodeId, level, distance) -> distance > -1 && distance <= requiredDistance;
 		} else if (filter instanceof HierarchyNode node) {
-			return new FilteredHierarchyEntityPredicate(context.queryContext(), context.entityIndex(), node.getFilterBy());
+			return new FilteringFormulaHierarchyEntityPredicate(context.queryContext(), context.entityIndex(), node.getFilterBy());
 		} else {
 			return null;
 		}

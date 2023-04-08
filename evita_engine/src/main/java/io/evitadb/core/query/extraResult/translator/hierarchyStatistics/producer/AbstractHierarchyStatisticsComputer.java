@@ -39,14 +39,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
  * Abstract ancestor for hierarchy statistics computers. Contains shared logic and data.
  */
 abstract class AbstractHierarchyStatisticsComputer {
-	protected static final int[] EMPTY_IDS = new int[0];
 
 	/**
 	 * Context captured at the moment the computer was created.
@@ -72,10 +70,11 @@ abstract class AbstractHierarchyStatisticsComputer {
 	protected final HierarchyTraversalPredicate scopePredicate;
 	/**
 	 * The predicate controlling which hierarchical entities will be taken into an account
-	 * in {@link LevelInfo#childrenCount()} and {@link LevelInfo#queriedEntityCount()}.
+	 * in {@link LevelInfo#childrenCount()} and {@link LevelInfo#queriedEntityCount()}. The predicate is driven
+	 * by {@link io.evitadb.api.query.filter.HierarchyExcluding} filtering constraint.
 	 */
-	@Nonnull
-	protected final HierarchyFilteringPredicate filterPredicate;
+	@Nullable
+	protected final HierarchyFilteringPredicate exclusionPredicate;
 	/**
 	 * Controls the scope of the query filter by, that should be used for computing the queried entity count
 	 * in the {@link LevelInfo#queriedEntityCount()} statistics. Might be null if the count is not required to be
@@ -87,15 +86,15 @@ abstract class AbstractHierarchyStatisticsComputer {
 	public AbstractHierarchyStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
 		this.context = context;
 		this.entityFetcher = entityFetcher;
+		this.exclusionPredicate = exclusionPredicate;
 		this.scopePredicate = ofNullable(scopePredicate).orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
-		this.filterPredicate = of(filterPredicate).orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 		this.statisticsBase = statisticsBase;
 		this.statisticsType = statisticsType;
 	}
@@ -117,8 +116,8 @@ abstract class AbstractHierarchyStatisticsComputer {
 				filteringFormulaWithoutUserFilter : filteringFormula,
 			scopePredicate,
 			language == null ?
-				filterPredicate :
-				filterPredicate.and(new LocaleHierarchyEntityPredicate(context.entityIndex(), language))
+				HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE :
+				new LocaleHierarchyEntityPredicate(context.entityIndex(), language)
 		);
 	}
 

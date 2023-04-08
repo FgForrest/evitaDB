@@ -51,15 +51,12 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 	public SiblingsStatisticsTravelingComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(
-			context, entityFetcher, scopePredicate,
-			filterPredicate, statisticsBase, statisticsType
-		);
+		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Override
@@ -75,17 +72,21 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 	@Nonnull
 	public List<LevelInfo> createStatistics(
 		@Nonnull Formula filteredEntityPks,
-		@Nullable Integer parentNodeId,
+		HierarchyFilteringPredicate filterPredicate, @Nullable Integer parentNodeId,
 		int exceptNodeId
 	) {
+		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
+			filterPredicate :
+			exclusionPredicate.negate().and(filterPredicate);
 		try {
 			Assert.isPremiseValid(this.parentNodeId == null, "The context was not properly cleared!");
 			this.parentNodeId = parentNodeId;
 			// the language predicate is used to filter out entities that doesn't have requested language variant
+			final HierarchyFilteringPredicate exceptPivotNode = new MatchNodeIdHierarchyFilteringPredicate(exceptNodeId).negate();
 			return createStatistics(
 				filteredEntityPks,
 				scopePredicate,
-				filterPredicate.and(new MatchNodeIdHierarchyFilteringPredicate(exceptNodeId))
+				combinedFilteringPredicate.and(exceptPivotNode)
 			);
 		} finally {
 			this.parentNodeId = null;

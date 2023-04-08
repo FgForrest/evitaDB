@@ -46,12 +46,12 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 	public RootStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Nonnull
@@ -61,18 +61,22 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
+		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
+			filterPredicate :
+			exclusionPredicate.negate().and(filterPredicate);
 		// we always start with root nodes, but we respect the children exclusion
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
 			0,
-			scopePredicate, filterPredicate,
+			scopePredicate,
+			combinedFilteringPredicate,
 			filteredEntityPks,
 			context.hierarchyReferencingEntityPks(), entityFetcher,
 			statisticsType
 		);
 		context.entityIndex().traverseHierarchy(
 			visitor,
-			filterPredicate
+			combinedFilteringPredicate.negate()
 		);
 
 		return visitor.getResult();

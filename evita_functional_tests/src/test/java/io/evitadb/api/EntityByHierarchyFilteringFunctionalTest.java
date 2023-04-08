@@ -1013,13 +1013,16 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
+				final Set<Integer> allowedParents = Stream.of(1, 6, 21, 30).collect(Collectors.toSet());
+				final Set<Integer> disallowedParents = Stream.of(2, 5, 8).collect(Collectors.toSet());
+
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(30, excluding(entityPrimaryKeyInSet(3, 9)))
+								hierarchyWithinSelf(30, excluding(entityPrimaryKeyInSet(disallowedParents.toArray(Integer[]::new))))
 							)
 						),
 						require(
@@ -1040,15 +1043,15 @@ public class EntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Set<Integer> allowedParents = Stream.of(1, 6, 21, 30).collect(Collectors.toSet());
 				final TestHierarchyPredicate filterPredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate scopePredicate =
 					(entity, parentItems) -> {
 						final boolean isDirectParent = allowedParents.contains(entity.getPrimaryKey());
 						final boolean isRoot = parentItems.isEmpty();
+						final boolean isNotInDisallowedParents = !disallowedParents.contains(entity.getPrimaryKey()) && parentItems.stream().noneMatch(it -> disallowedParents.contains(Integer.parseInt(it.getCode())));
 						final boolean isChildOfAnyParent = !isRoot && allowedParents.contains(Integer.parseInt(parentItems.get(parentItems.size() - 1).getCode()));
 						final boolean isChildOfRequestedCategory = parentItems.stream().anyMatch(it -> it.getCode().equals("30"));
-						return entity.getLocales().contains(CZECH_LOCALE) &&
+						return entity.getLocales().contains(CZECH_LOCALE) && isNotInDisallowedParents &&
 							(isDirectParent || isRoot || isChildOfAnyParent || isChildOfRequestedCategory);
 					};
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
@@ -1058,7 +1061,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						"megaMenu",
 						computeParents(
 							session, 30, categoryHierarchy,
-							categoryCardinalities, entity -> entity.getPrimaryKey() == 3 || entity.getPrimaryKey() == 9,
+							categoryCardinalities, entity -> !disallowedParents.contains(entity.getPrimaryKey()),
 							true, true
 						)
 					)
@@ -1720,7 +1723,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statistics()
 								)
 							)
 						)
@@ -2091,7 +2094,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithinRootSelf(
 									excluding(
-										attributeEqualsFalse(ATTRIBUTE_SHORTCUT)
+										attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
 									)
 								)
 							)
@@ -2151,7 +2154,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(1, excluding(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))
+								hierarchyWithinSelf(1, excluding(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))
 							)
 						),
 						require(
@@ -2216,7 +2219,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(6, excluding(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))
+								hierarchyWithinSelf(6, excluding(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))
 							)
 						),
 						require(
@@ -2281,7 +2284,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(6, excluding(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))
+								hierarchyWithinSelf(6, excluding(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))
 							)
 						),
 						require(

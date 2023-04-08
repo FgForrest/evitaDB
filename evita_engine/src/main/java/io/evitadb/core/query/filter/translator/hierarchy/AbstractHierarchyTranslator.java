@@ -24,7 +24,9 @@
 package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -34,8 +36,12 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -45,7 +51,28 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-abstract class AbstractHierarchyTranslator<T extends FilterConstraint> implements FilteringConstraintTranslator<T>, SelfTraversingTranslator {
+public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> implements FilteringConstraintTranslator<T>, SelfTraversingTranslator {
+
+	/**
+	 * Creates a hierarchy exclusion predicate if the exclusion filter is defined and stores it to {@link QueryContext}
+	 * for later use.
+	 */
+	@Nullable
+	public static HierarchyFilteringPredicate createAndStoreExclusionPredicate(
+		@Nonnull QueryContext queryContext,
+		@Nullable FilterConstraint[] exclusionFilter,
+		@Nonnull EntityIndex targetHierarchyIndex
+	) {
+		if (ArrayUtils.isEmpty(exclusionFilter)) {
+			return null;
+		} else {
+			final FilteringFormulaHierarchyEntityPredicate exclusionPredicate = new FilteringFormulaHierarchyEntityPredicate(
+				queryContext, targetHierarchyIndex, new FilterBy(exclusionFilter)
+			);
+			queryContext.setHierarchyExclusionPredicate(exclusionPredicate);
+			return exclusionPredicate;
+		}
+	}
 
 	/**
 	 * Method returns {@link Formula} that returns all entity ids that are referencing ids in `pivotIds`.

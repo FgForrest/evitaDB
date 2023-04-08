@@ -41,7 +41,6 @@ import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Supplier;
@@ -49,6 +48,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.Assert.notNull;
+import static java.util.Optional.ofNullable;
 
 /**
  * The predicate evaluates the nested query filter function to get the {@link Bitmap} of all hierarchy entity primary
@@ -57,7 +57,7 @@ import static io.evitadb.utils.Assert.notNull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class FilteredHierarchyEntityPredicate implements HierarchyFilteringPredicate, HierarchyTraversalPredicate {
+public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilteringPredicate, HierarchyTraversalPredicate {
 	/**
 	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
 	 */
@@ -65,9 +65,9 @@ public class FilteredHierarchyEntityPredicate implements HierarchyFilteringPredi
 	/**
 	 * Formula computes id of all hierarchical entities that match input filter by constraint.
 	 */
-	private final Formula filteringFormula;
+	@Getter private final Formula filteringFormula;
 
-	public FilteredHierarchyEntityPredicate(
+	public FilteringFormulaHierarchyEntityPredicate(
 		@Nonnull QueryContext queryContext,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull FilterBy filterBy
@@ -95,7 +95,10 @@ public class FilteredHierarchyEntityPredicate implements HierarchyFilteringPredi
 				null,
 				null,
 				(entitySchema, attributeName) -> {
-					final AttributeSchemaContract attributeSchema = entitySchema.getAttribute(attributeName).orElse(null);
+					final AttributeSchemaContract attributeSchema = ofNullable(entitySchema)
+						.orElseGet(queryContext::getSchema)
+						.getAttribute(attributeName)
+						.orElse(null);
 					notNull(
 						attributeSchema,
 						() -> new AttributeNotFoundException(attributeName, entitySchema)
@@ -130,12 +133,6 @@ public class FilteredHierarchyEntityPredicate implements HierarchyFilteringPredi
 		} finally {
 			queryContext.popStep();
 		}
-	}
-
-	@Nullable
-	@Override
-	public Formula getFilteringFormula() {
-		return filteringFormula;
 	}
 
 	@Override

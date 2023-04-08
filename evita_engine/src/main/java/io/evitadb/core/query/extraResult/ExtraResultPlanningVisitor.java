@@ -204,7 +204,8 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		if (filteringFormulaWithoutHierarchyFilter == null) {
 			filteringFormulaWithoutHierarchyFilter = FormulaCloner.clone(
 				filteringFormula,
-				formula -> formula instanceof HierarchyFormula ? null : formula
+				formula -> formula instanceof HierarchyFormula hierarchyFormula ?
+					hierarchyFormula.getAllReducedNodeFormulaOrNull() : formula
 			);
 		}
 		return filteringFormulaWithoutHierarchyFilter;
@@ -234,14 +235,21 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Formula getFilteringFormulaWithoutHierarchyAndUserFilter() {
-		if (filteringFormulaWithoutHierarchyFilter == null) {
-			filteringFormulaWithoutHierarchyFilter = FormulaCloner.clone(
+		if (filteringFormulaWithoutHierarchyAndUserFilter == null) {
+			filteringFormulaWithoutHierarchyAndUserFilter = FormulaCloner.clone(
 				filteringFormula,
-				formula -> formula instanceof HierarchyFormula || formula instanceof UserFilterFormula ?
-					null : formula
+				formula -> {
+					if (formula instanceof HierarchyFormula hierarchyFormula) {
+						return hierarchyFormula.getAllReducedNodeFormulaOrNull();
+					} else if (formula instanceof UserFilterFormula) {
+						return null;
+					} else {
+						return formula;
+					}
+				}
 			);
 		}
-		return filteringFormulaWithoutHierarchyFilter;
+		return filteringFormulaWithoutHierarchyAndUserFilter;
 	}
 
 	/**

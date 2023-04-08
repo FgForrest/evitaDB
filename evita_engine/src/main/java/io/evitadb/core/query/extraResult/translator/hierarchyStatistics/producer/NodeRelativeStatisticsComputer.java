@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.hierarchy.predicate.FilteredHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.utils.Assert;
@@ -52,13 +52,13 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 	public NodeRelativeStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
-		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType,
 		@Nonnull FilterBy parentId
 	) {
-		super(context, entityFetcher, scopePredicate, filterPredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 		this.parentId = parentId;
 	}
 
@@ -69,7 +69,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final FilteredHierarchyEntityPredicate parentIdPredicate = new FilteredHierarchyEntityPredicate(context.queryContext(), context.entityIndex(), parentId);
+		final FilteringFormulaHierarchyEntityPredicate parentIdPredicate = new FilteringFormulaHierarchyEntityPredicate(context.queryContext(), context.entityIndex(), parentId);
 		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();
 
 		if (!parentId.isEmpty()) {
@@ -78,11 +78,15 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				() -> "The filter by constraint: `" + parentIdPredicate.getFilterBy() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
 					"Hierarchy statistics computation expects only single node will be matched (due to performance reasons)."
 			);
+			final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
+				filterPredicate :
+				exclusionPredicate.negate().and(filterPredicate);
 			// we always start at specific node, but we respect the excluded children
 			final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 				context.removeEmptyResults(),
 				0,
-				scopePredicate, filterPredicate,
+				scopePredicate,
+				combinedFilteringPredicate,
 				filteredEntityPks,
 				context.hierarchyReferencingEntityPks(), entityFetcher,
 				statisticsType
@@ -91,7 +95,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				visitor,
 				parentId.getFirst(),
 				false,
-				filterPredicate
+				combinedFilteringPredicate.negate()
 			);
 			return visitor.getResult();
 		} else {

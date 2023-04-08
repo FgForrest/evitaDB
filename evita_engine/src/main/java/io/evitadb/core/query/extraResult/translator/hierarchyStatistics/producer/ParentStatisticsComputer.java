@@ -54,12 +54,13 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 	public ParentStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType,
 		@Nullable SiblingsStatisticsTravelingComputer siblingsStatisticsComputer
 	) {
-		super(context, entityFetcher, scopePredicate, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE, statisticsBase, statisticsType);
+		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 		this.siblingsStatisticsComputer = siblingsStatisticsComputer;
 	}
 
@@ -70,6 +71,9 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
+		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
+			filterPredicate :
+			exclusionPredicate.negate().and(filterPredicate);
 		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
 			final EntityIndex entityIndex = context.entityIndex();
 
@@ -77,7 +81,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				context.removeEmptyResults(),
 				0,
 				(hierarchyNodeId, level, distance) -> distance == 0,
-				filterPredicate,
+				combinedFilteringPredicate,
 				filteredEntityPks,
 				context.hierarchyReferencingEntityPks(), entityFetcher,
 				statisticsType
@@ -86,11 +90,11 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				childVisitor,
 				hierarchyWithin.getParentId(),
 				false,
-				filterPredicate
+				combinedFilteringPredicate.negate()
 			);
 
 			final List<LevelInfo> childVisitorResult = childVisitor.getResult();
-			Assert.isPremiseValid(childVisitorResult.size() == 1, "Expected exactly one node!");
+			Assert.isPremiseValid(childVisitorResult.size() == 1, "Expected exactly one node but found `" + childVisitorResult.size() + "`!");
 			final LevelInfo startNode = childVisitorResult.get(0);
 
 			final SiblingsStatisticsTravelingComputer siblingsComputerToUse;
@@ -101,14 +105,18 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			} else {
 				siblingsComputerToUse = new SiblingsStatisticsTravelingComputer(
 					context, entityPk -> new EntityReference(context.entitySchema().getName(), entityPk),
+					exclusionPredicate,
 					HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS,
-					filterPredicate, statisticsBase, statisticsType
+					statisticsBase, statisticsType
 				);
 			}
 
+			final HierarchyFilteringPredicate exceptStartNode = new MatchNodeIdHierarchyFilteringPredicate(
+				startNode.entity().getPrimaryKey()
+			).negate();
 			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
 				scopePredicate,
-				filterPredicate.and(new MatchNodeIdHierarchyFilteringPredicate(startNode.entity().getPrimaryKey())),
+				combinedFilteringPredicate.and(exceptStartNode),
 				filteredEntityPks,
 				context.hierarchyReferencingEntityPks(), entityFetcher,
 				statisticsType,

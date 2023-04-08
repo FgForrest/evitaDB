@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.IntFunction;
-import java.util.function.ToIntBiFunction;
+import java.util.function.ToIntFunction;
 
 /**
  * This {@link HierarchyVisitor} implementation is called for each hierarchical entity and cooperates
@@ -90,7 +90,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 	 * Internal function that creates a formula that computes the number of queried entities linked to the processed
 	 * {@link HierarchyNode}.
 	 */
-	private final ToIntBiFunction<HierarchyNode, Formula> queriedEntityComputer;
+	private final ToIntFunction<HierarchyNode> queriedEntityComputer;
 	/**
 	 * The root accumulator that holds the computation result.
 	 */
@@ -118,23 +118,14 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 
 		this.entityFetcher = entityFetcher;
 		this.statisticsType = statisticsType;
-		this.queriedEntityComputer = (hierarchyNode, predicateFilteringFormula) -> {
+		this.queriedEntityComputer = hierarchyNode -> {
 			// get all queried entity primary keys that refer to this hierarchical node
 			final Formula allEntitiesReferencingEntity = hierarchyReferencingEntityPks.apply(hierarchyNode.entityPrimaryKey());
 			// now combine them with primary keys that are really returned by the query and compute matching count
-			final Formula completedFormula;
-			if (predicateFilteringFormula == null) {
-				completedFormula = FormulaFactory.and(
-					allEntitiesReferencingEntity,
-					filteredEntityPks
-				);
-			} else {
-				completedFormula = FormulaFactory.and(
-					allEntitiesReferencingEntity,
-					predicateFilteringFormula,
-					filteredEntityPks
-				);
-			}
+			final Formula completedFormula = FormulaFactory.and(
+				allEntitiesReferencingEntity,
+				filteredEntityPks
+			);
 			return completedFormula.compute().size();
 		};
 	}
@@ -147,20 +138,16 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 	@Override
 	public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable traverser) {
 		final int entityPrimaryKey = node.entityPrimaryKey();
-		// get current accumulator
-		final Accumulator topAccumulator = Objects.requireNonNull(accumulator.peek());
-
-		if (topAccumulator.isInOmissionBlock()) {
-			if (filterPredicate.test(entityPrimaryKey)) {
+		if (filterPredicate.test(entityPrimaryKey)) {
+			// get current accumulator
+			final Accumulator topAccumulator = Objects.requireNonNull(accumulator.peek());
+			if (topAccumulator.isInOmissionBlock()) {
 				// in omission block compute only cardinality of queued entities
 				topAccumulator.registerOmittedCardinality(
-					queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
+					queriedEntityComputer.applyAsInt(node)
 				);
-			}
-			// traverse sub-tree
-			traverser.run();
-		} else {
-			if (filterPredicate.test(entityPrimaryKey)) {
+				traverser.run();
+			} else {
 				if (scopePredicate.test(entityPrimaryKey, level, distance + distanceModifier)) {
 					// now fetch the appropriate form of the hierarchical entity
 					final EntityClassifier hierarchyEntity = entityFetcher.apply(entityPrimaryKey);
@@ -168,7 +155,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 					accumulator.push(
 						new Accumulator(
 							node, hierarchyEntity,
-							() -> queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
+							() -> queriedEntityComputer.applyAsInt(node)
 						)
 					);
 					// traverse subtree - filling up the accumulator on previous row
@@ -199,7 +186,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 					// and compute overall cardinality
 					if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
 						topAccumulator.registerOmittedCardinality(
-							queriedEntityComputer.applyAsInt(node, filterPredicate.getFilteringFormula())
+							queriedEntityComputer.applyAsInt(node)
 						);
 					}
 				}
