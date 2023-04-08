@@ -1770,7 +1770,18 @@ public interface QueryConstraints {
 	 */
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(@Nullable HierarchyRequireConstraint... requirement) {
-		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(requirement);
+		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(null, requirement);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyOfSelf hierarchyOfSelf(
+		@Nullable OrderConstraint orderConstraint,
+		@Nullable HierarchyRequireConstraint... requirement
+	) {
+		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(orderConstraint, requirement);
 	}
 
 	/**
@@ -1781,7 +1792,19 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return hierarchyOfReference(referenceName, null, requirement);
+		return hierarchyOfReference(referenceName, null, null, requirement);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyOfReference hierarchyOfReference(
+		@Nullable String referenceName,
+		@Nullable OrderConstraint orderConstraint,
+		@Nullable HierarchyRequireConstraint... requirement
+	) {
+		return hierarchyOfReference(referenceName, null, orderConstraint, requirement);
 	}
 
 	/**
@@ -1807,10 +1830,42 @@ public interface QueryConstraints {
 	 */
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
+		@Nullable String referenceName,
+		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nullable OrderConstraint orderConstraint,
+		@Nullable HierarchyRequireConstraint... requirement
+	) {
+		return referenceName == null || ArrayUtils.isEmpty(requirement) ?
+			null :
+			new HierarchyOfReference(
+				referenceName,
+				ofNullable(emptyHierarchicalEntityBehaviour).orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY),
+				orderConstraint,
+				requirement
+			);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return hierarchyOfReference(referenceName, null, requirement);
+		return hierarchyOfReference(referenceName, null, null, requirement);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyOfReference hierarchyOfReference(
+		@Nullable String[] referenceName,
+		@Nullable OrderConstraint orderConstraint,
+		@Nullable HierarchyRequireConstraint... requirement
+	) {
+		return hierarchyOfReference(referenceName, null, orderConstraint, requirement);
 	}
 
 	/**
@@ -1831,6 +1886,30 @@ public interface QueryConstraints {
 		return new HierarchyOfReference(
 			referenceName,
 			ofNullable(emptyHierarchicalEntityBehaviour).orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY),
+			requirement
+		);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nullable
+	static HierarchyOfReference hierarchyOfReference(
+		@Nullable String[] referenceName,
+		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nullable OrderConstraint orderConstraint,
+		@Nullable HierarchyRequireConstraint... requirement
+	) {
+		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
+			return null;
+		}
+		if (ArrayUtils.isEmpty(requirement)) {
+			return null;
+		}
+		return new HierarchyOfReference(
+			referenceName,
+			ofNullable(emptyHierarchicalEntityBehaviour).orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY),
+			orderConstraint,
 			requirement
 		);
 	}

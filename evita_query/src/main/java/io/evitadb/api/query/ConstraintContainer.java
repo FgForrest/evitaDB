@@ -49,6 +49,7 @@ import java.util.stream.Stream;
 public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseConstraint<T> implements Iterable<T> {
 	@Serial private static final long serialVersionUID = -446936362470832956L;
 	protected static final Serializable[] NO_ARGS = new Serializable[0];
+	protected static final RequireConstraint[] NO_CHILDREN = new RequireConstraint[0];
 	protected static final Constraint<?>[] NO_ADDITIONAL_CHILDREN = new Constraint<?>[0];
 	private final T[] children;
 	private final Constraint<?>[] additionalChildren;

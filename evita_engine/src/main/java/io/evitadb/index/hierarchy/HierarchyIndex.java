@@ -928,7 +928,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	 * Creates a formula that contains all hierarchy nodes except orphans.
 	 */
 	@Nonnull
-	private ConstantFormula createAllHierarchyNodesFormula() {
+	private Formula createAllHierarchyNodesFormula() {
 		final Set<Integer> nodeIds = this.itemIndex.keySet();
 		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (Integer nodeId : nodeIds) {
@@ -940,7 +940,8 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		while (it.hasNext()) {
 			roaringBitmap.remove(it.next());
 		}
-		return new ConstantFormula(new BaseBitmap(roaringBitmap));
+		return roaringBitmap.isEmpty() ?
+			EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(roaringBitmap));
 	}
 
 	/**

@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
@@ -36,6 +37,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
@@ -109,7 +111,6 @@ import java.util.Arrays;
  * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
  *
  * TOBEDONE JNO: review docs
- * TODO JNO: add support for different ordering
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -125,13 +126,38 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 		super();
 	}
 
-	private HierarchyOfSelf(RequireConstraint[] children) {
-		super(children);
+	private HierarchyOfSelf(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
+		super(children, additionalChildren);
+		for (RequireConstraint child : children) {
+			Assert.isTrue(
+				child instanceof HierarchyRequireConstraint || child instanceof EntityFetch,
+				"Constraint HierarchyOfSelf accepts only HierarchyRequireConstraint, EntityFetch or ordering constraint as inner constraints!"
+			);
+		}
+		for (Constraint<?> child : additionalChildren) {
+			Assert.isTrue(
+				child instanceof OrderConstraint,
+				"Constraint HierarchyOfSelf accepts only HierarchyRequireConstraint, EntityFetch or ordering constraint as inner constraints!"
+			);
+		}
 	}
 
 	@ConstraintCreatorDef(silentImplicitClassifier = true)
-	public HierarchyOfSelf(@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirements) {
+	public HierarchyOfSelf(
+		@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirements
+	) {
 		super(new Serializable[0], requirements);
+	}
+
+	@ConstraintCreatorDef(silentImplicitClassifier = true)
+	public HierarchyOfSelf(
+		@Nullable @ConstraintChildrenParamDef OrderConstraint orderConstraint,
+		@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirements
+	) {
+		super(new Serializable[0], requirements, orderConstraint);
 	}
 
 	/**
@@ -144,6 +170,17 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 			.toArray(HierarchyRequireConstraint[]::new);
 	}
 
+	/**
+	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
+	 */
+	@Nonnull
+	public Optional<OrderConstraint> getOrderConstraint() {
+		return Arrays.stream(getAdditionalChildren())
+			.filter(OrderConstraint.class::isInstance)
+			.map(OrderConstraint.class::cast)
+			.findFirst();
+	}
+
 	@Override
 	public boolean isApplicable() {
 		return getChildrenCount() > 0;
@@ -152,13 +189,7 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		for (RequireConstraint child : children) {
-			Assert.isTrue(
-				child instanceof HierarchyRequireConstraint || child instanceof EntityFetch,
-				"Constraint HierarchyOfSelf accepts only HierarchyRequireConstraint or EntityFetch as inner constraints!"
-			);
-		}
-		return new HierarchyOfSelf(children);
+		return new HierarchyOfSelf(children, additionalChildren);
 	}
 
 	@Nonnull

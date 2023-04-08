@@ -31,6 +31,7 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -131,24 +132,37 @@ import java.util.Arrays;
 public class HierarchyWithin extends AbstractFilterConstraintContainer implements HierarchyFilterConstraint {
 	@Serial private static final long serialVersionUID = 5346689836560255185L;
 
-	private HierarchyWithin(Serializable[] argument, FilterConstraint[] fineGrainedConstraints) {
+	private HierarchyWithin(@Nonnull Serializable[] argument, @Nonnull FilterConstraint[] fineGrainedConstraints, @Nonnull Constraint<?>... additionalChildren) {
 		super(argument, fineGrainedConstraints);
-		checkInnerConstraintValidity(fineGrainedConstraints);
+		for (FilterConstraint filterConstraint : fineGrainedConstraints) {
+			Assert.isTrue(
+				filterConstraint instanceof HierarchyDirectRelation ||
+					filterConstraint instanceof HierarchyExcluding ||
+					filterConstraint instanceof HierarchyExcludingRoot,
+				"Constraint hierarchyWithin accepts only DirectRelation, ExcludingRoot and Excluding as inner constraints!"
+			);
+		}
+		Assert.isPremiseValid(
+			ArrayUtils.isEmpty(additionalChildren),
+			"Constraint hierarchyWithin accepts only DirectRelation, ExcludingRoot and Excluding as inner constraints!"
+		);
 	}
 
 	@ConstraintCreatorDef(suffix = "self", silentImplicitClassifier = true)
-	public HierarchyWithin(@Nonnull @ConstraintValueParamDef Integer ofParent,
-	                       @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
-		super(new Serializable[]{ofParent}, with);
-		checkInnerConstraintValidity(with);
+	public HierarchyWithin(
+		@Nonnull @ConstraintValueParamDef Integer ofParent,
+		@Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
+	) {
+		this(new Serializable[]{ofParent}, with);
 	}
 
 	@ConstraintCreatorDef
-	public HierarchyWithin(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                       @Nonnull @ConstraintValueParamDef Integer ofParent,
-	                       @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
-		super(new Serializable[]{referenceName, ofParent}, with);
-		checkInnerConstraintValidity(with);
+	public HierarchyWithin(
+		@Nonnull @ConstraintClassifierParamDef String referenceName,
+		@Nonnull @ConstraintValueParamDef Integer ofParent,
+		@Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
+	) {
+		this(new Serializable[]{referenceName, ofParent}, with);
 	}
 
 	@Override
@@ -210,23 +224,13 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 	@Nonnull
 	@Override
 	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return new HierarchyWithin(getArguments(), children);
+		return new HierarchyWithin(getArguments(), children, additionalChildren);
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new HierarchyWithin(newArguments, getChildren());
+		return new HierarchyWithin(newArguments, getChildren(), getExcludedChildrenFilter());
 	}
 
-	private void checkInnerConstraintValidity(FilterConstraint[] fineGrainedConstraints) {
-		for (FilterConstraint filterConstraint : fineGrainedConstraints) {
-			Assert.isTrue(
-				filterConstraint instanceof HierarchyDirectRelation ||
-					filterConstraint instanceof HierarchyExcluding ||
-					filterConstraint instanceof HierarchyExcludingRoot,
-				"Constraint hierarchyWithin accepts only DirectRelation, ExcludingRoot and Excluding as inner constraints!"
-			);
-		}
-	}
 }

@@ -25,10 +25,7 @@ package io.evitadb.api.query.require;
 
 import org.junit.jupiter.api.Test;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
-import static io.evitadb.api.query.QueryConstraints.entityFetch;
-import static io.evitadb.api.query.QueryConstraints.fromRoot;
-import static io.evitadb.api.query.QueryConstraints.hierarchyOfSelf;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -45,11 +42,23 @@ class HierarchyOfSelfTest {
 			new HierarchyRequireConstraint[] {fromRoot("megaMenu", entityFetch(attributeContent()))},
 			hierarchyStatisticsOfSelf.getRequirements()
 		);
+		assertFalse(hierarchyStatisticsOfSelf.getOrderConstraint().isPresent());
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedWithOrdering() {
+		final HierarchyOfSelf hierarchyStatisticsOfSelf = hierarchyOfSelf(attributeNatural("name"), fromRoot("megaMenu", entityFetch(attributeContent())));
+		assertArrayEquals(
+			new HierarchyRequireConstraint[] {fromRoot("megaMenu", entityFetch(attributeContent()))},
+			hierarchyStatisticsOfSelf.getRequirements()
+		);
+		assertEquals(attributeNatural("name"), hierarchyStatisticsOfSelf.getOrderConstraint().orElseThrow());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new HierarchyOfSelf(new HierarchyRequireConstraint[0]).isApplicable());
+		assertFalse(new HierarchyOfSelf(attributeNatural("name"), new HierarchyRequireConstraint[0]).isApplicable());
 		assertTrue(hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent()))).isApplicable());
 	}
 
@@ -60,6 +69,9 @@ class HierarchyOfSelfTest {
 
 		final HierarchyOfSelf hierarchyStatisticsOfSelf2 = hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent())));
 		assertEquals("hierarchyOfSelf(fromRoot('megaMenu',entityFetch(attributeContent())))", hierarchyStatisticsOfSelf2.toString());
+
+		final HierarchyOfSelf hierarchyStatisticsOfSelf3 = hierarchyOfSelf(attributeNatural("name"), fromRoot("megaMenu", entityFetch(attributeContent())));
+		assertEquals("hierarchyOfSelf(attributeNatural('name',ASC),fromRoot('megaMenu',entityFetch(attributeContent())))", hierarchyStatisticsOfSelf3.toString());
 	}
 
 	@Test
@@ -67,8 +79,10 @@ class HierarchyOfSelfTest {
 		assertNotSame(hierarchyOfSelf(fromRoot("megaMenu")), hierarchyOfSelf(fromRoot("megaMenu")));
 		assertEquals(hierarchyOfSelf(fromRoot("megaMenu")), hierarchyOfSelf(fromRoot("megaMenu")));
 		assertNotEquals(hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent()))), hierarchyOfSelf(fromRoot("megaMenu")));
+		assertNotEquals(hierarchyOfSelf(attributeNatural("name"), fromRoot("megaMenu", entityFetch(attributeContent()))), hierarchyOfSelf(fromRoot("megaMenu")));
 		assertEquals(hierarchyOfSelf(fromRoot("megaMenu")).hashCode(), hierarchyOfSelf(fromRoot("megaMenu")).hashCode());
 		assertNotEquals(hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent()))).hashCode(), hierarchyOfSelf(fromRoot("megaMenu")).hashCode());
+		assertNotEquals(hierarchyOfSelf(attributeNatural("name"), fromRoot("megaMenu", entityFetch(attributeContent()))).hashCode(), hierarchyOfSelf(fromRoot("megaMenu")).hashCode());
 	}
 
 }

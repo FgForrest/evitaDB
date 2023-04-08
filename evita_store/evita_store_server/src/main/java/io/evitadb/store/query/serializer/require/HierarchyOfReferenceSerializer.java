@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
@@ -53,6 +54,14 @@ public class HierarchyOfReferenceSerializer extends Serializer<HierarchyOfRefere
 		for (HierarchyRequireConstraint requirement : requirements) {
 			kryo.writeClassAndObject(output, requirement);
 		}
+		object.getOrderConstraint()
+			.ifPresentOrElse(
+				orderConstraint -> {
+					output.writeBoolean(true);
+					kryo.writeClassAndObject(output, object.getOrderConstraint());
+				},
+				() -> output.writeBoolean(false)
+			);
 	}
 
 	@Override
@@ -72,7 +81,9 @@ public class HierarchyOfReferenceSerializer extends Serializer<HierarchyOfRefere
 			requirements[i] = (HierarchyRequireConstraint) kryo.readClassAndObject(input);
 		}
 
-		return new HierarchyOfReference(entityTypes, emptyHierarchicalEntityBehaviour, requirements);
+		final OrderConstraint orderConstraint = input.readBoolean() ? (OrderConstraint) kryo.readClassAndObject(input) : null;
+
+		return new HierarchyOfReference(entityTypes, emptyHierarchicalEntityBehaviour, orderConstraint, requirements);
 	}
 
 }

@@ -25,10 +25,7 @@ package io.evitadb.api.query.require;
 
 import org.junit.jupiter.api.Test;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
-import static io.evitadb.api.query.QueryConstraints.entityFetch;
-import static io.evitadb.api.query.QueryConstraints.fromRoot;
-import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -42,11 +39,20 @@ class HierarchyOfReferenceTest {
 	void shouldCreateViaFactoryClassWorkAsExpected() {
 		final HierarchyOfReference hierarchyStatisticsOfReference = hierarchyOfReference("category", fromRoot("megaMenu"));
 		assertArrayEquals(new String[] {"category"}, hierarchyStatisticsOfReference.getReferenceNames());
+		assertFalse(hierarchyStatisticsOfReference.getOrderConstraint().isPresent());
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedWithOrder() {
+		final HierarchyOfReference hierarchyStatisticsOfReference = hierarchyOfReference("category", attributeNatural("name"), fromRoot("megaMenu"));
+		assertArrayEquals(new String[] {"category"}, hierarchyStatisticsOfReference.getReferenceNames());
+		assertEquals(attributeNatural("name"), hierarchyStatisticsOfReference.getOrderConstraint().orElseThrow());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new HierarchyOfReference("category", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, new HierarchyRequireConstraint[0]).isApplicable());
+		assertFalse(new HierarchyOfReference("category", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, attributeNatural("name"), new HierarchyRequireConstraint[0]).isApplicable());
 		assertTrue(hierarchyOfReference("category", fromRoot("megaMenu", entityFetch(attributeContent()))).isApplicable());
 	}
 
@@ -54,6 +60,9 @@ class HierarchyOfReferenceTest {
 	void shouldToStringReturnExpectedFormat() {
 		final HierarchyOfReference hierarchyStatisticsOfReference = hierarchyOfReference("brand", fromRoot("megaMenu"));
 		assertEquals("hierarchyOfReference('brand',REMOVE_EMPTY,fromRoot('megaMenu'))", hierarchyStatisticsOfReference.toString());
+
+		final HierarchyOfReference hierarchyStatisticsOfReference2 = hierarchyOfReference("brand", attributeNatural("name"), fromRoot("megaMenu"));
+		assertEquals("hierarchyOfReference('brand',REMOVE_EMPTY,attributeNatural('name',ASC),fromRoot('megaMenu'))", hierarchyStatisticsOfReference2.toString());
 	}
 
 	@Test
@@ -61,10 +70,12 @@ class HierarchyOfReferenceTest {
 		assertNotSame(hierarchyOfReference("brand", fromRoot("megaMenu")), hierarchyOfReference("brand", fromRoot("megaMenu")));
 		assertEquals(hierarchyOfReference("brand", fromRoot("megaMenu")), hierarchyOfReference("brand", fromRoot("megaMenu")));
 		assertNotEquals(hierarchyOfReference("brand", fromRoot("megaMenu")), hierarchyOfReference("category", fromRoot("megaMenu")));
+		assertNotEquals(hierarchyOfReference("brand", attributeNatural("name"), fromRoot("megaMenu")), hierarchyOfReference("category", fromRoot("megaMenu")));
 		assertNotEquals(hierarchyOfReference("brand", EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY, fromRoot("megaMenu")), hierarchyOfReference("category", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")));
 		assertEquals(hierarchyOfReference("brand", fromRoot("megaMenu")).hashCode(), hierarchyOfReference("brand", fromRoot("megaMenu")).hashCode());
 		assertNotEquals(hierarchyOfReference("brand", fromRoot("megaMenu")).hashCode(), hierarchyOfReference("category", fromRoot("megaMenu")).hashCode());
 		assertNotEquals(hierarchyOfReference("brand", EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY, fromRoot("megaMenu")).hashCode(), hierarchyOfReference("category", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")).hashCode());
+		assertNotEquals(hierarchyOfReference("brand", EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY, attributeNatural("name"), fromRoot("megaMenu")).hashCode(), hierarchyOfReference("category", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")).hashCode());
 	}
 
 }

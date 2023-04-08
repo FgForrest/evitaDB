@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
@@ -40,6 +41,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
@@ -125,28 +127,67 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 
 	@Serial private static final long serialVersionUID = 3121491811975308390L;
 
-	private HierarchyOfReference(Serializable[] arguments, RequireConstraint... children) {
-		super(arguments, children);
+	private HierarchyOfReference(
+		@Nonnull Serializable[] arguments,
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
+		super(arguments, children, additionalChildren);
+		for (RequireConstraint child : children) {
+			Assert.isTrue(
+				child instanceof HierarchyRequireConstraint || child instanceof EntityFetch,
+				"Constraint HierarchyOfReference accepts only HierarchyRequireConstraint or EntityFetch as inner constraints!"
+			);
+		}
 	}
 
-	public HierarchyOfReference(@Nonnull String referenceName, @Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour) {
-		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour});
+	public HierarchyOfReference(
+		@Nonnull String referenceName,
+		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour
+	) {
+		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, NO_CHILDREN);
 	}
 
-	public HierarchyOfReference(@Nonnull String[] referenceName, @Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour) {
+	public HierarchyOfReference(
+		@Nonnull String[] referenceName,
+		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour
+	) {
 		super(
 			ArrayUtils.mergeArrays(
 				new Serializable[]{emptyHierarchicalEntityBehaviour},
 				referenceName
-			)
+			),
+			NO_CHILDREN
 		);
 	}
 
-	@ConstraintCreatorDef
 	public HierarchyOfReference(
-		@Nonnull @ConstraintClassifierParamDef String referenceName,
-		@Nonnull @ConstraintValueParamDef EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirement
+		@Nonnull String referenceName,
+		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nonnull OrderConstraint orderConstraint
+		) {
+		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, NO_CHILDREN, orderConstraint);
+	}
+
+	public HierarchyOfReference(
+		@Nonnull String[] referenceName,
+		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nonnull OrderConstraint orderConstraint
+	) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{emptyHierarchicalEntityBehaviour},
+				referenceName
+			),
+			NO_CHILDREN,
+			orderConstraint
+		);
+	}
+
+	public HierarchyOfReference(
+		@Nonnull String referenceName,
+		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nonnull HierarchyRequireConstraint... requirement
 	) {
 		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement);
 	}
@@ -156,6 +197,25 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nonnull HierarchyRequireConstraint... requirement) {
 		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement);
+	}
+
+	@ConstraintCreatorDef
+	public HierarchyOfReference(
+		@Nonnull @ConstraintClassifierParamDef String referenceName,
+		@Nonnull @ConstraintValueParamDef EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nonnull @ConstraintChildrenParamDef OrderConstraint orderConstraint,
+		@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirement
+	) {
+		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement, orderConstraint);
+	}
+
+	/* TODO LHO - neměl by být @ConstraintCreatorDef na tomto konstruktoru? */
+	public HierarchyOfReference(
+		@Nonnull String[] referenceName,
+		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nonnull OrderConstraint orderConstraint,
+		@Nonnull HierarchyRequireConstraint... requirement) {
+		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement, orderConstraint);
 	}
 
 	/**
@@ -191,6 +251,17 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 			.toArray(HierarchyRequireConstraint[]::new);
 	}
 
+	/**
+	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
+	 */
+	@Nonnull
+	public Optional<OrderConstraint> getOrderConstraint() {
+		return Arrays.stream(getAdditionalChildren())
+			.filter(OrderConstraint.class::isInstance)
+			.map(OrderConstraint.class::cast)
+			.findFirst();
+	}
+
 	@Override
 	public boolean isApplicable() {
 		return getArguments().length > 0 && getChildrenCount() > 0;
@@ -199,13 +270,7 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		for (RequireConstraint child : children) {
-			Assert.isTrue(
-				child instanceof HierarchyRequireConstraint || child instanceof EntityFetch,
-				"Constraint HierarchyOfReference accepts only HierarchyRequireConstraint or EntityFetch as inner constraints!"
-			);
-		}
-		return new HierarchyOfReference(getArguments(), children);
+		return new HierarchyOfReference(getArguments(), children, additionalChildren);
 	}
 
 	@Nonnull
@@ -215,7 +280,8 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 			Arrays.stream(newArguments)
 				.map(String.class::cast)
 				.toArray(String[]::new),
-			getChildren()
+			getChildren(),
+			getAdditionalChildren()
 		);
 	}
 
