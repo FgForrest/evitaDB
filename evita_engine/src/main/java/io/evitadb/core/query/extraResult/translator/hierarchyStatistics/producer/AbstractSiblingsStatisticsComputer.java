@@ -38,11 +38,11 @@ import java.util.List;
 import java.util.OptionalInt;
 
 /**
- * TODO JNO - document me
+ * Abstract ancestor for siblings hierarchy statistics computers. Contains shared logic and data.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarchyStatisticsComputer {
+abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarchyStatisticsComputer {
 
 	public AbstractSiblingsStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
@@ -68,7 +68,7 @@ public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarc
 		final OptionalInt parentNode = getParentNodeId(context);
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
-			getDistanceModifier(),
+			getDistanceCompensation(),
 			scopePredicate,
 			combinedFilteringPredicate,
 			filteredEntityPks,
@@ -98,15 +98,15 @@ public abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarc
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * The number contains a number that needs to be added to a `distance` variable when the real root is different
+	 * to the first visited hierarchy node. It is usually used for siblings computation when the parent node needs
+	 * to be omitted and thus the distance needs to be lowered by one.
 	 */
-	protected abstract int getDistanceModifier();
+	protected abstract int getDistanceCompensation();
 
 	/**
-	 * TODO JNO - document me
-	 * @param context
-	 * @return
+	 * Returns reference to the parent node of the sibling nodes. The result is `empty` for the siblings that represent
+	 * the root nodes of the hierarchy tree.
 	 */
 	@Nonnull
 	protected abstract OptionalInt getParentNodeId(@Nonnull HierarchyProducerContext context);

@@ -44,11 +44,18 @@ import java.util.EnumSet;
 import java.util.List;
 
 /**
- * TODO JNO - document me
+ * The parent statistics computer computes hierarchy statistics for all parents of requested hierarchy node.
+ * The computer traverses the hierarchy deeply respecting the `scopePredicate` and excluding traversal of tree nodes
+ * matching `exclusionPredicate`. The parent computer can co-operate with the {@link SiblingsStatisticsTravelingComputer}
+ * so that it can compute siblings of each returned parent level.
  *
+ * @see SiblingsStatisticsTravelingComputer for more information
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class ParentStatisticsComputer extends AbstractHierarchyStatisticsComputer {
+	/**
+	 * Optional siblings computer used for computing the hierarchy statistics for each of the parent node.
+	 */
 	@Nullable private final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer;
 
 	public ParentStatisticsComputer(

@@ -41,11 +41,19 @@ import java.util.List;
 import java.util.OptionalInt;
 
 /**
- * TODO JNO - document me
+ * The siblings statistics computer computes hierarchy statistics for all siblings of hierarchy node that is changed
+ * during the computation (hence the `traveling` word in the name). The computer traverses the hierarchy deeply
+ * respecting the `scopePredicate` and excluding traversal of tree nodes matching `exclusionPredicate`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatisticsComputer {
+	/**
+	 * Contains the reference to the parent node for which the siblings should be computed. NULL value represents
+	 * the virtual non-existent root = siblings will be the root hierarchical nodes. The value is changing as
+	 * traveling computer is re-used for computing siblings of different hierarchy tree nodes.
+	 */
+	@Nullable
 	private Integer parentNodeId;
 
 	public SiblingsStatisticsTravelingComputer(
@@ -60,7 +68,7 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 	}
 
 	@Override
-	protected int getDistanceModifier() {
+	protected int getDistanceCompensation() {
 		return -1;
 	}
 

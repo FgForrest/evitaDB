@@ -37,7 +37,9 @@ import java.util.EnumSet;
 import java.util.List;
 
 /**
- * TODO JNO - document me
+ * The root statistics computer computes hierarchy statistics for entire hierarchy tree. The computer traverses
+ * the hierarchy deeply respecting the `scopePredicate` and excluding traversal of tree nodes matching
+ * `exclusionPredicate`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

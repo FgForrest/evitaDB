@@ -39,7 +39,9 @@ import java.util.EnumSet;
 import java.util.List;
 
 /**
- * TODO JNO - document me
+ * The children statistics computer computes hierarchy statistics for all children of requested hierarchy node in
+ * {@link HierarchyWithin} filtering constraint. The computer traverses the hierarchy deeply respecting the
+ * `scopePredicate` and excluding traversal of tree nodes matching `exclusionPredicate`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -48,7 +50,8 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 	public ChildrenStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
-		@Nonnull HierarchyFilteringPredicate exclusionPredicate, @Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate exclusionPredicate,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
@@ -62,6 +65,8 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
+		/* TODO JNO - optimize traversing when only children statistics is required using `intersect` method of the roaringbitmap */
+
 		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
 			filterPredicate :
 			exclusionPredicate.negate().and(filterPredicate);

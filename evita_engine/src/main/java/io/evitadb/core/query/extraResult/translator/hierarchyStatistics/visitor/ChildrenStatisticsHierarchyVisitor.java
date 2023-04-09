@@ -59,9 +59,11 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 	 */
 	private final boolean removeEmptyResults;
 	/**
-	 * TODO JNO - document me
+	 * The number contains a number that needs to be added to a `distance` variable when the real root is different
+	 * to the first visited hierarchy node. It is usually used for siblings computation when the parent node needs
+	 * to be omitted and thus the distance needs to be lowered by one.
 	 */
-	private final int distanceModifier;
+	private final int distanceCompensation;
 	/**
 	 * The predicate that controls the scope that will be returned in the form of {@link LevelInfo}.
 	 */
@@ -98,7 +100,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 
 	public ChildrenStatisticsHierarchyVisitor(
 		boolean removeEmptyResults,
-		int distanceModifier,
+		int distanceCompensation,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nonnull Formula filteredEntityPks,
@@ -107,7 +109,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
 		this.removeEmptyResults = removeEmptyResults;
-		this.distanceModifier = distanceModifier;
+		this.distanceCompensation = distanceCompensation;
 		this.scopePredicate = scopePredicate;
 		this.filterPredicate = filterPredicate;
 		this.accumulator = new LinkedList<>();
@@ -148,7 +150,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 				);
 				traverser.run();
 			} else {
-				if (scopePredicate.test(entityPrimaryKey, level, distance + distanceModifier)) {
+				if (scopePredicate.test(entityPrimaryKey, level, distance + distanceCompensation)) {
 					// now fetch the appropriate form of the hierarchical entity
 					final EntityClassifier hierarchyEntity = entityFetcher.apply(entityPrimaryKey);
 					// and create element in accumulator that will be filled in
