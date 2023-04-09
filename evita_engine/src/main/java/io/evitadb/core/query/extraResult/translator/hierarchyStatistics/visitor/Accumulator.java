@@ -32,7 +32,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -86,9 +85,7 @@ public class Accumulator {
 	@Nonnull
 	public LevelInfo toLevelInfo(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
 		// sort by their order in hierarchy
-		Collections.sort(children);
 		return new LevelInfo(
-			hierarchyNode.order(),
 			entity,
 			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? getQueriedEntityCount() : null,
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? getChildrenCount() : null,

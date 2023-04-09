@@ -38,7 +38,7 @@ import org.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,57 +46,34 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 /**
- * TODO JNO - document me and methods
+ * The hierarchy set envelopes set of computers that relate to the same target hierarchical entity. It allows to
+ * compute the sort order in cost-effective way for all of them at once when the final {@link List<LevelInfo>} results
+ * are created. See {@link #createStatistics(Formula, Formula, Locale)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
 public class HierarchySet {
+	/**
+	 * Reference to the query context that allows to access entity bodies.
+	 */
 	private final QueryContext queryContext;
-	private final Map<String, AbstractHierarchyStatisticsComputer> computers = new HashMap<>(16);
+	/**
+	 * The list contains all registered hierarchy computers along with the string key their output will be indexed.
+	 */
+	private final List<NamedComputer> computers = new LinkedList<>();
+	/**
+	 * Contains optional sorter of the computed results. If the sorter is not defined the output hierarchy is sorted
+	 * by its primary key in ascending order.
+	 */
 	@Nullable
 	private Sorter sorter;
 
-
-	public void setSorter(@Nullable Sorter sorter) {
-		this.sorter = sorter;
-	}
-
-	public void addComputer(String outputName, AbstractHierarchyStatisticsComputer computer) {
-		this.computers.put(outputName, computer);
-	}
-
-	public Map<String, List<LevelInfo>> createStatistics(
-		@Nonnull Formula filteringFormula,
-		@Nonnull Formula filteringFormulaWithoutUserFilter,
-		@Nullable Locale language
-	) {
-		final Map<String, List<LevelInfo>> unsortedResult = computers.entrySet()
-			.stream()
-			.collect(
-				Collectors.toMap(
-					Entry::getKey,
-					entry -> entry.getValue().createStatistics(
-						filteringFormula, filteringFormulaWithoutUserFilter, language
-					)
-				)
-			);
-		if (sorter != null) {
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			// collect all entity primary keys
-			for (List<LevelInfo> levelInfos : unsortedResult.values()) {
-				collect(levelInfos, writer);
-			}
-			final ConstantFormula levelIdFormula = new ConstantFormula(new BaseBitmap(writer.get()));
-			final int[] sortedEntities = sorter.sortAndSlice(queryContext, levelIdFormula, 0, levelIdFormula.compute().size());
-			for (Entry<String, List<LevelInfo>> entry : unsortedResult.entrySet()) {
-				entry.setValue(sort(entry.getValue(), sortedEntities));
-			}
-		}
-		return unsortedResult;
-	}
-
-	private static void collect(List<LevelInfo> unsortedResult, RoaringBitmapWriter<RoaringBitmap> writer) {
+	/**
+	 * Adds all {@link LevelInfo#entity()} primary keys to the `writer` traversing them recursively so that all entities
+	 * from the output tree are registered.
+	 */
+	private static void collect(@Nonnull List<LevelInfo> unsortedResult, @Nonnull RoaringBitmapWriter<RoaringBitmap> writer) {
 		for (LevelInfo levelInfo : unsortedResult) {
 			writer.add(levelInfo.entity().getPrimaryKey());
 			collect(levelInfo.childrenStatistics(), writer);
@@ -104,11 +81,10 @@ public class HierarchySet {
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param result
-	 * @param sortedEntities
-	 * @return
+	 * Method sorts `result` list deeply (it means also all its {@link LevelInfo#childrenStatistics()} along
+	 * the position of their primary key in `sortedEntities` array.
 	 */
+	@Nonnull
 	private static List<LevelInfo> sort(@Nonnull List<LevelInfo> result, @Nonnull int[] sortedEntities) {
 		final LevelInfo[] levelInfoToSort = result
 			.stream()
@@ -131,6 +107,66 @@ public class HierarchySet {
 		} else {
 			return result;
 		}
+	}
+
+	/**
+	 * Initializes the {@link #sorter} field.
+	 */
+	public void setSorter(@Nullable Sorter sorter) {
+		this.sorter = sorter;
+	}
+
+	/**
+	 * Registers a `computer` with specified `outputName` to collection of {@link #computers}.
+	 */
+	public void addComputer(@Nonnull String outputName, @Nonnull AbstractHierarchyStatisticsComputer computer) {
+		this.computers.add(new NamedComputer(outputName, computer));
+	}
+
+	/**
+	 * Invokes all the registered {@link #computers} and registers their result to the output result map.
+	 * If the {@link #sorter} is defined, it uses it to sort all lists in the result map.
+	 */
+	@Nonnull
+	public Map<String, List<LevelInfo>> createStatistics(
+		@Nonnull Formula filteringFormula,
+		@Nonnull Formula filteringFormulaWithoutUserFilter,
+		@Nullable Locale language
+	) {
+		// invoke computers and register their output using `outputName`
+		final Map<String, List<LevelInfo>> unsortedResult = computers
+			.stream()
+			.collect(
+				Collectors.toMap(
+					NamedComputer::outputName,
+					it -> it.computer().createStatistics(
+						filteringFormula, filteringFormulaWithoutUserFilter, language
+					)
+				)
+			);
+		// if the sorter is defined, sort them
+		if (sorter != null) {
+			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			// collect all entity primary keys
+			unsortedResult.values().forEach(it -> collect(it, writer));
+			// create sorted array using the sorter
+			final ConstantFormula levelIdFormula = new ConstantFormula(new BaseBitmap(writer.get()));
+			final int[] sortedEntities = sorter.sortAndSlice(queryContext, levelIdFormula, 0, levelIdFormula.compute().size());
+			// replace the output with the sorted one
+			for (Entry<String, List<LevelInfo>> entry : unsortedResult.entrySet()) {
+				entry.setValue(sort(entry.getValue(), sortedEntities));
+			}
+		}
+		return unsortedResult;
+	}
+
+	/**
+	 * Simple tuple allowing to trap computer along with the output name for {@link #computers} field.
+	 */
+	private record NamedComputer(
+		@Nonnull String outputName,
+		@Nonnull AbstractHierarchyStatisticsComputer computer
+	) {
 	}
 
 }

@@ -55,9 +55,9 @@ class GrpcHierarchyStatisticsBuilderTest {
 				Map.of(
 					"megaMenu",
 					List.of(
-						new LevelInfo(0, new EntityReference(Entities.CATEGORY, 1), 1, 0,
+						new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1, 0,
 							List.of(
-								new LevelInfo(0, new EntityReference(Entities.CATEGORY, 1), 1, 0, new ArrayList<>(0))
+								new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1, 0, new ArrayList<>(0))
 							)
 						)
 					)
@@ -66,7 +66,7 @@ class GrpcHierarchyStatisticsBuilderTest {
 				Map.of(
 					"megaMenu",
 					List.of(
-						new LevelInfo(0, new EntityReference(Entities.CATEGORY, 2), 0, 0, new ArrayList<>(0))
+						new LevelInfo(new EntityReference(Entities.CATEGORY, 2), 0, 0, new ArrayList<>(0))
 					)
 				),
 				types[2],
@@ -74,16 +74,15 @@ class GrpcHierarchyStatisticsBuilderTest {
 					"megaMenu",
 					List.of(
 						new LevelInfo(
-							0, new EntityReference(Entities.CATEGORY, 3), 2, 0,
+							new EntityReference(Entities.CATEGORY, 3), 2, 0,
 							List.of(
 								new LevelInfo(
-									0, new EntityReference(Entities.CATEGORY, 1), 1, 0,
+									new EntityReference(Entities.CATEGORY, 1), 1, 0,
 									List.of(
 										new LevelInfo(
-											0,
 											new EntityReference(Entities.CATEGORY, 2), 4, 0,
 											List.of(
-												new LevelInfo(0, new EntityReference(Entities.CATEGORY, 5), 0, 0, new ArrayList<>(0))
+												new LevelInfo(new EntityReference(Entities.CATEGORY, 5), 0, 0, new ArrayList<>(0))
 											)
 										)
 									)
@@ -101,9 +100,9 @@ class GrpcHierarchyStatisticsBuilderTest {
 				Map.of(
 					"megaMenu",
 					List.of(
-						new LevelInfo(0, new InitialEntityBuilder(Entities.CATEGORY, 1).toInstance(), 1, 0,
+						new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 1).toInstance(), 1, 0,
 							List.of(
-								new LevelInfo(0, new InitialEntityBuilder(Entities.CATEGORY, 6).toInstance(), 1, 0, new ArrayList<>(0))
+								new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 6).toInstance(), 1, 0, new ArrayList<>(0))
 							)
 						)
 					)
@@ -111,23 +110,22 @@ class GrpcHierarchyStatisticsBuilderTest {
 				types[1],
 				Map.of(
 					"megaMenu",
-					List.of(new LevelInfo(0, new InitialEntityBuilder(Entities.CATEGORY, 2).toInstance(), 0, 0, new ArrayList<>(0)))
+					List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 2).toInstance(), 0, 0, new ArrayList<>(0)))
 				),
 				types[2],
 				Map.of(
 					"megaMenu",
 					List.of(
 						new LevelInfo(
-							0, new InitialEntityBuilder(Entities.CATEGORY, 3).toInstance(), 2, 0,
+							new InitialEntityBuilder(Entities.CATEGORY, 3).toInstance(), 2, 0,
 							List.of(
 								new LevelInfo(
-									0, new InitialEntityBuilder(Entities.CATEGORY, 9).toInstance(), 1, 0,
+									new InitialEntityBuilder(Entities.CATEGORY, 9).toInstance(), 1, 0,
 									List.of(
 										new LevelInfo(
-											0,
 											new InitialEntityBuilder(Entities.CATEGORY, 4).toInstance(), 4, 0,
 											List.of(
-												new LevelInfo(0, new InitialEntityBuilder(Entities.CATEGORY, 7).toInstance(), 0, 0, new ArrayList<>(0))
+												new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 7).toInstance(), 0, 0, new ArrayList<>(0))
 											)
 										)
 									)

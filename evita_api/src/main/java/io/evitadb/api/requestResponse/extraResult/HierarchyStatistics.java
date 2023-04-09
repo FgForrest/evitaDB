@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.extraResult;
 
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
@@ -45,11 +46,9 @@ import java.util.Objects;
 import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - replace javadoc
- *
- * This DTO contains hierarchical structure of entities referenced by the entities required by the query. It copies
- * hierarchical structure of those entities and contains their identification or full body as well as information on
- * cardinality of referencing entities.
+ * This DTO contains hierarchical structure of entities either directly queried or referenced by the entities targeted
+ * by the query. It copies hierarchical structure of those entities and contains their identification or full body as
+ * well as information on cardinality of referencing entities.
  *
  * For example when we need to render menu for entire e-commerce site, but we want to take excluded subtrees into
  * an account and also reflect the filtering conditions that may filter out dozens of products (and thus leading to
@@ -60,17 +59,17 @@ import static java.util.Optional.ofNullable;
  *     entities('PRODUCT'),
  *     filterBy(
  *         and(
- *             eq('visible', true),
- *             inRange('valid', 2020-07-30T20:37:50+00:00),
+ *             attributeEquals('visible', true),
+ *             attributeInRange('valid', 2020-07-30T20:37:50+00:00),
  *             priceInCurrency('USD'),
  *             priceValidIn(2020-07-30T20:37:50+00:00),
  *             priceInPriceLists('vip', 'standard'),
- *             withinRootHierarchy('CATEGORY', excluding(3, 7))
+ *             hierarchyWithinRoot('categories', excluding(entityPrimaryKeyInSet(3, 7)))
  *         )
  *     ),
  *     require(
  *         page(1, 20),
- *         hierarchyStatisticsOfReference('CATEGORY', entityBody(), attributes())
+ *         hierarchyStatisticsOfReference('categories', entityFetch(attributeContent()))
  *     )
  * )
  * </pre>
@@ -98,12 +97,11 @@ import static java.util.Optional.ofNullable;
  * </pre>
  *
  * The tree will contain category entities loaded with `attributes` instead the names you see in the example. The number
- * after the arrow represents the count of the products that are referencing this category (either directly or some of its
- * children). You can see there are only categories that are valid for the passed query - excluded category subtree will
- * not be part of the category listing (query filters out all products with excluded category tree) and there is also no
- * category that happens to be empty (e.g. contains no products or only products that don't match the filter query).
+ * after the arrow represents the count of the products that are referencing this category (either directly or some of
+ * its children).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @see LevelInfo for the list of all available information for each hierarchical entity
  */
 @RequiredArgsConstructor
 @ThreadSafe
@@ -283,19 +281,22 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 *                           query, or it may be rich {@link SealedEntity} object if the richer requirements were specified.
 	 * @param queriedEntityCount Contains the number of queried entities that refer directly to this {@link #entity} or to any of its children
 	 *                           entities.
+	 * @param childrenCount      Contains number of hierarchical entities that are referring to this {@link #entity} as its parent.
+	 *                           The count will respect {@link EmptyHierarchicalEntityBehaviour} settings and will not
+	 *                           count empty children in case {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY} is
+	 *                           used for computation.
 	 * @param childrenStatistics Contains statistics of the entities that are subordinate (children) of this {@link #entity}.
 	 */
 
 	public record LevelInfo(
-		int order,
 		@Nonnull EntityClassifier entity,
 		@Nullable Integer queriedEntityCount,
 		@Nullable Integer childrenCount,
 		@Nonnull List<LevelInfo> childrenStatistics
-	) implements Comparable<LevelInfo> {
+	) {
 
 		public LevelInfo(LevelInfo levelInfo, List<LevelInfo> children) {
-			this(levelInfo.order, levelInfo.entity, levelInfo.queriedEntityCount, levelInfo.childrenCount, children);
+			this(levelInfo.entity, levelInfo.queriedEntityCount, levelInfo.childrenCount, children);
 		}
 
 		@Override
@@ -305,11 +306,6 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 			} else {
 				return "[" + queriedEntityCount + ":" + childrenCount + "] " + entity;
 			}
-		}
-
-		@Override
-		public int compareTo(@Nonnull LevelInfo other) {
-			return Integer.compare(order, other.order);
 		}
 
 	}

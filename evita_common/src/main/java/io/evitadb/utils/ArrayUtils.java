@@ -811,12 +811,15 @@ public class ArrayUtils {
 	}
 
 	/**
-	 * Method sorts `arrayToSort` TODO JNO - document me
+	 * Method sorts `arrayToSort` along the position of the same number in the `sortedArray`. The `arrayToSort` is
+	 * expected to be as subset of the `sortedArray`, but it may contain unknown numbers which will be placed at
+	 * the end of the list.
 	 */
 	@Nonnull
 	public static int[] sortAlong(@Nonnull int[] sortedArray, @Nonnull int[] arrayToSort) {
 		final int lastIndex = arrayToSort.length - 1;
 		final int[] positions = new int[arrayToSort.length];
+		Arrays.fill(positions, -1);
 		int itemsLocalized = 0;
 		for (int i = 0; i < sortedArray.length && itemsLocalized < arrayToSort.length; i++) {
 			final int number = sortedArray[i];
@@ -828,20 +831,31 @@ public class ArrayUtils {
 			}
 		}
 		final int[] result = new int[arrayToSort.length];
+		int unknownNumbers = 0;
 		for (int i = 0; i < arrayToSort.length; i++) {
-			result[positions[i]] = arrayToSort[i];
+			if (positions[i] >= 0) {
+				result[positions[i]] = arrayToSort[i];
+			} else {
+				result[itemsLocalized + unknownNumbers++] = arrayToSort[i];
+			}
 		}
 		return result;
 	}
 
 	/**
-	 * Method sorts `arrayToSort` TODO JNO - document me
+	 * Method sorts `arrayToSort` along the position of the same number in the `sortedArray`. The `arrayToSort` is
+	 * expected to be as subset of the `sortedArray`, but it may contain unknown numbers which will be placed at
+	 * the end of the list.
+	 *
+	 * The method is a copy of {@link  #sortAlong(int[], int[])} method allowing to sort complex object which
+	 * can produce the numbers using `extractor` function.
 	 */
 	@Nonnull
 	public static <T> T[] sortAlong(@Nonnull int[] sortedArray, @Nonnull T[] arrayToSort, @Nonnull ToIntFunction<T> extractor) {
 		final int first = extractor.applyAsInt(arrayToSort[0]);
 		final int last = extractor.applyAsInt(arrayToSort[arrayToSort.length - 1]);
 		final int[] positions = new int[arrayToSort.length];
+		Arrays.fill(positions, -1);
 		int itemsLocalized = 0;
 		for (int i = 0; i < sortedArray.length && itemsLocalized < arrayToSort.length; i++) {
 			final int number = sortedArray[i];
@@ -849,9 +863,7 @@ public class ArrayUtils {
 				final int indexInArrayToSort = binarySearch(
 					arrayToSort,
 					number,
-					(t, integer) -> {
-						return Integer.compare(extractor.applyAsInt(t), integer);
-					});
+					(t, integer) -> Integer.compare(extractor.applyAsInt(t), integer));
 				if (indexInArrayToSort >= 0) {
 					positions[indexInArrayToSort] = itemsLocalized++;
 				}
@@ -859,8 +871,13 @@ public class ArrayUtils {
 		}
 		@SuppressWarnings("unchecked")
 		final T[] result = (T[]) Array.newInstance(arrayToSort.getClass().getComponentType(), arrayToSort.length);
+		int unknownNumbers = 0;
 		for (int i = 0; i < arrayToSort.length; i++) {
-			result[positions[i]] = arrayToSort[i];
+			if (positions[i] >= 0) {
+				result[positions[i]] = arrayToSort[i];
+			} else {
+				result[itemsLocalized + unknownNumbers++] = arrayToSort[i];
+			}
 		}
 		return result;
 	}

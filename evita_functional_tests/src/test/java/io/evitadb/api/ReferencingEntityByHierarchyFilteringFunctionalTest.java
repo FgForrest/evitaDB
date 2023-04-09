@@ -842,7 +842,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
 				levelInfo.add(
 					new LevelInfo(
-						rootItem.getOrder(), category, cardinality, 0,
+						category, cardinality, 0,
 						fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)
 					)
 				);
@@ -891,7 +891,6 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
 				levelInfo.add(
 					new LevelInfo(
-						item.getOrder(),
 						category, cardinality, 0,
 						fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)
 					)

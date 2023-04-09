@@ -2696,7 +2696,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				);
 				levelInfo.add(
 					new LevelInfo(
-						rootItem.getOrder(),
 						fetchHierarchyStatisticsEntity(session, categoryId),
 						ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null),
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,
@@ -2734,7 +2733,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				);
 				levelInfo.add(
 					new LevelInfo(
-						rootItem.getOrder(),
 						fetchHierarchyStatisticsEntity(session, cid),
 						queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null) : null,
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
@@ -2766,7 +2764,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			final HierarchyItem parentItem = parentItems.get(i);
 			final int cid = Integer.parseInt(parentItem.getCode());
 			final LevelInfo currentNodeInfo = new LevelInfo(
-				parentItem.getOrder(),
 				fetchHierarchyStatisticsEntity(session, cid),
 				queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null) : null,
 				computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
@@ -2789,7 +2786,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 							final SealedEntity siblingEntity = fetchHierarchyStatisticsEntity(session, siblingCid);
 							if (siblingsPredicate.test(siblingEntity)) {
 								return new LevelInfo(
-									sibling.getOrder(),
 									siblingEntity,
 									queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(siblingCid)).orElse(null) : null,
 									computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(siblingCid)).orElse(null) : null,
@@ -2840,7 +2836,6 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				);
 				levelInfo.add(
 					new LevelInfo(
-						item.getOrder(),
 						fetchHierarchyStatisticsEntity(session, categoryId),
 						queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null) : null,
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,

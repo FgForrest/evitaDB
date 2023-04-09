@@ -42,6 +42,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -159,7 +160,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 					).stream(),
 					Stream.of(current)
 				)
-				.sorted()
+				.sorted(Comparator.comparingInt(entity -> entity.entity().getPrimaryKey()))
 				.collect(Collectors.toList());
 		}
 	}
