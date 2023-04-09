@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.EntityIndex;
@@ -48,6 +49,7 @@ import java.util.function.IntFunction;
  * @param referenceSchema               Target entity schema of the entity.
  * @param hierarchyFilter               Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter.
  * @param entityIndex                   Contains reference to the owner {@link EntityIndex} of the {@link HierarchyIndex}.
+ * @param prefetchRequirementCollector  Reference to the collector of requirements for entity prefetch phase.
  * @param hierarchyReferencingEntityPks Contains a function that produces bitmap of queried entity ids connected with particular hierarchical entity.
  * @param removeEmptyResults            Contains true if hierarchy statistics should be stripped of results with zero occurrences.
  */
@@ -57,6 +59,7 @@ public record HierarchyProducerContext(
 	@Nullable ReferenceSchemaContract referenceSchema,
 	@Nullable HierarchyFilterConstraint hierarchyFilter,
 	@Nonnull EntityIndex entityIndex,
+	@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
 	@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
 	boolean removeEmptyResults
 ) {

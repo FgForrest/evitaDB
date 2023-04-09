@@ -111,6 +111,8 @@ public abstract class AbstractHierarchyTranslator {
 		if (entityFetch == null) {
 			return entityPk -> new EntityReference(hierarchicalEntityType, entityPk);
 		} else {
+			ofNullable(context.prefetchRequirementCollector())
+				.ifPresent(it -> it.addRequirementToPrefetch(entityFetch.getRequirements()));
 			return entityPk -> context.queryContext().fetchEntity(hierarchicalEntityType, entityPk, entityFetch).orElse(null);
 		}
 	}

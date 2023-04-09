@@ -293,6 +293,11 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 		@Nullable Integer childrenCount,
 		@Nonnull List<LevelInfo> childrenStatistics
 	) implements Comparable<LevelInfo> {
+
+		public LevelInfo(LevelInfo levelInfo, List<LevelInfo> children) {
+			this(levelInfo.order, levelInfo.entity, levelInfo.queriedEntityCount, levelInfo.childrenCount, children);
+		}
+
 		@Override
 		public String toString() {
 			if (queriedEntityCount == null && childrenCount == null) {

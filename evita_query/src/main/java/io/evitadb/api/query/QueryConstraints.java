@@ -1778,10 +1778,10 @@ public interface QueryConstraints {
 	 */
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(
-		@Nullable OrderConstraint orderConstraint,
+		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(orderConstraint, requirement);
+		return ArrayUtils.isEmpty(requirement) ? null : new HierarchyOfSelf(orderBy, requirement);
 	}
 
 	/**
@@ -1801,10 +1801,10 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
-		@Nullable OrderConstraint orderConstraint,
+		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return hierarchyOfReference(referenceName, null, orderConstraint, requirement);
+		return hierarchyOfReference(referenceName, null, orderBy, requirement);
 	}
 
 	/**
@@ -1832,7 +1832,7 @@ public interface QueryConstraints {
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String referenceName,
 		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nullable OrderConstraint orderConstraint,
+		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
 		return referenceName == null || ArrayUtils.isEmpty(requirement) ?
@@ -1840,7 +1840,7 @@ public interface QueryConstraints {
 			new HierarchyOfReference(
 				referenceName,
 				ofNullable(emptyHierarchicalEntityBehaviour).orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY),
-				orderConstraint,
+				orderBy,
 				requirement
 			);
 	}
@@ -1862,10 +1862,10 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
-		@Nullable OrderConstraint orderConstraint,
+		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
-		return hierarchyOfReference(referenceName, null, orderConstraint, requirement);
+		return hierarchyOfReference(referenceName, null, orderBy, requirement);
 	}
 
 	/**
@@ -1897,7 +1897,7 @@ public interface QueryConstraints {
 	static HierarchyOfReference hierarchyOfReference(
 		@Nullable String[] referenceName,
 		@Nullable EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nullable OrderConstraint orderConstraint,
+		@Nullable OrderBy orderBy,
 		@Nullable HierarchyRequireConstraint... requirement
 	) {
 		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
@@ -1909,7 +1909,7 @@ public interface QueryConstraints {
 		return new HierarchyOfReference(
 			referenceName,
 			ofNullable(emptyHierarchicalEntityBehaviour).orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY),
-			orderConstraint,
+			orderBy,
 			requirement
 		);
 	}

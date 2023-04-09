@@ -25,13 +25,13 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
-import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -136,7 +136,13 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 		for (RequireConstraint child : children) {
 			Assert.isTrue(
 				child instanceof HierarchyRequireConstraint || child instanceof EntityFetch,
-				"Constraint HierarchyOfReference accepts only HierarchyRequireConstraint or EntityFetch as inner constraints!"
+				"Constraint HierarchyOfReference accepts only HierarchyRequireConstraint, EntityFetch or OrderBy as inner constraints!"
+			);
+		}
+		for (Constraint<?> child : additionalChildren) {
+			Assert.isTrue(
+				child instanceof OrderBy,
+				"Constraint HierarchyOfReference accepts only HierarchyRequireConstraint, EntityFetch or OrderBy as inner constraints!"
 			);
 		}
 	}
@@ -164,15 +170,15 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 	public HierarchyOfReference(
 		@Nonnull String referenceName,
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nonnull OrderConstraint orderConstraint
+		@Nonnull OrderBy orderBy
 		) {
-		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, NO_CHILDREN, orderConstraint);
+		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, NO_CHILDREN, orderBy);
 	}
 
 	public HierarchyOfReference(
 		@Nonnull String[] referenceName,
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nonnull OrderConstraint orderConstraint
+		@Nonnull OrderBy orderBy
 	) {
 		super(
 			ArrayUtils.mergeArrays(
@@ -180,7 +186,7 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 				referenceName
 			),
 			NO_CHILDREN,
-			orderConstraint
+			orderBy
 		);
 	}
 
@@ -203,19 +209,19 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 	public HierarchyOfReference(
 		@Nonnull @ConstraintClassifierParamDef String referenceName,
 		@Nonnull @ConstraintValueParamDef EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nonnull @ConstraintChildrenParamDef OrderConstraint orderConstraint,
+		@Nonnull @ConstraintChildrenParamDef OrderBy orderBy,
 		@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirement
 	) {
-		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement, orderConstraint);
+		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement, orderBy);
 	}
 
 	/* TODO LHO - neměl by být @ConstraintCreatorDef na tomto konstruktoru? */
 	public HierarchyOfReference(
 		@Nonnull String[] referenceName,
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nonnull OrderConstraint orderConstraint,
+		@Nonnull OrderBy orderBy,
 		@Nonnull HierarchyRequireConstraint... requirement) {
-		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement, orderConstraint);
+		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement, orderBy);
 	}
 
 	/**
@@ -255,10 +261,10 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
 	 */
 	@Nonnull
-	public Optional<OrderConstraint> getOrderConstraint() {
+	public Optional<OrderBy> getOrderBy() {
 		return Arrays.stream(getAdditionalChildren())
-			.filter(OrderConstraint.class::isInstance)
-			.map(OrderConstraint.class::cast)
+			.filter(OrderBy.class::isInstance)
+			.map(OrderBy.class::cast)
 			.findFirst();
 	}
 

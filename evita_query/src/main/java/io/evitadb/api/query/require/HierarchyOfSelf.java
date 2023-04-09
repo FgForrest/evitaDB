@@ -25,11 +25,11 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
-import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -134,13 +134,13 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 		for (RequireConstraint child : children) {
 			Assert.isTrue(
 				child instanceof HierarchyRequireConstraint || child instanceof EntityFetch,
-				"Constraint HierarchyOfSelf accepts only HierarchyRequireConstraint, EntityFetch or ordering constraint as inner constraints!"
+				"Constraint HierarchyOfSelf accepts only HierarchyRequireConstraint, EntityFetch or OrderBy as inner constraints!"
 			);
 		}
 		for (Constraint<?> child : additionalChildren) {
 			Assert.isTrue(
-				child instanceof OrderConstraint,
-				"Constraint HierarchyOfSelf accepts only HierarchyRequireConstraint, EntityFetch or ordering constraint as inner constraints!"
+				child instanceof OrderBy,
+				"Constraint HierarchyOfSelf accepts only HierarchyRequireConstraint, EntityFetch or OrderBy as inner constraints!"
 			);
 		}
 	}
@@ -154,10 +154,10 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 
 	@ConstraintCreatorDef(silentImplicitClassifier = true)
 	public HierarchyOfSelf(
-		@Nullable @ConstraintChildrenParamDef OrderConstraint orderConstraint,
+		@Nullable @ConstraintChildrenParamDef OrderBy orderBy,
 		@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirements
 	) {
-		super(new Serializable[0], requirements, orderConstraint);
+		super(new Serializable[0], requirements, orderBy);
 	}
 
 	/**
@@ -174,10 +174,10 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
 	 */
 	@Nonnull
-	public Optional<OrderConstraint> getOrderConstraint() {
+	public Optional<OrderBy> getOrderBy() {
 		return Arrays.stream(getAdditionalChildren())
-			.filter(OrderConstraint.class::isInstance)
-			.map(OrderConstraint.class::cast)
+			.filter(OrderBy.class::isInstance)
+			.map(OrderBy.class::cast)
 			.findFirst();
 	}
 

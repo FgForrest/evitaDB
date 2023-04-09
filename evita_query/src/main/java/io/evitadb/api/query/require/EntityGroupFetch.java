@@ -29,7 +29,6 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -95,12 +94,6 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 				Arrays.stream(getRequirements()),
 				Arrays.stream(anotherRequirement.getRequirements())
 			)
-			.map(r -> {
-				if (!(r instanceof CombinableEntityContentRequire)) {
-					throw new EvitaInternalError("Combinable content require is required in EntityGroupFetch.");
-				}
-				return (CombinableEntityContentRequire) r;
-			})
 			.collect(new EntityContentRequireCombiningCollector());
 
 		//noinspection unchecked

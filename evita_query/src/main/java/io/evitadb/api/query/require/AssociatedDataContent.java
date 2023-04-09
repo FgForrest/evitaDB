@@ -63,7 +63,7 @@ import java.util.stream.Stream;
 	supportedIn = ConstraintDomain.ENTITY,
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AssociatedDataContent extends AbstractRequireConstraintLeaf implements AssociatedDataConstraint<RequireConstraint>, CombinableEntityContentRequire {
+public class AssociatedDataContent extends AbstractRequireConstraintLeaf implements AssociatedDataConstraint<RequireConstraint>, EntityContentRequire {
 	@Serial private static final long serialVersionUID = 4863284278176575291L;
 
 	private AssociatedDataContent(Serializable... arguments) {
@@ -100,7 +100,7 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf impleme
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends CombinableEntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof AssociatedDataContent, "Only AssociatedData requirement can be combined with this one!");
 		if (isAllRequested()) {
 			return (T) this;

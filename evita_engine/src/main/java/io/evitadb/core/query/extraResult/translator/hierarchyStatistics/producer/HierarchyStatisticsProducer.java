@@ -36,13 +36,16 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -65,7 +68,7 @@ import static java.util.Optional.ofNullable;
  * compute all information necessary. The producer aggregates {@link AbstractHierarchyStatisticsComputer} for each
  * {@link HierarchyOfSelf} requirement and combines them into the single result.
  *
- * Producer uses {@link HierarchyIndex} of the targeted entity to {@link HierarchyIndex#traverseHierarchy(HierarchyVisitor, int...)}
+ * Producer uses {@link HierarchyIndex} of the targeted entity to {@link HierarchyIndex#traverseHierarchy(HierarchyVisitor, HierarchyFilteringPredicate)}
  * finding all entities linked to the queried entity type. It respects {@link EntityLocaleEquals} and {@link HierarchyWithin}
  * filtering constraints when filtering the entity tree. For each such hierarchical entity node it finds all entity
  * primary keys of the queried entity type connected to it, combines them with entity id array that is produced by
@@ -99,12 +102,12 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 * Contains set of producer instances, that should build collections of {@link LevelInfo} for each requested
 	 * references. Each producer contains all information necessary.
 	 */
-	@Nonnull private final Map<String, Map<String, AbstractHierarchyStatisticsComputer>> hierarchyRequests = new HashMap<>(16);
+	@Nonnull private final Map<String, HierarchySet> hierarchyRequests = new HashMap<>(16);
 	/**
 	 * Contains producer instance of the computer that should build collections of {@link LevelInfo} for each queried
 	 * hierarchical entity. Each producer contains all information necessary.
 	 */
-	@Nullable private final Map<String, AbstractHierarchyStatisticsComputer> selfHierarchyRequest = new HashMap<>(16);
+	@Nullable private HierarchySet selfHierarchyRequest;
 	/**
 	 * The reference contains the information captured at the moment when translator visitor encounters constraints
 	 * {@link HierarchyOfSelf} or {@link HierarchyOfReference} and contains shared context for all internal
@@ -118,17 +121,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
 		return new HierarchyStatistics(
 			ofNullable(selfHierarchyRequest)
-				.map(it -> it.entrySet()
-					.stream()
-					.collect(
-						Collectors.toMap(
-							Entry::getKey,
-							entry -> entry.getValue().createStatistics(
-								filteringFormula, filteringFormulaWithoutUserFilter, language
-							)
-						)
-					)
-				)
+				.map(it -> it.createStatistics(filteringFormula, filteringFormulaWithoutUserFilter, language))
 				.orElse(null),
 			hierarchyRequests
 				.entrySet()
@@ -136,17 +129,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> it.getValue()
-							.entrySet()
-							.stream()
-							.collect(
-								Collectors.toMap(
-									Entry::getKey,
-									entry -> entry.getValue().createStatistics(
-										filteringFormula, filteringFormulaWithoutUserFilter, language
-									)
-								)
-							)
+						it -> it.getValue().createStatistics(filteringFormula, filteringFormulaWithoutUserFilter, language)
 					)
 				)
 		);
@@ -169,8 +152,10 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable HierarchyFilterConstraint hierarchyWithin,
 		@Nonnull EntityIndex targetIndex,
+		@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
 		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
+		@Nullable Sorter sorter,
 		@Nonnull Runnable interpretationLambda
 	) {
 		Assert.isTrue(context.get() == null, "HierarchyOfSelf / HierarchyOfReference cannot be nested inside each other!");
@@ -181,11 +166,19 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 					entitySchema, referenceSchema,
 					hierarchyWithin,
 					targetIndex,
+					prefetchRequirementCollector,
 					hierarchyReferencingEntityPks,
 					behaviour == EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY
 				)
 			);
 			interpretationLambda.run();
+			if (referenceSchema == null) {
+				ofNullable(this.selfHierarchyRequest)
+					.ifPresent(it -> it.setSorter(sorter));
+			} else {
+				ofNullable(this.hierarchyRequests.get(referenceSchema.getName()))
+					.ifPresent(it -> it.setSorter(sorter));
+			}
 		} finally {
 			context.set(null);
 		}
@@ -202,13 +195,16 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	) {
 		final HierarchyProducerContext ctx = getContext(constraintName);
 		if (ctx.referenceSchema() == null) {
-			this.selfHierarchyRequest.put(outputName, computer);
+			if (this.selfHierarchyRequest == null) {
+				this.selfHierarchyRequest = new HierarchySet(queryContext);
+			}
+			this.selfHierarchyRequest.addComputer(outputName, computer);
 		} else {
 			this.hierarchyRequests.computeIfAbsent(
 					ctx.referenceSchema().getName(),
-					s -> new HashMap<>(16)
+					s -> new HierarchySet(queryContext)
 				)
-				.put(outputName, computer);
+				.addComputer(outputName, computer);
 		}
 	}
 

@@ -63,7 +63,7 @@ import java.io.Serializable;
 	shortDescription = "The constraint triggers fetching the entity prices into the returned entities.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceContent extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, CombinableEntityContentRequire {
+public class PriceContent extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, EntityContentRequire {
 	public static final String[] EMPTY_PRICE_LISTS = new String[0];
 	@Serial private static final long serialVersionUID = -8521118631539528009L;
 
@@ -115,7 +115,7 @@ public class PriceContent extends AbstractRequireConstraintLeaf implements Price
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends CombinableEntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof PriceContent, "Only Prices requirement can be combined with this one!");
 		final PriceContent anotherPriceContent = (PriceContent) anotherRequirement;
 		if (anotherPriceContent.getFetchMode().ordinal() >= getFetchMode().ordinal()) {

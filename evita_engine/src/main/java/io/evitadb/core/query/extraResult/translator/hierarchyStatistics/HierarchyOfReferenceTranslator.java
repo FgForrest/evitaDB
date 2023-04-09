@@ -95,12 +95,14 @@ public class HierarchyOfReferenceTranslator
 				referenceSchema,
 				hierarchyWithin,
 				globalIndex,
+				null,
 				// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
 				// entity primary keys that are referencing the hierarchy entity
 				hierarchyNodeId -> ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, hierarchyNodeId)))
 					.map(EntityIndex::getAllPrimaryKeysFormula)
 					.orElse(EmptyFormula.INSTANCE),
 				hierarchyStatsConstraint.getEmptyHierarchicalEntityBehaviour(),
+				null,
 				() -> {
 					for (RequireConstraint child : hierarchyStatsConstraint) {
 						child.accept(extraResultPlanner);

@@ -117,7 +117,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */
-	@Delegate
+	@Getter @Delegate
 	private final PrefetchRequirementCollector prefetchRequirementCollector;
 	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for

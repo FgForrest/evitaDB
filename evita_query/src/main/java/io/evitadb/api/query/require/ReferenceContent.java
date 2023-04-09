@@ -65,7 +65,7 @@ import java.util.stream.Stream;
 	shortDescription = "The constraint triggers fetching referenced entity bodies into returned main entities.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class ReferenceContent extends AbstractRequireConstraintContainer implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, CombinableEntityContentRequire {
+public class ReferenceContent extends AbstractRequireConstraintContainer implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
 	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent();
 
@@ -293,7 +293,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends CombinableEntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof ReferenceContent, "Only References requirement can be combined with this one!");
 		if (isAllRequested()) {
 			return (T) this;

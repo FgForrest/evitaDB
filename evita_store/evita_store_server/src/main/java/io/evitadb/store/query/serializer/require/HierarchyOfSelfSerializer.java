@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
 import lombok.RequiredArgsConstructor;
@@ -47,14 +47,7 @@ public class HierarchyOfSelfSerializer extends Serializer<HierarchyOfSelf> {
 		for (HierarchyRequireConstraint requirement : requirements) {
 			kryo.writeClassAndObject(output, requirement);
 		}
-		object.getOrderConstraint()
-			.ifPresentOrElse(
-				orderConstraint -> {
-					output.writeBoolean(true);
-					kryo.writeClassAndObject(output, object.getOrderConstraint());
-				},
-				() -> output.writeBoolean(false)
-			);
+		kryo.writeObjectOrNull(output, object.getOrderBy().orElse(null), OrderBy.class);
 	}
 
 	@Override
@@ -64,7 +57,7 @@ public class HierarchyOfSelfSerializer extends Serializer<HierarchyOfSelf> {
 		for (int i = 0; i < requirementCount; i++) {
 			requirements[i] = (HierarchyRequireConstraint) kryo.readClassAndObject(input);
 		}
-		final OrderConstraint orderConstraint = input.readBoolean() ? (OrderConstraint) kryo.readClassAndObject(input) : null;
+		final OrderBy orderConstraint = kryo.readObjectOrNull(input, OrderBy.class);
 		return new HierarchyOfSelf(orderConstraint, requirements);
 	}
 

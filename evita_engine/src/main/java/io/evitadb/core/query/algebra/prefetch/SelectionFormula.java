@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
-import io.evitadb.api.query.require.CombinableEntityContentRequire;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequirements;
@@ -265,7 +264,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		/**
 		 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
 		 */
-		protected final Map<Class<? extends CombinableEntityContentRequire>, CombinableEntityContentRequire> requirements = new HashMap<>();
+		protected final Map<Class<? extends EntityContentRequire>, EntityContentRequire> requirements = new HashMap<>();
 		/**
 		 * Flag that signalizes {@link #visit(Formula)} happens in conjunctive scope.
 		 */
@@ -292,11 +291,13 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		 * to fetch wide enough scope of the entity so that all filtering/sorting logic would have all data present
 		 * for its evaluation.
 		 */
-		public void addRequirement(@Nonnull CombinableEntityContentRequire requirement) {
-			requirements.merge(
-				requirement.getClass(), requirement,
-				CombinableEntityContentRequire::combineWith
-			);
+		public void addRequirement(@Nonnull EntityContentRequire... requirement) {
+			for (EntityContentRequire theRequirement : requirement) {
+				requirements.merge(
+					theRequirement.getClass(), theRequirement,
+					EntityContentRequire::combineWith
+				);
+			}
 		}
 
 		/**
@@ -355,11 +356,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 				final EntityRequire entityRequire = requirementsDefiner.getEntityRequire();
 				final EntityContentRequire[] requirements = entityRequire == null ? new EntityContentRequire[0] : entityRequire.getRequirements();
 				for (EntityContentRequire requirement : requirements) {
-					Assert.isPremiseValid(
-						requirement instanceof CombinableEntityContentRequire,
-						"Non-combinable content requirements are currently not supported."
-					);
-					addRequirement((CombinableEntityContentRequire) requirement);
+					addRequirement(requirement);
 				}
 			}
 
@@ -381,7 +378,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		 */
 		protected EntityFetchRequirements getRequirements() {
 			return new EntityFetch(
-				requirements.values().toArray(new CombinableEntityContentRequire[0])
+				requirements.values().toArray(new EntityContentRequire[0])
 			);
 		}
 

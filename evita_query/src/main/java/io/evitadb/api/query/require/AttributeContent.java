@@ -63,7 +63,7 @@ import java.util.stream.Stream;
 	supportedIn = ConstraintDomain.ENTITY,
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AttributeContent extends AbstractRequireConstraintLeaf implements AttributeConstraint<RequireConstraint>, CombinableEntityContentRequire {
+public class AttributeContent extends AbstractRequireConstraintLeaf implements AttributeConstraint<RequireConstraint>, EntityContentRequire {
 	@Serial private static final long serialVersionUID = 869775256765143926L;
 	public static final AttributeContent ALL_ATTRIBUTES = new AttributeContent();
 
@@ -101,7 +101,7 @@ public class AttributeContent extends AbstractRequireConstraintLeaf implements A
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends CombinableEntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof AttributeContent, "Only Attributes requirement can be combined with this one!");
 		if (isAllRequested()) {
 			return (T) this;

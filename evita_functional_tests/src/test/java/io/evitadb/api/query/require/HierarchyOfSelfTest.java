@@ -42,23 +42,30 @@ class HierarchyOfSelfTest {
 			new HierarchyRequireConstraint[] {fromRoot("megaMenu", entityFetch(attributeContent()))},
 			hierarchyStatisticsOfSelf.getRequirements()
 		);
-		assertFalse(hierarchyStatisticsOfSelf.getOrderConstraint().isPresent());
+		assertFalse(hierarchyStatisticsOfSelf.getOrderBy().isPresent());
 	}
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpectedWithOrdering() {
-		final HierarchyOfSelf hierarchyStatisticsOfSelf = hierarchyOfSelf(attributeNatural("name"), fromRoot("megaMenu", entityFetch(attributeContent())));
+		final HierarchyOfSelf hierarchyStatisticsOfSelf = hierarchyOfSelf(
+			orderBy(attributeNatural("name")),
+			fromRoot("megaMenu", entityFetch(attributeContent()))
+		);
 		assertArrayEquals(
 			new HierarchyRequireConstraint[] {fromRoot("megaMenu", entityFetch(attributeContent()))},
 			hierarchyStatisticsOfSelf.getRequirements()
 		);
-		assertEquals(attributeNatural("name"), hierarchyStatisticsOfSelf.getOrderConstraint().orElseThrow());
+		assertEquals(orderBy(attributeNatural("name")), hierarchyStatisticsOfSelf.getOrderBy().orElseThrow());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new HierarchyOfSelf(new HierarchyRequireConstraint[0]).isApplicable());
-		assertFalse(new HierarchyOfSelf(attributeNatural("name"), new HierarchyRequireConstraint[0]).isApplicable());
+		assertFalse(
+			new HierarchyOfSelf(
+				orderBy(attributeNatural("name")),
+				new HierarchyRequireConstraint[0]).isApplicable()
+		);
 		assertTrue(hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent()))).isApplicable());
 	}
 
@@ -67,11 +74,22 @@ class HierarchyOfSelfTest {
 		final HierarchyOfSelf hierarchyStatisticsOfSelf = hierarchyOfSelf(fromRoot("megaMenu"));
 		assertEquals("hierarchyOfSelf(fromRoot('megaMenu'))", hierarchyStatisticsOfSelf.toString());
 
-		final HierarchyOfSelf hierarchyStatisticsOfSelf2 = hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent())));
-		assertEquals("hierarchyOfSelf(fromRoot('megaMenu',entityFetch(attributeContent())))", hierarchyStatisticsOfSelf2.toString());
+		final HierarchyOfSelf hierarchyStatisticsOfSelf2 = hierarchyOfSelf(
+			fromRoot("megaMenu", entityFetch(attributeContent()))
+		);
+		assertEquals(
+			"hierarchyOfSelf(fromRoot('megaMenu',entityFetch(attributeContent())))",
+			hierarchyStatisticsOfSelf2.toString()
+		);
 
-		final HierarchyOfSelf hierarchyStatisticsOfSelf3 = hierarchyOfSelf(attributeNatural("name"), fromRoot("megaMenu", entityFetch(attributeContent())));
-		assertEquals("hierarchyOfSelf(attributeNatural('name',ASC),fromRoot('megaMenu',entityFetch(attributeContent())))", hierarchyStatisticsOfSelf3.toString());
+		final HierarchyOfSelf hierarchyStatisticsOfSelf3 = hierarchyOfSelf(
+			orderBy(attributeNatural("name")),
+			fromRoot("megaMenu", entityFetch(attributeContent()))
+		);
+		assertEquals(
+			"hierarchyOfSelf(orderBy(attributeNatural('name',ASC)),fromRoot('megaMenu',entityFetch(attributeContent())))",
+			hierarchyStatisticsOfSelf3.toString()
+		);
 	}
 
 	@Test
@@ -79,10 +97,10 @@ class HierarchyOfSelfTest {
 		assertNotSame(hierarchyOfSelf(fromRoot("megaMenu")), hierarchyOfSelf(fromRoot("megaMenu")));
 		assertEquals(hierarchyOfSelf(fromRoot("megaMenu")), hierarchyOfSelf(fromRoot("megaMenu")));
 		assertNotEquals(hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent()))), hierarchyOfSelf(fromRoot("megaMenu")));
-		assertNotEquals(hierarchyOfSelf(attributeNatural("name"), fromRoot("megaMenu", entityFetch(attributeContent()))), hierarchyOfSelf(fromRoot("megaMenu")));
+		assertNotEquals(hierarchyOfSelf(orderBy(attributeNatural("name")), fromRoot("megaMenu", entityFetch(attributeContent()))), hierarchyOfSelf(fromRoot("megaMenu")));
 		assertEquals(hierarchyOfSelf(fromRoot("megaMenu")).hashCode(), hierarchyOfSelf(fromRoot("megaMenu")).hashCode());
 		assertNotEquals(hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent()))).hashCode(), hierarchyOfSelf(fromRoot("megaMenu")).hashCode());
-		assertNotEquals(hierarchyOfSelf(attributeNatural("name"), fromRoot("megaMenu", entityFetch(attributeContent()))).hashCode(), hierarchyOfSelf(fromRoot("megaMenu")).hashCode());
+		assertNotEquals(hierarchyOfSelf(orderBy(attributeNatural("name")), fromRoot("megaMenu", entityFetch(attributeContent()))).hashCode(), hierarchyOfSelf(fromRoot("megaMenu")).hashCode());
 	}
 
 }

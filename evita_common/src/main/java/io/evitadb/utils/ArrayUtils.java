@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.IntBinaryOperator;
 import java.util.function.ToIntBiFunction;
+import java.util.function.ToIntFunction;
 import java.util.function.UnaryOperator;
 
 /**
@@ -805,6 +806,61 @@ public class ArrayUtils {
 		for (int i = 0; i < size; i++) {
 			//noinspection unchecked
 			result[i] = (T) items[startIndex + i];
+		}
+		return result;
+	}
+
+	/**
+	 * Method sorts `arrayToSort` TODO JNO - document me
+	 */
+	@Nonnull
+	public static int[] sortAlong(@Nonnull int[] sortedArray, @Nonnull int[] arrayToSort) {
+		final int lastIndex = arrayToSort.length - 1;
+		final int[] positions = new int[arrayToSort.length];
+		int itemsLocalized = 0;
+		for (int i = 0; i < sortedArray.length && itemsLocalized < arrayToSort.length; i++) {
+			final int number = sortedArray[i];
+			if (number >= arrayToSort[0] && number <= arrayToSort[lastIndex]) {
+				final int indexInArrayToSort = Arrays.binarySearch(arrayToSort, number);
+				if (indexInArrayToSort >= 0) {
+					positions[indexInArrayToSort] = itemsLocalized++;
+				}
+			}
+		}
+		final int[] result = new int[arrayToSort.length];
+		for (int i = 0; i < arrayToSort.length; i++) {
+			result[positions[i]] = arrayToSort[i];
+		}
+		return result;
+	}
+
+	/**
+	 * Method sorts `arrayToSort` TODO JNO - document me
+	 */
+	@Nonnull
+	public static <T> T[] sortAlong(@Nonnull int[] sortedArray, @Nonnull T[] arrayToSort, @Nonnull ToIntFunction<T> extractor) {
+		final int first = extractor.applyAsInt(arrayToSort[0]);
+		final int last = extractor.applyAsInt(arrayToSort[arrayToSort.length - 1]);
+		final int[] positions = new int[arrayToSort.length];
+		int itemsLocalized = 0;
+		for (int i = 0; i < sortedArray.length && itemsLocalized < arrayToSort.length; i++) {
+			final int number = sortedArray[i];
+			if (number >= first && number <= last) {
+				final int indexInArrayToSort = binarySearch(
+					arrayToSort,
+					number,
+					(t, integer) -> {
+						return Integer.compare(extractor.applyAsInt(t), integer);
+					});
+				if (indexInArrayToSort >= 0) {
+					positions[indexInArrayToSort] = itemsLocalized++;
+				}
+			}
+		}
+		@SuppressWarnings("unchecked")
+		final T[] result = (T[]) Array.newInstance(arrayToSort.getClass().getComponentType(), arrayToSort.length);
+		for (int i = 0; i < arrayToSort.length; i++) {
+			result[positions[i]] = arrayToSort[i];
 		}
 		return result;
 	}

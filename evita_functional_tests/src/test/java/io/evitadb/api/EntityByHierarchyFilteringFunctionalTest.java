@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -53,15 +54,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -73,6 +66,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
 import static io.evitadb.utils.AssertionUtils.assertResultIs;
@@ -2528,6 +2522,71 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return sorted children for categories with all statistics until level two")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnSortedCardinalitiesUntilLevelTwo(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRootSelf()
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(
+									attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
+								),
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(level(2)),
+									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+					final int level = parentItems.size() + 1;
+					return languagePredicate.test(sealedEntity, parentItems) && level <= 2;
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalCategoryEntities,
+					languagePredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, null, categoryHierarchy,
+							categoryCardinalities, false, true,
+							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class))
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
 	@Nonnull
 	private Cardinalities computeCardinalities(
 		Hierarchy categoryHierarchy,
@@ -2603,6 +2662,22 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		boolean excludeParent,
 		boolean computeChildrenCount
 	) {
+		return computeChildren(
+			session, parentCategoryId, categoryHierarchy, categoryCardinalities,
+			excludeParent, computeChildrenCount, null
+		);
+	}
+
+	@Nonnull
+	private List<LevelInfo> computeChildren(
+		@Nonnull EvitaSessionContract session,
+		@Nullable Integer parentCategoryId,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nullable Cardinalities categoryCardinalities,
+		boolean excludeParent,
+		boolean computeChildrenCount,
+		@Nullable Comparator<SealedEntity> sorter
+		) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
 		final List<HierarchyItem> items;
 		if (parentCategoryId == null) {
@@ -2617,7 +2692,7 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			final int categoryId = Integer.parseInt(rootItem.getCode());
 			if (categoryCardinalities == null || categoryCardinalities.isValid(categoryId)) {
 				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
-					session, categoryId, categoryHierarchy, categoryCardinalities, true, computeChildrenCount
+					session, categoryId, categoryHierarchy, categoryCardinalities, true, computeChildrenCount, sorter
 				);
 				levelInfo.add(
 					new LevelInfo(
@@ -2630,6 +2705,8 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				);
 			}
 		}
+		ofNullable(sorter)
+			.ifPresent(it -> levelInfo.sort((o1, o2) -> sorter.compare((SealedEntity) o1.entity(), (SealedEntity) o2.entity())));
 		return levelInfo;
 	}
 
@@ -2738,13 +2815,28 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		boolean queuedEntityStatistics,
 		boolean computeChildrenCount
 	) {
+		return fetchLevelInfo(
+			session, parentCategoryId, categoryHierarchy, categoryCardinalities,
+			queuedEntityStatistics, computeChildrenCount, null
+		);
+	}
+
+	private List<LevelInfo> fetchLevelInfo(
+		@Nonnull EvitaSessionContract session,
+		int parentCategoryId,
+		@Nonnull Hierarchy categoryHierarchy,
+		@Nullable Cardinalities categoryCardinalities,
+		boolean queuedEntityStatistics,
+		boolean computeChildrenCount,
+		@Nullable Comparator<SealedEntity> sorter
+	) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
 		for (HierarchyItem item : categoryHierarchy.getChildItems(String.valueOf(parentCategoryId))) {
 			final int categoryId = Integer.parseInt(item.getCode());
 			if (categoryCardinalities == null || categoryCardinalities.isValid(categoryId)) {
 				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
 					session, categoryId, categoryHierarchy, categoryCardinalities,
-					queuedEntityStatistics, computeChildrenCount
+					queuedEntityStatistics, computeChildrenCount, sorter
 				);
 				levelInfo.add(
 					new LevelInfo(
@@ -2757,6 +2849,8 @@ public class EntityByHierarchyFilteringFunctionalTest {
 				);
 			}
 		}
+		ofNullable(sorter)
+			.ifPresent(it -> levelInfo.sort((o1, o2) -> sorter.compare((SealedEntity) o1.entity(), (SealedEntity) o2.entity())));
 		return levelInfo;
 	}
 
