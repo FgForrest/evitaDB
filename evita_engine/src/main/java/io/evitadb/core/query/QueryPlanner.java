@@ -417,7 +417,7 @@ public class QueryPlanner {
 		@Nonnull QueryPlanBuilder mainBuilder,
 		@Nonnull QueryPlan mainPlan
 	) {
-		queryContext.doWithFrozenRandom(() -> {
+		queryContext.executeInDryRun(() -> {
 			final EvitaResponse<EntityClassifier> mainResponse = mainPlan.execute();
 			for (int i = 1; i < queryPlanBuilders.size(); i++) {
 				final QueryPlanBuilder alternativeBuilder = queryPlanBuilders.get(i);

@@ -274,11 +274,11 @@ public class QueryContext {
 
 	/**
 	 * Executes code in `lambda` function with a {@link Random} object that will generate the same sequences for each
-	 * call of {@link #getRandom()} method.
+	 * call of {@link #getRandom()} method. It also doesn't record a query telemetry.
 	 *
 	 * @see #frozenRandom for more information
 	 */
-	public void doWithFrozenRandom(@Nonnull Runnable lambda) {
+	public void executeInDryRun(@Nonnull Runnable lambda) {
 		try {
 			final ByteArrayOutputStream bos = new ByteArrayOutputStream(200);
 			try (var os = new ObjectOutputStream(bos)) {
@@ -291,6 +291,13 @@ public class QueryContext {
 		} finally {
 			this.frozenRandom = null;
 		}
+	}
+
+	/**
+	 * Returns true if the context is inside {@link #executeInDryRun(Runnable)} method.
+	 */
+	public boolean isDryRun() {
+		return this.frozenRandom != null;
 	}
 
 	/**
@@ -569,7 +576,7 @@ public class QueryContext {
 	 * Adds new step of query evaluation.
 	 */
 	public void pushStep(@Nonnull QueryPhase phase) {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			telemetryStack.push(
 				telemetryStack.peek().addStep(phase)
 			);
@@ -580,7 +587,7 @@ public class QueryContext {
 	 * Adds new step of query evaluation.
 	 */
 	public void pushStep(@Nonnull QueryPhase phase, @Nonnull String message) {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			telemetryStack.push(
 				telemetryStack.peek().addStep(phase, message)
 			);
@@ -591,7 +598,7 @@ public class QueryContext {
 	 * Adds new step of query evaluation.
 	 */
 	public void pushStep(@Nonnull QueryPhase phase, @Nonnull Supplier<String> messageSupplier) {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			telemetryStack.push(
 				telemetryStack.peek().addStep(phase, messageSupplier.get())
 			);
@@ -603,7 +610,7 @@ public class QueryContext {
 	 */
 	@Nullable
 	public QueryTelemetry getCurrentStep() {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			return telemetryStack.peek();
 		}
 		return null;
@@ -613,7 +620,7 @@ public class QueryContext {
 	 * Finishes current query evaluation step.
 	 */
 	public void popStep() {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			telemetryStack.pop().finish();
 		}
 	}
@@ -622,7 +629,7 @@ public class QueryContext {
 	 * Finishes current query evaluation step.
 	 */
 	public void popStep(@Nonnull String message) {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			telemetryStack.pop().finish(message);
 		}
 	}
@@ -632,16 +639,20 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public QueryTelemetry finalizeAndGetTelemetry() {
-		Assert.isPremiseValid(!telemetryStack.isEmpty(), "The telemetry has been already retrieved!");
+		if (isDryRun()) {
+			return new QueryTelemetry(QueryPhase.OVERALL);
+		} else {
+			Assert.isPremiseValid(!telemetryStack.isEmpty(), "The telemetry has been already retrieved!");
 
-		// there may be some steps still open at the time extra results is fabricated
-		QueryTelemetry rootStep;
-		do {
-			rootStep = telemetryStack.pop();
-			rootStep.finish();
-		} while (!telemetryStack.isEmpty());
+			// there may be some steps still open at the time extra results is fabricated
+			QueryTelemetry rootStep;
+			do {
+				rootStep = telemetryStack.pop();
+				rootStep.finish();
+			} while (!telemetryStack.isEmpty());
 
-		return rootStep;
+			return rootStep;
+		}
 	}
 
 	/**
