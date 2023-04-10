@@ -84,14 +84,18 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	 */
 	@Nonnull private final EnumSet<StatisticsType> statisticsType;
 	/**
+	 * Optional siblings computer allowing to compute siblings statistics for each traversed parent hierarchy node.
+	 */
+	@Nullable private final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer;
+	/**
 	 * Internal function that creates a formula that computes the number of queried entities linked to the processed
 	 * {@link HierarchyNode}.
 	 */
-	private final ToIntFunction<HierarchyNode> queriedEntityComputer;
+	@Nonnull private final ToIntFunction<HierarchyNode> queriedEntityComputer;
 	/**
-	 * TODO JNO - document me
+	 * Internal flag that instead of registering siblings to the output {@link LevelInfo} children, it only increases
+	 * the counters for their parents.
 	 */
-	private final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer;
 	private final boolean omitSiblings;
 
 	public ParentStatisticsHierarchyVisitor(

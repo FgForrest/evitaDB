@@ -37,7 +37,7 @@ public class LocaleHierarchyEntityPredicate implements HierarchyFilteringPredica
 	/**
 	 * Formula computes id of all hierarchical entities of the requested language.
 	 */
-	private final Formula filteringFormula;
+	@Nonnull private final Formula filteringFormula;
 
 	public LocaleHierarchyEntityPredicate(@Nonnull EntityIndex targetIndex, @Nonnull Locale language) {
 		this.filteringFormula = targetIndex.getRecordsWithLanguageFormula(language);

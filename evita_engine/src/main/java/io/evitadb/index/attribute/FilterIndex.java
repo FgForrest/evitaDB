@@ -280,7 +280,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	public Formula getAllRecordsFormula() {
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable()) {
+		if (isTransactionAvailable() && this.dirty.isTrue()) {
 			return getHistogramOfAllRecords().getFormula();
 		} else {
 			if (this.memoizedAllRecordsFormula == null) {

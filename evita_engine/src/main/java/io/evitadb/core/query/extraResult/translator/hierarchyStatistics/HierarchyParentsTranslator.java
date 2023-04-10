@@ -43,14 +43,19 @@ import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Optional;
 
 import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - document me
+ * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyParents} to
+ * {@link ParentStatisticsComputer} optionally accompanied by {@link SiblingsStatisticsTravelingComputer} registered
+ * inside {@link HierarchyStatisticsProducer}. The computer instance has all pointer necessary to compute result.
+ * All operations in this translator are relatively cheap comparing to final result computation, that is deferred to
+ * {@link HierarchyStatisticsProducer#fabricate(List)} method.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class HierarchyParentsTranslator
 	extends AbstractHierarchyTranslator
@@ -94,7 +99,8 @@ public class HierarchyParentsTranslator
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Method creates instance of the {@link SiblingsStatisticsTravelingComputer} for resolving the siblings of each
+	 * traversed parent node.
 	 */
 	@Nonnull
 	private SiblingsStatisticsTravelingComputer createComputer(

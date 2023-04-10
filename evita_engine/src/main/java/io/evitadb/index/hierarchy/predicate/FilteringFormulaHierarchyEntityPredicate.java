@@ -61,11 +61,11 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	/**
 	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
 	 */
-	@Getter private final FilterBy filterBy;
+	@Getter @Nonnull private final FilterBy filterBy;
 	/**
 	 * Formula computes id of all hierarchical entities that match input filter by constraint.
 	 */
-	@Getter private final Formula filteringFormula;
+	@Getter @Nonnull private final Formula filteringFormula;
 
 	public FilteringFormulaHierarchyEntityPredicate(
 		@Nonnull QueryContext queryContext,

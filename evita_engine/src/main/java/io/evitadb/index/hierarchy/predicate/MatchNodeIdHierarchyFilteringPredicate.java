@@ -30,7 +30,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * TODO JNO - document me
+ * This predicate matches only a hierarchy node with specific id. For all other nodes it returns false.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

@@ -152,7 +152,7 @@ public class HierarchyOfSelfTranslator
 				}
 			);
 			// create a deferred formula that will log the execution time to query telemetry
-			/* TODO JNO - nějak dodělat defer */
+			/* TODO JNO - nějak dodělat defer a v testech okouknout jak vypadá query telemetry i pro filtrování */
 //			this.filteringFormula = new DeferredFormula(
 //				new FormulaWrapper(
 //					theFormula,
