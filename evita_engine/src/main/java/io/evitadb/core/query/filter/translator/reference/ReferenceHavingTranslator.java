@@ -78,7 +78,10 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		if (referencedEntityIndexes.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		} else {
-			return applySearchOnIndexes(referenceHaving, filterByVisitor, referenceSchema, referencedEntityIndexes);
+			return filterByVisitor.computeOnlyOnce(
+				referenceHaving,
+				() -> applySearchOnIndexes(referenceHaving, filterByVisitor, referenceSchema, referencedEntityIndexes)
+			);
 		}
 	}
 

@@ -822,7 +822,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
-						computeChildren(session, 2, categoryHierarchy, categoryCardinalities, false, true)
+						computeChildren(session, null, categoryHierarchy, categoryCardinalities, false, true)
 					)
 				);
 
@@ -867,6 +867,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				categoriesWithValidPath.add(category.getPrimaryKey());
 			}
 		}
+		final Collection<SealedEntity> filteredProducts = allProducts.stream()
+			.filter(filterPredicate)
+			.collect(Collectors.toList());
 		final Cardinalities categoryCardinalities = new Cardinalities();
 		for (SealedEntity category : allCategories) {
 			final int categoryId = category.getPrimaryKey();
@@ -880,8 +883,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 			if (categoryPath.stream().allMatch(cid -> treeFilterPredicate.test(categoryIndex.get(cid), parentItems))) {
 				int cid = categoryPath.get(categoryPath.size() - 1);
 				if (categoriesWithValidPath.contains(cid)) {
-					final int[] productIds = allProducts.stream()
-						.filter(filterPredicate)
+					final int[] productIds = filteredProducts
+						.stream()
 						.filter(it -> it.getReference(Entities.CATEGORY, cid).isPresent())
 						.mapToInt(EntityContract::getPrimaryKey)
 						.toArray();
