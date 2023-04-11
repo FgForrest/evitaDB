@@ -173,7 +173,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 								),
 								hierarchyWithin.isDirectRelation(),
 								hierarchyWithin.isExcludingRoot(),
-								targetHierarchyIndex
+								targetHierarchyIndex,
+								queryContext
 							)
 						);
 					} else {
