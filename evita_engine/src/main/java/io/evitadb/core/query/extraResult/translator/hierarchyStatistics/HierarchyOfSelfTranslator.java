@@ -42,6 +42,7 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
+import io.evitadb.core.query.sort.DeferredSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
@@ -118,7 +119,7 @@ public class HierarchyOfSelfTranslator
 			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
 				Arrays.stream(orderBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
 			queryContext.pushStep(
-				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
+				QueryPhase.PLANNING_SORT,
 				stepDescriptionSupplier
 			);
 			// crete a visitor
@@ -128,7 +129,7 @@ public class HierarchyOfSelfTranslator
 				extraResultPlanner.getFilteringFormula()
 			);
 			// now analyze the filter by in a nested context with exchanged primary entity index
-			final Sorter sorter = orderByVisitor.executeInContext(
+			return orderByVisitor.executeInContext(
 				entityIndex,
 				(attributeName) -> {
 					final AttributeSchemaContract attributeSchema = queryContext.getSchema()
@@ -148,25 +149,20 @@ public class HierarchyOfSelfTranslator
 					for (OrderConstraint innerConstraint : orderBy.getChildren()) {
 						innerConstraint.accept(orderByVisitor);
 					}
-					return orderByVisitor.getLastUsedSorter();
+					// create a deferred sorter that will log the execution time to query telemetry
+					return new DeferredSorter(
+						orderByVisitor.getLastUsedSorter(),
+						sorter -> {
+							try {
+								queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
+								return sorter.get();
+							} finally {
+								queryContext.popStep();
+							}
+						}
+					);
 				}
 			);
-			// create a deferred formula that will log the execution time to query telemetry
-			/* TODO JNO - nějak dodělat defer a v testech okouknout jak vypadá query telemetry i pro filtrování */
-//			this.filteringFormula = new DeferredFormula(
-//				new FormulaWrapper(
-//					theFormula,
-//					formula -> {
-//						try {
-//							queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-//							return formula.compute();
-//						} finally {
-//							queryContext.popStep();
-//						}
-//					}
-//				)
-//			);
-			return sorter;
 		} finally {
 			queryContext.popStep();
 		}

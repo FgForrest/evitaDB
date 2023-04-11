@@ -106,6 +106,14 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	}
 
 	/**
+	 * Returns description of the variant of this builder (source index).
+	 */
+	@Nonnull
+	public String getDescriptionWithCosts() {
+		return targetIndexes.toStringWithCosts(getEstimatedCost());
+	}
+
+	/**
 	 * Returns estimated costs for computing filtered result.
 	 *
 	 * @see Formula#getEstimatedCost()

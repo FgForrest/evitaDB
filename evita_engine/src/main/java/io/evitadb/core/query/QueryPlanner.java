@@ -285,7 +285,7 @@ public class QueryPlanner {
 			if (result.isEmpty()) {
 				queryContext.popStep("No index selected!");
 			} else {
-				queryContext.popStep("Selected index: " + result.get(0).getDescription());
+				queryContext.popStep("Selected index: " + result.get(0).getDescriptionWithCosts());
 			}
 		}
 	}
