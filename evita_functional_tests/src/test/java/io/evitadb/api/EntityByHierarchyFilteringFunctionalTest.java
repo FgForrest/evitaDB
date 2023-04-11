@@ -43,7 +43,6 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
-import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -53,11 +52,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -85,7 +90,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
-public class EntityByHierarchyFilteringFunctionalTest {
+public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyTest {
 	private static final String THOUSAND_CATEGORIES = "ThousandCategories";
 	private static final String ATTRIBUTE_SHORTCUT = "shortcut";
 	private static final int SEED = 40;
@@ -2653,233 +2658,20 @@ public class EntityByHierarchyFilteringFunctionalTest {
 		);
 	}
 
-	@Nonnull
-	private List<LevelInfo> computeChildren(
-		@Nonnull EvitaSessionContract session,
-		@Nullable Integer parentCategoryId,
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nullable Cardinalities categoryCardinalities,
-		boolean excludeParent,
-		boolean computeChildrenCount
-	) {
-		return computeChildren(
-			session, parentCategoryId, categoryHierarchy, categoryCardinalities,
-			excludeParent, computeChildrenCount, null
-		);
-	}
-
-	@Nonnull
-	private List<LevelInfo> computeChildren(
-		@Nonnull EvitaSessionContract session,
-		@Nullable Integer parentCategoryId,
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nullable Cardinalities categoryCardinalities,
-		boolean excludeParent,
-		boolean computeChildrenCount,
-		@Nullable Comparator<SealedEntity> sorter
-		) {
-		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
-		final List<HierarchyItem> items;
-		if (parentCategoryId == null) {
-			items = categoryHierarchy.getRootItems();
-		} else if (excludeParent) {
-			items = categoryHierarchy.getChildItems(String.valueOf(parentCategoryId));
-		} else {
-			items = Collections.singletonList(categoryHierarchy.getItem(String.valueOf(parentCategoryId)));
-		}
-
-		for (HierarchyItem rootItem : items) {
-			final int categoryId = Integer.parseInt(rootItem.getCode());
-			if (categoryCardinalities == null || categoryCardinalities.isValid(categoryId)) {
-				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
-					session, categoryId, categoryHierarchy, categoryCardinalities, true, computeChildrenCount, sorter
-				);
-				levelInfo.add(
-					new LevelInfo(
-						fetchHierarchyStatisticsEntity(session, categoryId),
-						ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null),
-						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,
-						childrenStatistics
-					)
-				);
-			}
-		}
-		ofNullable(sorter)
-			.ifPresent(it -> levelInfo.sort((o1, o2) -> sorter.compare((SealedEntity) o1.entity(), (SealedEntity) o2.entity())));
-		return levelInfo;
-	}
-
-	@Nonnull
-	private List<LevelInfo> computeSiblings(
-		@Nonnull EvitaSessionContract session,
-		int categoryId,
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nullable Cardinalities categoryCardinalities,
-		boolean queuedEntityStatistics,
-		boolean computeChildrenCount
-	) {
-		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
-		final HierarchyItem theNode = categoryHierarchy.getItem(String.valueOf(categoryId));
-		Assert.notNull(theNode, "Node with id `" + categoryId + "` is not present!");
-		final HierarchyItem parent = categoryHierarchy.getParentItem(String.valueOf(categoryId));
-		final List<HierarchyItem> items = parent == null ?
-			categoryHierarchy.getRootItems() : categoryHierarchy.getChildItems(parent.getCode());
-
-		for (HierarchyItem rootItem : items) {
-			final int cid = Integer.parseInt(rootItem.getCode());
-			if (categoryCardinalities == null || categoryCardinalities.isValid(cid)) {
-				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
-					session, cid, categoryHierarchy, categoryCardinalities, queuedEntityStatistics, computeChildrenCount
-				);
-				levelInfo.add(
-					new LevelInfo(
-						fetchHierarchyStatisticsEntity(session, cid),
-						queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null) : null,
-						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
-						childrenStatistics
-					)
-				);
-			}
-		}
-		return levelInfo;
-	}
-
-	@Nonnull
-	private List<LevelInfo> computeParents(
-		@Nonnull EvitaSessionContract session,
-		int categoryId,
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nullable Cardinalities categoryCardinalities,
-		@Nullable Predicate<SealedEntity> siblingsPredicate,
-		boolean queuedEntityStatistics,
-		boolean computeChildrenCount
-	) {
-		final HierarchyItem theNode = categoryHierarchy.getItem(String.valueOf(categoryId));
-		Assert.notNull(theNode, "Node with id `" + categoryId + "` is not present!");
-		final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(categoryId));
-		parentItems.add(theNode);
-
-		List<LevelInfo> nextLevel = new LinkedList<>();
-		for (int i = parentItems.size() - 1; i >= 0; i--) {
-			final HierarchyItem parentItem = parentItems.get(i);
-			final int cid = Integer.parseInt(parentItem.getCode());
-			final LevelInfo currentNodeInfo = new LevelInfo(
-				fetchHierarchyStatisticsEntity(session, cid),
-				queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null) : null,
-				computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
-				nextLevel
-			);
-			if (siblingsPredicate == null) {
-				nextLevel = List.of(currentNodeInfo);
-			} else {
-				final List<HierarchyItem> siblings = i == 0 ?
-					categoryHierarchy.getRootItems() :
-					categoryHierarchy.getChildItems(parentItems.get(i - 1).getCode());
-
-				nextLevel = siblings
-					.stream()
-					.map(sibling -> {
-						if (Objects.equals(sibling.getCode(), parentItem.getCode())) {
-							return currentNodeInfo;
-						} else {
-							final int siblingCid = Integer.parseInt(sibling.getCode());
-							final SealedEntity siblingEntity = fetchHierarchyStatisticsEntity(session, siblingCid);
-							if (siblingsPredicate.test(siblingEntity)) {
-								return new LevelInfo(
-									siblingEntity,
-									queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(siblingCid)).orElse(null) : null,
-									computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(siblingCid)).orElse(null) : null,
-									fetchLevelInfo(session, siblingCid, categoryHierarchy, categoryCardinalities, queuedEntityStatistics, computeChildrenCount)
-								);
-							} else {
-								return null;
-							}
-						}
-					})
-					.filter(Objects::nonNull)
-					.collect(Collectors.toList());
-			}
-		}
-		return nextLevel;
-	}
-
-	private List<LevelInfo> fetchLevelInfo(
-		@Nonnull EvitaSessionContract session,
-		int parentCategoryId,
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nullable Cardinalities categoryCardinalities,
-		boolean queuedEntityStatistics,
-		boolean computeChildrenCount
-	) {
-		return fetchLevelInfo(
-			session, parentCategoryId, categoryHierarchy, categoryCardinalities,
-			queuedEntityStatistics, computeChildrenCount, null
-		);
-	}
-
-	private List<LevelInfo> fetchLevelInfo(
-		@Nonnull EvitaSessionContract session,
-		int parentCategoryId,
-		@Nonnull Hierarchy categoryHierarchy,
-		@Nullable Cardinalities categoryCardinalities,
-		boolean queuedEntityStatistics,
-		boolean computeChildrenCount,
-		@Nullable Comparator<SealedEntity> sorter
-	) {
-		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
-		for (HierarchyItem item : categoryHierarchy.getChildItems(String.valueOf(parentCategoryId))) {
-			final int categoryId = Integer.parseInt(item.getCode());
-			if (categoryCardinalities == null || categoryCardinalities.isValid(categoryId)) {
-				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
-					session, categoryId, categoryHierarchy, categoryCardinalities,
-					queuedEntityStatistics, computeChildrenCount, sorter
-				);
-				levelInfo.add(
-					new LevelInfo(
-						fetchHierarchyStatisticsEntity(session, categoryId),
-						queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null) : null,
-						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,
-						childrenStatistics
-					)
-				);
-			}
-		}
-		ofNullable(sorter)
-			.ifPresent(it -> levelInfo.sort((o1, o2) -> sorter.compare((SealedEntity) o1.entity(), (SealedEntity) o2.entity())));
-		return levelInfo;
-	}
-
-	@Nonnull
-	private SealedEntity fetchHierarchyStatisticsEntity(@Nonnull EvitaSessionContract session, int categoryId) {
-		return session.query(
-			query(
-				collection(Entities.CATEGORY),
-				filterBy(
-					and(
-						entityLocaleEquals(CZECH_LOCALE),
-						entityPrimaryKeyInSet(categoryId)
-					)
-				),
-				require(entityFetch(attributeContent()))
-			),
-			SealedEntity.class
-		).getRecordData().get(0);
-	}
-
-	private interface TestHierarchyPredicate {
+	interface TestHierarchyPredicate {
 
 		boolean test(SealedEntity entity, List<HierarchyItem> parentItems);
 
 		@Nonnull
-		default TestHierarchyPredicate and(@Nonnull Predicate<SealedEntity> other) {
+		default TestHierarchyPredicate and(@Nonnull TestHierarchyPredicate other) {
 			Objects.requireNonNull(other);
 			return (hierarchyNodeId, level) ->
-				test(hierarchyNodeId, level) && other.test(hierarchyNodeId);
+				test(hierarchyNodeId, level) && other.test(hierarchyNodeId, level);
 		}
 
 	}
 
-	public static class Cardinalities {
+	private static class Cardinalities implements CardinalityProvider {
 		private final Map<Integer, Integer> itemCardinality = new HashMap<>(32);
 		private final Map<Integer, Integer> childrenItemCount = new HashMap<>(32);
 
@@ -2901,20 +2693,16 @@ public class EntityByHierarchyFilteringFunctionalTest {
 			return itemCardinality.containsKey(categoryId);
 		}
 
+		@Override
 		public int getCardinality(int categoryId) {
 			return itemCardinality.get(categoryId);
 		}
 
+		@Override
 		public int getChildrenCount(int categoryId) {
 			return childrenItemCount.get(categoryId);
 		}
 
-	}
-
-	record HierarchyStatisticsTuple(
-		String name,
-		List<LevelInfo> levelInfos
-	) {
 	}
 
 }

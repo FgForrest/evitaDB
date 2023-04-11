@@ -24,7 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
-import io.evitadb.api.EntityByHierarchyFilteringFunctionalTest.HierarchyStatisticsTuple;
+import io.evitadb.api.EntityByHierarchyFilteringFunctionalTest.TestHierarchyPredicate;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -38,12 +38,16 @@ import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -51,11 +55,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -83,7 +96,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(DbInstanceParameterResolver.class)
 @Slf4j
-public class ReferencingEntityByHierarchyFilteringFunctionalTest {
+public class ReferencingEntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyTest {
 	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
 	private static final String ATTRIBUTE_MARKET_SHARE = "marketShare";
 	private static final String ATTRIBUTE_FOUNDED = "founded";
@@ -743,12 +756,17 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
-				final Predicate<SealedEntity> aliasPredicate = it -> ofNullable((Boolean) it.getAttribute(ATTRIBUTE_ALIAS)).orElse(false);
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					null, categoryHierarchy, originalProductEntities, originalCategoryEntities,
-					languagePredicate.and(aliasPredicate), languagePredicate,
-					categoryCardinalities -> getChildren("megaMenu", null, categoryHierarchy, session, categoryCardinalities)
+					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					entity -> entity.getLocales().contains(CZECH_LOCALE) &&
+						ofNullable((Boolean) entity.getAttribute(ATTRIBUTE_ALIAS)).orElse(false),
+					languagePredicate,
+					languagePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(session, null, categoryHierarchy, categoryCardinalities, false, true)
+					)
 				);
 
 				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
@@ -795,28 +813,17 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 					EntityReference.class
 				);
 
-				final Predicate<SealedEntity> languagePredicate = it -> it.getLocales().contains(CZECH_LOCALE);
-				final Predicate<SealedEntity> aliasPredicate = it -> ofNullable((Boolean) it.getAttribute(ATTRIBUTE_ALIAS)).orElse(false);
-				final Predicate<SealedEntity> categoryPredicate = sealedEntity -> sealedEntity
-					.getReferences(Entities.CATEGORY)
-					.stream()
-					.anyMatch(category -> {
-						final int categoryId = category.getReferenceKey().primaryKey();
-						final String categoryIdAsString = String.valueOf(categoryId);
-						final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(categoryIdAsString);
-						return // has parent node 2
-							(
-								Objects.equals(2, categoryId) ||
-									parentItems
-										.stream()
-										.anyMatch(it -> Objects.equals(String.valueOf(2), it.getCode()))
-							);
-					});
-
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					2, categoryHierarchy, originalProductEntities, originalCategoryEntities,
-					languagePredicate.and(aliasPredicate).and(categoryPredicate), languagePredicate,
-					categoryCardinalities -> getChildren("megaMenu", 2, categoryHierarchy, session, categoryCardinalities)
+					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					entity -> entity.getLocales().contains(CZECH_LOCALE) &&
+						ofNullable((Boolean) entity.getAttribute(ATTRIBUTE_ALIAS)).orElse(false),
+					languagePredicate,
+					languagePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(session, 2, categoryHierarchy, categoryCardinalities, false, true)
+					)
 				);
 
 				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
@@ -826,29 +833,6 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 				return null;
 			}
 		);
-	}
-
-	@Nonnull
-	private HierarchyStatisticsTuple getChildren(String outputName, Integer parentCategoryId, Hierarchy categoryHierarchy, EvitaSessionContract session, Map<Integer, Integer> categoryCardinalities) {
-		final List<HierarchyItem> items = parentCategoryId == null ?
-			categoryHierarchy.getRootItems() :
-			Collections.singletonList(categoryHierarchy.getItem(String.valueOf(parentCategoryId)));
-
-		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
-		for (HierarchyItem rootItem : items) {
-			final int categoryId = Integer.parseInt(rootItem.getCode());
-			final Integer cardinality = categoryCardinalities.get(categoryId);
-			if (cardinality != null) {
-				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(
-					new LevelInfo(
-						category, cardinality, 0,
-						fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)
-					)
-				);
-			}
-		}
-		return new HierarchyStatisticsTuple(outputName, levelInfo);
 	}
 
 	@Nonnull
@@ -864,58 +848,111 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest {
 	}
 
 	@Nonnull
-	private HierarchyStatistics computeExpectedStatistics(
-		Integer parentCategoryId, Hierarchy categoryHierarchy,
-		List<SealedEntity> allProducts, List<SealedEntity> allCategories,
-		Predicate<SealedEntity> filterPredicate, Predicate<SealedEntity> treePredicate,
-		Function<Map<Integer, Integer>, HierarchyStatisticsTuple> statisticsComputer
+	private CardinalityProvider computeCardinalities(
+		Hierarchy categoryHierarchy,
+		List<SealedEntity> allProducts,
+		List<SealedEntity> allCategories,
+		Predicate<SealedEntity> filterPredicate,
+		TestHierarchyPredicate treeFilterPredicate,
+		TestHierarchyPredicate scopePredicate
 	) {
-		final Map<Integer, Integer> categoryCardinalities = getCardinalityIndex(parentCategoryId, categoryHierarchy, allProducts, allCategories, filterPredicate, treePredicate);
+		final Map<Integer, SealedEntity> categoryIndex = allCategories
+			.stream()
+			.collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()));
 
-		final Map<String, Map<String, List<LevelInfo>>> resultIndex = new TreeMap<>();
-		final TreeMap<String, List<LevelInfo>> categoryInfo = new TreeMap<>();
-		resultIndex.put(Entities.CATEGORY, categoryInfo);
-
-		final HierarchyStatisticsTuple result = statisticsComputer.apply(categoryCardinalities);
-		categoryInfo.put(result.name(), result.levelInfos());
-
-		return new HierarchyStatistics(null, resultIndex);
-	}
-
-	private List<LevelInfo> fetchLevelInfo(EvitaSessionContract session, int parentCategoryId, Hierarchy categoryHierarchy, Map<Integer, Integer> categoryCardinalities) {
-		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
-		for (HierarchyItem item : categoryHierarchy.getChildItems(String.valueOf(parentCategoryId))) {
-			final int categoryId = Integer.parseInt(item.getCode());
-			final Integer cardinality = categoryCardinalities.get(categoryId);
-			if (cardinality != null) {
-				final SealedEntity category = fetchHierarchyStatisticsEntity(session, categoryId);
-				levelInfo.add(
-					new LevelInfo(
-						category, cardinality, 0,
-						fetchLevelInfo(session, categoryId, categoryHierarchy, categoryCardinalities)
-					)
-				);
+		final Set<Integer> categoriesWithValidPath = new HashSet<>();
+		for (SealedEntity category : allCategories) {
+			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(category.getPrimaryKey()));
+			if (scopePredicate.test(category, parentItems)) {
+				categoriesWithValidPath.add(category.getPrimaryKey());
 			}
 		}
-		return levelInfo;
+		final Cardinalities categoryCardinalities = new Cardinalities();
+		for (SealedEntity category : allCategories) {
+			final int categoryId = category.getPrimaryKey();
+			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(categoryId));
+			final List<Integer> categoryPath = Stream.concat(
+				parentItems
+					.stream()
+					.map(it -> Integer.parseInt(it.getCode())),
+				Stream.of(categoryId)
+			).toList();
+			if (categoryPath.stream().allMatch(cid -> treeFilterPredicate.test(categoryIndex.get(cid), parentItems))) {
+				int cid = categoryPath.get(categoryPath.size() - 1);
+				if (categoriesWithValidPath.contains(cid)) {
+					final int[] productIds = allProducts.stream()
+						.filter(filterPredicate)
+						.filter(it -> it.getReference(Entities.CATEGORY, cid).isPresent())
+						.mapToInt(EntityContract::getPrimaryKey)
+						.toArray();
+					if (!ArrayUtils.isEmpty(productIds)) {
+						categoryCardinalities.record(categoryPath, productIds);
+					}
+				}
+			}
+		}
+		return categoryCardinalities;
 	}
 
-	private SealedEntity fetchHierarchyStatisticsEntity(EvitaSessionContract session, int categoryId) {
-		final List<SealedEntity> result = session.query(
-			query(
-				collection(Entities.CATEGORY),
-				filterBy(
-					and(
-						entityLocaleEquals(CZECH_LOCALE),
-						entityPrimaryKeyInSet(categoryId)
-					)
-				),
-				require(entityFetch(attributeContent()))
-			),
-			SealedEntity.class
-		).getRecordData();
-		assertEquals(1, result.size(), "Category with id " + categoryId + " was not found in czech locale!");
-		return result.get(0);
+	@Nonnull
+	private HierarchyStatistics computeExpectedStatistics(
+		Hierarchy categoryHierarchy,
+		List<SealedEntity> allProducts,
+		List<SealedEntity> allCategories,
+		Predicate<SealedEntity> filterPredicate,
+		TestHierarchyPredicate treeFilterPredicate,
+		TestHierarchyPredicate scopePredicate,
+		Function<CardinalityProvider, HierarchyStatisticsTuple> statisticsComputer
+	) {
+		final CardinalityProvider categoryCardinalities = computeCardinalities(
+			categoryHierarchy, allProducts, allCategories, filterPredicate, treeFilterPredicate, scopePredicate
+		);
+		final HierarchyStatisticsTuple result = statisticsComputer.apply(categoryCardinalities);
+		final Map<String, List<LevelInfo>> theResults = Map.of(
+			result.name(), result.levelInfos()
+		);
+		return new HierarchyStatistics(
+			Collections.emptyMap(),
+			Collections.singletonMap(Entities.CATEGORY, theResults)
+		);
+	}
+
+	private static class Cardinalities implements CardinalityProvider {
+		private final Map<Integer, Bitmap> itemCardinality = new HashMap<>(32);
+		private final Map<Integer, Integer> childrenItemCount = new HashMap<>(32);
+
+		public void record(@Nonnull List<Integer> categoryPath, int[] productIds) {
+			if (categoryPath.size() > 1) {
+				final Integer cid = categoryPath.get(categoryPath.size() - 2);
+				childrenItemCount.merge(cid, 1, Integer::sum);
+			}
+			categoryPath
+				.forEach(it -> {
+					itemCardinality.merge(
+						it, new BaseBitmap(productIds),
+						(pIds, pIds2) -> new BaseBitmap(
+							RoaringBitmap.or(
+								RoaringBitmapBackedBitmap.getRoaringBitmap(pIds),
+								RoaringBitmapBackedBitmap.getRoaringBitmap(pIds2)
+							)
+						)
+					);
+				});
+		}
+
+		public boolean isValid(int categoryId) {
+			return itemCardinality.containsKey(categoryId);
+		}
+
+		@Override
+		public int getCardinality(int categoryId) {
+			return itemCardinality.get(categoryId).size();
+		}
+
+		@Override
+		public int getChildrenCount(int categoryId) {
+			return ofNullable(childrenItemCount.get(categoryId)).orElse(0);
+		}
 	}
 
 }
