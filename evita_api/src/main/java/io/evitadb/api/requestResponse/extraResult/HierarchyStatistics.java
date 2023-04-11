@@ -187,16 +187,18 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 			return false;
 		}
 
-		for (Entry<String, List<LevelInfo>> entry : selfStatistics.entrySet()) {
-			final List<LevelInfo> stats = entry.getValue();
-			final List<LevelInfo> otherStats = that.selfStatistics.get(entry.getKey());
+		if (selfStatistics != null) {
+			for (Entry<String, List<LevelInfo>> entry : selfStatistics.entrySet()) {
+				final List<LevelInfo> stats = entry.getValue();
+				final List<LevelInfo> otherStats = that.selfStatistics.get(entry.getKey());
 
-			if (stats.size() != ofNullable(otherStats).map(List::size).orElse(0)) {
-				return false;
-			}
+				if (stats.size() != ofNullable(otherStats).map(List::size).orElse(0)) {
+					return false;
+				}
 
-			if (notEquals(stats, otherStats)) {
-				return false;
+				if (notEquals(stats, otherStats)) {
+					return false;
+				}
 			}
 		}
 
