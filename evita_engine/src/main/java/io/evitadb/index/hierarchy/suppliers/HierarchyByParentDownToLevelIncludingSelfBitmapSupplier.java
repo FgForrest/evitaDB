@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HierarchyByParentDownToLevelWithExcludesIncludingSelfBitmapSupplier extends AbstractHierarchyBitmapSupplier {
+public class HierarchyByParentDownToLevelIncludingSelfBitmapSupplier extends AbstractHierarchyBitmapSupplier {
 	private static final int CLASS_ID = -317268892;
 	/**
 	 * Contains information about the parent node requested in original {@link io.evitadb.api.query.FilterConstraint}.
@@ -54,7 +54,7 @@ public class HierarchyByParentDownToLevelWithExcludesIncludingSelfBitmapSupplier
 	 */
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyByParentDownToLevelWithExcludesIncludingSelfBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
 		this.parentNode = parentNode;
 		this.levels = levels;

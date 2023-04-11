@@ -39,32 +39,41 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HierarchyRootsWithExcludesBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final long CLASS_ID = -946906775L;
+public class HierarchyRootsDownToLevelBitmapSupplier extends AbstractHierarchyBitmapSupplier {
+	private static final int CLASS_ID = 390851708;
+	/**
+	 * Contains count of tree levels from the root should be returned (i.e. depth of the returned tree).
+	 */
+	private final int levels;
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
-	private final @Nonnull HierarchyFilteringPredicate excludedNodeTrees;
+	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyRootsWithExcludesBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalId, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public HierarchyRootsDownToLevelBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
+		this.levels = levels;
 		this.excludedNodeTrees = excludedNodeTrees;
 	}
 
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
-			new long[]{CLASS_ID, excludedNodeTrees.computeHash(hashFunction)}
+			new long[]{
+				hashFunction.hashInts(new int[]{CLASS_ID, levels}),
+				excludedNodeTrees.computeHash(hashFunction)
+			}
 		);
 	}
 
 	@Override
 	public Bitmap get() {
-		return hierarchyIndex.listHierarchyNodesFromRoot(excludedNodeTrees);
+		return hierarchyIndex.listHierarchyNodesFromRootDownTo(levels, excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(Integer.MAX_VALUE, excludedNodeTrees);
+		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(levels, excludedNodeTrees);
 	}
+
 }

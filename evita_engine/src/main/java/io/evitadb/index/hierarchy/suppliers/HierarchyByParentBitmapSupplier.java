@@ -40,7 +40,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class HierarchyByParentBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final int CLASS_ID = 257851140;
+	private static final int CLASS_ID = -208618496;
 	/**
 	 * Contains information about the parent node requested in original {@link io.evitadb.api.query.FilterConstraint}.
 	 */
@@ -50,7 +50,7 @@ public class HierarchyByParentBitmapSupplier extends AbstractHierarchyBitmapSupp
 	 */
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyByParentBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, HierarchyFilteringPredicate excludedNodeTrees) {
+	public HierarchyByParentBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
 		this.parentNode = parentNode;
 		this.excludedNodeTrees = excludedNodeTrees;
@@ -68,11 +68,11 @@ public class HierarchyByParentBitmapSupplier extends AbstractHierarchyBitmapSupp
 
 	@Override
 	public Bitmap get() {
-		return hierarchyIndex.getHierarchyNodesForParent(parentNode, excludedNodeTrees);
+		return hierarchyIndex.listHierarchyNodesFromParent(parentNode, excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return hierarchyIndex.getHierarchyNodeCountForParent(parentNode, excludedNodeTrees);
+		return hierarchyIndex.getHierarchyNodeCountFromParent(parentNode, excludedNodeTrees);
 	}
 }

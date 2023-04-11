@@ -39,40 +39,32 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HierarchyByParentWithExcludesBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final int CLASS_ID = -208618496;
-	/**
-	 * Contains information about the parent node requested in original {@link io.evitadb.api.query.FilterConstraint}.
-	 */
-	private final int parentNode;
+public class HierarchyRootsDownBitmapSupplier extends AbstractHierarchyBitmapSupplier {
+	private static final long CLASS_ID = -946906775L;
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
-	private final HierarchyFilteringPredicate excludedNodeTrees;
+	private final @Nonnull HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyByParentWithExcludesBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public HierarchyRootsDownBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalId, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
-		this.parentNode = parentNode;
 		this.excludedNodeTrees = excludedNodeTrees;
 	}
 
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
-			new long[]{
-				hashFunction.hashInts(new int[]{CLASS_ID, parentNode}),
-				excludedNodeTrees.computeHash(hashFunction)
-			}
+			new long[]{CLASS_ID, excludedNodeTrees.computeHash(hashFunction)}
 		);
 	}
 
 	@Override
 	public Bitmap get() {
-		return hierarchyIndex.listHierarchyNodesFromParent(parentNode, excludedNodeTrees);
+		return hierarchyIndex.listHierarchyNodesFromRoot(excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return hierarchyIndex.getHierarchyNodeCountFromParent(parentNode, excludedNodeTrees);
+		return hierarchyIndex.getHierarchyNodeCountFromRootDownTo(Integer.MAX_VALUE, excludedNodeTrees);
 	}
 }

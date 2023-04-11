@@ -39,25 +39,20 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HierarchyByParentDownToLevelWithExcludesBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final int CLASS_ID = -116188477;
+public class HierarchyForParentBitmapSupplier extends AbstractHierarchyBitmapSupplier {
+	private static final int CLASS_ID = 257851140;
 	/**
 	 * Contains information about the parent node requested in original {@link io.evitadb.api.query.FilterConstraint}.
 	 */
 	private final int parentNode;
 	/**
-	 * Contains count of tree levels of the parent node that should be returned (i.e. depth of the returned tree).
-	 */
-	private final int levels;
-	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
 	private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyByParentDownToLevelWithExcludesBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public HierarchyForParentBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId, int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
 		this.parentNode = parentNode;
-		this.levels = levels;
 		this.excludedNodeTrees = excludedNodeTrees;
 	}
 
@@ -65,7 +60,7 @@ public class HierarchyByParentDownToLevelWithExcludesBitmapSupplier extends Abst
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			new long[]{
-				hashFunction.hashInts(new int[]{CLASS_ID, parentNode, levels}),
+				hashFunction.hashInts(new int[]{CLASS_ID, parentNode}),
 				excludedNodeTrees.computeHash(hashFunction)
 			}
 		);
@@ -73,11 +68,11 @@ public class HierarchyByParentDownToLevelWithExcludesBitmapSupplier extends Abst
 
 	@Override
 	public Bitmap get() {
-		return hierarchyIndex.listHierarchyNodesFromParentDownTo(parentNode, levels, excludedNodeTrees);
+		return hierarchyIndex.getHierarchyNodesForParent(parentNode, excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return hierarchyIndex.getHierarchyNodeCountFromParentDownTo(parentNode, levels, excludedNodeTrees);
+		return hierarchyIndex.getHierarchyNodeCountForParent(parentNode, excludedNodeTrees);
 	}
 }

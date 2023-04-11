@@ -40,11 +40,11 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class HierarchyRootsBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final long CLASS_ID = 495405054L;
+	private static final long CLASS_ID = -946906775L;
 	/**
 	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
 	 */
-	private final HierarchyFilteringPredicate excludedNodeTrees;
+	@Nonnull private final HierarchyFilteringPredicate excludedNodeTrees;
 
 	public HierarchyRootsBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalId, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
@@ -54,7 +54,7 @@ public class HierarchyRootsBitmapSupplier extends AbstractHierarchyBitmapSupplie
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
-			new long[] {CLASS_ID, excludedNodeTrees.computeHash(hashFunction)}
+			new long[]{CLASS_ID, excludedNodeTrees.computeHash(hashFunction)}
 		);
 	}
 

@@ -49,6 +49,7 @@ module evita.engine {
 	exports io.evitadb.index.bitmap;
 	exports io.evitadb.index.attribute;
 	exports io.evitadb.index.hierarchy;
+	exports io.evitadb.index.hierarchy.predicate;
 	exports io.evitadb.index.price;
 	exports io.evitadb.index.relation;
 	exports io.evitadb.index.facet;

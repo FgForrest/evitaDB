@@ -43,13 +43,13 @@ import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.suppliers.HierarchyByParentBitmapSupplier;
-import io.evitadb.index.hierarchy.suppliers.HierarchyByParentDownToLevelWithExcludesBitmapSupplier;
-import io.evitadb.index.hierarchy.suppliers.HierarchyByParentDownToLevelWithExcludesIncludingSelfBitmapSupplier;
-import io.evitadb.index.hierarchy.suppliers.HierarchyByParentWithExcludesBitmapSupplier;
-import io.evitadb.index.hierarchy.suppliers.HierarchyByParentWithExcludesIncludingSelfBitmapSupplier;
+import io.evitadb.index.hierarchy.suppliers.HierarchyByParentDownToLevelBitmapSupplier;
+import io.evitadb.index.hierarchy.suppliers.HierarchyByParentDownToLevelIncludingSelfBitmapSupplier;
+import io.evitadb.index.hierarchy.suppliers.HierarchyByParentIncludingSelfBitmapSupplier;
+import io.evitadb.index.hierarchy.suppliers.HierarchyForParentBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsBitmapSupplier;
-import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownToLevelWithExcludesBitmapSupplier;
-import io.evitadb.index.hierarchy.suppliers.HierarchyRootsWithExcludesBitmapSupplier;
+import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownBitmapSupplier;
+import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownToLevelBitmapSupplier;
 import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
@@ -89,8 +89,6 @@ import static java.util.Optional.ofNullable;
  * scanning deeply level by level using information from {@link #levelIndex}. Nodes in {@link #roots} and
  * {@link #levelIndex} values are sorted by {@link HierarchyNode#order()} so that the entire hierarchy tree
  * is available immediately after the scan.
- *
- * TODO JNO - Optimize bitmapsuppliers to avoid "WithExcludes" if excludedNodeTrees is RejectAllPredicate
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -139,8 +137,8 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	public HierarchyIndex() {
 		this.dirty = new TransactionalBoolean();
 		this.roots = new TransactionalList<>(new LinkedList<>());
-		this.levelIndex = new TransactionalMap<>(new HashMap<>());
-		this.itemIndex = new TransactionalMap<>(new HashMap<>());
+		this.levelIndex = new TransactionalMap<>(new HashMap<>(32));
+		this.itemIndex = new TransactionalMap<>(new HashMap<>(32));
 		this.orphans = new TransactionalIntArray();
 		this.intComparator = createIntComparator();
 		this.memoizedAllNodeFormula = EmptyFormula.INSTANCE;
@@ -204,27 +202,11 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		}
 	}
 
-	/**
-	 * Method returns formula that contains all nodes attached to the tree (i.e. except {@link #orphans}.
-	 */
-	@Nonnull
-	public Formula getAllHierarchyNodesFormula() {
-		// if there is transaction open, and there are changes in the hierarchy data, we can't use the cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return createAllHierarchyNodesFormula();
-		} else {
-			if (memoizedAllNodeFormula == null) {
-				memoizedAllNodeFormula = createAllHierarchyNodesFormula();
-			}
-			return memoizedAllNodeFormula;
-		}
-	}
-
 	@Override
 	@Nonnull
 	public Formula getListHierarchyNodesFromRootFormula(@Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		return new HierarchyFormula(
-			new HierarchyRootsWithExcludesBitmapSupplier(
+			new HierarchyRootsDownBitmapSupplier(
 				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
 				excludedNodeTrees
 			),
@@ -254,7 +236,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Nonnull
 	public Formula getListHierarchyNodesFromRootDownToFormula(int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		return new HierarchyFormula(
-			new HierarchyRootsDownToLevelWithExcludesBitmapSupplier(
+			new HierarchyRootsDownToLevelBitmapSupplier(
 				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
 				levels, excludedNodeTrees
 			),
@@ -284,7 +266,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentIncludingItselfFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		return new HierarchyFormula(
-			new HierarchyByParentWithExcludesIncludingSelfBitmapSupplier(
+			new HierarchyByParentIncludingSelfBitmapSupplier(
 				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
 				parentNode, excludedNodeTrees
 			),
@@ -312,7 +294,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentIncludingItselfDownToFormula(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		return new HierarchyFormula(
-			new HierarchyByParentDownToLevelWithExcludesIncludingSelfBitmapSupplier(
+			new HierarchyByParentDownToLevelIncludingSelfBitmapSupplier(
 				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
 				parentNode, levels, excludedNodeTrees
 			),
@@ -340,7 +322,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		return new HierarchyFormula(
-			new HierarchyByParentWithExcludesBitmapSupplier(
+			new HierarchyByParentBitmapSupplier(
 				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
 				parentNode, excludedNodeTrees
 			),
@@ -367,7 +349,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Nonnull
 	public Formula getListHierarchyNodesFromParentDownToFormula(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		return new HierarchyFormula(
-			new HierarchyByParentDownToLevelWithExcludesBitmapSupplier(
+			new HierarchyByParentDownToLevelBitmapSupplier(
 				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
 				parentNode, levels, excludedNodeTrees
 			),
@@ -448,7 +430,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	public Formula getHierarchyNodesForParentFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		return new HierarchyFormula(
-			new HierarchyByParentBitmapSupplier(
+			new HierarchyForParentBitmapSupplier(
 				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
 				parentNode,
 				excludedNodeTrees
@@ -502,7 +484,8 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 					parent, level, distance,
 					ofNullable(parent.parentEntityPrimaryKey())
 						.map(it -> factoryHolder.get().apply(it, level - 1, distance + 1))
-						.orElse(() -> {})
+						.orElse(() -> {
+						})
 				);
 			};
 		factoryHolder.set(childrenTraverseCreator);
@@ -513,7 +496,8 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			nodeLevel, 0,
 			ofNullable(theNode.parentEntityPrimaryKey())
 				.map(it -> childrenTraverseCreator.apply(it, finalNodeLevel - 1, 1))
-				.orElse(() -> {})
+				.orElse(() -> {
+				})
 		);
 	}
 
@@ -544,6 +528,22 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	public boolean isHierarchyIndexEmpty() {
 		return this.itemIndex.isEmpty();
+	}
+
+	/**
+	 * Method returns formula that contains all nodes attached to the tree (i.e. except {@link #orphans}.
+	 */
+	@Nonnull
+	public Formula getAllHierarchyNodesFormula() {
+		// if there is transaction open, and there are changes in the hierarchy data, we can't use the cache
+		if (isTransactionAvailable() && this.dirty.isTrue()) {
+			return createAllHierarchyNodesFormula();
+		} else {
+			if (memoizedAllNodeFormula == null) {
+				memoizedAllNodeFormula = createAllHierarchyNodesFormula();
+			}
+			return memoizedAllNodeFormula;
+		}
 	}
 
 	/**
@@ -599,7 +599,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	 * Returns count of root hierarchy nodes.
 	 */
 	public int getRootHierarchyNodeCount(@Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		return this.roots.isEmpty() ? 0 : (int)this.roots.stream().filter(it -> !excludedNodeTrees.test(it)).count();
+		return this.roots.isEmpty() ? 0 : (int) this.roots.stream().filter(it -> !excludedNodeTrees.test(it)).count();
 	}
 
 	/**
@@ -611,7 +611,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder(128);
 		for (Integer rootId : roots) {
 			sb.append(rootId).append("\n");
 			toStringChildrenRecursively(levelIndex.get(rootId), 1, sb);
@@ -693,6 +693,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		};
 	}
 
+	@Nullable
 	private HierarchyNode internalRemoveHierarchy(int entityPrimaryKey) {
 		// remove optional previous location
 		if (itemIndex.containsKey(entityPrimaryKey)) {
