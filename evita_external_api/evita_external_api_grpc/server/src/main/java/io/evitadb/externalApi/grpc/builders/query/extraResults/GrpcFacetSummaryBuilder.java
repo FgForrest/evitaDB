@@ -85,6 +85,7 @@ public class GrpcFacetSummaryBuilder {
 			}
 			final GrpcFacetGroupStatistics.Builder groupStatisticBuilder = GrpcFacetGroupStatistics.newBuilder()
 				.setReferenceName(groupStatistics.getReferenceName())
+				.setCount(groupStatistics.getCount())
 				.addAllFacetStatistics(facetStatistics);
 
 			if (groupStatistics.getGroupEntity() != null) {

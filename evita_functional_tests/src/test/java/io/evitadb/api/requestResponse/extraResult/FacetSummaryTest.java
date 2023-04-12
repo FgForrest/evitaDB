@@ -63,6 +63,7 @@ class FacetSummaryTest {
 				new FacetGroupStatistics(
 					parameter,
 					new EntityReference("parameterGroup", 1),
+					14,
 					Arrays.asList(
 						new FacetStatistics(new EntityReference("parameter", 1), true, 5, null),
 						new FacetStatistics(new EntityReference("parameter", 2), false, 6, new RequestImpact(6, 11)),
@@ -72,6 +73,7 @@ class FacetSummaryTest {
 				new FacetGroupStatistics(
 					parameter,
 					new EntityReference("parameterGroup", 2),
+					14,
 					Arrays.asList(
 						new FacetStatistics(new EntityReference("parameter", 4), true, 5, null),
 						new FacetStatistics(new EntityReference("parameter", 5), false, 6, new RequestImpact(6, 11)),
