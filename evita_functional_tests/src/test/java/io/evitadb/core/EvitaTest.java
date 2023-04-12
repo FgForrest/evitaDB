@@ -2776,7 +2776,7 @@ class EvitaTest implements EvitaTestSupport {
 			);
 		}
 
-		evita.replaceCatalog(TEST_CATALOG, temporaryCatalogName);
+		evita.replaceCatalog(temporaryCatalogName, TEST_CATALOG);
 
 		assertFalse(evita.getCatalogNames().contains(temporaryCatalogName));
 		assertTrue(evita.getCatalogNames().contains(TEST_CATALOG));
