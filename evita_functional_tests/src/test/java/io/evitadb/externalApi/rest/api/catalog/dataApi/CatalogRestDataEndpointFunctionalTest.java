@@ -296,12 +296,12 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	 * is ZERO_OR_MORE or ONE_OR_MORE
 	 */
 	@Nonnull
-	protected List<Map<String, Object>> createReferencesDto(@Nonnull List<ReferenceContract> referenceContracts, boolean withLocales) {
+	protected List<Map<String, Object>> createReferencesDto(@Nonnull List<ReferenceContract> referenceContracts, boolean withReferencedEntityBody, boolean withLocales) {
 		final ArrayList<Map<String, Object>> references = new ArrayList<>();
 		referenceContracts.stream()
 			.forEach(reference -> {
 					references.add(
-						serializeSingleReference(reference, withLocales)
+						serializeSingleReference(reference, withReferencedEntityBody, withLocales)
 					);
 				}
 			);
