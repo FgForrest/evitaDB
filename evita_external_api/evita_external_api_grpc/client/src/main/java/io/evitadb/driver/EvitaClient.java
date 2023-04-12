@@ -314,7 +314,7 @@ public class EvitaClient implements EvitaContract {
 	}
 
 	@Override
-	public void replaceCatalog(@Nonnull String catalogNameToBeReplaced, @Nonnull String catalogNameToBeReplacedWith) {
+	public void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
 		assertActive();
 		update(new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
 		this.entitySchemaCache.remove(catalogNameToBeReplaced);

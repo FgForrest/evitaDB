@@ -49,7 +49,7 @@ public class ReplaceCatalogMutatingDataFetcher implements DataFetcher<DataFetche
         final String catalogNameToBeReplaced = environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED.name());
         final String catalogNameToBeReplacedWith = environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH.name());
 
-        evita.replaceCatalog(catalogNameToBeReplaced, catalogNameToBeReplacedWith);
+        evita.replaceCatalog(catalogNameToBeReplacedWith, catalogNameToBeReplaced);
         final CatalogContract replacedCatalog = evita.getCatalogInstanceOrThrowException(catalogNameToBeReplaced);
 
         return DataFetcherResult.<CatalogContract>newResult()
