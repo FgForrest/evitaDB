@@ -25,9 +25,11 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
+import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -38,6 +40,7 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
+import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -66,7 +69,7 @@ public class HierarchyOfReferenceTranslator
 	}
 
 	@Override
-	public ExtraResultProducer apply(HierarchyOfReference hierarchyStatsConstraint, ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer apply(HierarchyOfReference hierarchyOfReference, ExtraResultPlanningVisitor extraResultPlanner) {
 		// prepare shared data from the context
 		final EvitaRequest evitaRequest = extraResultPlanner.getEvitaRequest();
 		final String queriedEntityType = extraResultPlanner.getSchema().getName();
@@ -75,7 +78,7 @@ public class HierarchyOfReferenceTranslator
 		// we need to register producer prematurely
 		extraResultPlanner.registerProducer(hierarchyStatisticsProducer);
 
-		for (String referenceName : hierarchyStatsConstraint.getReferenceNames()) {
+		for (String referenceName : hierarchyOfReference.getReferenceNames()) {
 			final ReferenceSchemaContract referenceSchema = extraResultPlanner.getSchema()
 				.getReferenceOrThrowException(referenceName);
 			final String entityType = referenceSchema.getReferencedEntityType();
@@ -88,6 +91,9 @@ public class HierarchyOfReferenceTranslator
 
 			final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(referenceName);
 			final EntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(entityType);
+			final Sorter sorter = hierarchyOfReference.getOrderBy()
+				.map(it -> createSorter(extraResultPlanner, it, globalIndex))
+				.orElse(null);
 
 			// the request is more complex
 			hierarchyStatisticsProducer.interpret(
@@ -98,13 +104,22 @@ public class HierarchyOfReferenceTranslator
 				null,
 				// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
 				// entity primary keys that are referencing the hierarchy entity
-				hierarchyNodeId -> ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, hierarchyNodeId)))
-					.map(EntityIndex::getAllPrimaryKeysFormula)
-					.orElse(EmptyFormula.INSTANCE),
-				hierarchyStatsConstraint.getEmptyHierarchicalEntityBehaviour(),
-				null,
+				(nodeId, statisticsBase) ->
+					ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId)))
+						.map(hierarchyIndex -> {
+							final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
+								extraResultPlanner.getFilterByWithoutHierarchyFilter() :
+								extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter();
+							return createFilterFormula(
+								extraResultPlanner.getQueryContext(),
+								filter, hierarchyIndex
+							);
+						})
+						.orElse(EmptyFormula.INSTANCE),
+				hierarchyOfReference.getEmptyHierarchicalEntityBehaviour(),
+				sorter,
 				() -> {
-					for (RequireConstraint child : hierarchyStatsConstraint) {
+					for (RequireConstraint child : hierarchyOfReference) {
 						child.accept(extraResultPlanner);
 					}
 				}

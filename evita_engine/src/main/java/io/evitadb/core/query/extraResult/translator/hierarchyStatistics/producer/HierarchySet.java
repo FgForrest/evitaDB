@@ -25,7 +25,6 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.QueryContext;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -48,7 +47,7 @@ import java.util.stream.Collectors;
 /**
  * The hierarchy set envelopes set of computers that relate to the same target hierarchical entity. It allows to
  * compute the sort order in cost-effective way for all of them at once when the final {@link List<LevelInfo>} results
- * are created. See {@link #createStatistics(Formula, Formula, Locale)} method.
+ * are created. See {@link #createStatistics(Locale)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -128,20 +127,14 @@ public class HierarchySet {
 	 * If the {@link #sorter} is defined, it uses it to sort all lists in the result map.
 	 */
 	@Nonnull
-	public Map<String, List<LevelInfo>> createStatistics(
-		@Nonnull Formula filteringFormula,
-		@Nonnull Formula filteringFormulaWithoutUserFilter,
-		@Nullable Locale language
-	) {
+	public Map<String, List<LevelInfo>> createStatistics(@Nullable Locale language) {
 		// invoke computers and register their output using `outputName`
 		final Map<String, List<LevelInfo>> unsortedResult = computers
 			.stream()
 			.collect(
 				Collectors.toMap(
 					NamedComputer::outputName,
-					it -> it.computer().createStatistics(
-						filteringFormula, filteringFormulaWithoutUserFilter, language
-					)
+					it -> it.computer().createStatistics(language)
 				)
 			);
 		// if the sorter is defined, sort them

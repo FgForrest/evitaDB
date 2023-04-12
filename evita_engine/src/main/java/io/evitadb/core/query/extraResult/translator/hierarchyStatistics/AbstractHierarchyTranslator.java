@@ -23,26 +23,51 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
+import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyDistance;
 import io.evitadb.api.query.require.HierarchyLevel;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.query.require.HierarchyStopAtRequireConstraint;
+import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.exception.AttributeNotFoundException;
+import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
+import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.sort.DeferredSorter;
+import io.evitadb.core.query.sort.OrderByVisitor;
+import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import static io.evitadb.utils.Assert.isTrue;
+import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -64,9 +89,7 @@ public abstract class AbstractHierarchyTranslator {
 			.orElseGet(
 				() -> new HierarchyStatisticsProducer(
 					extraResultPlanner.getQueryContext(),
-					extraResultPlanner.getLocale(),
-					extraResultPlanner.getFilteringFormulaWithoutHierarchyFilter(),
-					extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter()
+					extraResultPlanner.getLocale()
 				)
 			);
 	}
@@ -91,6 +114,138 @@ public abstract class AbstractHierarchyTranslator {
 			return new FilteringFormulaHierarchyEntityPredicate(context.queryContext(), context.entityIndex(), node.getFilterBy());
 		} else {
 			return null;
+		}
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param queryContext
+	 * @param filterBy
+	 * @param entityIndex
+	 * @return
+	 */
+	protected Formula createFilterFormula(@Nonnull QueryContext queryContext, @Nonnull FilterBy filterBy, @Nonnull EntityIndex entityIndex) {
+		try {
+			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
+				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
+			queryContext.pushStep(
+				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
+				stepDescriptionSupplier
+			);
+			// crete a visitor
+			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
+				queryContext,
+				Collections.emptyList(),
+				TargetIndexes.EMPTY,
+				false
+			);
+			// now analyze the filter by in a nested context with exchanged primary entity index
+			final Formula theFormula = theFilterByVisitor.executeInContext(
+				Collections.singletonList(entityIndex),
+				null,
+				null,
+				null,
+				null,
+				(entitySchema, attributeName) -> {
+					final AttributeSchemaContract attributeSchema = ofNullable(entitySchema)
+						.orElseGet(queryContext::getSchema)
+						.getAttribute(attributeName)
+						.orElse(null);
+					notNull(
+						attributeSchema,
+						() -> new AttributeNotFoundException(attributeName, entitySchema)
+					);
+					isTrue(
+						attributeSchema.isFilterable() || attributeSchema.isUnique(),
+						() -> new AttributeNotFilterableException(attributeName, entitySchema)
+					);
+					return attributeSchema;
+				},
+				AttributesContract::getAttribute,
+				() -> {
+					filterBy.accept(theFilterByVisitor);
+					// get the result and clear the visitor internal structures
+					return theFilterByVisitor.getFormulaAndClear();
+				}
+			);
+			// create a deferred formula that will log the execution time to query telemetry
+			return new DeferredFormula(
+				new FormulaWrapper(
+					theFormula,
+					formula -> {
+						try {
+							queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+							return formula.compute();
+						} finally {
+							queryContext.popStep();
+						}
+					}
+				)
+			);
+		} finally {
+			queryContext.popStep();
+		}
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param extraResultPlanner
+	 * @param orderBy
+	 * @param entityIndex
+	 * @return
+	 */
+	protected Sorter createSorter(ExtraResultPlanningVisitor extraResultPlanner, OrderBy orderBy, EntityIndex entityIndex) {
+		final QueryContext queryContext = extraResultPlanner.getQueryContext();
+		try {
+			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
+				Arrays.stream(orderBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
+			queryContext.pushStep(
+				QueryPhase.PLANNING_SORT,
+				stepDescriptionSupplier
+			);
+			// crete a visitor
+			final OrderByVisitor orderByVisitor = new OrderByVisitor(
+				queryContext,
+				extraResultPlanner.getPrefetchRequirementCollector(),
+				extraResultPlanner.getFilteringFormula()
+			);
+			// now analyze the filter by in a nested context with exchanged primary entity index
+			return orderByVisitor.executeInContext(
+				entityIndex,
+				(attributeName) -> {
+					final AttributeSchemaContract attributeSchema = queryContext.getSchema()
+						.getAttribute(attributeName)
+						.orElse(null);
+					notNull(
+						attributeSchema,
+						() -> new AttributeNotFoundException(attributeName, queryContext.getSchema())
+					);
+					isTrue(
+						attributeSchema.isFilterable() || attributeSchema.isUnique(),
+						() -> new AttributeNotFilterableException(attributeName, queryContext.getSchema())
+					);
+				},
+				EntityAttributeExtractor.INSTANCE,
+				() -> {
+					for (OrderConstraint innerConstraint : orderBy.getChildren()) {
+						innerConstraint.accept(orderByVisitor);
+					}
+					// create a deferred sorter that will log the execution time to query telemetry
+					return new DeferredSorter(
+						orderByVisitor.getLastUsedSorter(),
+						sorter -> {
+							try {
+								queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
+								return sorter.get();
+							} finally {
+								queryContext.popStep();
+							}
+						}
+					);
+				}
+			);
+		} finally {
+			queryContext.popStep();
 		}
 	}
 

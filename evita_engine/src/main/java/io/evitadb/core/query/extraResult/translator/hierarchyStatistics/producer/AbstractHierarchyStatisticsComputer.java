@@ -28,7 +28,7 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
-import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.LocaleHierarchyEntityPredicate;
@@ -106,27 +106,25 @@ abstract class AbstractHierarchyStatisticsComputer {
 	 */
 	@Nonnull
 	public final List<LevelInfo> createStatistics(
-		@Nonnull Formula filteringFormula,
-		@Nonnull Formula filteringFormulaWithoutUserFilter,
 		@Nullable Locale language
 	) {
 		// the language predicate is used to filter out entities that doesn't have requested language variant
 		return createStatistics(
-			statisticsBase == StatisticsBase.WITHOUT_USER_FILTER ?
-				filteringFormulaWithoutUserFilter : filteringFormula,
 			scopePredicate,
 			language == null ?
 				HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE :
 				new LocaleHierarchyEntityPredicate(context.entityIndex(), language)
-		);
+		)
+			.stream()
+			.map(it -> it.toLevelInfo(statisticsType))
+			.toList();
 	}
 
 	/**
 	 * Method implementation differs across different computer types.
 	 */
 	@Nonnull
-	protected abstract List<LevelInfo> createStatistics(
-		@Nonnull Formula filteredEntityPks,
+	protected abstract List<Accumulator> createStatistics(
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	);

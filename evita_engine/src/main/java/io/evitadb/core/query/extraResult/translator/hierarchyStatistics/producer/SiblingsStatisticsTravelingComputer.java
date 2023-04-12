@@ -28,7 +28,7 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
-import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
@@ -78,9 +78,9 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 	 * `filteringFormula` to limit the reported cardinalities in level info objects.
 	 */
 	@Nonnull
-	public List<LevelInfo> createStatistics(
-		@Nonnull Formula filteredEntityPks,
-		HierarchyFilteringPredicate filterPredicate, @Nullable Integer parentNodeId,
+	public List<Accumulator> createStatistics(
+		@Nonnull HierarchyFilteringPredicate filterPredicate,
+		@Nullable Integer parentNodeId,
 		int exceptNodeId
 	) {
 		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
@@ -92,7 +92,6 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 			// the language predicate is used to filter out entities that doesn't have requested language variant
 			final HierarchyFilteringPredicate exceptPivotNode = new MatchNodeIdHierarchyFilteringPredicate(exceptNodeId).negate();
 			return createStatistics(
-				filteredEntityPks,
 				scopePredicate,
 				combinedFilteringPredicate.and(exceptPivotNode)
 			);

@@ -24,38 +24,26 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
 import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
-import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
-import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HierarchyOfSelf;
+import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.exception.AttributeNotFilterableException;
-import io.evitadb.core.exception.AttributeNotFoundException;
-import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
-import io.evitadb.core.query.sort.DeferredSorter;
-import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.Assert;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import static io.evitadb.utils.Assert.isTrue;
-import static io.evitadb.utils.Assert.notNull;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
@@ -100,7 +88,23 @@ public class HierarchyOfSelfTranslator
 			hierarchyWithin,
 			globalIndex,
 			extraResultPlanner.getPrefetchRequirementCollector(),
-			globalIndex::getHierarchyNodesForParentFormula,
+			(nodeId, statisticsBase) -> {
+				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
+					extraResultPlanner.getFilterByWithoutHierarchyFilter() :
+					extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter();
+				final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+					filter,
+					() -> createFilterFormula(
+						extraResultPlanner.getQueryContext(),
+						filter, globalIndex
+					)
+				);
+
+				return FormulaFactory.and(
+					baseFormula,
+					globalIndex.getHierarchyNodesForParentFormula(nodeId)
+				);
+			},
 			EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,
 			sorter,
 			() -> {
@@ -111,61 +115,6 @@ public class HierarchyOfSelfTranslator
 		);
 
 		return hierarchyStatisticsProducer;
-	}
-
-	private Sorter createSorter(ExtraResultPlanningVisitor extraResultPlanner, OrderBy orderBy, EntityIndex entityIndex) {
-		final QueryContext queryContext = extraResultPlanner.getQueryContext();
-		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
-				Arrays.stream(orderBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
-			queryContext.pushStep(
-				QueryPhase.PLANNING_SORT,
-				stepDescriptionSupplier
-			);
-			// crete a visitor
-			final OrderByVisitor orderByVisitor = new OrderByVisitor(
-				queryContext,
-				extraResultPlanner.getPrefetchRequirementCollector(),
-				extraResultPlanner.getFilteringFormula()
-			);
-			// now analyze the filter by in a nested context with exchanged primary entity index
-			return orderByVisitor.executeInContext(
-				entityIndex,
-				(attributeName) -> {
-					final AttributeSchemaContract attributeSchema = queryContext.getSchema()
-						.getAttribute(attributeName)
-						.orElse(null);
-					notNull(
-						attributeSchema,
-						() -> new AttributeNotFoundException(attributeName, queryContext.getSchema())
-					);
-					isTrue(
-						attributeSchema.isFilterable() || attributeSchema.isUnique(),
-						() -> new AttributeNotFilterableException(attributeName, queryContext.getSchema())
-					);
-				},
-				EntityAttributeExtractor.INSTANCE,
-				() -> {
-					for (OrderConstraint innerConstraint : orderBy.getChildren()) {
-						innerConstraint.accept(orderByVisitor);
-					}
-					// create a deferred sorter that will log the execution time to query telemetry
-					return new DeferredSorter(
-						orderByVisitor.getLastUsedSorter(),
-						sorter -> {
-							try {
-								queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
-								return sorter.get();
-							} finally {
-								queryContext.popStep();
-							}
-						}
-					);
-				}
-			);
-		} finally {
-			queryContext.popStep();
-		}
 	}
 
 }

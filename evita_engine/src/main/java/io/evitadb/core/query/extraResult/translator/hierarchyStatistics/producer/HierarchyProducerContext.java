@@ -28,17 +28,18 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
+import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.function.IntFunction;
 
 /**
  * Context captures the context of the top {@link HierarchyOfSelf} / {@link HierarchyOfReference} constraint
@@ -60,7 +61,7 @@ public record HierarchyProducerContext(
 	@Nullable HierarchyFilterConstraint hierarchyFilter,
 	@Nonnull EntityIndex entityIndex,
 	@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
-	@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
+	@Nonnull IntBiFunction<StatisticsBase, Formula> hierarchyReferencingEntityPks,
 	boolean removeEmptyResults
 ) {
 

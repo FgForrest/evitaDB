@@ -26,7 +26,8 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
-import io.evitadb.index.hierarchy.HierarchyNode;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -35,8 +36,9 @@ import javax.annotation.Nonnull;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.function.IntSupplier;
-import java.util.stream.IntStream;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * Accumulator serves to aggregate information about children before creating immutable statistics result.
@@ -44,39 +46,53 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class Accumulator {
 	/**
-	 * The node that originates in {@link io.evitadb.index.hierarchy.HierarchyIndex}.
-	 */
-	private final HierarchyNode hierarchyNode;
-	/**
 	 * The hierarchical entity in proper form.
 	 */
 	@Getter private final EntityClassifier entity;
 	/**
-	 * The count of queried entities directly referencing this hierarchical entity (respecting current query filter).
+	 * The formula that produces the bitmap of queried entities directly referencing this hierarchical entity
+	 * (respecting current query filter).
 	 */
-	private final IntSupplier queriedEntityCount;
+	private final Supplier<Formula> directlyQueriedEntitiesFormulaProducer;
 	/**
 	 * Mutable container for gradually added children.
 	 */
-	@Getter private final List<LevelInfo> children = new LinkedList<>();
+	@Getter private final List<Accumulator> children = new LinkedList<>();
 	/**
 	 * Counter for the children that would be returned in case the level predicate didn't stop the traversal.
 	 */
 	private int omittedChildren;
 	/**
-	 * Counter for the queried entities that would be returned in case the level predicate didn't stop the traversal.
+	 * List of formula that computes the queried entities that would be returned in case the level predicate didn't stop
+	 * the traversal.
 	 */
-	private int omittedQueuedEntityCount;
+	private List<Formula> omittedQueuedEntities;
 	/**
 	 * Flag signalizing that the accumulator traverses the omission block.
 	 */
 	private boolean omissionBlock;
+	/**
+	 * Cached formula that computes the number of queried entities aggregating the information from:
+	 *
+	 * - {@link #directlyQueriedEntitiesFormulaProducer}
+	 * - {@link #omittedQueuedEntities}
+	 */
+	private Formula directlyQueriedEntitiesFormula;
+	/**
+	 * Cached formula that computes the number of queried entities aggregating the information from:
+	 *
+	 * - {@link #directlyQueriedEntitiesFormulaProducer}
+	 * - {@link #omittedQueuedEntities}
+	 * - {@link #children}
+	 */
+	private Formula queriedEntitiesFormula;
 
 	/**
 	 * Adds information about this hierarchy node children statistics.
 	 */
-	public void add(@Nonnull LevelInfo nodeAsLevel) {
-		this.children.add(nodeAsLevel);
+	public void add(@Nonnull Accumulator childNode) {
+		this.children.add(childNode);
+		this.queriedEntitiesFormula = null;
 	}
 
 	/**
@@ -87,21 +103,56 @@ public class Accumulator {
 		// sort by their order in hierarchy
 		return new LevelInfo(
 			entity,
-			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? getQueriedEntityCount() : null,
+			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? getDirectlyQueriedEntitiesFormula().compute().size() : null,
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? getChildrenCount() : null,
-			children
+			getChildrenAsLevelInfo(statisticsTypes)
 		);
+	}
+
+	/**
+	 * Converts accumulator data of the immediate children to immutable list of {@link LevelInfo}.
+	 */
+	@Nonnull
+	public List<LevelInfo> getChildrenAsLevelInfo(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
+		return children.stream()
+			.map(it -> it.toLevelInfo(statisticsTypes))
+			.toList();
 	}
 
 	/**
 	 * Method computes the number of queried entities aggregating the information from children and also omitted
 	 * entity count (the number of queried entities that belong to nodes that are not part of the requested output).
 	 */
-	public int getQueriedEntityCount() {
-		return IntStream.concat(
-			IntStream.of(queriedEntityCount.getAsInt()),
-			children.stream().mapToInt(LevelInfo::queriedEntityCount)
-		).sum() + omittedQueuedEntityCount;
+	public Formula getQueriedEntitiesFormula() {
+		if (queriedEntitiesFormula == null) {
+			queriedEntitiesFormula = FormulaFactory.or(
+				Stream.of(
+						Stream.of(directlyQueriedEntitiesFormulaProducer.get()),
+						children.stream().map(Accumulator::getDirectlyQueriedEntitiesFormula),
+						omittedQueuedEntities.stream()
+					)
+					.flatMap(Function.identity())
+					.toArray(Formula[]::new)
+			);
+		}
+		return queriedEntitiesFormula;
+	}
+
+	/**
+	 * Method computes the number of queried entities aggregating the information from children and also omitted
+	 * entity count (the number of queried entities that belong to nodes that are not part of the requested output).
+	 */
+	public Formula getDirectlyQueriedEntitiesFormula() {
+		if (directlyQueriedEntitiesFormula == null) {
+			directlyQueriedEntitiesFormula = FormulaFactory.or(
+				Stream.concat(
+						Stream.of(directlyQueriedEntitiesFormulaProducer.get()),
+						omittedQueuedEntities.stream()
+					)
+					.toArray(Formula[]::new)
+			);
+		}
+		return directlyQueriedEntitiesFormula;
 	}
 
 	/**
@@ -123,8 +174,12 @@ public class Accumulator {
 	 * Registers a count of queried entities that are part of the requested tree that matches the filter but is not
 	 * requested in the output.
 	 */
-	public void registerOmittedCardinality(int cardinality) {
-		omittedQueuedEntityCount += cardinality;
+	public void registerOmittedCardinality(@Nonnull Formula queriedEntities) {
+		if (omittedQueuedEntities == null) {
+			omittedQueuedEntities = new LinkedList<>();
+		}
+		omittedQueuedEntities.add(queriedEntities);
+		queriedEntitiesFormula = null;
 	}
 
 	/**
@@ -143,10 +198,17 @@ public class Accumulator {
 	}
 
 	/**
+	 * TODO JNO - document me and implement me
+	 * @return
+	 */
+	public boolean hasQueriedEntity() {
+		return false;
+	}
+
+	/**
 	 * Returns true if there is currently omission block active.
 	 */
 	public boolean isInOmissionBlock() {
 		return omissionBlock;
 	}
-
 }

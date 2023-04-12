@@ -25,11 +25,10 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor
 
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.StatisticsType;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
@@ -44,9 +43,7 @@ import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.IntFunction;
-import java.util.function.ToIntFunction;
 
 /**
  * This {@link HierarchyVisitor} implementation is called for each hierarchical entity and cooperates
@@ -92,7 +89,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 	 * Internal function that creates a formula that computes the number of queried entities linked to the processed
 	 * {@link HierarchyNode}.
 	 */
-	private final ToIntFunction<HierarchyNode> queriedEntityComputer;
+	private final IntFunction<Formula> queriedEntityComputer;
 	/**
 	 * The root accumulator that holds the computation result.
 	 */
@@ -103,8 +100,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 		int distanceCompensation,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate,
-		@Nonnull Formula filteredEntityPks,
-		@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
+		@Nonnull IntFunction<Formula> queuedEntityComputer,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
@@ -115,25 +111,21 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 		this.accumulator = new LinkedList<>();
 
 		// accumulator is used to gather information about its children gradually
-		this.rootAccumulator = new Accumulator(null, null, () -> 0);
+		this.rootAccumulator = new Accumulator(null, () -> EmptyFormula.INSTANCE);
 		accumulator.add(rootAccumulator);
 
 		this.entityFetcher = entityFetcher;
 		this.statisticsType = statisticsType;
-		this.queriedEntityComputer = hierarchyNode -> {
-			// get all queried entity primary keys that refer to this hierarchical node
-			final Formula allEntitiesReferencingEntity = hierarchyReferencingEntityPks.apply(hierarchyNode.entityPrimaryKey());
-			// now combine them with primary keys that are really returned by the query and compute matching count
-			final Formula completedFormula = FormulaFactory.and(
-				allEntitiesReferencingEntity,
-				filteredEntityPks
-			);
-			return completedFormula.compute().size();
-		};
+		this.queriedEntityComputer = queuedEntityComputer;
 	}
 
 	@Nonnull
-	public List<LevelInfo> getResult() {
+	public List<LevelInfo> getResult(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
+		return rootAccumulator.getChildrenAsLevelInfo(statisticsTypes);
+	}
+
+	@Nonnull
+	public List<Accumulator> getAccumulators() {
 		return rootAccumulator.getChildren();
 	}
 
@@ -146,18 +138,16 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 			if (topAccumulator.isInOmissionBlock()) {
 				// in omission block compute only cardinality of queued entities
 				topAccumulator.registerOmittedCardinality(
-					queriedEntityComputer.applyAsInt(node)
+					queriedEntityComputer.apply(node.entityPrimaryKey())
 				);
 				traverser.run();
 			} else {
 				if (scopePredicate.test(entityPrimaryKey, level, distance + distanceCompensation)) {
-					// now fetch the appropriate form of the hierarchical entity
-					final EntityClassifier hierarchyEntity = entityFetcher.apply(entityPrimaryKey);
 					// and create element in accumulator that will be filled in
 					accumulator.push(
 						new Accumulator(
-							node, hierarchyEntity,
-							() -> queriedEntityComputer.applyAsInt(node)
+							entityFetcher.apply(entityPrimaryKey),
+							() -> queriedEntityComputer.apply(node.entityPrimaryKey())
 						)
 					);
 					// traverse subtree - filling up the accumulator on previous row
@@ -167,13 +157,19 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 					// and if its cardinality is greater than zero (contains at least one queried entity)
 					// add it to the result
 					if (removeEmptyResults) {
-						Optional.of(finalizedAccumulator.toLevelInfo(statisticsType))
-							.filter(it -> it.queriedEntityCount() > 0)
-							.ifPresent(topAccumulator::add);
+						if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
+							// we need to fully compute cardinality of queried entities
+							if (!finalizedAccumulator.getQueriedEntitiesFormula().compute().isEmpty()) {
+								topAccumulator.add(topAccumulator);
+							}
+						} else {
+							// we may choose more optimal path finding at least one queried entity
+							if (finalizedAccumulator.hasQueriedEntity()) {
+								topAccumulator.add(topAccumulator);
+							}
+						}
 					} else {
-						topAccumulator.add(
-							finalizedAccumulator.toLevelInfo(statisticsType)
-						);
+						topAccumulator.add(finalizedAccumulator);
 					}
 				} else if (!statisticsType.isEmpty()) {
 					// if we need to compute statistics, but the positional predicate stops traversal
@@ -188,7 +184,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 					// and compute overall cardinality
 					if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
 						topAccumulator.registerOmittedCardinality(
-							queriedEntityComputer.applyAsInt(node)
+							queriedEntityComputer.apply(node.entityPrimaryKey())
 						);
 					}
 				}

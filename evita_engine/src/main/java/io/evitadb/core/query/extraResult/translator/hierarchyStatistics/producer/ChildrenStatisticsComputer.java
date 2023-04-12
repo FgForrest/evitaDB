@@ -27,8 +27,7 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
-import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
@@ -60,8 +59,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 
 	@Nonnull
 	@Override
-	protected List<LevelInfo> createStatistics(
-		@Nonnull Formula filteredEntityPks,
+	protected List<Accumulator> createStatistics(
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
@@ -75,8 +73,8 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			0,
 			scopePredicate,
 			combinedFilteringPredicate,
-			filteredEntityPks,
-			context.hierarchyReferencingEntityPks(), entityFetcher,
+			value -> context.hierarchyReferencingEntityPks().apply(value, statisticsBase),
+			entityFetcher,
 			statisticsType
 		);
 		if (context.hierarchyFilter() instanceof HierarchyWithinRoot) {
@@ -101,7 +99,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			);
 		}
 
-		return childrenVisitor.getResult();
+		return childrenVisitor.getAccumulators();
 	}
 
 }

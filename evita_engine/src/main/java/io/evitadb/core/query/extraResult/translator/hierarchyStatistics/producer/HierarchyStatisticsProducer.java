@@ -29,6 +29,7 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
+import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
@@ -42,6 +43,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
@@ -58,7 +60,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -89,16 +90,6 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 */
 	@Nullable private final Locale language;
 	/**
-	 * Contains filtering formula tree that was used to produce results so that computed {@link LevelInfo#queriedEntityCount()}
-	 * is reduced according to the input filter.
-	 */
-	@Nonnull private final Formula filteringFormula;
-	/**
-	 * Contains filtering formula tree that was used to produce results so that computed {@link LevelInfo#queriedEntityCount()}
-	 * is reduced according to the input filter. The tree doesn't contain user filter part.
-	 */
-	@Nonnull private final Formula filteringFormulaWithoutUserFilter;
-	/**
 	 * Contains set of producer instances, that should build collections of {@link LevelInfo} for each requested
 	 * references. Each producer contains all information necessary.
 	 */
@@ -121,7 +112,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
 		return new HierarchyStatistics(
 			ofNullable(selfHierarchyRequest)
-				.map(it -> it.createStatistics(filteringFormula, filteringFormulaWithoutUserFilter, language))
+				.map(it -> it.createStatistics(language))
 				.orElse(null),
 			hierarchyRequests
 				.entrySet()
@@ -129,7 +120,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> it.getValue().createStatistics(filteringFormula, filteringFormulaWithoutUserFilter, language)
+						it -> it.getValue().createStatistics(language)
 					)
 				)
 		);
@@ -153,7 +144,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nullable HierarchyFilterConstraint hierarchyWithin,
 		@Nonnull EntityIndex targetIndex,
 		@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
-		@Nonnull IntFunction<Formula> hierarchyReferencingEntityPks,
+		@Nonnull IntBiFunction<StatisticsBase, Formula> hierarchyReferencingEntityPks,
 		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
 		@Nullable Sorter sorter,
 		@Nonnull Runnable interpretationLambda

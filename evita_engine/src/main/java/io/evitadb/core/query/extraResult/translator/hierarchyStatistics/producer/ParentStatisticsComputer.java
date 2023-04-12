@@ -27,8 +27,7 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
-import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ParentStatisticsHierarchyVisitor;
 import io.evitadb.index.EntityIndex;
@@ -73,8 +72,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 
 	@Nonnull
 	@Override
-	protected List<LevelInfo> createStatistics(
-		@Nonnull Formula filteredEntityPks,
+	protected List<Accumulator> createStatistics(
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
@@ -89,8 +87,8 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				0,
 				(hierarchyNodeId, level, distance) -> distance == 0,
 				combinedFilteringPredicate,
-				filteredEntityPks,
-				context.hierarchyReferencingEntityPks(), entityFetcher,
+				value -> context.hierarchyReferencingEntityPks().apply(value, statisticsBase),
+				entityFetcher,
 				statisticsType
 			);
 			entityIndex.traverseHierarchyFromNode(
@@ -100,9 +98,9 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				combinedFilteringPredicate.negate()
 			);
 
-			final List<LevelInfo> childVisitorResult = childVisitor.getResult();
-			Assert.isPremiseValid(childVisitorResult.size() == 1, "Expected exactly one node but found `" + childVisitorResult.size() + "`!");
-			final LevelInfo startNode = childVisitorResult.get(0);
+			final List<Accumulator> children = childVisitor.getAccumulators();
+			Assert.isPremiseValid(children.size() == 1, "Expected exactly one node but found `" + children.size() + "`!");
+			final Accumulator startNode = children.get(0);
 
 			final SiblingsStatisticsTravelingComputer siblingsComputerToUse;
 			if (siblingsStatisticsComputer != null) {
@@ -119,14 +117,13 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			}
 
 			final HierarchyFilteringPredicate exceptStartNode = new MatchNodeIdHierarchyFilteringPredicate(
-				startNode.entity().getPrimaryKey()
+				startNode.getEntity().getPrimaryKey()
 			).negate();
 			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
 				scopePredicate,
 				combinedFilteringPredicate.and(exceptStartNode),
-				filteredEntityPks,
-				context.hierarchyReferencingEntityPks(), entityFetcher,
-				statisticsType,
+				value -> context.hierarchyReferencingEntityPks().apply(value, statisticsBase),
+				entityFetcher,
 				siblingsComputerToUse,
 				siblingsStatisticsComputer == null
 			);
@@ -134,7 +131,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				parentVisitor,
 				hierarchyWithin.getParentId()
 			);
-			return parentVisitor.getResult(startNode, filteredEntityPks);
+			return parentVisitor.getResult(startNode);
 		} else {
 			return Collections.emptyList();
 		}
