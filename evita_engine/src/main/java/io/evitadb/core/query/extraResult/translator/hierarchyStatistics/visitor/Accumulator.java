@@ -33,12 +33,15 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Accumulator serves to aggregate information about children before creating immutable statistics result.
@@ -103,7 +106,7 @@ public class Accumulator {
 		// sort by their order in hierarchy
 		return new LevelInfo(
 			entity,
-			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? getDirectlyQueriedEntitiesFormula().compute().size() : null,
+			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? getQueriedEntitiesFormula().compute().size() : null,
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? getChildrenCount() : null,
 			getChildrenAsLevelInfo(statisticsTypes)
 		);
@@ -128,8 +131,8 @@ public class Accumulator {
 			queriedEntitiesFormula = FormulaFactory.or(
 				Stream.of(
 						Stream.of(directlyQueriedEntitiesFormulaProducer.get()),
-						children.stream().map(Accumulator::getDirectlyQueriedEntitiesFormula),
-						omittedQueuedEntities.stream()
+						children.stream().map(Accumulator::getQueriedEntitiesFormula),
+						ofNullable(omittedQueuedEntities).stream().flatMap(Collection::stream)
 					)
 					.flatMap(Function.identity())
 					.toArray(Formula[]::new)
@@ -147,7 +150,7 @@ public class Accumulator {
 			directlyQueriedEntitiesFormula = FormulaFactory.or(
 				Stream.concat(
 						Stream.of(directlyQueriedEntitiesFormulaProducer.get()),
-						omittedQueuedEntities.stream()
+						ofNullable(omittedQueuedEntities).stream().flatMap(Collection::stream)
 					)
 					.toArray(Formula[]::new)
 			);
@@ -198,10 +201,24 @@ public class Accumulator {
 	}
 
 	/**
-	 * TODO JNO - document me and implement me
-	 * @return
+	 * Methods return true if it finds at least one queried entity for this accumulator, omitted information or
+	 * its children. The method is optimal in the sense that it stops on first occurrence and doesn't require
+	 * computing the entire tree.
 	 */
 	public boolean hasQueriedEntity() {
+		if (!getDirectlyQueriedEntitiesFormula().compute().isEmpty()) {
+			return true;
+		}
+		for (Accumulator child : children) {
+			if (child.hasQueriedEntity()) {
+				return true;
+			}
+		}
+		for (Formula omittedQueuedEntity : omittedQueuedEntities) {
+			if (!omittedQueuedEntity.compute().isEmpty()) {
+				return true;
+			}
+		}
 		return false;
 	}
 

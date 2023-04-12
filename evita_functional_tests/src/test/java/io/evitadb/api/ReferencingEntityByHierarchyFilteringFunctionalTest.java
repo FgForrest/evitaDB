@@ -869,8 +869,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		}
 		final Collection<SealedEntity> filteredProducts = allProducts.stream()
 			.filter(filterPredicate)
-			.collect(Collectors.toList());
+			.toList();
 		final Cardinalities categoryCardinalities = new Cardinalities();
+
+		final Set<List<Integer>> emptyCategories = new HashSet<>();
 		for (SealedEntity category : allCategories) {
 			final int categoryId = category.getPrimaryKey();
 			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(categoryId));
@@ -880,6 +882,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					.map(it -> Integer.parseInt(it.getCode())),
 				Stream.of(categoryId)
 			).toList();
+
 			if (categoryPath.stream().allMatch(cid -> treeFilterPredicate.test(categoryIndex.get(cid), parentItems))) {
 				int cid = categoryPath.get(categoryPath.size() - 1);
 				if (categoriesWithValidPath.contains(cid)) {
@@ -888,8 +891,21 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						.filter(it -> it.getReference(Entities.CATEGORY, cid).isPresent())
 						.mapToInt(EntityContract::getPrimaryKey)
 						.toArray();
-					if (!ArrayUtils.isEmpty(productIds)) {
+					if (ArrayUtils.isEmpty(productIds)) {
+						emptyCategories.add(categoryPath);
+					} else {
 						categoryCardinalities.record(categoryPath, productIds);
+						for (int i = categoryPath.size() - 1; i > 0; i--) {
+							final List<Integer> parentPath = categoryPath.subList(0, i);
+							if (emptyCategories.contains(parentPath)) {
+								if (parentPath.size() > 1) {
+									categoryCardinalities.recordCategoryVisible(parentPath.get(parentPath.size() - 2));
+								}
+								emptyCategories.remove(parentPath);
+							} else {
+								break;
+							}
+						}
 					}
 				}
 			}
@@ -924,10 +940,14 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		private final Map<Integer, Bitmap> itemCardinality = new HashMap<>(32);
 		private final Map<Integer, Integer> childrenItemCount = new HashMap<>(32);
 
+		public void recordCategoryVisible(int categoryId) {
+			childrenItemCount.merge(categoryId, 1, Integer::sum);
+		}
+
 		public void record(@Nonnull List<Integer> categoryPath, int[] productIds) {
 			if (categoryPath.size() > 1) {
 				final Integer cid = categoryPath.get(categoryPath.size() - 2);
-				childrenItemCount.merge(cid, 1, Integer::sum);
+				recordCategoryVisible(cid);
 			}
 			categoryPath
 				.forEach(it -> {

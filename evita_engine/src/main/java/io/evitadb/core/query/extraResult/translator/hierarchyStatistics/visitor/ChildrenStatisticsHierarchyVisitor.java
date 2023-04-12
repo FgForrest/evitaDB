@@ -160,12 +160,12 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 						if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
 							// we need to fully compute cardinality of queried entities
 							if (!finalizedAccumulator.getQueriedEntitiesFormula().compute().isEmpty()) {
-								topAccumulator.add(topAccumulator);
+								topAccumulator.add(finalizedAccumulator);
 							}
 						} else {
 							// we may choose more optimal path finding at least one queried entity
 							if (finalizedAccumulator.hasQueriedEntity()) {
-								topAccumulator.add(topAccumulator);
+								topAccumulator.add(finalizedAccumulator);
 							}
 						}
 					} else {

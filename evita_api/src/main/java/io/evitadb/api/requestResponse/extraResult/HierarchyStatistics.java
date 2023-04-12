@@ -181,9 +181,9 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 		if (o == null || getClass() != o.getClass()) return false;
 		final HierarchyStatistics that = (HierarchyStatistics) o;
 
-		if (selfStatistics == null && that.selfStatistics != null) {
+		if (selfStatistics == null && that.selfStatistics != null && !that.selfStatistics.isEmpty()) {
 			return false;
-		} else if (selfStatistics != null && that.selfStatistics == null) {
+		} else if (selfStatistics != null && !selfStatistics.isEmpty() && that.selfStatistics == null) {
 			return false;
 		}
 
