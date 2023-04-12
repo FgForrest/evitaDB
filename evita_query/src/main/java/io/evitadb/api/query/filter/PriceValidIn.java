@@ -26,9 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -58,7 +58,7 @@ import java.time.OffsetDateTime;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "validIn",
 	shortDescription = "The constraint checks if entity has selling price valid at the passed moment.",
 	supportedIn = ConstraintDomain.ENTITY
@@ -70,13 +70,13 @@ public class PriceValidIn extends AbstractFilterConstraintLeaf implements PriceC
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef(suffix = "now")
+	@Creator(suffix = "now")
 	public PriceValidIn() {
 		super();
 	}
 
-	@ConstraintCreatorDef
-	public PriceValidIn(@Nonnull @ConstraintValueParamDef OffsetDateTime theMoment) {
+	@Creator
+	public PriceValidIn(@Nonnull @Value OffsetDateTime theMoment) {
 		super(theMoment);
 	}
 

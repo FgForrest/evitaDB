@@ -25,11 +25,11 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -82,7 +82,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "between",
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute is within the passed range (both ends are inclusive).",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
@@ -95,10 +95,10 @@ public class AttributeBetween extends AbstractAttributeFilterConstraintLeaf impl
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public <T extends Serializable & Comparable<?>> AttributeBetween(@Nonnull @ConstraintClassifierParamDef String attributeName,
-	                                                                 @Nullable @ConstraintValueParamDef(requiresPlainType = true) T from,
-	                                                                 @Nullable @ConstraintValueParamDef(requiresPlainType = true) T to) {
+	@Creator
+	public <T extends Serializable & Comparable<?>> AttributeBetween(@Nonnull @Classifier String attributeName,
+	                                                                 @Nullable @Value(requiresPlainType = true) T from,
+	                                                                 @Nullable @Value(requiresPlainType = true) T to) {
 		super(attributeName, from, to);
 	}
 

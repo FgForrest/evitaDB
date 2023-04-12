@@ -106,7 +106,12 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 34: {
+          case 32: {
+
+            count_ = input.readInt32();
+            break;
+          }
+          case 42: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
               facetStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics>();
               mutable_bitField0_ |= 0x00000001;
@@ -240,17 +245,28 @@ private static final long serialVersionUID = 0L;
     return getGroupEntity();
   }
 
-  public static final int FACETSTATISTICS_FIELD_NUMBER = 4;
+  public static final int COUNT_FIELD_NUMBER = 4;
+  private int count_;
+  /**
+   * <code>int32 count = 4;</code>
+   * @return The count.
+   */
+  @java.lang.Override
+  public int getCount() {
+    return count_;
+  }
+
+  public static final int FACETSTATISTICS_FIELD_NUMBER = 5;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> facetStatistics_;
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> getFacetStatisticsList() {
     return facetStatistics_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> 
@@ -258,21 +274,21 @@ private static final long serialVersionUID = 0L;
     return facetStatistics_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
   public int getFacetStatisticsCount() {
     return facetStatistics_.size();
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics getFacetStatistics(int index) {
     return facetStatistics_.get(index);
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder getFacetStatisticsOrBuilder(
@@ -303,8 +319,11 @@ private static final long serialVersionUID = 0L;
     if (groupEntity_ != null) {
       output.writeMessage(3, getGroupEntity());
     }
+    if (count_ != 0) {
+      output.writeInt32(4, count_);
+    }
     for (int i = 0; i < facetStatistics_.size(); i++) {
-      output.writeMessage(4, facetStatistics_.get(i));
+      output.writeMessage(5, facetStatistics_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -326,9 +345,13 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getGroupEntity());
     }
+    if (count_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(4, count_);
+    }
     for (int i = 0; i < facetStatistics_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, facetStatistics_.get(i));
+        .computeMessageSize(5, facetStatistics_.get(i));
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -357,6 +380,8 @@ private static final long serialVersionUID = 0L;
       if (!getGroupEntity()
           .equals(other.getGroupEntity())) return false;
     }
+    if (getCount()
+        != other.getCount()) return false;
     if (!getFacetStatisticsList()
         .equals(other.getFacetStatisticsList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
@@ -380,6 +405,8 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + GROUPENTITY_FIELD_NUMBER;
       hash = (53 * hash) + getGroupEntity().hashCode();
     }
+    hash = (37 * hash) + COUNT_FIELD_NUMBER;
+    hash = (53 * hash) + getCount();
     if (getFacetStatisticsCount() > 0) {
       hash = (37 * hash) + FACETSTATISTICS_FIELD_NUMBER;
       hash = (53 * hash) + getFacetStatisticsList().hashCode();
@@ -532,6 +559,8 @@ private static final long serialVersionUID = 0L;
         groupEntity_ = null;
         groupEntityBuilder_ = null;
       }
+      count_ = 0;
+
       if (facetStatisticsBuilder_ == null) {
         facetStatistics_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00000001);
@@ -576,6 +605,7 @@ private static final long serialVersionUID = 0L;
       } else {
         result.groupEntity_ = groupEntityBuilder_.build();
       }
+      result.count_ = count_;
       if (facetStatisticsBuilder_ == null) {
         if (((bitField0_ & 0x00000001) != 0)) {
           facetStatistics_ = java.util.Collections.unmodifiableList(facetStatistics_);
@@ -642,6 +672,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasGroupEntity()) {
         mergeGroupEntity(other.getGroupEntity());
+      }
+      if (other.getCount() != 0) {
+        setCount(other.getCount());
       }
       if (facetStatisticsBuilder_ == null) {
         if (!other.facetStatistics_.isEmpty()) {
@@ -1013,6 +1046,37 @@ private static final long serialVersionUID = 0L;
       return groupEntityBuilder_;
     }
 
+    private int count_ ;
+    /**
+     * <code>int32 count = 4;</code>
+     * @return The count.
+     */
+    @java.lang.Override
+    public int getCount() {
+      return count_;
+    }
+    /**
+     * <code>int32 count = 4;</code>
+     * @param value The count to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCount(int value) {
+      
+      count_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <code>int32 count = 4;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCount() {
+      
+      count_ = 0;
+      onChanged();
+      return this;
+    }
+
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> facetStatistics_ =
       java.util.Collections.emptyList();
     private void ensureFacetStatisticsIsMutable() {
@@ -1026,7 +1090,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> facetStatisticsBuilder_;
 
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> getFacetStatisticsList() {
       if (facetStatisticsBuilder_ == null) {
@@ -1036,7 +1100,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public int getFacetStatisticsCount() {
       if (facetStatisticsBuilder_ == null) {
@@ -1046,7 +1110,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics getFacetStatistics(int index) {
       if (facetStatisticsBuilder_ == null) {
@@ -1056,7 +1120,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder setFacetStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics value) {
@@ -1073,7 +1137,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder setFacetStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder builderForValue) {
@@ -1087,7 +1151,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addFacetStatistics(io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics value) {
       if (facetStatisticsBuilder_ == null) {
@@ -1103,7 +1167,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addFacetStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics value) {
@@ -1120,7 +1184,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addFacetStatistics(
         io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder builderForValue) {
@@ -1134,7 +1198,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addFacetStatistics(
         int index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder builderForValue) {
@@ -1148,7 +1212,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder addAllFacetStatistics(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> values) {
@@ -1163,7 +1227,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder clearFacetStatistics() {
       if (facetStatisticsBuilder_ == null) {
@@ -1176,7 +1240,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public Builder removeFacetStatistics(int index) {
       if (facetStatisticsBuilder_ == null) {
@@ -1189,14 +1253,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder getFacetStatisticsBuilder(
         int index) {
       return getFacetStatisticsFieldBuilder().getBuilder(index);
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder getFacetStatisticsOrBuilder(
         int index) {
@@ -1206,7 +1270,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> 
          getFacetStatisticsOrBuilderList() {
@@ -1217,14 +1281,14 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder addFacetStatisticsBuilder() {
       return getFacetStatisticsFieldBuilder().addBuilder(
           io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder addFacetStatisticsBuilder(
         int index) {
@@ -1232,7 +1296,7 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics.Builder> 
          getFacetStatisticsBuilderList() {

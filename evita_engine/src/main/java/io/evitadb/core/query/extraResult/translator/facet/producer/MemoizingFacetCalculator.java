@@ -28,7 +28,9 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.extraResult.translator.facet.FilterFormulaFacetOptimizeVisitor;
 import io.evitadb.index.bitmap.Bitmap;
@@ -36,6 +38,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.Arrays;
 
 /**
  * Single implementation of both interfaces {@link FacetCalculator} and {@link ImpactCalculator}. The class computes
@@ -126,6 +129,24 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 		return facetFormulaGenerator.generateFormula(
 			baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
+	}
+
+	@Nonnull
+	@Override
+	public Formula createGroupCountFormula(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer facetGroupId, @Nonnull Bitmap[] facetEntityIds) {
+		final Formula allFacetEntityIds = FormulaFactory.or(
+			Arrays.stream(facetEntityIds)
+				.map(ConstantFormula::new)
+				.toArray(Formula[]::new)
+		);
+		if (baseFormulaWithoutUserFilter == null) {
+			return allFacetEntityIds;
+		} else {
+			return FormulaFactory.and(
+				baseFormulaWithoutUserFilter,
+				allFacetEntityIds
+			);
+		}
 	}
 
 }

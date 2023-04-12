@@ -2846,6 +2846,24 @@ public interface QueryConstraints {
 	 * all language specific attributes, all prices, all references and all associated data.
 	 */
 	@Nonnull
+	static RequireConstraint[] entityFetchAllAnd(@Nonnull RequireConstraint... combineWith) {
+		if (ArrayUtils.isEmpty(combineWith)) {
+			return new RequireConstraint[] {entityFetchAll()};
+		} else {
+			return ArrayUtils.mergeArrays(
+				new RequireConstraint[]{
+					entityFetchAll()
+				},
+				combineWith
+			);
+		}
+	}
+
+	/**
+	 * This method returns array of all requirements that are necessary to load full content of the entity including
+	 * all language specific attributes, all prices, all references and all associated data.
+	 */
+	@Nonnull
 	static EntityContentRequire[] entityFetchAllContent() {
 		return new EntityContentRequire[]{
 			attributeContent(), associatedDataContent(), priceContentAll(), referenceContent(), dataInLocales()
@@ -2857,16 +2875,14 @@ public interface QueryConstraints {
 	 * all language specific attributes, all prices, all references and all associated data.
 	 */
 	@Nonnull
-	static RequireConstraint[] entityFetchAllContentAnd(@Nullable RequireConstraint... combineWith) {
+	static EntityContentRequire[] entityFetchAllContentAnd(@Nullable EntityContentRequire... combineWith) {
 		if (ArrayUtils.isEmpty(combineWith)) {
-			return new RequireConstraint[]{
-				entityFetchAll()
-			};
+			return entityFetchAllContent();
 		} else {
-			final RequireConstraint[] combinedResult = new RequireConstraint[1 + combineWith.length];
-			combinedResult[0] = entityFetchAll();
-			System.arraycopy(combineWith, 0, combinedResult, 1, combineWith.length);
-			return combinedResult;
+			return ArrayUtils.mergeArrays(
+				entityFetchAllContent(),
+				combineWith
+			);
 		}
 	}
 

@@ -27,9 +27,9 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -61,7 +61,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "property",
 	shortDescription = "The constraint sorts returned references by applying ordering constraint on referenced entity.",
 	supportedIn = ConstraintDomain.REFERENCE
@@ -74,8 +74,8 @@ public class EntityProperty extends AbstractOrderConstraintContainer implements 
 		super(arguments, children);
 	}
 
-	@ConstraintCreatorDef
-	public EntityProperty(@Nonnull @ConstraintChildrenParamDef OrderConstraint... children) {
+	@Creator
+	public EntityProperty(@Nonnull @Child OrderConstraint... children) {
 		super(children);
 	}
 

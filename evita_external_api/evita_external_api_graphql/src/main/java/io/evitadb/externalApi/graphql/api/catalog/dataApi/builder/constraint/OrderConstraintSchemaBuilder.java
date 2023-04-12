@@ -23,12 +23,13 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint;
 
+import graphql.schema.GraphQLInputType;
+import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
-import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
@@ -37,59 +38,70 @@ import javax.annotation.Nonnull;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
- * Implementation of {@link GraphQLConstraintSchemaBuilder} for building filter query tree starting from {@link FilterBy}.
+ * Implementation of {@link GraphQLConstraintSchemaBuilder} for building order query tree starting from {@link OrderBy}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class FilterBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
+public class OrderConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder {
 
-	public FilterBySchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                             @Nonnull String rootEntityType) {
+	public OrderConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx) {
 		super(
 			constraintSchemaBuildingCtx,
-			rootEntityType,
+			createHashMap(0), // currently, we don't support any order constraint with additional children
 			Set.of(),
-			Set.of(FilterBy.class)
+			Set.of(OrderBy.class)
 		);
+	}
+
+	@Nonnull
+	public GraphQLInputType build(@Nonnull String rootEntityType) {
+		return build(new EntityDataLocator(rootEntityType));
 	}
 
 	@Nonnull
 	@Override
 	protected ConstraintType getConstraintType() {
-		return ConstraintType.FILTER;
+		return ConstraintType.ORDER;
 	}
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
+		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
-			() -> new GraphQLSchemaBuildingError("Could not find `filterBy` filter query.")
+			() -> new GraphQLSchemaBuildingError("Could not find `orderBy` order query.")
 		);
 		Assert.isPremiseValid(
 			descriptors.size() == 1,
-			() -> new GraphQLSchemaBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
+			() -> new GraphQLSchemaBuildingError(
+				"There multiple variants of `orderBy` order query, cannot decide which to choose."
+			)
 		);
 		return descriptors.iterator().next();
 	}
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(rootEntityType);
+	protected String getContainerObjectTypeName() {
+		return "OrderContainer";
 	}
 
-	@Nonnull
 	@Override
-	protected String getContainerObjectTypeName() {
-		return "FilterContainer";
+	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
+		// We don't want list of wrapper container because in "order" constraints there are no generic conjunction
+		// containers (and also there is currently no need to support that). Essentially, we want order constraints
+		// with children to act as if they were `ChildParameterDescriptor#uniqueChildren` as, although they are
+		// originally not, in case of GraphQL where classifiers are in keys those fields are in fact unique children.
+		return true;
 	}
 
 	@Nonnull
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
-		return attributeSchema -> attributeSchema.isUnique() || attributeSchema.isFilterable();
+		return AttributeSchemaContract::isSortable;
 	}
 }

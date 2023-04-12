@@ -79,6 +79,11 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 	 */
 	private final OrderConstraintResolver orderByResolver;
 
+	/**
+	 * Schema of catalog in which the collection is placed.
+	 */
+	@Nonnull
+	private final CatalogSchemaContract catalogSchema;
 	@Nonnull
 	private EntitySchemaContract entitySchema;
 	/**
@@ -88,6 +93,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 	private final Function<String, EntitySchemaContract> entitySchemaFetcher;
 
 	public DeleteEntitiesMutatingDataFetcher(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
+		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
 		this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
 		this.filterByResolver = new FilterConstraintResolver(catalogSchema, entitySchema.getName());
@@ -144,6 +150,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 
 		requireConstraints.add(
 			EntityFetchRequireBuilder.buildEntityRequirement(
+				catalogSchema,
 				SelectionSetWrapper.from(environment.getSelectionSet()),
 				extractDesiredLocale(filterBy),
 				entitySchema,

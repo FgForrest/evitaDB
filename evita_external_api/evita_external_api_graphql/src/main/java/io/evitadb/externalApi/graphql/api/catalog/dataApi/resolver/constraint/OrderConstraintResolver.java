@@ -40,6 +40,8 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.util.Set;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link OrderConstraint} usually with {@link OrderBy}
  * as root container.
@@ -53,7 +55,15 @@ import java.util.Set;
 public class OrderConstraintResolver extends GraphQLConstraintResolver<OrderConstraint> {
 
 	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String rootEntityType) {
-		super(catalogSchema, rootEntityType);
+		this(catalogSchema, new EntityDataLocator(rootEntityType));
+	}
+
+	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull DataLocator rootDataLocator) {
+		super(
+			catalogSchema,
+			createHashMap(0), // currently, we don't support any order constraint with additional children
+			rootDataLocator
+		);
 	}
 
 	@Override
@@ -71,12 +81,6 @@ public class OrderConstraintResolver extends GraphQLConstraintResolver<OrderCons
 	@Nonnull
 	protected ConstraintDescriptor getWrapperContainer() {
 		throw new GraphQLInternalError("Wrapper container is not supported for `order` constraints.");
-	}
-
-	@Nonnull
-	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(rootEntityType);
 	}
 
 	@Nonnull

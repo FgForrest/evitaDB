@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.UpsertEntityUpsertRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.header.DeleteEntityEndpointHeaderDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.mutation.RestEntityUpsertMutationConverter;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
@@ -46,6 +48,7 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Handles upsert request for entity.
@@ -67,7 +70,11 @@ public class UpsertEntityHandler extends RestHandler<CollectionRestHandlingConte
 			restApiHandlingContext.getObjectMapper(),
 			restApiHandlingContext.getEntitySchema()
 		);
-		this.requireConstraintResolver = new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
+		this.requireConstraintResolver = new RequireConstraintResolver(
+			restApiHandlingContext,
+			new AtomicReference<>(new FilterConstraintResolver(restApiHandlingContext)),
+			new AtomicReference<>(new OrderConstraintResolver(restApiHandlingContext))
+		);
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 		this.withPrimaryKeyInPath = withPrimaryKeyInPath;
 	}

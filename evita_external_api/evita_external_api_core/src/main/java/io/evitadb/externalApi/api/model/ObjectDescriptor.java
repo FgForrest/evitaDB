@@ -25,7 +25,6 @@ package io.evitadb.externalApi.api.model;
 
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
-import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Builder;

@@ -26,9 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -111,7 +111,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "statisticsOfSelf",
 	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of same hierarchical collection into response."
 )
@@ -123,8 +123,8 @@ public class HierarchyStatisticsOfSelf extends AbstractRequireConstraintContaine
 		super();
 	}
 
-	@ConstraintCreatorDef(silentImplicitClassifier = true)
-	public HierarchyStatisticsOfSelf(@Nullable @ConstraintChildrenParamDef EntityFetch entityRequirement) {
+	@Creator(silentImplicitClassifier = true)
+	public HierarchyStatisticsOfSelf(@Nullable @Child EntityFetch entityRequirement) {
 		super(new Serializable[0], entityRequirement);
 	}
 

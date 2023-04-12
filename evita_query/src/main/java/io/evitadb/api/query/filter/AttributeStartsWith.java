@@ -25,11 +25,11 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -60,7 +60,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "startsWith",
 	shortDescription = "Compares value of the attribute with passed value and checks if the text value of that attributes starts with passed text. (case-sensitive)",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
@@ -76,9 +76,9 @@ public class AttributeStartsWith extends AbstractAttributeFilterConstraintLeaf i
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public AttributeStartsWith(@Nonnull @ConstraintClassifierParamDef String attributeName,
-	                           @Nonnull @ConstraintValueParamDef String textToSearch) {
+	@Creator
+	public AttributeStartsWith(@Nonnull @Classifier String attributeName,
+	                           @Nonnull @Value String textToSearch) {
 		super(attributeName, textToSearch);
 	}
 

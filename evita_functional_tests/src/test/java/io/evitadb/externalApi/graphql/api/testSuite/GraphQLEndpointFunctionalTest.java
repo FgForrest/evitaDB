@@ -69,14 +69,6 @@ public abstract class GraphQLEndpointFunctionalTest {
 	@Nonnull
 	protected DataCarrier setUpData(Evita evita, EvitaServer evitaServer, int productCount) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		final List<SealedEntity> entities = TestDataGenerator.generateMainCatalogEntities(evita, productCount);
-		final HostDefinition[] host = evitaServer.getExternalApiServer().getApiOptions()
-			.getEndpointConfiguration(GraphQLProvider.CODE)
-			.getHost();
-
-		return new DataCarrier(
-			"entities", entities,
-			"tester"
-		);
+		return TestDataGenerator.generateMainCatalogEntities(evita, productCount);
 	}
 }

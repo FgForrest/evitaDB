@@ -72,6 +72,7 @@ class GrpcFacetSummaryBuilderTest {
 				new FacetGroupStatistics(
 					types[0],
 					new EntityReference(Objects.requireNonNull(types[0].getReferencedGroupType()), 1),
+					15,
 					List.of(
 						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 1), true, 5, new RequestImpact(1, 7)),
 						new FacetStatistics(new EntityReference(types[0].getReferencedEntityType(), 2), false, 4, new RequestImpact(5, 6)),
@@ -82,6 +83,7 @@ class GrpcFacetSummaryBuilderTest {
 				new FacetGroupStatistics(
 					types[1],
 					createGroupEntity(),
+					15,
 					List.of(
 						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 1, "phone1"), true, 5, new RequestImpact(55, 7)),
 						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 2, "phone2"), false, 4, new RequestImpact(7, 8)),
@@ -92,6 +94,7 @@ class GrpcFacetSummaryBuilderTest {
 				new FacetGroupStatistics(
 					types[2],
 					null,
+					29,
 					List.of(
 						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 1), true, 8, new RequestImpact(1, 5)),
 						new FacetStatistics(new EntityReference(types[2].getReferencedEntityType(), 2), false, 9, new RequestImpact(2, 66)),

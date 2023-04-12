@@ -26,9 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -50,15 +50,15 @@ import java.util.Arrays;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "require",
 	shortDescription = "The container encapsulates inner require constraints into one main constraint that is required by the query"
 )
 public class Require extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 6115101893250263038L;
 
-	@ConstraintCreatorDef
-	public Require(@Nonnull @ConstraintChildrenParamDef RequireConstraint... children) {
+	@Creator
+	public Require(@Nonnull @Child RequireConstraint... children) {
 		super(children);
 	}
 

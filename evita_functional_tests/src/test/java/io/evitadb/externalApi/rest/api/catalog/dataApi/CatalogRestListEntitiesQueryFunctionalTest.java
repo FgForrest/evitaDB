@@ -570,7 +570,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					.e(EntityDescriptor.LOCALES.name(), new ArrayList<>(0))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true))
+					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true, true))
 					.build();
 			})
 			.toList();
@@ -578,21 +578,25 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("{" +
-					"\"filterBy\": {" +
-					"    \"attributeCodeInSet\": [\"%s\", \"%s\"]" +
-					"}," +
-					"\"require\": {" +
-					"  \"entityFetch\": {" +
-					"     \"referenceBrandContent\": {" +
-					"        \"entityFetch\": {" +
-					"          \"attributeContent\": [\"marketShare\"]" +
-					"          }" +
-					"       }" +
-					"    }" +
-					"  }" +
-					" }" +
-					"}",
+			.requestBody(
+					"""
+                    {
+						"filterBy": {
+						    "attributeCodeInSet": ["%s", "%s"]
+						},
+						"require": {
+						    "entityFetch": {
+						        "referenceBrandContent": {
+						            "requirements": {
+							             "entityFetch": {
+							                "attributeContent": ["marketShare"]
+							            }
+						            }
+						        }
+					        }
+					    }
+					}
+					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE))
 			.executeAndThen()

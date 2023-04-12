@@ -24,6 +24,7 @@
 package io.evitadb.api.query.descriptor.annotation;
 
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -32,28 +33,42 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Constraint value parameter definition that marks concrete query
- * constructor's (one that is annotated with {@link ConstraintCreatorDef}) parameter as value parameter which should
- * be some primitive data type such as {@link String}, not another query.
- * Multiple parameters can be marked with this annotation.
+ * Constraint definition that describes concrete query. This definition when processed can be later used when
+ * building some system based on these constraints (e.g. custom query language that can be translated to this original).
  * <p>
- * Such an annotated parameter must  have generic data type (in case where concrete data type can be discovered in
- * some other way, e.g. schema) or data type supported {@link io.evitadb.api.dataType.EvitaDataTypes}.
+ * Such an annotated query must have also specified creator constructor using {@link Creator} and
+ * its parameters with {@link Classifier}, {@link Value} and {@link Child}.
  * <p>
  * This data is then processed by {@link ConstraintDescriptorProvider}.
  *
- * @see ConstraintCreatorDef
- * @see ConstraintDef
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@Target(ElementType.PARAMETER)
+@Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface ConstraintValueParamDef {
+public @interface ConstraintDefinition {
 
 	/**
-	 * If true, value is required to be plain type of original one (e.g. if original type is integer range, this query
-	 * requires integer to be passed)
+	 * Base short name of query in defined type and property type categorization. Should specify name of condition,
+	 * operation or something like that, that this query represent (e.g. "equals", "fetch").
+	 * Its format must be in camelCase and may be suffixed in concrete creators with their suffixes, making full name of
+	 * query.
 	 */
-	boolean requiresPlainType() default false;
+	String name();
+
+	/**
+	 * Short description of what the constraint do. It is used as quick explanation not full documentation.
+	 */
+	String shortDescription();
+
+	/**
+	 * Set of domains in which this query is supported in and can be used in when querying.
+	 * Default is {@link ConstraintDomain#ENTITY}.
+	 */
+	ConstraintDomain[] supportedIn() default { ConstraintDomain.GENERIC };
+
+	/**
+	 * Defines value data types of target data this query can operate on.
+	 */
+	ConstraintSupportedValues supportedValues() default @ConstraintSupportedValues();
 }

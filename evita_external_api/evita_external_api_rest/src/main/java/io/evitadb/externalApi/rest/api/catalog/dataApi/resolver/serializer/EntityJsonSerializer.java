@@ -278,16 +278,10 @@ public class EntityJsonSerializer {
 	private ObjectNode serializeSingleReference(ReferenceContract reference) {
 		final ObjectNode referenceNode = objectJsonSerializer.objectNode();
 
-		final Optional<SealedEntity> referencedEntity = reference.getReferencedEntity();
-		if(referencedEntity.isPresent()) {
-			referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(referencedEntity.get()));
-		} else {
-			final ObjectNode referencedEntityNode = objectJsonSerializer.objectNode();
-			referencedEntityNode.putIfAbsent(EntityDescriptor.PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
-			referencedEntityNode.putIfAbsent(EntityDescriptor.TYPE.name(), objectJsonSerializer.serializeObject(reference.getReferencedEntityType()));
+		referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), objectJsonSerializer.serializeObject(reference.getReferencedPrimaryKey()));
 
-			referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_ENTITY.name(), referencedEntityNode);
-		}
+		reference.getReferencedEntity().ifPresent(sealedEntity ->
+			referenceNode.putIfAbsent(ReferenceDescriptor.REFERENCED_ENTITY.name(), serializeSingleEntity(sealedEntity)));
 
 		final Optional<SealedEntity> groupEntity = reference.getGroupEntity();
 		if(groupEntity.isPresent()) {

@@ -54,7 +54,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -66,7 +65,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Generic context object for building REST API (OpenAPI specs and endpoint handlers)

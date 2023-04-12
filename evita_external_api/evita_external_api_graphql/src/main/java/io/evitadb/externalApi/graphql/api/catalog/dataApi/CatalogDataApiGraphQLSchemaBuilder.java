@@ -30,7 +30,6 @@ import graphql.schema.GraphQLInputObjectType;
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
-import graphql.schema.GraphQLType;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -46,10 +45,10 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGrap
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.FullResponseObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.LocalMutationAggregateObjectBuilder;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterBySchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderBySchemaBuilder;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesQueryHeaderDescriptor;
@@ -94,6 +93,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private static final ObjectMapper CDO_OBJECT_MAPPER = new ObjectMapper();
 
 	@Nonnull private final GraphQLConstraintSchemaBuildingContext constraintContext;
+	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
+	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder requireConstraintSchemaBuilder;
+
 	@Nonnull private final EntityObjectBuilder entityObjectBuilder;
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
 	@Nonnull private final LocalMutationAggregateObjectBuilder localMutationAggregateObjectBuilder;
@@ -102,8 +105,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		super(new CatalogGraphQLSchemaBuildingContext(evita, catalog));
 		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(buildingContext);
 
+		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintContext);
+		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(constraintContext);
+		this.requireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(constraintContext);
+
 		this.entityObjectBuilder = new EntityObjectBuilder(
 			buildingContext,
+			filterConstraintSchemaBuilder,
+			orderConstraintSchemaBuilder,
 			CDO_OBJECT_MAPPER,
 			argumentBuilderTransformer,
 			interfaceBuilderTransformer,
@@ -207,19 +216,21 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			entitySchema
 		);
 
-		// build filter schema
-		final GraphQLType filterBySchemaDescriptor = new FilterBySchemaBuilder(
-			constraintContext,
-			collectionBuildingContext.getSchema().getName()
-		).build();
-		collectionBuildingContext.setFilterByInputObject(filterBySchemaDescriptor);
+		// build filter input object
+		final GraphQLInputType filterByInputObject = filterConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
+		collectionBuildingContext.setFilterByInputObject(filterByInputObject);
 
-		// build order schema
-		final GraphQLType orderBySchemaDescriptor = new OrderBySchemaBuilder(
-			constraintContext,
-			collectionBuildingContext.getSchema().getName()
-		).build();
-		collectionBuildingContext.setOrderByInputObject(orderBySchemaDescriptor);
+		// build order input object
+		final GraphQLInputType orderByInputObject = orderConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
+		collectionBuildingContext.setOrderByInputObject(orderByInputObject);
+
+		// build require input object
+		// build only if there are any prices or facets because these are only few allowed constraints in require builder
+		if (!entitySchema.getCurrencies().isEmpty() ||
+			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFaceted)) {
+			final GraphQLInputType requireInputObject = requireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
+			collectionBuildingContext.setRequireInputObject(requireInputObject);
+		}
 
 		// build entity object specific to this schema
 
@@ -393,18 +404,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.type(collectionBuildingContext.getOrderByInputObject()));
 
 		// build require constraints
-		// build only if there are any prices or facets because these are only allowed constraints in require builder
-		if (!entitySchema.getCurrencies().isEmpty() ||
-			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFaceted)) {
-			final GraphQLType requireSchemaDescriptor = new RequireSchemaBuilder(
-				constraintContext,
-				collectionBuildingContext.getSchema().getName()
-			).build();
-
+		// build only if there are any prices or facets because these are only few allowed constraints in require builder
+		collectionBuildingContext.getRequireInputObject().ifPresent(requireInputObject -> {
 			entityQueryFieldBuilder.argument(QueryEntitiesQueryHeaderDescriptor.REQUIRE
 				.to(argumentBuilderTransformer)
-				.type((GraphQLInputType) requireSchemaDescriptor));
-		}
+				.type(requireInputObject));
+		});
 
 		return new BuiltFieldDescriptor(
 			entityQueryFieldBuilder.build(),

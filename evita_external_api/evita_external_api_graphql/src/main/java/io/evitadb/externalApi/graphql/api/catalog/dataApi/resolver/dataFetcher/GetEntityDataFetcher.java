@@ -74,6 +74,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
 
 	/**
+	 * Schema of catalog in which the collection is placed.
+	 */
+	@Nonnull
+	private final CatalogSchemaContract catalogSchema;
+	/**
 	 * Schema of collection to which this fetcher is mapped to.
 	 */
 	@Nonnull
@@ -85,6 +90,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 	private final Function<String, EntitySchemaContract> entitySchemaFetcher;
 
 	public GetEntityDataFetcher(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
+		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
 		this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
 	}
@@ -150,6 +156,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
     private Require buildRequire(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
         return require(
             EntityFetchRequireBuilder.buildEntityRequirement(
+	            catalogSchema,
                 SelectionSetWrapper.from(environment.getSelectionSet()),
                 arguments.locale(),
                 entitySchema,

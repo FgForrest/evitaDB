@@ -749,28 +749,17 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		var expectedBody = entity.getReferences(Entities.STORE)
 			.stream()
 			.map(r -> map()
-				.e("referencedEntity", map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), r.getReferencedEntityType())
-					.e(EntityDescriptor.LOCALES.name(), new ArrayList<>(1))
-					.e(EntityDescriptor.ALL_LOCALES.name(), new ArrayList<>(Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag())))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-					.build())
+				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
-					.e(ATTRIBUTE_CAPACITY, String.valueOf(r.getAttributeValue(ATTRIBUTE_CAPACITY).get().getValue()))
-					.build())
+					.e(ATTRIBUTE_CAPACITY, String.valueOf(r.getAttributeValue(ATTRIBUTE_CAPACITY).get().getValue())))
 				.build())
 			.toList();
 		expectedBody = new LinkedList<>(expectedBody);
 		expectedBody.add(map()
-			.e("referencedEntity", map()
-				.e(EntityDescriptor.PRIMARY_KEY.name(), 1_000_000_000)
-				.e(EntityDescriptor.TYPE.name(), Entities.STORE)
-				.build())
+			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), 1_000_000_000)
 			.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)
-				.build())
+				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true))
 			.build());
 
 		tester.test(TEST_CATALOG)
@@ -801,17 +790,14 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					"require": {
 					    "entityFetch": {
 					        "attributeContentAll": true,
-					        "referenceStoreContent": {
-					            "entityFetch": {
-					            }
-					        }
+					        "referenceStoreContent": {}
 					    }
 					}
 				}
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body("store", containsInAnyOrder(expectedBody.toArray()));
+			.body("store", equalTo(expectedBody));
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/list")
@@ -825,8 +811,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 						"entityFetch": {
 							"attributeContentAll": true,
 					        "referenceStoreContent": {
-					            "entityFetch": {
-					            }
+					            "requirements": {}
 					        }
 				        }
 					}

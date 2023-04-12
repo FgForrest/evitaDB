@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
 import io.evitadb.api.query.descriptor.ConstraintCreator;
+import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintPropertyType;
@@ -117,18 +118,20 @@ public class ConstraintProcessingUtils {
 	public static ConstraintValueStructure getValueStructureForConstraintCreator(@Nonnull ConstraintCreator creator) {
 		final List<ValueParameterDescriptor> valueParameters = creator.valueParameters();
 		final Optional<ChildParameterDescriptor> childParameter = creator.childParameter();
+		final List<AdditionalChildParameterDescriptor> additionalChildParameters = creator.additionalChildParameters();
 
 		final ConstraintValueStructure valueStructure;
-		if (valueParameters.isEmpty() && childParameter.isEmpty()) {
+		if (valueParameters.isEmpty() && childParameter.isEmpty() && additionalChildParameters.isEmpty()) {
 			valueStructure = ConstraintValueStructure.NONE;
-		} else if (valueParameters.size() == 1 && childParameter.isEmpty()) {
+		} else if (valueParameters.size() == 1 && childParameter.isEmpty() && additionalChildParameters.isEmpty()) {
 			valueStructure = ConstraintValueStructure.PRIMITIVE;
 		} else if (valueParameters.size() == WRAPPER_RANGE_PARAMETERS_COUNT &&
 			childParameter.isEmpty() &&
+			additionalChildParameters.isEmpty() &&
 			valueParameters.stream().filter(p -> p.name().equals(WRAPPER_RANGE_FROM_VALUE_PARAMETER) || p.name().equals(WRAPPER_RANGE_TO_VALUE_PARAMETER)).count() == WRAPPER_RANGE_PARAMETERS_COUNT &&
 			valueParameters.get(0).type().equals(valueParameters.get(1).type())) {
 			valueStructure = ConstraintValueStructure.WRAPPER_RANGE;
-		} else if (valueParameters.isEmpty() && childParameter.isPresent()) {
+		} else if (valueParameters.isEmpty() && childParameter.isPresent() && additionalChildParameters.isEmpty()) {
 			valueStructure = ConstraintValueStructure.CHILD;
 		} else {
 			valueStructure = ConstraintValueStructure.WRAPPER_OBJECT;

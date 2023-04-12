@@ -83,6 +83,11 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
     private final OrderConstraintResolver orderByResolver;
 
     /**
+     * Schema of catalog in which the collection is placed.
+     */
+    @Nonnull
+    private final CatalogSchemaContract catalogSchema;
+    /**
      * Entity type of collection to which this fetcher is mapped to.
      */
     @Nonnull
@@ -95,6 +100,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
     public ListEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
                                    @Nonnull EntitySchemaContract entitySchema) {
+        this.catalogSchema = catalogSchema;
         this.entitySchema = entitySchema;
         this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
         this.filterByResolver = new FilterConstraintResolver(catalogSchema, entitySchema.getName());
@@ -153,6 +159,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
         requireConstraints.add(
             EntityFetchRequireBuilder.buildEntityRequirement(
+                catalogSchema,
                 SelectionSetWrapper.from(environment.getSelectionSet()),
                 extractDesiredLocale(filterBy),
                 entitySchema,

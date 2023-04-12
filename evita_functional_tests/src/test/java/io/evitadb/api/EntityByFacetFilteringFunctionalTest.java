@@ -175,6 +175,31 @@ public class EntityByFacetFilteringFunctionalTest {
 				)
 			);
 
+		// group facets by their entity type / group and compute sum per group
+		final Map<GroupReference, Integer> groupCount = filteredEntities
+			.stream()
+			.flatMap(entity -> entity.getReferences()
+				.stream()
+				.map(it ->
+					new GroupReferenceWithEntityId(
+						it.getReferenceName(),
+						it.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null),
+						entity.getPrimaryKey()
+					)
+				))
+			.distinct()
+			.collect(
+				groupingBy(
+					entry -> new GroupReference(
+						schema.getReference(entry.referenceName()).orElseThrow(),
+						entry.groupId()
+					),
+					TreeMap::new,
+					summingInt(entry -> 1)
+				)
+			);
+
+
 		// filter entities by facets in input query (even if part of user filter) - use AND for different entity types, and OR for facet ids
 		final Set<Integer> facetFilteredEntityIds = filteredEntities
 			.stream()
@@ -220,6 +245,7 @@ public class EntityByFacetFilteringFunctionalTest {
 										return session.getEntity(entityType, gId, groupEntityRequirement.getRequirements()).orElseThrow();
 									})
 									.orElse(null),
+								groupCount.get(it.getKey()),
 								it.getValue()
 									.entrySet()
 									.stream()
@@ -1778,6 +1804,12 @@ public class EntityByFacetFilteringFunctionalTest {
 			return first == 0 ? ofNullable(groupId).map(it -> ofNullable(o.groupId).map(it::compareTo).orElse(-1)).orElseGet(() -> o.groupId != null ? 1 : 0) : first;
 		}
 	}
+
+	private record GroupReferenceWithEntityId(
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		int entityId
+	) {}
 
 	private record FacetSummaryWithResultCount(int entityCount, FacetSummary facetSummary) {
 	}
