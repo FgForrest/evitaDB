@@ -24,6 +24,8 @@
 package io.evitadb.api.query.descriptor;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -35,14 +37,14 @@ import java.util.regex.Pattern;
 /**
  * Describes single variant of {@link Constraint} with all important info to be able to e.g. build another query system corresponding
  * to the main query system and reconstruct from it the original query. Each variant of query has its own unique
- * full name (name + creator suffix) and corresponding creator (each {@link io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef}
+ * full name (name + creator suffix) and corresponding creator (each {@link Creator}
  * in {@link Constraint} create one descriptor).
  * <p>
  * Descriptor contains basic categorizing data such as {@link #type()} and {@link #propertyType()} as well as concrete
  * metadata like {@link #fullName()} or {@link #supportedValues()}.
  * Descriptor also contains the default creator constructor and its parameters to be able to reconstruct the original query.
  * <p>
- * It uses set of annotations for describing actual constraints with {@link io.evitadb.api.query.descriptor.annotation.ConstraintDef}
+ * It uses set of annotations for describing actual constraints with {@link ConstraintDefinition}
  * as the main one. Those annotations are then processed by {@link ConstraintDescriptorProvider} which generated these
  * descriptors.
  * <p>

@@ -26,9 +26,9 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -62,15 +62,15 @@ import java.util.Arrays;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "orderBy",
 	shortDescription = "The container encapsulates inner order constraints into one main constraint that is required by the query."
 )
 public class OrderBy extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 6352220342769661652L;
 
-	@ConstraintCreatorDef
-	public OrderBy(@Nonnull @ConstraintChildrenParamDef OrderConstraint... children) {
+	@Creator
+	public OrderBy(@Nonnull @Child OrderConstraint... children) {
 		super(children);
 	}
 

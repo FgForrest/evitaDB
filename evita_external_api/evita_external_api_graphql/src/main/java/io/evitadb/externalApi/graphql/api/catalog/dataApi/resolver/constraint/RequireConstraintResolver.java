@@ -40,6 +40,8 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.util.Set;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link RequireConstraint} usually with {@link io.evitadb.api.query.require.Require}
  * as root container.
@@ -52,11 +54,15 @@ import java.util.Set;
 public class RequireConstraintResolver extends GraphQLConstraintResolver<RequireConstraint> {
 
 	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String rootEntityType) {
-		super(catalogSchema, new GenericDataLocator(rootEntityType));
+		this(catalogSchema, new GenericDataLocator(rootEntityType));
 	}
 
 	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull DataLocator rootDataLocator) {
-		super(catalogSchema, rootDataLocator);
+		super(
+			catalogSchema,
+			createHashMap(0), // currently, in GraphQL API we don't support any require constraint with additional children
+			rootDataLocator
+		);
 	}
 
 	@Override

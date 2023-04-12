@@ -26,10 +26,10 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -79,7 +79,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "inSet",
 	shortDescription = "The constraint if entity has at least one of the passed facet primary keys.",
 	supportedIn = ConstraintDomain.ENTITY
@@ -91,9 +91,9 @@ public class FacetInSet extends AbstractFilterConstraintLeaf implements FacetCon
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public FacetInSet(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                  @Nonnull @ConstraintValueParamDef Integer... facetId) {
+	@Creator
+	public FacetInSet(@Nonnull @Classifier String referenceName,
+	                  @Nonnull @Value Integer... facetId) {
 		super(concat(referenceName, facetId));
 	}
 

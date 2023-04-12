@@ -25,10 +25,10 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -60,7 +60,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "histogram",
 	shortDescription =  "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of specified attributes into response.",
 	supportedValues = @ConstraintSupportedValues(supportedTypes = {Byte.class, Short.class, Integer.class, Long.class, BigDecimal.class})
@@ -72,9 +72,9 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public AttributeHistogram(@ConstraintValueParamDef int requestedBucketCount,
-	                          @Nonnull @ConstraintValueParamDef String... attributeName) {
+	@Creator
+	public AttributeHistogram(@Value int requestedBucketCount,
+	                          @Nonnull @Value String... attributeName) {
 		super(ArrayUtils.mergeArrays(new Serializable[]{requestedBucketCount}, attributeName));
 	}
 

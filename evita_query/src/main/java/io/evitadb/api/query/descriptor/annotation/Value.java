@@ -23,10 +23,8 @@
 
 package io.evitadb.api.query.descriptor.annotation;
 
-import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 
-import javax.annotation.Nonnull;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -34,39 +32,28 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Constraint children parameter definition that marks concrete query
- * constructor's (one that is annotated with {@link ConstraintCreatorDef}) parameter as children parameter which contains
- * one or more children of same query type.
- * Currently, only one parameter in single creator can be marked with this annotation.
+ * Constraint value parameter definition that marks concrete query
+ * constructor's (one that is annotated with {@link Creator}) parameter as value parameter which should
+ * be some primitive data type such as {@link String}, not another query.
+ * Multiple parameters can be marked with this annotation.
  * <p>
- * Additionally, allowed children types can be limited with either {@link #allowed()}
- * or {@link #forbidden()} which take query classes.
+ * Such an annotated parameter must  have generic data type (in case where concrete data type can be discovered in
+ * some other way, e.g. schema) or data type supported {@link io.evitadb.api.dataType.EvitaDataTypes}.
  * <p>
  * This data is then processed by {@link ConstraintDescriptorProvider}.
  *
- * @see ConstraintCreatorDef
- * @see ConstraintDef
+ * @see Creator
+ * @see ConstraintDefinition
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface ConstraintChildrenParamDef {
+public @interface Value {
 
 	/**
-	 * If each child query can be passed only once in this list parameter.
+	 * If true, value is required to be plain type of original one (e.g. if original type is integer range, this query
+	 * requires integer to be passed)
 	 */
-	boolean uniqueChildren() default false;
-
-	/**
-	 * Set of allowed child constraints. Constraint not specified in this set will be forbidden.
-	 */
-	@Nonnull
-	Class<? extends Constraint<?>>[] allowed() default {};
-
-	/**
-	 * Set of forbidden child constraints. All constraints are allowed except of these.
-	 */
-	@Nonnull
-	Class<? extends Constraint<?>>[] forbidden() default {};
+	boolean requiresPlainType() default false;
 }

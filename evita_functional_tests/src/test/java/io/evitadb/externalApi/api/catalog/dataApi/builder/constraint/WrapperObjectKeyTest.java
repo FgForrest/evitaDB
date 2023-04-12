@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintType;
@@ -46,23 +48,23 @@ class WrapperObjectKeyTest {
 	@Test
 	void shouldEqualsWhenFlatStructure() {
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null)
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of()),
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of())
 		);
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null)
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of())
 				.hashCode(),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null)
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of())
 				.hashCode()
 		);
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null),
-			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null)
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of()),
+			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of())
 		);
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null)
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of())
 				.hashCode(),
-			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null)
+			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of())
 				.hashCode()
 		);
 	}
@@ -70,23 +72,33 @@ class WrapperObjectKeyTest {
 	@Test
 	void shouldEqualsWhenComplexStructure() {
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of())),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true))),
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 		);
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.hashCode(),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.hashCode()
 		);
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of())),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of()),
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of())
 		);
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of())
 				.hashCode(),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of())
+				.hashCode()
+		);
+		assertEquals(
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), null, List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true))),
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), null, List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
+		);
+		assertEquals(
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), null, List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
+				.hashCode(),
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), null, List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.hashCode()
 		);
 	}
@@ -94,23 +106,33 @@ class WrapperObjectKeyTest {
 	@Test
 	void shouldNotEqualsWhenComplexStructure() {
 		assertNotEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of())),
-			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true))),
+			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 		);
 		assertNotEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.hashCode(),
-			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.hashCode()
 		);
 		assertNotEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of()),
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of())
 		);
 		assertNotEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null)
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of())
 				.hashCode(),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of())
+				.hashCode()
+		);
+		assertNotEquals(
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of()),
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), null, List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
+		);
+		assertNotEquals(
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of())
+				.hashCode(),
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(), null, List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.hashCode()
 		);
 	}
@@ -118,21 +140,21 @@ class WrapperObjectKeyTest {
 	@Test
 	void shouldGenerateSameHashes() {
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.toHash(),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.toHash()
 		);
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null)
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of())
 				.toHash(),
-			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null)
+			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), null, List.of())
 				.toHash()
 		);
 		assertEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.toHash(),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.toHash()
 		);
 	}
@@ -140,15 +162,15 @@ class WrapperObjectKeyTest {
 	@Test
 	void shouldNotGenerateSameHashes() {
 		assertNotEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.toHash(),
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("name", String.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("name", String.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.toHash()
 		);
 		assertNotEquals(
-			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.FILTER, new EntityDataLocator("product"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.toHash(),
-			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()))
+			new WrapperObjectKey(ConstraintType.ORDER, new EntityDataLocator("category"), List.of(new ValueParameterDescriptor("id", Integer.class, true, false)), new ChildParameterDescriptor("with", FilterConstraint.class, true, false, Set.of(), Set.of()), List.of(new AdditionalChildParameterDescriptor(ConstraintType.ORDER, "orderBy", OrderConstraint.class, true)))
 				.toHash()
 		);
 	}

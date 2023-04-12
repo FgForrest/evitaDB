@@ -24,11 +24,13 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -36,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
@@ -60,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER_NAMING_CONVENTION;
@@ -105,14 +109,27 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER
  */
 public abstract class ConstraintResolver<C extends Constraint<?>> {
 
-	@Nonnull
-	protected CatalogSchemaContract catalogSchema;
-	@Nonnull
-	private ConstraintKeyParser keyParser;
+	@Nonnull protected final CatalogSchemaContract catalogSchema;
+	@Nonnull private final ConstraintKeyParser keyParser;
+	@Nonnull private final ConstraintKeyBuilder keyBuilder;
+	/**
+	 * Map of additional resolvers for cross-resolving constraints of different constraint types.
+	 */
+	@Nonnull private final Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers;
 
-	public ConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
+	public ConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
+	                          @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers) {
+		Assert.isPremiseValid(
+			additionalResolvers.keySet()
+				.stream()
+				.noneMatch(it -> it.equals(getConstraintType())),
+			() -> createQueryResolvingInternalError("Resolver of type `" + getConstraintType() + "` cannot have additional resolver of same type.")
+		);
+
 		this.catalogSchema = catalogSchema;
 		this.keyParser = new ConstraintKeyParser(getConstraintType());
+		this.keyBuilder = new ConstraintKeyBuilder();
+		this.additionalResolvers = additionalResolvers;
 	}
 
 	/**
@@ -228,6 +245,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				instantiationArgs.add(
 					resolveChildParameter(resolveContext, childParameterDescriptor, valueStructure, originalClassifier, parsedKey, value)
 				);
+			} else if (parameter instanceof final AdditionalChildParameterDescriptor additionalChildParameterDescriptor) {
+				instantiationArgs.add(
+					resolveAdditionalChildParameter(resolveContext, additionalChildParameterDescriptor, valueStructure, originalClassifier, parsedKey, value)
+				);
+			} else {
+				throw createQueryResolvingInternalError("Unknown parameter type `" + parameter.getClass().getName() + "`.");
 			}
 		}
 
@@ -556,8 +579,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			argument = extractChildArgumentFromWrapperObject(parsedKey, value, parameterDescriptor);
 			// we want treat missing arrays as empty arrays for more client convenience
 			if (argument == null && parameterDescriptor.type().isArray()) {
-				//noinspection unchecked
-				argument = (Object) (parameterDescriptor.uniqueChildren() ? createEmptyWrapperObject() : createEmptyListObject());
+				argument = parameterDescriptor.uniqueChildren() ? createEmptyWrapperObject() : createEmptyListObject();
 			}
 
 			if (parameterDescriptor.required() && argument == null) {
@@ -661,6 +683,104 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				return resolveWrapperContainer(resolveContext, parsedKey, argument);
 			}
 		}
+	}
+
+
+	/**
+	 * Tries to resolve {@link AdditionalChildParameterDescriptor} to single constraint instantiation arg.
+	 *
+	 * @param resolveContext context for resolving
+	 * @param parameterDescriptor descriptor of children parameter to resolve
+	 * @param constraintValueStructure structure of input value to parse
+	 * @param originalClassifier classifier converted to original Evita one
+	 * @param parsedKey key representing original constraint
+	 * @param value client value to parse arg from
+	 * @return instantiation arg if possible
+	 */
+	@Nullable
+	private Object resolveAdditionalChildParameter(@Nonnull ResolveContext resolveContext,
+	                                               @Nonnull AdditionalChildParameterDescriptor parameterDescriptor,
+	                                               @Nonnull ConstraintValueStructure constraintValueStructure,
+	                                               @Nullable String originalClassifier,
+	                                               @Nonnull ParsedKey parsedKey,
+	                                               @Nullable Object value) {
+		final Object argument = extractAdditionalChildParameterFromValue(
+			parsedKey,
+			value,
+			constraintValueStructure,
+			parameterDescriptor
+		);
+
+		final ResolveContext childResolveContext = resolveChildrenContext(resolveContext, originalClassifier, parsedKey);
+		return convertAdditionalChildParameterArgumentToInstantiationArg(childResolveContext, argument, parameterDescriptor);
+	}
+
+	/**
+	 * Tries to extract raw argument for additional child descriptor from client value
+	 */
+	@Nullable
+	private Object extractAdditionalChildParameterFromValue(@Nonnull ParsedKey parsedKey,
+	                                                        @Nullable Object value,
+	                                                        @Nonnull ConstraintValueStructure constraintValueStructure,
+	                                                        @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
+		if (constraintValueStructure != ConstraintValueStructure.WRAPPER_OBJECT) {
+			throw createInvalidArgumentException(
+				"Constraint `" + parsedKey.originalKey() + "` requires additional child parameter but value isn't object."
+			);
+		}
+
+		final Object argument = extractAdditionalChildArgumentFromWrapperObject(parsedKey, value, parameterDescriptor);
+		if (parameterDescriptor.required() && argument == null) {
+			throw createInvalidArgumentException(
+				"Constraint `" + parsedKey.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-null."
+			);
+		}
+		return argument;
+	}
+
+	/**
+	 * Should extract raw children argument from wrapper object `value`.
+	 */
+	@Nullable
+	protected Object extractAdditionalChildArgumentFromWrapperObject(@Nonnull ParsedKey parsedKey,
+	                                                                 @Nullable Object value,
+	                                                                 @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
+		return extractArgumentFromWrapperObject(parsedKey, value, parameterDescriptor.name());
+	}
+
+	/**
+	 * Converts extracted raw additional child parameter argument (children constraints) to target data type and structure
+	 * needed by children parameter descriptor.
+	 * <b>Note: </b> currently, we assume that the type of child parameter is generic container with only one direct child
+	 * parameter. Otherwise, there would have to be logic for another nested implicit container which currently doesn't make
+	 * sense.
+	 */
+	@Nullable
+	private Object convertAdditionalChildParameterArgumentToInstantiationArg(@Nonnull ResolveContext resolveContext,
+	                                                                         @Nullable Object argument,
+	                                                                         @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
+		if (argument == null) {
+			// we can return null if parameter isn't required
+			return null;
+		}
+
+		final AtomicReference<? extends ConstraintResolver<?>> resolver = additionalResolvers.get(parameterDescriptor.constraintType());
+		Assert.isPremiseValid(
+			resolver != null,
+			() -> createQueryResolvingInternalError("Missing resolver for constraint type `" + parameterDescriptor.constraintType() + "`.")
+		);
+
+		// because we don't have direct access to descriptor of additional child constraint, we assume that additional
+		// child parameter has some generic constraint with single creator with single direct child parameter only
+		//noinspection unchecked
+		final ConstraintDescriptor additionalChildRootDescriptor = ConstraintDescriptorProvider.getConstraints(
+			(Class<? extends Constraint<?>>) parameterDescriptor.type()
+		)
+			.iterator()
+			.next();
+		final String additionalChildRootKey = keyBuilder.build(additionalChildRootDescriptor, null);
+
+		return resolver.get().resolve(resolveContext, additionalChildRootKey, argument);
 	}
 
 	/**

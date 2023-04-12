@@ -53,6 +53,7 @@ public class CollectionGraphQLSchemaBuildingContext {
 
 	private GraphQLInputType filterByInputObject;
 	private GraphQLInputType orderByInputObject;
+	private GraphQLInputType requireInputObject;
 
 	@Nonnull
 	public CatalogContract getCatalog() {
@@ -75,8 +76,9 @@ public class CollectionGraphQLSchemaBuildingContext {
 	}
 
 	/**
-	 * Returns filterBy object it has been already initialized.
+	 * Returns filterBy object if has been already initialized.
 	 */
+	@Nonnull
 	public GraphQLInputType getFilterByInputObject() {
 		return Optional.ofNullable(filterByInputObject)
 			.orElseThrow(() -> new GraphQLSchemaBuildingError("FilterBy input object for schema `" + schema.getName() + "` has not been initialized yet."));
@@ -94,11 +96,31 @@ public class CollectionGraphQLSchemaBuildingContext {
 	}
 
 	/**
-	 * Returns orderBy object it has been already initialized.
+	 * Returns orderBy object if has been already initialized.
 	 */
+	@Nonnull
 	public GraphQLInputType getOrderByInputObject() {
 		return Optional.ofNullable(orderByInputObject)
 			.orElseThrow(() -> new GraphQLSchemaBuildingError("OrderBy input object for schema `" + schema.getName() + "` has not been initialized yet."));
+	}
+
+	/**
+	 * Set built orderBy object corresponding to this schema. Can be set only once before all other methods need it.
+	 */
+	public void setRequireInputObject(@Nonnull GraphQLInputType requireInputObject) {
+		Assert.isPremiseValid(
+			this.requireInputObject == null,
+			() -> new GraphQLSchemaBuildingError("Require input object for schema `" + schema.getName() + "` has been already initialized.")
+		);
+		this.requireInputObject = requireInputObject;
+	}
+
+	/**
+	 * Returns require object if has been already initialized.
+	 */
+	@Nonnull
+	public Optional<GraphQLInputType> getRequireInputObject() {
+		return Optional.ofNullable(requireInputObject);
 	}
 
 	/**

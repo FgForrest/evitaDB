@@ -34,21 +34,21 @@ import java.lang.annotation.Target;
 
 /**
  * Constraint classifier parameter definition that marks concrete query
- * constructor's (one that is annotated with {@link ConstraintCreatorDef}) parameter as classifier.
+ * constructor's (one that is annotated with {@link Creator}) parameter as classifier.
  * Currently, only one parameter in single creator can be marked with this annotation.
  * <p>
  * Such an annotated parameter must have supported classifier type by Evita, e.g. {@link String} and specifies usually
  * entity type or attribute name.
- * If dynamic classifier cannot be used, alternative is to specify {@link ConstraintCreatorDef#implicitClassifier()}.
+ * If dynamic classifier cannot be used, alternative is to specify {@link Creator#implicitClassifier()}.
  * <p>
  * This data is then processed by {@link ConstraintDescriptorProvider}.
  *
- * @see ConstraintCreatorDef
- * @see ConstraintDef
+ * @see Creator
+ * @see ConstraintDefinition
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface ConstraintClassifierParamDef {
+public @interface Classifier {
 }

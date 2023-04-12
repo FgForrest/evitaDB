@@ -1584,6 +1584,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				final var references = entity.getReferences(Entities.STORE)
 					.stream()
 					.map(it -> storesIndexedByPk.get(it.getReferencedPrimaryKey()))
+					.filter(it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null)
 					.sorted(Comparator.comparing(it -> (String) it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE), Comparator.reverseOrder()))
 					.map(reference ->
 						map()
@@ -1591,6 +1592,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getPrimaryKey()))
 							.build())
 					.toList();
+				assertFalse(references.isEmpty());
 
 				return map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())

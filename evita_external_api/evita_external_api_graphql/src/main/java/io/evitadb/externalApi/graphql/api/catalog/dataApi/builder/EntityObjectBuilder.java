@@ -44,7 +44,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AttributesFieldHeaderDescriptor;
@@ -87,7 +86,8 @@ public class EntityObjectBuilder {
 	private static final PriceBigDecimalFieldDecorator PRICE_FIELD_DECORATOR = new PriceBigDecimalFieldDecorator();
 
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
-	@Nonnull private final GraphQLConstraintSchemaBuildingContext constraintContext;
+	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
+	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
 	@Nonnull private final ObjectMapper cdoObjectMapper;
 	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
@@ -394,8 +394,8 @@ public class EntityObjectBuilder {
 					collectionBuildingContext.getSchema().getName(),
 					referenceSchema.getName()
 				);
-				final GraphQLInputType referenceFilter = new FilterConstraintSchemaBuilder(constraintContext, referenceDataLocator).build();
-				final GraphQLInputType referenceOrder = new OrderConstraintSchemaBuilder(constraintContext, referenceDataLocator).build();
+				final GraphQLInputType referenceFilter = filterConstraintSchemaBuilder.build(referenceDataLocator);
+				final GraphQLInputType referenceOrder = orderConstraintSchemaBuilder.build(referenceDataLocator);
 
 				final GraphQLFieldDefinition.Builder referenceFieldBuilder = newFieldDefinition()
 					.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))

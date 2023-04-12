@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
+import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintType;
@@ -62,14 +63,21 @@ public class WrapperObjectKey extends CachableElementKey {
 	 */
 	@Nullable
 	private final ChildParameterDescriptor childParameter;
+	/**
+	 * Actual additional child parameters of the object, defining nested structure
+	 */
+	@Nonnull
+	private final List<AdditionalChildParameterDescriptor> additionalChildParameters;
 
 	public WrapperObjectKey(@Nonnull ConstraintType containerType,
 	                        @Nonnull DataLocator dataLocator,
 	                        @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                        @Nullable ChildParameterDescriptor childParameter) {
+	                        @Nullable ChildParameterDescriptor childParameter,
+	                        @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters) {
 		super(containerType, dataLocator);
 		this.valueParameters = valueParameters;
 		this.childParameter = childParameter;
+		this.additionalChildParameters = additionalChildParameters;
 	}
 
 	@Override
@@ -77,7 +85,7 @@ public class WrapperObjectKey extends CachableElementKey {
 	public String toHash() {
 		final LongHashFunction hashFunction = LongHashFunction.xx3();
 		final long keyHash;
-		if (childParameter == null) {
+		if (childParameter == null && additionalChildParameters.isEmpty()) {
 			// if there is only flat structure of primitive values, we can simplify hash and reuse the object more,
 			// because primitive value parameters are not dependent on build context
 			keyHash = primitiveKeyToHash(hashFunction);
@@ -132,7 +140,8 @@ public class WrapperObjectKey extends CachableElementKey {
 			hashContainerType(hashFunction),
 			hashDataLocator(hashFunction),
 			hashValueParameters(hashFunction),
-			hashChildParameter(hashFunction)
+			hashChildParameter(hashFunction),
+			hashAdditionalChildParameters(hashFunction)
 		});
 	}
 
@@ -174,5 +183,20 @@ public class WrapperObjectKey extends CachableElementKey {
 					.toArray()
 			)
 		});
+	}
+
+	private long hashAdditionalChildParameters(@Nonnull LongHashFunction hashFunction) {
+		return hashFunction.hashLongs(
+			getAdditionalChildParameters()
+				.stream()
+				.sorted(Comparator.comparing(AdditionalChildParameterDescriptor::constraintType))
+				.mapToLong(parameter -> hashFunction.hashLongs(new long[]{
+					hashFunction.hashChars(parameter.constraintType().name()),
+					hashFunction.hashChars(parameter.name()),
+					hashFunction.hashChars(parameter.type().getSimpleName()),
+					hashFunction.hashBoolean(parameter.required())
+				}))
+				.toArray()
+		);
 	}
 }

@@ -52,12 +52,14 @@ import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.ASSOCIATED_DATA_SCALAR_ENUM;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityListRequestBodyObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityQueryRequestBodyObjectName;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_DELETE;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_LIST;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.newEnum;
@@ -70,6 +72,16 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.newEnum;
 public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBuildingContext> {
 
 	@Nonnull private final OpenApiConstraintSchemaBuildingContext constraintBuildingContext;
+	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
+	@Nonnull private final FilterConstraintSchemaBuilder localizedFilterConstraintSchemaBuilder;
+	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder listRequireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder localizedListRequireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder queryRequireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder localizedQueryRequireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder upsertRequireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder deleteRequireConstraintSchemaBuilder;
+
 	@Nonnull private final DataApiEndpointBuilder endpointBuilder;
 	@Nonnull private final EntityObjectBuilder entityObjectBuilder;
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
@@ -78,6 +90,44 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	public CatalogDataApiRestBuilder(@Nonnull CatalogRestBuildingContext buildingContext) {
 		super(buildingContext);
 		this.constraintBuildingContext = new OpenApiConstraintSchemaBuildingContext(buildingContext);
+
+		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintBuildingContext, false);
+		this.localizedFilterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintBuildingContext, true);
+		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(constraintBuildingContext);
+		this.listRequireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
+			constraintBuildingContext,
+			ALLOWED_CONSTRAINTS_FOR_LIST,
+			new AtomicReference<>(this.filterConstraintSchemaBuilder),
+			new AtomicReference<>(this.orderConstraintSchemaBuilder)
+		);
+		this.localizedListRequireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
+			constraintBuildingContext,
+			ALLOWED_CONSTRAINTS_FOR_LIST,
+			new AtomicReference<>(this.localizedFilterConstraintSchemaBuilder),
+			new AtomicReference<>(this.orderConstraintSchemaBuilder)
+		);
+		this.queryRequireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
+			constraintBuildingContext,
+			new AtomicReference<>(this.filterConstraintSchemaBuilder),
+			new AtomicReference<>(this.orderConstraintSchemaBuilder)
+		);
+		this.localizedQueryRequireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
+			constraintBuildingContext,
+			new AtomicReference<>(this.localizedFilterConstraintSchemaBuilder),
+			new AtomicReference<>(this.orderConstraintSchemaBuilder)
+		);
+		this.upsertRequireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
+			constraintBuildingContext,
+			RequireConstraintSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_UPSERT,
+			new AtomicReference<>(filterConstraintSchemaBuilder),
+			new AtomicReference<>(orderConstraintSchemaBuilder)
+		);
+		this.deleteRequireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
+			constraintBuildingContext,
+			ALLOWED_CONSTRAINTS_FOR_DELETE,
+			new AtomicReference<>(this.filterConstraintSchemaBuilder),
+			new AtomicReference<>(this.orderConstraintSchemaBuilder)
+		);
 
 		this.endpointBuilder = new DataApiEndpointBuilder(
 			buildingContext,
@@ -96,9 +146,9 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		);
 		this.dataMutationBuilder = new DataMutationBuilder(
 			buildingContext,
-			constraintBuildingContext,
 			propertyBuilderTransformer,
-			objectBuilderTransformer
+			objectBuilderTransformer,
+			upsertRequireConstraintSchemaBuilder
 		);
 	}
 
@@ -206,16 +256,26 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		);
 
 		// build filter schema
-		collectionBuildingContext.setFilterByObject(buildFilterBySchema(collectionBuildingContext, false));
-		collectionBuildingContext.setLocalizedFilterByObject(buildFilterBySchema(collectionBuildingContext, true));
+		final OpenApiSimpleType filterByObject = filterConstraintSchemaBuilder.build(entitySchema.getName());
+		collectionBuildingContext.setFilterByObject(filterByObject);
+		final OpenApiSimpleType localizedFilterByObject = localizedFilterConstraintSchemaBuilder.build(entitySchema.getName());
+		collectionBuildingContext.setLocalizedFilterByObject(localizedFilterByObject);
 
 		// build order schema
-		collectionBuildingContext.setOrderByObject(buildOrderBySchema(collectionBuildingContext));
+		final OpenApiSimpleType orderByObject = orderConstraintSchemaBuilder.build(entitySchema.getName());
+		collectionBuildingContext.setOrderByObject(orderByObject);
 
 		// build require schema
-		collectionBuildingContext.setRequiredForListObject(buildRequireSchemaForList(collectionBuildingContext));
-		collectionBuildingContext.setRequiredForQueryObject(buildRequireSchemaForQuery(collectionBuildingContext));
-		collectionBuildingContext.setRequiredForDeleteObject(buildRequireSchemaForDelete(collectionBuildingContext));
+		final OpenApiSimpleType requireForListObject = listRequireConstraintSchemaBuilder.build(entitySchema.getName());
+		collectionBuildingContext.setRequireForListObject(requireForListObject);
+		final OpenApiSimpleType localizedRequireForListObject = localizedListRequireConstraintSchemaBuilder.build(entitySchema.getName());
+		collectionBuildingContext.setLocalizedRequireForListObject(localizedRequireForListObject);
+		final OpenApiSimpleType requireForQueryObject = queryRequireConstraintSchemaBuilder.build(entitySchema.getName());
+		collectionBuildingContext.setRequireForQueryObject(requireForQueryObject);
+		final OpenApiSimpleType localizedRequireForQueryObject = localizedQueryRequireConstraintSchemaBuilder.build(entitySchema.getName());
+		collectionBuildingContext.setLocalizedRequireForQueryObject(localizedRequireForQueryObject);
+		final OpenApiSimpleType requireForDeleteObject = deleteRequireConstraintSchemaBuilder.build(entitySchema.getName());
+		collectionBuildingContext.setRequireForDeleteObject(requireForDeleteObject);
 
 		buildingContext.registerLocalizedEntityObject(entityObjectBuilder.buildEntityObject(entitySchema, false));
 
@@ -245,50 +305,6 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	}
 
 	@Nonnull
-	private OpenApiSimpleType buildFilterBySchema(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext,
-	                                              boolean localized) {
-		return new FilterConstraintSchemaBuilder(
-			constraintBuildingContext,
-			collectionBuildingContext.getSchema().getName(),
-			localized
-		).build();
-	}
-
-	@Nonnull
-	private OpenApiSimpleType buildOrderBySchema(@Nonnull CollectionDataApiRestBuildingContext collectionBuildingContext) {
-		return new OrderConstraintSchemaBuilder(
-			constraintBuildingContext,
-			collectionBuildingContext.getSchema().getName()
-		).build();
-	}
-
-	@Nonnull
-	private OpenApiSimpleType buildRequireSchemaForList(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingCtx) {
-		return new RequireConstraintSchemaBuilder(
-			constraintBuildingContext,
-			entitySchemaBuildingCtx.getSchema().getName(),
-			ALLOWED_CONSTRAINTS_FOR_LIST
-		).build();
-	}
-
-	@Nonnull
-	private OpenApiSimpleType buildRequireSchemaForQuery(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingCtx) {
-		return new RequireConstraintSchemaBuilder(
-			constraintBuildingContext,
-			entitySchemaBuildingCtx.getSchema().getName()
-		).build();
-	}
-
-	@Nonnull
-	private OpenApiSimpleType buildRequireSchemaForDelete(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingCtx) {
-		return new RequireConstraintSchemaBuilder(
-			constraintBuildingContext,
-			entitySchemaBuildingCtx.getSchema().getName(),
-			RequireConstraintSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_DELETE
-		).build();
-	}
-
-	@Nonnull
 	private OpenApiTypeReference buildListRequestBodyObject(@Nonnull CollectionDataApiRestBuildingContext entitySchemaBuildingContext,
 	                                                        boolean localized) {
 		final OpenApiObject.Builder objectBuilder = FetchEntityRequestDescriptor.THIS_LIST
@@ -296,7 +312,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.name(constructEntityListRequestBodyObjectName(entitySchemaBuildingContext.getSchema(), localized))
 			.property(FetchEntityRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedFilterByObject() : entitySchemaBuildingContext.getFilterByObject()))
 			.property(FetchEntityRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
-			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequiredForListObject()));
+			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedRequireForListObject() : entitySchemaBuildingContext.getRequireForListObject()));
 
 		return entitySchemaBuildingContext.getCatalogCtx().registerType(objectBuilder.build());
 	}
@@ -309,7 +325,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.name(constructEntityQueryRequestBodyObjectName(entitySchemaBuildingContext.getSchema(), localized))
 			.property(FetchEntityRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedFilterByObject() : entitySchemaBuildingContext.getFilterByObject()))
 			.property(FetchEntityRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
-			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequiredForQueryObject()));
+			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(localized ? entitySchemaBuildingContext.getLocalizedRequireForQueryObject() : entitySchemaBuildingContext.getRequireForQueryObject()));
 
 		return entitySchemaBuildingContext.getCatalogCtx().registerType(objectBuilder.build());
 	}
@@ -321,7 +337,7 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			.name(FetchEntityRequestDescriptor.THIS_DELETE.name(entitySchemaBuildingContext.getSchema()))
 			.property(FetchEntityRequestDescriptor.FILTER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getFilterByObject()))
 			.property(FetchEntityRequestDescriptor.ORDER_BY.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getOrderByObject()))
-			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequiredForDeleteObject()));
+			.property(FetchEntityRequestDescriptor.REQUIRE.to(propertyBuilderTransformer).type(entitySchemaBuildingContext.getRequireForDeleteObject()));
 
 		return entitySchemaBuildingContext.getCatalogCtx().registerType(objectBuilder.build());
 	}

@@ -36,10 +36,11 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.Collect
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.utils.Assert;
-import io.swagger.v3.oas.models.Operation;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link OrderConstraint} usually with {@link OrderBy}
@@ -51,10 +52,13 @@ import java.util.Set;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class OrderByConstraintResolver extends RestConstraintResolver<OrderConstraint> {
+public class OrderConstraintResolver extends RestConstraintResolver<OrderConstraint> {
 
-	public OrderByConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext, @Nonnull Operation operation) {
-		super(restHandlingContext, operation);
+	public OrderConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+		super(
+			restHandlingContext,
+			createHashMap(0) // currently, we don't support any order constraints with additional children
+		);
 	}
 
 	@Override

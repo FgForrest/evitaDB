@@ -25,9 +25,9 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,7 +51,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "page",
 	shortDescription = "The constraint specifies which page of found entities will be returned."
 )
@@ -62,9 +62,8 @@ public class Page extends AbstractRequireConstraintLeaf implements GenericConstr
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public Page(@Nullable @ConstraintValueParamDef Integer number,
-	            @Nullable @ConstraintValueParamDef Integer size) {
+	@Creator
+	public Page(@Nullable @Value Integer number, @Nullable @Value Integer size) {
 		super(
 			Optional.ofNullable(number).orElse(1),
 			Optional.ofNullable(size).orElse(20)

@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.dataType.DataChunk;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;

@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
@@ -35,11 +36,12 @@ import io.evitadb.externalApi.rest.api.resolver.serializer.DataDeserializer;
 import io.evitadb.externalApi.rest.exception.RestInvalidArgumentException;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
-import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Schema;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Ancestor for all REST query resolvers. Implements basic resolving logic of {@link ConstraintResolver} specific
@@ -53,17 +55,15 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 	protected final CollectionRestHandlingContext restHandlingContext;
 	@Nonnull
 	protected final DataDeserializer dataDeserializer;
-	@Nonnull
-	protected final Operation operation;
 
-	protected RestConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext, @Nonnull Operation operation) {
-		super(restHandlingContext.getCatalogSchema());
+	protected RestConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext,
+	                                 @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers) {
+		super(restHandlingContext.getCatalogSchema(), additionalResolvers);
 		this.restHandlingContext = restHandlingContext;
 		this.dataDeserializer = new DataDeserializer(
 			this.restHandlingContext.getOpenApi(),
 			this.restHandlingContext.getEnumMapping()
 		);
-		this.operation = operation;
 	}
 
 	@Nullable
@@ -82,7 +82,8 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 
 		//noinspection rawtypes
 		final Schema rootSchema = (Schema) SchemaUtils.getTargetSchema(
-				operation.getRequestBody()
+				restHandlingContext.getEndpointOperation()
+					.getRequestBody()
 					.getContent()
 					.get(MimeTypes.APPLICATION_JSON)
 					.getSchema(),

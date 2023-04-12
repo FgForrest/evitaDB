@@ -26,11 +26,11 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -123,7 +123,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "within",
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree (or has reference to any hierarchical entity in the tree).",
 	supportedIn = ConstraintDomain.ENTITY
@@ -136,17 +136,17 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 		checkInnerConstraintValidity(fineGrainedConstraints);
 	}
 
-	@ConstraintCreatorDef(suffix = "self", silentImplicitClassifier = true)
-	public HierarchyWithin(@Nonnull @ConstraintValueParamDef Integer ofParent,
-	                       @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
+	@Creator(suffix = "self", silentImplicitClassifier = true)
+	public HierarchyWithin(@Nonnull @Value Integer ofParent,
+	                       @Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
 		super(ofParent, with);
 		checkInnerConstraintValidity(with);
 	}
 
-	@ConstraintCreatorDef
-	public HierarchyWithin(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                       @Nonnull @ConstraintValueParamDef Integer ofParent,
-	                       @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
+	@Creator
+	public HierarchyWithin(@Nonnull @Classifier String referenceName,
+	                       @Nonnull @Value Integer ofParent,
+	                       @Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
 		super(referenceName, ofParent, with);
 		checkInnerConstraintValidity(with);
 	}

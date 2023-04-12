@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint;
 
+import graphql.schema.GraphQLInputType;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
@@ -34,7 +35,6 @@ import io.evitadb.api.query.require.FacetGroupsNegation;
 import io.evitadb.api.query.require.PriceType;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
@@ -42,6 +42,8 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import java.util.Set;
 import java.util.function.Predicate;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Implementation of {@link GraphQLConstraintSchemaBuilder} for building require query tree starting from {@link io.evitadb.api.query.require.Require}.
@@ -62,24 +64,18 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 		PriceType.class
 	);
 
-	public RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                                      @Nonnull String rootEntityType) {
+	public RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx) {
 		super(
 			constraintSchemaBuildingCtx,
-			new GenericDataLocator(rootEntityType),
+			createHashMap(0), // currently, in GraphQL API we don't support any require constraint with additional children
 			ALLOWED_CONSTRAINTS,
 			Set.of()
 		);
 	}
 
-	public RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                                      @Nonnull DataLocator rootDataLocator) {
-		super(
-			constraintSchemaBuildingCtx,
-			rootDataLocator,
-			ALLOWED_CONSTRAINTS,
-			Set.of()
-		);
+	@Nonnull
+	public GraphQLInputType build(@Nonnull String rootEntityType) {
+		return build(new GenericDataLocator(rootEntityType));
 	}
 
 	@Nonnull
@@ -90,7 +86,7 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),

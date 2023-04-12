@@ -26,9 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -52,7 +52,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "inSet",
 	shortDescription = "The constraint if primary key of the entity equals to at least one of the passed values. " +
 		"The constraint is equivalent to one or more `equals` constraints combined with logical OR.",
@@ -65,8 +65,8 @@ public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf implemen
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef(implicitClassifier = "primaryKey")
-	public EntityPrimaryKeyInSet(@Nonnull @ConstraintValueParamDef Integer... primaryKey) {
+	@Creator(implicitClassifier = "primaryKey")
+	public EntityPrimaryKeyInSet(@Nonnull @Value Integer... primaryKey) {
 		super(primaryKey);
 	}
 

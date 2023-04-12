@@ -26,11 +26,11 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -53,7 +53,7 @@ import java.io.Serializable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@ConstraintDef(
+@ConstraintDefinition(
     name = "natural",
     shortDescription = "The constraint sorts returned entities by natural ordering of the values in the specified attribute.",
     supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
@@ -72,9 +72,9 @@ public class AttributeNatural extends AbstractOrderConstraintLeaf implements Att
         super(attributeName, OrderDirection.ASC);
     }
 
-    @ConstraintCreatorDef
-    public AttributeNatural(@Nonnull @ConstraintClassifierParamDef String attributeName,
-                            @Nonnull @ConstraintValueParamDef OrderDirection orderDirection) {
+    @Creator
+    public AttributeNatural(@Nonnull @Classifier String attributeName,
+                            @Nonnull @Value OrderDirection orderDirection) {
         super(attributeName, orderDirection);
     }
 

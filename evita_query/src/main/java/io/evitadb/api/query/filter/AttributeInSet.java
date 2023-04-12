@@ -25,11 +25,11 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -62,7 +62,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "inSet",
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute " +
 		"equals to at least one of the passed values. " +
@@ -77,9 +77,9 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public <T extends Serializable> AttributeInSet(@Nonnull @ConstraintClassifierParamDef String attributeName,
-	                                               @Nonnull @ConstraintValueParamDef T... set) {
+	@Creator
+	public <T extends Serializable> AttributeInSet(@Nonnull @Classifier String attributeName,
+	                                               @Nonnull @Value T... set) {
 		super(concat(attributeName, set));
 	}
 

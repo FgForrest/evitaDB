@@ -26,9 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.require.DataInLocales;
 
 import javax.annotation.Nonnull;
@@ -60,7 +60,7 @@ import java.util.Locale;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "equals",
 	shortDescription = "The constraint if at least one of entity locales (derived from entity attributes or associated data) equals to the passed one.",
 	supportedIn = ConstraintDomain.ENTITY
@@ -72,8 +72,8 @@ public class EntityLocaleEquals extends AbstractFilterConstraintLeaf implements 
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef(implicitClassifier = "locale")
-	public EntityLocaleEquals(@Nonnull @ConstraintValueParamDef Locale locale) {
+	@Creator(implicitClassifier = "locale")
+	public EntityLocaleEquals(@Nonnull @Value Locale locale) {
 		super(locale);
 	}
 

@@ -50,6 +50,13 @@ public class DataCarrier {
 		}
 	}
 
+	public DataCarrier(@Nonnull Set<Entry<String, Object>> entrySet) {
+		entrySet.forEach(entry -> {
+			this.valuesByName.put(entry.getKey(), entry.getValue());
+			this.valuesByType.putIfAbsent(entry.getValue().getClass(), entry.getValue());
+		});
+	}
+
 	public DataCarrier(String name, Object value, String name2, Object value2) {
 		this.valuesByName.put(name, value);
 		this.valuesByName.put(name2, value2);

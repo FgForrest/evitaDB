@@ -36,11 +36,12 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.Collect
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
-import io.swagger.v3.oas.models.Operation;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link FilterConstraint} usually with {@link FilterBy}
@@ -56,8 +57,11 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 	@Nonnull
 	private final ConstraintDescriptor wrapperContainer;
 
-	public FilterConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext, @Nonnull Operation operation) {
-		super(restHandlingContext, operation);
+	public FilterConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+		super(
+			restHandlingContext,
+			createHashMap(0) // currently, we don't support any filter constraint with additional children
+		);
 
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(And.class);
 		Assert.isPremiseValid(

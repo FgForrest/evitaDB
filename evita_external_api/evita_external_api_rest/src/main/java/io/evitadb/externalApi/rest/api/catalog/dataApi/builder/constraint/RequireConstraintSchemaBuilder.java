@@ -31,13 +31,15 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 /**
@@ -47,6 +49,7 @@ import java.util.function.Predicate;
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
 public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder {
+
 	public static final Set<Class<? extends Constraint<?>>> ALLOWED_CONSTRAINTS_FOR_LIST = Set.of(
 		EntityFetch.class,
 		AssociatedDataContent.class,
@@ -85,20 +88,31 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 	private static final Set<Class<? extends Constraint<?>>> REQUIRED_FORBIDDEN = Set.of(Require.class);
 
 	public RequireConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                                      @Nonnull String rootEntityType) {
+	                                      @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder,
+	                                      @Nonnull AtomicReference<OrderConstraintSchemaBuilder> orderConstraintSchemaBuilder) {
 		this(
 			constraintSchemaBuildingCtx,
-			rootEntityType,
-			Set.of()
+			Set.of(),
+			filterConstraintSchemaBuilder,
+			orderConstraintSchemaBuilder
 		);
 	}
 
+	@Nonnull
+	public OpenApiSimpleType build(@Nonnull String rootEntityType) {
+		return build(new GenericDataLocator(rootEntityType));
+	}
+
 	public RequireConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                                      @Nonnull String rootEntityType,
-	                                      @Nonnull Set<Class<? extends Constraint<?>>> allowedConstraints) {
+	                                      @Nonnull Set<Class<? extends Constraint<?>>> allowedConstraints,
+	                                      @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder,
+	                                      @Nonnull AtomicReference<OrderConstraintSchemaBuilder> orderConstraintSchemaBuilder) {
 		super(
 			constraintSchemaBuildingCtx,
-			rootEntityType,
+			Map.of(
+				ConstraintType.FILTER, filterConstraintSchemaBuilder,
+				ConstraintType.ORDER, orderConstraintSchemaBuilder
+			),
 			allowedConstraints,
 			REQUIRED_FORBIDDEN
 		);
@@ -112,7 +126,7 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
@@ -125,12 +139,6 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 			)
 		);
 		return descriptors.iterator().next();
-	}
-
-	@Nonnull
-	@Override
-	protected DataLocator getRootDataLocator() {
-		return new GenericDataLocator(rootEntityType);
 	}
 
 	@Nonnull

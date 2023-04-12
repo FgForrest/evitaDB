@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
@@ -34,6 +35,8 @@ import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalErr
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Ancestor for all GraphQL query resolvers. Implements basic resolving logic of {@link ConstraintResolver} specific
@@ -46,8 +49,10 @@ public abstract class GraphQLConstraintResolver<C extends Constraint<?>> extends
 
 	@Nonnull @Getter protected final DataLocator rootDataLocator;
 
-	protected GraphQLConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull DataLocator rootDataLocator) {
-		super(catalogSchema);
+	protected GraphQLConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
+	                                    @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers,
+	                                    @Nonnull DataLocator rootDataLocator) {
+		super(catalogSchema, additionalResolvers);
 		this.rootDataLocator = rootDataLocator;
 	}
 
