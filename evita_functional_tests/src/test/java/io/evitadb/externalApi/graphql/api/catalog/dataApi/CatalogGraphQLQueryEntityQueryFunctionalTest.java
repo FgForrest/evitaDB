@@ -3142,6 +3142,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			                                primaryKey
 			                                type
 			                            }
+			                            count
 			                            facetStatistics {
 			                                __typename
 			                                facetEntity {
@@ -3215,6 +3216,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    primaryKey
 		                                    type
 		                                }
+		                                count
 			                            facetStatistics {
 			                                facetEntity {
 			                                    primaryKey
@@ -3529,6 +3531,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				map()
 					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics ->
@@ -3557,6 +3560,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.map(groupStatistics ->
 				map()
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics ->

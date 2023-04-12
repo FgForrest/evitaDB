@@ -71,7 +71,6 @@ import java.util.Map.Entry;
 @Slf4j
 public class ExtraResultsJsonSerializer {
 
-	private final CatalogRestHandlingContext restHandlingContext;
 	private final EntityJsonSerializer entityJsonSerializer;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
@@ -80,7 +79,6 @@ public class ExtraResultsJsonSerializer {
 	public ExtraResultsJsonSerializer(@Nonnull CatalogRestHandlingContext restHandlingContext,
 	                                  @Nonnull EntityJsonSerializer entityJsonSerializer,
 	                                  @Nonnull Map<String, String> referenceNameToFieldName) {
-		this.restHandlingContext = restHandlingContext;
 		this.entityJsonSerializer = entityJsonSerializer;
 		this.referenceNameToFieldName = referenceNameToFieldName;
 		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
@@ -143,6 +141,8 @@ public class ExtraResultsJsonSerializer {
 	@Nonnull
 	private JsonNode serializeFacetGroupStatistics(@Nonnull FacetGroupStatistics groupStatistics) {
 		final ObjectNode groupStatsNode = objectJsonSerializer.objectNode();
+		groupStatsNode.put(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount());
+
 		groupStatsNode.putIfAbsent(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(),
 			groupStatistics.getGroupEntity() != null ? serializeEntity(groupStatistics.getGroupEntity()) : null);
 

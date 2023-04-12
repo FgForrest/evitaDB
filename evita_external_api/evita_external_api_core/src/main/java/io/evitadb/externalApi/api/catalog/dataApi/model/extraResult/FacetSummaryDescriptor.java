@@ -57,19 +57,19 @@ public interface FacetSummaryDescriptor {
 	 */
 	interface FacetGroupStatisticsDescriptor {
 
-		ObjectDescriptor THIS = ObjectDescriptor.builder()
-			.name("*FacetGroupStatistics")
-			.description("""
-				This DTO contains information about single facet group and statistics of the facets that relates to it.
-				""")
-			.build();
-
 		PropertyDescriptor GROUP_ENTITY = PropertyDescriptor.builder()
 			.name("groupEntity")
 			.description("""
 				Contains referenced entity representing this group.
 				""")
-			// type is expected to be a entity object of target entity type
+			// type is expected to be an entity object of target entity type
+			.build();
+		PropertyDescriptor COUNT = PropertyDescriptor.builder()
+			.name("count")
+			.description("""
+				Contains number of distinct entities in the response that possess any reference in this group.
+				""")
+			.type(nonNull(Integer.class))
 			.build();
 		PropertyDescriptor FACET_STATISTICS = PropertyDescriptor.builder()
 			.name("facetStatistics")
@@ -77,6 +77,14 @@ public interface FacetSummaryDescriptor {
 				Contains statistics of individual facets.
 				""")
 			// type is expected to be a `FacetStatistics` object
+			.build();
+
+		ObjectDescriptor THIS = ObjectDescriptor.builder()
+			.name("*FacetGroupStatistics")
+			.description("""
+				This DTO contains information about single facet group and statistics of the facets that relates to it.
+				""")
+			.staticFields(List.of(COUNT))
 			.build();
 	}
 
