@@ -25,7 +25,6 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
 
 import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
-import graphql.schema.GraphQLType;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -54,6 +53,7 @@ public class CollectionGraphQLSchemaBuildingContext {
 
 	private GraphQLInputType filterByInputObject;
 	private GraphQLInputType orderByInputObject;
+	private GraphQLInputType requireInputObject;
 
 	@Nonnull
 	public CatalogContract getCatalog() {
@@ -67,17 +67,18 @@ public class CollectionGraphQLSchemaBuildingContext {
 	/**
 	 * Set built filterBy object corresponding to this schema. Can be set only once before all other methods need it.
 	 */
-	public void setFilterByInputObject(@Nonnull GraphQLType filterByInputObject) {
+	public void setFilterByInputObject(@Nonnull GraphQLInputType filterByInputObject) {
 		Assert.isPremiseValid(
 			this.filterByInputObject == null,
 			() -> new GraphQLSchemaBuildingError("FilterBy input object for schema `" + schema.getName() + "` has been already initialized.")
 		);
-		this.filterByInputObject = (GraphQLInputType) filterByInputObject;
+		this.filterByInputObject = filterByInputObject;
 	}
 
 	/**
-	 * Returns filterBy object it has been already initialized.
+	 * Returns filterBy object if has been already initialized.
 	 */
+	@Nonnull
 	public GraphQLInputType getFilterByInputObject() {
 		return Optional.ofNullable(filterByInputObject)
 			.orElseThrow(() -> new GraphQLSchemaBuildingError("FilterBy input object for schema `" + schema.getName() + "` has not been initialized yet."));
@@ -86,20 +87,40 @@ public class CollectionGraphQLSchemaBuildingContext {
 	/**
 	 * Set built orderBy object corresponding to this schema. Can be set only once before all other methods need it.
 	 */
-	public void setOrderByInputObject(@Nonnull GraphQLType orderByInputObject) {
+	public void setOrderByInputObject(@Nonnull GraphQLInputType orderByInputObject) {
 		Assert.isPremiseValid(
 			this.orderByInputObject == null,
 			() -> new GraphQLSchemaBuildingError("OrderBy input object for schema `" + schema.getName() + "` has been already initialized.")
 		);
-		this.orderByInputObject = (GraphQLInputType) orderByInputObject;
+		this.orderByInputObject = orderByInputObject;
 	}
 
 	/**
-	 * Returns orderBy object it has been already initialized.
+	 * Returns orderBy object if has been already initialized.
 	 */
+	@Nonnull
 	public GraphQLInputType getOrderByInputObject() {
 		return Optional.ofNullable(orderByInputObject)
 			.orElseThrow(() -> new GraphQLSchemaBuildingError("OrderBy input object for schema `" + schema.getName() + "` has not been initialized yet."));
+	}
+
+	/**
+	 * Set built orderBy object corresponding to this schema. Can be set only once before all other methods need it.
+	 */
+	public void setRequireInputObject(@Nonnull GraphQLInputType requireInputObject) {
+		Assert.isPremiseValid(
+			this.requireInputObject == null,
+			() -> new GraphQLSchemaBuildingError("Require input object for schema `" + schema.getName() + "` has been already initialized.")
+		);
+		this.requireInputObject = requireInputObject;
+	}
+
+	/**
+	 * Returns require object if has been already initialized.
+	 */
+	@Nonnull
+	public Optional<GraphQLInputType> getRequireInputObject() {
+		return Optional.ofNullable(requireInputObject);
 	}
 
 	/**

@@ -24,14 +24,19 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Ancestor for all GraphQL query resolvers. Implements basic resolving logic of {@link ConstraintResolver} specific
@@ -42,12 +47,13 @@ import javax.annotation.Nonnull;
  */
 public abstract class GraphQLConstraintResolver<C extends Constraint<?>> extends ConstraintResolver<C> {
 
-	@Nonnull
-	protected final String rootEntityType;
+	@Nonnull @Getter protected final DataLocator rootDataLocator;
 
-	protected GraphQLConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String rootEntityType) {
-		super(catalogSchema);
-		this.rootEntityType = rootEntityType;
+	protected GraphQLConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
+	                                    @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers,
+	                                    @Nonnull DataLocator rootDataLocator) {
+		super(catalogSchema, additionalResolvers);
+		this.rootDataLocator = rootDataLocator;
 	}
 
 	@Nonnull

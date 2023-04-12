@@ -61,8 +61,9 @@ public class ReferencesDataFetcher implements DataFetcher<DataFetcherResult<Coll
                 "Reference `" + referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
             )
         );
+        final Collection<ReferenceContract> references = entity.getReferences(referenceSchema.getName());
         return DataFetcherResult.<Collection<ReferenceContract>>newResult()
-            .data(entity.getReferences(referenceSchema.getName()))
+            .data(references)
             .build();
     }
 }

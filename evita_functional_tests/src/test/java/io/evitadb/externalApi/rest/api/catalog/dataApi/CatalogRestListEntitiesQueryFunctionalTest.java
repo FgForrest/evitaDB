@@ -578,21 +578,25 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("{" +
-					"\"filterBy\": {" +
-					"    \"attributeCodeInSet\": [\"%s\", \"%s\"]" +
-					"}," +
-					"\"require\": {" +
-					"  \"entityFetch\": {" +
-					"     \"referenceBrandContent\": {" +
-					"        \"entityFetch\": {" +
-					"          \"attributeContent\": [\"marketShare\"]" +
-					"          }" +
-					"       }" +
-					"    }" +
-					"  }" +
-					" }" +
-					"}",
+			.requestBody(
+					"""
+                    {
+						"filterBy": {
+						    "attributeCodeInSet": ["%s", "%s"]
+						},
+						"require": {
+						    "entityFetch": {
+						        "referenceBrandContent": {
+						            "requirements": {
+							             "entityFetch": {
+							                "attributeContent": ["marketShare"]
+							            }
+						            }
+						        }
+					        }
+					    }
+					}
+					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE))
 			.executeAndThen()

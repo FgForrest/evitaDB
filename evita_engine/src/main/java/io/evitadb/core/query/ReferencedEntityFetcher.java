@@ -142,52 +142,27 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * according to `entityPrimaryKeys` argument. The method is reused both for fetching the referenced entities and
 	 * their groups.
 	 *
-	 * @param entityPrimaryKeys           array of primary keys to be fetched
 	 * @param queryContext                query context that will be used for fetching
-	 * @param filterByVisitor             filter visitor to be (re)used for filtering the entities to fetch
 	 * @param referenceSchema             the schema of the reference ({@link ReferenceSchemaContract#getName()})
 	 * @param entityType                  represents the entity type ({@link EntitySchemaContract#getName()}) that should be loaded
 	 * @param existingEntityRetriever     lambda allowing to reuse already fetched entities from previous decorator instance
-	 * @param referencedEntityResolver    lambda allowing to get primary keys of all entities referenced by entity with
-	 *                                    certain primary key (we need this to distinguish retrieving data for entities and groups)
-	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
-	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
-	 *                                    in an optimal way
 	 * @param entityFetch                 contains the "richness" requirements for the fetched entities
-	 * @param filterBy                    contains the filter that filters out the entities client doesn't want to fetch
-	 * @param validityMapping             contains the DTO tracking the reachability of the referenced entities by owner
-	 *                                    entities (see {@link ValidEntityToReferenceMapping} for more details)
+	 * @param referencedRecordIds         contains array of filtered referenced record ids to fetch
 	 * @return filtered map of {@link SealedEntity} indexed by their primary key according to `entityPrimaryKeys` argument
 	 */
 	@Nonnull
 	private static Map<Integer, SealedEntity> fetchReferencedEntities(
 		@Nonnull QueryContext queryContext,
-		@Nonnull int[] entityPrimaryKeys,
-		@Nonnull AtomicReference<FilterByVisitor> filterByVisitor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String entityType,
 		@Nonnull IntFunction<Optional<SealedEntity>> existingEntityRetriever,
-		@Nonnull BiFunction<String, Integer, Formula> referencedEntityResolver,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull EntityFetch entityFetch,
-		@Nullable FilterBy filterBy,
-		@Nullable ValidEntityToReferenceMapping validityMapping
+		@Nonnull int[] referencedRecordIds
 	) {
-
 		// compute set of filtered referenced entity ids
-		final int[] referencedRecordIds = getFilteredReferencedEntityIds(
-			entityPrimaryKeys, queryContext, referenceSchema, filterByVisitor, filterBy, validityMapping,
-			entityNestedQueryComparator, referencedEntityResolver
-		);
-
 		if (ArrayUtils.isEmpty(referencedRecordIds)) {
 			return Collections.emptyMap();
 		} else {
-			// set them to the comparator instance, if such is provided
-			// this prepares the "pre-sorted" arrays in this comparator for faster sorting
-			ofNullable(entityNestedQueryComparator)
-				.ifPresent(it -> it.setFilteredEntities(referencedRecordIds));
-
 			// finally, create the fetch request, get the collection and fetch the referenced entity bodies
 			final EvitaRequest fetchRequest = queryContext.getEvitaRequest().deriveCopyWith(entityType, entityFetch);
 			final EntityCollection referencedCollection = queryContext.getEntityCollectionOrThrowException(
@@ -766,21 +741,32 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(entityPrimaryKey.length);
 						final Map<Integer, SealedEntity> entityIndex;
 						// are we requested to (are we able to) fetch the entity bodies?
-						if (referenceSchema.isReferencedEntityTypeManaged() && requirements.entityFetch() != null) {
-							// if so, fetch them
-							entityIndex = fetchReferencedEntities(
-								queryContext, entityPrimaryKey, filterByVisitor,
-								referenceSchema,
-								referenceSchema.getReferencedEntityType(),
-								pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
-								referencedEntityIdsFormula,
+						if (referenceSchema.isReferencedEntityTypeManaged()) {
+							final int[] filteredReferencedEntityIds = getFilteredReferencedEntityIds(
+								entityPrimaryKey, queryContext, referenceSchema, filterByVisitor, requirements.filterBy(), validityMapping,
 								orderingDescriptor
 									.map(OrderingDescriptor::nestedQueryComparator)
-									.orElse(null),
-								requirements.entityFetch(),
-								requirements.filterBy(),
-								validityMapping
+									.orElse(null), referencedEntityIdsFormula
 							);
+							// set them to the comparator instance, if such is provided
+							// this prepares the "pre-sorted" arrays in this comparator for faster sorting
+							orderingDescriptor
+								.map(OrderingDescriptor::nestedQueryComparator)
+								.ifPresent(comparator -> comparator.setFilteredEntities(filteredReferencedEntityIds));
+
+							if (requirements.entityFetch() != null && !ArrayUtils.isEmpty(filteredReferencedEntityIds)) {
+								// if so, fetch them
+								entityIndex = fetchReferencedEntities(
+									queryContext,
+									referenceSchema,
+									referenceSchema.getReferencedEntityType(),
+									pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
+									requirements.entityFetch(),
+									filteredReferencedEntityIds
+								);
+							} else {
+								entityIndex = Collections.emptyMap();
+							}
 						} else {
 							// if not, leave the index empty
 							entityIndex = Collections.emptyMap();
@@ -788,19 +774,25 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 						final Map<Integer, SealedEntity> entityGroupIndex;
 						// are we requested to (are we able to) fetch the entity group bodies?
-						if (referenceSchema.isReferencedGroupTypeManaged() && requirements.entityGroupFetch() != null && referenceSchema.getReferencedGroupType() != null) {
+						if (referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null) {
 							// if so, fetch them
-							entityGroupIndex = fetchReferencedEntities(
-								queryContext, entityPrimaryKey, filterByVisitor,
-								referenceSchema,
-								referenceSchema.getReferencedGroupType(),
-								pk -> existingEntityRetriever.getExistingGroupEntity(referenceName, pk),
-								referencedEntityGroupIdsFormula,
-								null,
-								new EntityFetch(requirements.entityGroupFetch().getRequirements()),
-								null,
-								null
+							final int[] filteredReferencedGroupEntityIds = getFilteredReferencedEntityIds(
+								entityPrimaryKey, queryContext, referenceSchema, filterByVisitor, null, null,
+								null, referencedEntityGroupIdsFormula
 							);
+
+							if (requirements.entityGroupFetch() != null && !ArrayUtils.isEmpty(filteredReferencedGroupEntityIds)) {
+								entityGroupIndex = fetchReferencedEntities(
+									queryContext,
+									referenceSchema,
+									referenceSchema.getReferencedGroupType(),
+									pk -> existingEntityRetriever.getExistingGroupEntity(referenceName, pk),
+									new EntityFetch(requirements.entityGroupFetch().getRequirements()),
+									filteredReferencedGroupEntityIds
+								);
+							} else {
+								entityGroupIndex = Collections.emptyMap();
+							}
 						} else {
 							// if not, leave the index empty
 							entityGroupIndex = Collections.emptyMap();

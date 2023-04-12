@@ -810,7 +810,9 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					"require": {
 						"entityFetch": {
 							"attributeContentAll": true,
-					        "referenceStoreContent": {}
+					        "referenceStoreContent": {
+					            "requirements": {}
+					        }
 				        }
 					}
 				}

@@ -25,8 +25,8 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -44,7 +44,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "queryTelemetry",
 	shortDescription = "The constraint triggers computation of query telemetry (explaining what operations were performed and how long they took) in extra results of the response."
 )
@@ -55,7 +55,7 @@ public class QueryTelemetry extends AbstractRequireConstraintLeaf implements Gen
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public QueryTelemetry() {
 		super();
 	}

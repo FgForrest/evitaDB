@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
@@ -44,7 +43,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.List;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.HashSet;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -69,15 +71,13 @@ class SchemaUtilsTest {
 	@DataSet(value = REST_THOUSAND_PRODUCTS_OPEN_API, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		final List<SealedEntity> sealedEntities = TestDataGenerator.generateMainCatalogEntities(evita,20);
+		final Set<Entry<String, Object>> dataCarrier = new HashSet<>(TestDataGenerator.generateMainCatalogEntities(evita,20).entrySet());
 
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final OpenAPI openApi = new CatalogRestBuilder(new RestConfig(true, "localhost:5555", "rest", null), evita, catalog).build().openApi();
+		dataCarrier.add(new SimpleEntry<>("openApi", openApi));
 
-		return new DataCarrier(
-			"entities", sealedEntities,
-			"openApi", openApi
-		);
+		return new DataCarrier(dataCarrier);
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -97,11 +97,11 @@ class SchemaUtilsTest {
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS_OPEN_API)
 	@DisplayName("Should get lessThan schema from filter by")
-	void shouldGetLessThanSchemaFromFilterBy(Evita evita, OpenAPI openAPI) {
-		final PathItem pathItem = openAPI.getPaths().get(urlPathToProductList);
+	void shouldGetLessThanSchemaFromFilterBy(Evita evita, OpenAPI openApi) {
+		final PathItem pathItem = openApi.getPaths().get(urlPathToProductList);
 
 		final String quantityLessThanConstraintName = "attributeQuantityLessThan";
-		final Schema lessThanSchema = SchemaUtils.getSchemaFromFilterBy(openAPI, pathItem.getPost(), quantityLessThanConstraintName);
+		final Schema lessThanSchema = SchemaUtils.getSchemaFromFilterBy(openApi, pathItem.getPost(), quantityLessThanConstraintName);
 		assertNotNull(lessThanSchema);
 		assertEquals(quantityLessThanConstraintName, lessThanSchema.getName());
 	}
@@ -110,11 +110,11 @@ class SchemaUtilsTest {
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS_OPEN_API)
 	@DisplayName("Should get dataInLocales schema from require")
-	void shouldGetDataInLocalesSchemaFromRequire(Evita evita, OpenAPI openAPI) {
-		final PathItem pathItem = openAPI.getPaths().get(urlPathToProductList);
+	void shouldGetDataInLocalesSchemaFromRequire(Evita evita, OpenAPI openApi) {
+		final PathItem pathItem = openApi.getPaths().get(urlPathToProductList);
 
 		final String dataInLocalesConstraintName = "dataInLocales";
-		final Schema dataInLocalesSchema = SchemaUtils.getSchemaFromRequire(openAPI, pathItem.getPost(), dataInLocalesConstraintName);
+		final Schema dataInLocalesSchema = SchemaUtils.getSchemaFromRequire(openApi, pathItem.getPost(), dataInLocalesConstraintName);
 		assertNotNull(dataInLocalesSchema);
 		assertEquals(dataInLocalesConstraintName, dataInLocalesSchema.getName());
 	}
@@ -123,20 +123,20 @@ class SchemaUtilsTest {
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS_OPEN_API)
 	@DisplayName("Should get priorityNatural schema from orderBy")
-	void shouldGetPriorityNaturalSchemaFromOrderBy(Evita evita, OpenAPI openAPI) {
-		final PathItem pathItem = openAPI.getPaths().get(urlPathToProductList);
+	void shouldGetPriorityNaturalSchemaFromOrderBy(Evita evita, OpenAPI openApi) {
+		final PathItem pathItem = openApi.getPaths().get(urlPathToProductList);
 
 		final String priorityNaturalConstraintName = "attributePriorityNatural";
-		final Schema priorityNaturalSchema = SchemaUtils.getSchemaFromOrderBy(openAPI, pathItem.getPost(), priorityNaturalConstraintName);
+		final Schema priorityNaturalSchema = SchemaUtils.getSchemaFromOrderBy(openApi, pathItem.getPost(), priorityNaturalConstraintName);
 		assertNotNull(priorityNaturalSchema);
 		assertEquals(priorityNaturalConstraintName, priorityNaturalSchema.getName());
 	}
 
 	@Test
 	void shouldGetTargetSchema() {
-		final var openAPI = new OpenAPI();
+		final var openApi = new OpenAPI();
 		final Components components = new Components();
-		openAPI.setComponents(components);
+		openApi.setComponents(components);
 
 		final Schema<?> integerSchema = scalarFrom(Integer.class).toSchema();
 		integerSchema.setName("MyValue");
@@ -150,15 +150,15 @@ class SchemaUtilsTest {
 		topObject.setName("TopObject");
 		components.addSchemas(topObject.getName(), topObject);
 
-		assertEquals(integerSchema, SchemaUtils.getTargetSchema(referenceToInt, openAPI));
-		assertEquals(integerSchema, SchemaUtils.getTargetSchema(topObject, openAPI));
+		assertEquals(integerSchema, SchemaUtils.getTargetSchema(referenceToInt, openApi));
+		assertEquals(integerSchema, SchemaUtils.getTargetSchema(topObject, openApi));
 	}
 
 	@Test
 	void shouldGetTargetSchemaFromRefOrOneOf() {
-		final var openAPI = new OpenAPI();
+		final var openApi = new OpenAPI();
 		final Components components = new Components();
-		openAPI.setComponents(components);
+		openApi.setComponents(components);
 
 		final Schema<?> integerSchema = scalarFrom(Integer.class).toSchema();
 		integerSchema.setName("MyValue");
@@ -168,6 +168,6 @@ class SchemaUtilsTest {
 		myObject.addOneOfItem(typeRefTo(integerSchema.getName()).toSchema());
 		components.addSchemas("myObject", integerSchema);
 
-		assertEquals(integerSchema, SchemaUtils.getTargetSchemaFromRefOrOneOf(myObject, openAPI));
+		assertEquals(integerSchema, SchemaUtils.getTargetSchemaFromRefOrOneOf(myObject, openApi));
 	}
 }

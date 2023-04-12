@@ -25,10 +25,10 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -86,7 +86,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "groupsConjunction",
 	shortDescription = "Sets inter-facets relation within the specified groups to [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction)."
 )
@@ -97,9 +97,9 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintLeaf implem
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public FacetGroupsConjunction(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                              @Nonnull @ConstraintValueParamDef Integer... facetGroups) {
+	@Creator
+	public FacetGroupsConjunction(@Nonnull @Classifier String referenceName,
+	                              @Nonnull @Value Integer... facetGroups) {
 		super(concat(referenceName, facetGroups));
 	}
 

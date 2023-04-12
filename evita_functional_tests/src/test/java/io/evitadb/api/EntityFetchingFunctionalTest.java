@@ -2222,6 +2222,92 @@ public class EntityFetchingFunctionalTest {
 		);
 	}
 
+	@DisplayName("References can be eagerly fetched, filtered by attribute and ordered")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldEagerlyFetchReferencesFilteredByAttributeAndOrdered(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores) {
+		final Map<Integer, SealedEntity> storesIndexedByPk = originalStores.stream()
+			.collect(Collectors.toMap(
+				EntityContract::getPrimaryKey,
+				Function.identity()
+			));
+
+		final Map<Integer, Set<String>> productsWithLotsOfStores = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 4 && it.getLocales().contains(CZECH_LOCALE))
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getReferences(Entities.STORE)
+						.stream()
+						.map(ref -> ref.getReferenceKey().primaryKey())
+						.map(storesIndexedByPk::get)
+						.map(store -> store.getAttribute(ATTRIBUTE_CODE, String.class))
+						.collect(Collectors.toSet())
+				)
+			);
+
+		final AtomicBoolean atLeastFirst = new AtomicBoolean();
+		final Random rnd = new Random(5);
+		final String[] randomStores = productsWithLotsOfStores
+			.values()
+			.stream()
+			.flatMap(Collection::stream)
+			.filter(it -> atLeastFirst.compareAndSet(false, true) || rnd.nextInt(10) == 0)
+			.distinct()
+			.toArray(String[]::new);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(productsWithLotsOfStores.keySet().toArray(Integer[]::new)),
+								entityLocaleEquals(CZECH_LOCALE)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									filterBy(
+										entityHaving(
+											attributeInSet(ATTRIBUTE_CODE, randomStores)
+										)
+									),
+									orderBy(
+										entityProperty(
+											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(productsWithLotsOfStores.size(), productByPk.getRecordData().size());
+				assertEquals(productsWithLotsOfStores.size(), productByPk.getTotalRecordCount());
+
+				for (final SealedEntity product : productByPk.getRecordData()) {
+					final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
+
+					final Set<String> storeCodes = productsWithLotsOfStores.get(product.getPrimaryKey());
+					final Set<String> filteredStoreIds = storeCodes.stream()
+						.filter(it -> Arrays.asList(randomStores).contains(it))
+						.collect(Collectors.toSet());
+					assertEquals(filteredStoreIds.size(), references.size());
+				}
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("References can be eagerly deeply fetched, filtered and ordered (via. getEntity)")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test

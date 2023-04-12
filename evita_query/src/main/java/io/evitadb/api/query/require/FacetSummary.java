@@ -26,10 +26,10 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.utils.Assert;
 
@@ -64,7 +64,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "summary",
 	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with default \"fetching\" settings for all referenced entities."
 )
@@ -99,9 +99,9 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 		super(new Serializable[] {statisticsDepth}, facetEntityRequirement, groupEntityRequirement);
 	}
 
-	@ConstraintCreatorDef
-	public FacetSummary(@Nonnull @ConstraintValueParamDef FacetStatisticsDepth statisticsDepth,
-	                    @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) EntityRequire... requirements) {
+	@Creator
+	public FacetSummary(@Nonnull @Value FacetStatisticsDepth statisticsDepth,
+	                    @Nonnull @Child(uniqueChildren = true) EntityRequire... requirements) {
 		super(new Serializable[] {statisticsDepth}, requirements);
 		Assert.isTrue(
 			requirements.length <= 2,

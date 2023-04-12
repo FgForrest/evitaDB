@@ -27,10 +27,8 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
-import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
-import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.order.AttributeNatural;
@@ -45,7 +43,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.graphql.api.dataType.coercing.AnyCoercing;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -1285,20 +1283,8 @@ public interface RestRandomQueryGenerator {
 
 		@Override
 		public String toString() {
-			final StringBuilder keyBuilder = new StringBuilder();
-			if (constraintDescriptor.propertyType() != ConstraintPropertyType.GENERIC) {
-				keyBuilder.append(ConstraintProcessingUtils.getPrefixByPropertyType(constraintDescriptor.propertyType()).orElseThrow());
-			}
-
-			if (classifier != null) {
-				keyBuilder.append(StringUtils.toPascalCase(classifier));
-			} else if (constraintDescriptor.creator().hasImplicitClassifier() && constraintDescriptor.creator().implicitClassifier() instanceof FixedImplicitClassifier fixedImplicitClassifier) {
-				keyBuilder.append(StringUtils.toPascalCase(fixedImplicitClassifier.classifier()));
-			}
-
-			keyBuilder.append(constraintDescriptor.propertyType() != ConstraintPropertyType.GENERIC ? StringUtils.toPascalCase(constraintDescriptor.fullName()) : constraintDescriptor.fullName());
-
-			return "\"" + StringUtils.toCamelCase(keyBuilder.toString()) + "\": " + value;
+			final String key = new ConstraintKeyBuilder().build(constraintDescriptor, () -> classifier);
+			return "\"" + key + "\": " + value;
 		}
 	}
 

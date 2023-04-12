@@ -26,9 +26,9 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -48,7 +48,7 @@ import java.io.Serializable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "natural",
 	shortDescription = "The constraint sorts returned entities by selected price for sale.",
 	supportedIn = { ConstraintDomain.ENTITY }
@@ -64,8 +64,8 @@ public class PriceNatural extends AbstractOrderConstraintLeaf implements PriceCo
 		super(OrderDirection.ASC);
 	}
 
-	@ConstraintCreatorDef
-	public PriceNatural(@Nonnull @ConstraintValueParamDef OrderDirection orderDirection) {
+	@Creator
+	public PriceNatural(@Nonnull @Value OrderDirection orderDirection) {
 		super(orderDirection);
 	}
 

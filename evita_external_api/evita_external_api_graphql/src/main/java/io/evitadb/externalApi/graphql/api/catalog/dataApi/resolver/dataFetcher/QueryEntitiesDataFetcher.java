@@ -119,7 +119,12 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
     private final RequireConstraintResolver requireResolver;
 
     /**
-     * Entity type of collection to which this fetcher is mapped to.
+     * Schema of catalog in which the collection is placed.
+     */
+    @Nonnull
+    private final CatalogSchemaContract catalogSchema;
+    /**
+     * Schema of collection to which this fetcher is mapped to.
      */
     @Nonnull
     private final EntitySchemaContract entitySchema;
@@ -136,6 +141,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 
     public QueryEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
                                     @Nonnull EntitySchemaContract entitySchema) {
+        this.catalogSchema = catalogSchema;
         this.entitySchema = entitySchema;
         this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
         this.filterByResolver = new FilterConstraintResolver(catalogSchema, entitySchema.getName());
@@ -224,7 +230,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
             // build paging require
             final SelectedField recordField = recordFields.get(0);
             if (recordField.getName().equals(ResponseDescriptor.RECORD_PAGE.name())) {
-                final Integer pageNumber = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.NUMBER.name(), 0);
+                final Integer pageNumber = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.NUMBER.name(), 1);
                 final Integer pageSize = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.SIZE.name(), 20);
                 requireConstraints.add(page(pageNumber, pageSize));
             } else if (recordField.getName().equals(ResponseDescriptor.RECORD_STRIP.name())) {
@@ -250,6 +256,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 
                 requireConstraints.add(
                     EntityFetchRequireBuilder.buildEntityRequirement(
+                        catalogSchema,
                         selectionSetWrapper,
                         desiredLocale,
                         entitySchema,
@@ -453,6 +460,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
             final FacetStatisticsDepth statisticsDepth = statisticsDepths.get(referenceName);
 
             final EntityFetch facetEntityRequirement = EntityFetchRequireBuilder.buildEntityRequirement(
+                catalogSchema,
                 SelectionSetWrapper.from(facetEntityContentFields.get(referenceName)),
                 extractDesiredLocale(filterBy),
                 referencedEntitySchemas.get(referenceName),
@@ -460,6 +468,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
             );
 
             final EntityGroupFetch groupEntityRequirement = EntityFetchRequireBuilder.buildGroupEntityRequirement(
+                catalogSchema,
                 SelectionSetWrapper.from(groupEntityContentFields.get(referenceName)),
                 extractDesiredLocale(filterBy),
                 referencedEntitySchemas.get(referenceName),
@@ -523,6 +532,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
             if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
                 requestedParents.add(hierarchyParentsOfSelf(
                     EntityFetchRequireBuilder.buildEntityRequirement(
+                        catalogSchema,
                         SelectionSetWrapper.from(contentFields),
                         extractDesiredLocale(filterBy),
                         entitySchema,
@@ -533,6 +543,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
                 requestedParents.add(hierarchyParentsOfReference(
                     referenceName,
                     EntityFetchRequireBuilder.buildEntityRequirement(
+                        catalogSchema,
                         SelectionSetWrapper.from(contentFields),
                         extractDesiredLocale(filterBy),
                         referencedEntitySchemas.get(referenceName),
@@ -583,6 +594,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
             if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
                 requestedHierarchyStatistics.add(hierarchyStatisticsOfSelf(
                     EntityFetchRequireBuilder.buildEntityRequirement(
+                        catalogSchema,
                         SelectionSetWrapper.from(contentFields),
                         extractDesiredLocale(filterBy),
                         entitySchema,
@@ -593,6 +605,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
                 requestedHierarchyStatistics.add(hierarchyStatisticsOfReference(
                     referenceName,
                     EntityFetchRequireBuilder.buildEntityRequirement(
+                        catalogSchema,
                         SelectionSetWrapper.from(contentFields),
                         extractDesiredLocale(filterBy),
                         referencedEntitySchemas.get(referenceName),

@@ -25,9 +25,9 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -59,7 +59,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "excluding",
 	shortDescription = "The constraint narrows hierarchy within parent constraint to exclude specified hierarchy subtrees from search.",
 	supportedIn = ConstraintDomain.HIERARCHY
@@ -71,8 +71,8 @@ public class HierarchyExcluding extends AbstractFilterConstraintLeaf implements 
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public HierarchyExcluding(@Nonnull @ConstraintValueParamDef Integer... primaryKey) {
+	@Creator
+	public HierarchyExcluding(@Nonnull @Value Integer... primaryKey) {
 		super(primaryKey);
 	}
 

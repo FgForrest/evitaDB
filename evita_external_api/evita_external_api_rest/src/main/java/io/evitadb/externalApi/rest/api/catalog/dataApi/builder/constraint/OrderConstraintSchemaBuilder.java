@@ -30,8 +30,8 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 
@@ -39,22 +39,28 @@ import javax.annotation.Nonnull;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
  * Implementation of {@link ConstraintSchemaBuilder} for building order query tree starting from {@link OrderBy}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
-public class OrderBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
+public class OrderConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder {
 
-	public OrderBySchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                            @Nonnull String rootEntityType) {
+	public OrderConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx) {
 		super(
 			constraintSchemaBuildingCtx,
-			rootEntityType,
+			createHashMap(0), // currently, we don't support any filter constraint with additional children
 			Set.of(),
 			Set.of(OrderBy.class)
 		);
+	}
+
+	@Nonnull
+	public OpenApiSimpleType build(@Nonnull String rootEntityType) {
+		return build(new EntityDataLocator(rootEntityType));
 	}
 
 	@Nonnull
@@ -65,7 +71,7 @@ public class OrderBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
@@ -78,12 +84,6 @@ public class OrderBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
 			)
 		);
 		return descriptors.iterator().next();
-	}
-
-	@Nonnull
-	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(rootEntityType);
 	}
 
 	@Nonnull

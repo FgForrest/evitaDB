@@ -292,6 +292,23 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	}
 
 	/**
+	 * Creates reference DTO - this method can be used when reference {@link io.evitadb.api.requestResponse.schema.Cardinality}
+	 * is ZERO_OR_MORE or ONE_OR_MORE
+	 */
+	@Nonnull
+	protected List<Map<String, Object>> createReferencesDto(@Nonnull List<ReferenceContract> referenceContracts, boolean withReferencedEntityBody, boolean withLocales) {
+		final ArrayList<Map<String, Object>> references = new ArrayList<>();
+		referenceContracts.stream()
+			.forEach(reference -> {
+					references.add(
+						serializeSingleReference(reference, withReferencedEntityBody, withLocales)
+					);
+				}
+			);
+		return references;
+	}
+
+	/**
 	 * Creates single reference DTO - this method can be used when reference {@link io.evitadb.api.requestResponse.schema.Cardinality}
 	 * is EXACTLY_ONE or ZERO_OR_ONE
 	 */

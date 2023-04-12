@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.QueryEntityRequestDto;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderByConstraintResolver;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.undertow.server.HttpServerExchange;
@@ -40,6 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 
@@ -52,15 +53,19 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
 
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
-	@Nonnull private final OrderByConstraintResolver orderByConstraintResolver;
+	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
 
 	public DeleteEntitiesByQueryHandler(@Nonnull CollectionRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
-		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
-		this.orderByConstraintResolver = new OrderByConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
-		this.requireConstraintResolver = new RequireConstraintResolver(restApiHandlingContext, restApiHandlingContext.getEndpointOperation());
+		this.filterConstraintResolver = new FilterConstraintResolver(restApiHandlingContext);
+		this.orderConstraintResolver = new OrderConstraintResolver(restApiHandlingContext);
+		this.requireConstraintResolver = new RequireConstraintResolver(
+			restApiHandlingContext,
+			new AtomicReference<>(filterConstraintResolver),
+			new AtomicReference<>(orderConstraintResolver)
+		);
 		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
 	}
 
@@ -102,7 +107,7 @@ public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
 			.map(it -> (FilterBy) filterConstraintResolver.resolve(FetchEntityRequestDescriptor.FILTER_BY.name(), it))
 			.orElse(null);
 		final OrderBy orderBy = requestData.getOrderBy()
-			.map(it -> (OrderBy) orderByConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), it))
+			.map(it -> (OrderBy) orderConstraintResolver.resolve(FetchEntityRequestDescriptor.ORDER_BY.name(), it))
 			.orElse(null);
 		final Require require = requestData.getRequire()
 			.map(it -> (Require) requireConstraintResolver.resolve(FetchEntityRequestDescriptor.REQUIRE.name(), it))

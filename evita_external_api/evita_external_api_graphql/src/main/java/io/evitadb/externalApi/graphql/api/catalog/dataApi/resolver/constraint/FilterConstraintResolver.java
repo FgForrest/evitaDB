@@ -41,6 +41,8 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.Set;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link FilterConstraint} usually with {@link FilterBy}
  * as root container.
@@ -57,7 +59,18 @@ public class FilterConstraintResolver extends GraphQLConstraintResolver<FilterCo
 	private final ConstraintDescriptor wrapperContainer;
 
 	public FilterConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String rootEntityType) {
-		super(catalogSchema, rootEntityType);
+		this(
+			catalogSchema,
+			new EntityDataLocator(rootEntityType)
+		);
+	}
+
+	public FilterConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull DataLocator rootDataLocator) {
+		super(
+			catalogSchema,
+			createHashMap(0), // currently, we don't support any filter constraint with additional children
+			rootDataLocator
+		);
 
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(And.class);
 		Assert.isPremiseValid(
@@ -82,12 +95,6 @@ public class FilterConstraintResolver extends GraphQLConstraintResolver<FilterCo
 	@Nonnull
 	protected ConstraintType getConstraintType() {
 		return ConstraintType.FILTER;
-	}
-
-	@Nonnull
-	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(rootEntityType);
 	}
 
 	@Nonnull

@@ -26,7 +26,6 @@ package io.evitadb.externalApi.rest.api.resolver.serializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
-import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -44,8 +43,6 @@ import io.evitadb.utils.Assert;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.Schema;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;

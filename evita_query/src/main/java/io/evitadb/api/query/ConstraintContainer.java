@@ -204,13 +204,13 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		if (Arrays.stream(additionalChildren).anyMatch(Objects::isNull)) {
 			newAdditionalChildren = Arrays.stream(additionalChildren)
 					.filter(Objects::nonNull)
-					.toArray(size -> (Constraint<?>[]) Array.newInstance(getType(), size));
+					.toArray(Constraint<?>[]::new);
 		} else {
 			newAdditionalChildren = additionalChildren;
 		}
 
 		// validate additional child is not of same type as container and validate that there are distinct children
-		for (int i = 0; i < additionalChildrenSize; i++) {
+		for (int i = 0; i < newAdditionalChildren.length; i++) {
 			final Class<?> additionalChildType = additionalChildren[i].getType();
 
 			Assert.isTrue(
@@ -218,7 +218,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 				"Type of additional child must be different from type of children of the main container."
 			);
 
-			for (int j = i + 1; j < additionalChildrenSize; j++) {
+			for (int j = i + 1; j < newAdditionalChildren.length; j++) {
 				final Class<?> comparingAdditionalChildType = additionalChildren[j].getType();
 				if (additionalChildType.isAssignableFrom(comparingAdditionalChildType) ||
 					comparingAdditionalChildType.isAssignableFrom(additionalChildType)) {

@@ -85,15 +85,10 @@ import org.junit.jupiter.api.function.Executable;
 import org.opentest4j.AssertionFailedError;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -605,6 +600,116 @@ class EvitaSessionServiceFunctionalTest {
 					entityFetch(
 						priceContent(),
 						referenceContent(?, entityFetch(attributeContent(?)), entityGroupFetch())
+					)
+				)
+			)
+			""";
+
+		final AtomicReference<GrpcQueryResponse> response = new AtomicReference<>();
+
+		final Executable executable = () ->
+			response.set(evitaSessionBlockingStub.query(GrpcQueryRequest.newBuilder()
+				.setQuery(stringQuery)
+				.addAllPositionalQueryParams(params)
+				.build()
+			));
+
+		assertDoesNotThrow(executable);
+
+		final Query query = QueryUtil.parseQuery(stringQuery, params, null);
+
+		assertNotNull(query);
+
+		assertNotEquals(0, response.get().getRecordPage().getSealedEntitiesCount());
+		assertEquals(0, response.get().getRecordPage().getEntityReferencesCount());
+
+		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
+
+		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
+			final SealedEntity entity = entityResponse.getRecordData().get(i);
+			final GrpcSealedEntity grpcSealedEntity = response.get().getRecordPage().getSealedEntitiesList().get(i);
+			assertEntity(entity, grpcSealedEntity);
+		}
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
+	@DisplayName("Should return data chunk of entities with filtered and sorted references")
+	void shouldReturnDataChunkOfEntitiesWithFilteredAndSortedReferences(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores, ManagedChannel channel) {
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
+		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+
+		final Map<Integer, SealedEntity> storesIndexedByPk = originalStores.stream()
+			.collect(Collectors.toMap(
+				EntityContract::getPrimaryKey,
+				Function.identity()
+			));
+
+		final Map<Integer, Set<String>> productsWithLotsOfStores = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 4 && it.getLocales().contains(CZECH_LOCALE))
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getReferences(Entities.STORE)
+						.stream()
+						.map(ref -> ref.getReferenceKey().primaryKey())
+						.map(storesIndexedByPk::get)
+						.map(store -> store.getAttribute(ATTRIBUTE_CODE, String.class))
+						.collect(Collectors.toSet())
+				)
+			);
+
+		final AtomicBoolean atLeastFirst = new AtomicBoolean();
+		final Random rnd = new Random(5);
+		final String[] randomStores = productsWithLotsOfStores
+			.values()
+			.stream()
+			.flatMap(Collection::stream)
+			.filter(it -> atLeastFirst.compareAndSet(false, true) || rnd.nextInt(10) == 0)
+			.distinct()
+			.toArray(String[]::new);
+
+		final List<QueryParam> params = new ArrayList<>(17);
+		params.add(convertQueryParam(Entities.PRODUCT));
+		params.add(convertQueryParam(productsWithLotsOfStores.keySet().toArray(Integer[]::new)));
+		params.add(convertQueryParam(CZECH_LOCALE));
+		params.add(convertQueryParam(1));
+		params.add(convertQueryParam(Integer.MAX_VALUE));
+		params.add(convertQueryParam(Entities.STORE));
+		params.add(convertQueryParam(ATTRIBUTE_CODE));
+		params.add(convertQueryParam(randomStores));
+		params.add(convertQueryParam(ATTRIBUTE_NAME));
+		params.add(convertQueryParam(OrderDirection.DESC));
+
+		final String stringQuery = """
+			query(
+				collection(?),
+				filterBy(
+					and(
+						entityPrimaryKeyInSet(?),
+						entityLocaleEquals(?)
+					)
+				),
+				require(
+					page(?, ?),
+					entityFetch(
+						referenceContent(
+							?,
+							filterBy(
+								entityHaving(
+									attributeInSet(?, ?)
+								)
+							),
+							orderBy(
+								entityProperty(
+									attributeNatural(?, ?)
+								)
+							),
+							entityFetch(
+								attributeContent(),
+								associatedDataContent()
+							)
+						)
 					)
 				)
 			)

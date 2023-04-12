@@ -24,7 +24,10 @@
 package io.evitadb.api.query.descriptor;
 
 
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainer;
+import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
@@ -32,15 +35,17 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDesc
 import io.evitadb.api.query.descriptor.ConstraintCreator.SilentImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor.SupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
-import io.evitadb.api.query.filter.AbstractAttributeFilterConstraintLeaf;
+import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeStartsWith;
 import io.evitadb.api.query.filter.HierarchySpecificationFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.require.Require;
 import io.evitadb.exception.EvitaInternalError;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.Test;
@@ -94,6 +99,11 @@ class ConstraintProcessorTest {
 			ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB.class
 		));
 		assertEquals(3, descriptors3.size());
+
+		final Set<ConstraintDescriptor> descriptors4 = new ConstraintProcessor().process(Set.of(
+			ConstraintWithMultipleAdditionalChildren.class
+		));
+		assertEquals(1, descriptors4.size());
 	}
 
 	@Test
@@ -107,6 +117,7 @@ class ConstraintProcessorTest {
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithMultipleImplicitClassifiers.class)));
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(SimilarConstraintA.class, SimilarConstraintB.class)));
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(SimilarConstraintWithSuffixedCreatorsA.class, SimilarConstraintWithSuffixedCreatorsB.class)));
+		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithMultipleSameAdditionalChildren.class)));
 	}
 
 	@Nonnull
@@ -245,7 +256,7 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
@@ -261,7 +272,7 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
@@ -308,7 +319,7 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
@@ -355,13 +366,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class ConstraintWithUnannotatedParameters extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef
+		@Creator
 		public ConstraintWithUnannotatedParameters(@Nonnull Long value) {
 			super(value);
 		}
@@ -373,13 +384,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class SimilarConstraintA extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef(implicitClassifier = "primaryKey")
+		@Creator(implicitClassifier = "primaryKey")
 		public SimilarConstraintA() {
 		}
 
@@ -390,13 +401,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class SimilarConstraintB extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef(implicitClassifier = "primaryKey")
+		@Creator(implicitClassifier = "primaryKey")
 		public SimilarConstraintB() {
 		}
 
@@ -407,13 +418,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class SimilarConstraintWithSuffixedCreatorsA extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef(implicitClassifier = "primaryKey", suffix = "other")
+		@Creator(implicitClassifier = "primaryKey", suffix = "other")
 		public SimilarConstraintWithSuffixedCreatorsA() {
 		}
 
@@ -424,13 +435,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class SimilarConstraintWithSuffixedCreatorsB extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef(implicitClassifier = "primaryKey", suffix = "other")
+		@Creator(implicitClassifier = "primaryKey", suffix = "other")
 		public SimilarConstraintWithSuffixedCreatorsB() {
 		}
 
@@ -441,13 +452,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class ConstraintWithSameConditionWithoutClassifier extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef
+		@Creator
 		public ConstraintWithSameConditionWithoutClassifier() {
 		}
 
@@ -458,13 +469,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class ConstraintWithSameConditionWithClassifier extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef(implicitClassifier = "primaryKey")
+		@Creator(implicitClassifier = "primaryKey")
 		public ConstraintWithSameConditionWithClassifier() {
 		}
 
@@ -475,13 +486,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersA extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef(suffix = "other")
+		@Creator(suffix = "other")
 		public ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersA() {
 		}
 
@@ -492,18 +503,18 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef
+		@Creator
 		public ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB() {
 		}
 
-		@ConstraintCreatorDef(suffix = "other")
-		public ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB(@Nonnull @ConstraintClassifierParamDef String classifier) {
+		@Creator(suffix = "other")
+		public ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB(@Nonnull @Classifier String classifier) {
 		}
 
 		@Nonnull
@@ -513,18 +524,18 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class ConstraintWithDuplicateCreators extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef(suffix = "other")
+		@Creator(suffix = "other")
 		public ConstraintWithDuplicateCreators() {
 		}
 
-		@ConstraintCreatorDef(suffix = "other")
-		public ConstraintWithDuplicateCreators(@Nonnull @ConstraintValueParamDef String value) {
+		@Creator(suffix = "other")
+		public ConstraintWithDuplicateCreators(@Nonnull @Value String value) {
 		}
 
 		@Nonnull
@@ -534,13 +545,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class ConstraintAWithoutSuffix extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef
+		@Creator
 		public ConstraintAWithoutSuffix() {
 		}
 
@@ -551,13 +562,13 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "somethingElse",
 		shortDescription = "This is a constraint."
 	)
 	private static class ConstraintBWithSuffix extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef
+		@Creator
 		public ConstraintBWithSuffix() {
 		}
 
@@ -568,14 +579,92 @@ class ConstraintProcessorTest {
 		}
 	}
 
-	@ConstraintDef(
+	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint."
 	)
 	private static class ConstraintWithMultipleImplicitClassifiers extends AbstractAttributeFilterConstraintLeaf {
 
-		@ConstraintCreatorDef(silentImplicitClassifier = true, implicitClassifier = "primaryKey")
+		@Creator(silentImplicitClassifier = true, implicitClassifier = "primaryKey")
 		public ConstraintWithMultipleImplicitClassifiers() {
+		}
+
+		@Nonnull
+		@Override
+		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			return null;
+		}
+	}
+
+	@ConstraintDefinition(
+		name = "something",
+		shortDescription = "This is a constraint."
+	)
+	private static class ConstraintWithMultipleAdditionalChildren extends AbstractAttributeFilterConstraintContainer {
+
+		@Creator
+		public ConstraintWithMultipleAdditionalChildren(@Nonnull @AdditionalChild OrderBy orderBy,
+		                                                @Nonnull @AdditionalChild Require require) {
+		}
+	}
+
+	@ConstraintDefinition(
+		name = "something",
+		shortDescription = "This is a constraint."
+	)
+	private static class ConstraintWithMultipleSameAdditionalChildren extends AbstractAttributeFilterConstraintLeaf {
+
+		@Creator
+		public ConstraintWithMultipleSameAdditionalChildren(@Nonnull @AdditionalChild Require require,
+		                                                    @Nonnull @AdditionalChild Require require2) {
+		}
+
+		@Nonnull
+		@Override
+		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			return null;
+		}
+	}
+
+	private abstract static class AbstractAttributeFilterConstraintLeaf extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, AttributeConstraint<FilterConstraint> {
+		protected AbstractAttributeFilterConstraintLeaf(Serializable... arguments) {
+			super(arguments);
+		}
+
+		@Nonnull
+		@Override
+		public Class<FilterConstraint> getType() {
+			return FilterConstraint.class;
+		}
+
+		@Override
+		public boolean isApplicable() {
+			return isArgumentsNonNull() && getArguments().length > 0;
+		}
+
+		@Override
+		public void accept(@Nonnull ConstraintVisitor visitor) {
+			visitor.visit(this);
+		}
+	}
+
+	private abstract static class AbstractAttributeFilterConstraintContainer extends ConstraintContainer<FilterConstraint> implements FilterConstraint, AttributeConstraint<FilterConstraint> {
+
+		@Nonnull
+		@Override
+		public Class<FilterConstraint> getType() {
+			return FilterConstraint.class;
+		}
+
+		@Override
+		public void accept(@Nonnull ConstraintVisitor visitor) {
+			visitor.visit(this);
+		}
+
+		@Nonnull
+		@Override
+		public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
+			return null;
 		}
 
 		@Nonnull
