@@ -54,6 +54,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.io.BufferedInputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -137,11 +138,8 @@ public class EvitaServer {
 		for (Entry<String, String> argEntry : options.entrySet()) {
 			System.setProperty(argEntry.getKey(), argEntry.getValue());
 		}
-		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
-			System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
-		}
-		// and then initialize logger so that `logback.configurationFile` argument might apply
-		getLog();
+
+		final String logMsg = initLog();
 
 		ConsoleWriter.write(
 			"""
@@ -155,6 +153,7 @@ public class EvitaServer {
 		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io\n\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logMsg).map(it -> " (" + it + ")").orElse("") + "\n", ConsoleColor.DARK_GRAY);
 
 		final Path configFilePath = ofNullable(options.get(OPTION_EVITA_CONFIGURATION_FILE))
 			.map(it -> Paths.get("").resolve(it))
@@ -164,6 +163,29 @@ public class EvitaServer {
 		final ShutdownSequence shutdownSequence = new ShutdownSequence(evitaServer);
 		Runtime.getRuntime().addShutdownHook(new Thread(shutdownSequence));
 		evitaServer.run();
+	}
+
+	/**
+	 * Initializes the file from the specified location.
+	 */
+	private static String initLog() {
+		final String logMsg;
+		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
+			System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
+			logMsg = null;
+		} else {
+			final String originalFilePath = System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY);
+			final File logFile = new File(ContextInitializer.CONFIG_FILE_PROPERTY);
+			if (!logFile.exists() || !logFile.isFile()) {
+				logMsg = "original file `" + originalFilePath + "` doesn't exit";
+				System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
+			} else {
+				logMsg = null;
+			}
+		}
+		// and then initialize logger so that `logback.configurationFile` argument might apply
+		getLog();
+		return logMsg;
 	}
 
 	/**
@@ -259,7 +281,7 @@ public class EvitaServer {
 		if (externalApiServer != null) {
 			externalApiServer.close();
 		}
-		ConsoleWriter.write("Server stopped, bye.");
+		ConsoleWriter.write("Server stopped, bye.\n\n");
 	}
 
 	/**

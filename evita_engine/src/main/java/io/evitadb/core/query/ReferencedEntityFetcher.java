@@ -658,16 +658,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nullable
 	@Override
 	public Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return entityPrimaryKey -> ofNullable(fetchedEntities.get(referenceSchema.getName()))
-			.map(it -> it.getEntity(entityPrimaryKey))
+		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+			.map(prefetchedEntities -> (Function<Integer, SealedEntity>) prefetchedEntities::getEntity)
 			.orElse(null);
 	}
 
 	@Nullable
 	@Override
 	public Function<Integer, SealedEntity> getEntityGroupFetcher(@Nonnull ReferenceSchemaContract referenceSchema) {
-		return entityPrimaryKey -> ofNullable(fetchedEntities.get(referenceSchema.getName()))
-			.map(it -> it.getGroupEntity(entityPrimaryKey))
+		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
+			.map(prefetchedEntities -> (Function<Integer, SealedEntity>) prefetchedEntities::getGroupEntity)
 			.orElse(null);
 	}
 
@@ -692,7 +692,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						final ValidEntityToReferenceMapping validityMapping = prefetchedEntities.validityMapping();
 						if (validityMapping != null) {
 							return (BiPredicate<Integer, ReferenceDecorator>) (entityPrimaryKey, referenceDecorator) ->
-								validityMapping.isReferenceSelected(entityPrimaryKey, referenceDecorator.getReferencedPrimaryKey());
+								ofNullable(referenceDecorator)
+									.map(refDec -> validityMapping.isReferenceSelected(entityPrimaryKey, refDec.getReferencedPrimaryKey()))
+									.orElse(false);
 						}
 					}
 					return null;

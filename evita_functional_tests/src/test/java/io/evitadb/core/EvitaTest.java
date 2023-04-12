@@ -2620,6 +2620,60 @@ class EvitaTest implements EvitaTestSupport {
 		}
 	}
 
+	@Test
+	void shouldProperlyHandleFetchingOfNotYetKnownEntities() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+					.updateVia(session);
+
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ONE_OR_MORE)
+					.withReferenceTo(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE)
+					.updateVia(session);
+
+				session.createNewEntity(Entities.BRAND, 1)
+					.setAttribute(ATTRIBUTE_NAME, "Siemens")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, "Mixer")
+					.setReference(Entities.BRAND, 1)
+					.setReference(Entities.BRAND, 2)
+					.setReference(Entities.PARAMETER, 3)
+					.upsertVia(session);
+
+				final SealedEntity fullEntity = session.getEntity(
+						Entities.PRODUCT, 1,
+						entityFetchAllContentAnd(
+							referenceContent(Entities.BRAND, entityFetchAll()),
+							referenceContent(Entities.PARAMETER, entityFetchAll())
+						)
+					)
+					.orElseThrow();
+
+				// we get only single brand because when brand with PK=2 was fetched it was not found, yet it should
+				// be present since entity maps to evita managed entity
+				assertEquals(2, fullEntity.getReferences(Entities.BRAND).size());
+				assertEquals(1, fullEntity.getReferences(Entities.PARAMETER).size());
+
+				assertTrue(fullEntity.getReference(Entities.BRAND, 1).orElseThrow().getReferencedEntity().isPresent());
+				assertFalse(fullEntity.getReference(Entities.BRAND, 2).orElseThrow().getReferencedEntity().isPresent());
+
+				final SealedEntity shortEntity = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow();
+
+				// we get both brands because their bodies were not fetched and we had no chance to find out that
+				// the brand with PK=2 is not (yet) present in the evita storage
+				assertEquals(2, shortEntity.getReferences(Entities.BRAND).size());
+				assertEquals(1, shortEntity.getReferences(Entities.PARAMETER).size());
+			}
+		);
+	}
+
 	private void doRenameCatalog(@Nonnull CatalogState catalogState) {
 		evita.updateCatalog(
 			TEST_CATALOG,

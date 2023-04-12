@@ -282,35 +282,55 @@ public class EntityFetchRequireBuilder {
                 it.referenceSchema(),
                 buildReferenceContentFilter(catalogSchema, currentEntitySchema, it).orElse(null),
                 buildReferenceContentOrder(catalogSchema, currentEntitySchema, it).orElse(null),
-                buildEntityRequirement(
-                    catalogSchema,
-                    SelectionSetWrapper.from(
-                        it.fields()
-                            .stream()
-                            .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.REFERENCED_ENTITY.name()).stream())
-                            .map(SelectedField::getSelectionSet)
-                            .toList()
-                    ),
-                    desiredLocale,
-                    it.referenceSchema().isReferencedEntityTypeManaged() ? entitySchemaFetcher.apply(it.referenceSchema().getReferencedEntityType()) : null,
-                    entitySchemaFetcher
-                ),
-                buildGroupEntityRequirement(
-                    catalogSchema,
-                    SelectionSetWrapper.from(
-                        it.fields()
-                            .stream()
-                            .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.GROUP_ENTITY.name()).stream())
-                            .map(SelectedField::getSelectionSet)
-                            .toList()
-                    ),
-                    desiredLocale,
-                    it.referenceSchema().isReferencedGroupTypeManaged() ? entitySchemaFetcher.apply(it.referenceSchema().getReferencedGroupType()) : null,
-                    entitySchemaFetcher
-                )
+                buildReferenceEntityRequirement(catalogSchema, desiredLocale, entitySchemaFetcher, it),
+                buildReferenceGroupRequirement(catalogSchema, desiredLocale, entitySchemaFetcher, it)
             ))
-            .map(it -> referenceContent(it.referenceSchema().getName(), it.filterBy(), it.orderBy(), it.entityRequirement(), it.groupRequirement()))
+            .map(it -> referenceContent(it.referenceSchema().getName(), it.entityRequirement(), it.groupRequirement()))
             .toList();
+    }
+
+    @Nullable
+    private static EntityFetch buildReferenceEntityRequirement(@Nonnull CatalogSchemaContract catalogSchema,
+                                                               @Nullable Locale desiredLocale,
+                                                               @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+                                                               @Nonnull FieldsForReferenceHolder fieldsForReference) {
+        final SelectionSetWrapper referencedEntitySelectionSet = SelectionSetWrapper.from(
+            fieldsForReference.fields()
+                .stream()
+                .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.REFERENCED_ENTITY.name()).stream())
+                .map(SelectedField::getSelectionSet)
+                .toList()
+        );
+
+        final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedEntityTypeManaged() ?
+            entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedEntityType()) :
+            null;
+
+        final EntityFetch referencedEntityRequirement = buildEntityRequirement(catalogSchema, referencedEntitySelectionSet, desiredLocale, referencedEntitySchema, entitySchemaFetcher);
+        if (referencedEntityRequirement == null && !referencedEntitySelectionSet.isEmpty()) {
+            return entityFetch(); // if referenced entity was requested we want at least its body everytime
+        }
+        return referencedEntityRequirement;
+    }
+
+    @Nullable
+    private static EntityGroupFetch buildReferenceGroupRequirement(@Nonnull CatalogSchemaContract catalogSchema,
+                                                                   @Nullable Locale desiredLocale,
+                                                                   @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+                                                                   @Nonnull FieldsForReferenceHolder fieldsForReference) {
+        final SelectionSetWrapper referencedGroupSelectionSet = SelectionSetWrapper.from(
+            fieldsForReference.fields()
+                .stream()
+                .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.GROUP_ENTITY.name()).stream())
+                .map(SelectedField::getSelectionSet)
+                .toList()
+        );
+
+        final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedGroupTypeManaged() ?
+            entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedGroupType()) :
+            null;
+
+        return buildGroupEntityRequirement(catalogSchema, referencedGroupSelectionSet, desiredLocale, referencedEntitySchema, entitySchemaFetcher);
     }
 
     @Nonnull

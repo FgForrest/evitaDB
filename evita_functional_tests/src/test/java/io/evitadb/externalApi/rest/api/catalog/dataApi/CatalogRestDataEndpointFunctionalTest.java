@@ -275,13 +275,16 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	 * is ZERO_OR_MORE or ONE_OR_MORE
 	 */
 	@Nonnull
-	protected List<Map<String, Object>> createReferencesDto(@Nonnull SealedEntity entity, @Nonnull String entityName, boolean withLocales) {
+	protected List<Map<String, Object>> createReferencesDto(@Nonnull SealedEntity entity,
+	                                                        @Nonnull String entityName,
+															boolean withReferencedEntityBody,
+	                                                        boolean withLocales) {
 		final Collection<ReferenceContract> referenceContracts = entity.getReferences(entityName);
 		final ArrayList<Map<String, Object>> references = new ArrayList<>();
 		referenceContracts.stream()
 			.forEach(reference -> {
 					references.add(
-						serializeSingleReference(reference, withLocales)
+						serializeSingleReference(reference, withReferencedEntityBody, withLocales)
 					);
 				}
 			);
@@ -310,11 +313,14 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 	 * is EXACTLY_ONE or ZERO_OR_ONE
 	 */
 	@Nonnull
-	protected Map<String, Object> createReferenceDto(@Nonnull SealedEntity entity, @Nonnull String entityName, boolean withLocales) {
+	protected Map<String, Object> createReferenceDto(@Nonnull SealedEntity entity,
+	                                                 @Nonnull String entityName,
+	                                                 boolean withReferencedEntityBody,
+	                                                 boolean withLocales) {
 		final Collection<ReferenceContract> referenceContracts = entity.getReferences(entityName);
 		final ReferenceContract reference = referenceContracts.stream().findFirst().orElseThrow();
 
-		return serializeSingleReference(reference, withLocales);
+		return serializeSingleReference(reference, withReferencedEntityBody, withLocales);
 	}
 
 	protected Map<String, ?> createEntityAttributes(@Nonnull EntityContract entity, boolean distinguishLocalized, @Nullable Locale locale) {
@@ -366,21 +372,29 @@ abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctio
 		return attributesMap.build();
 	}
 
-	private Map<String, Object> serializeSingleReference(@Nonnull ReferenceContract reference, boolean withLocales) {
-		final MapBuilder referenceAttributesBuilder = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
-			.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType());
-		if (withLocales) {
-			referenceAttributesBuilder
-				.e(EntityDescriptor.LOCALES.name(), new ArrayList<>())
-				.e(EntityDescriptor.ALL_LOCALES.name(), Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-				.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name());
+	private Map<String, Object> serializeSingleReference(@Nonnull ReferenceContract reference,
+	                                                     boolean withReferencedEntityBody,
+	                                                     boolean withLocales) {
+
+
+		final MapBuilder referenceBuilder = map()
+			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
+			.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(reference));
+
+		if (withReferencedEntityBody) {
+			final MapBuilder referenceAttributesBuilder = map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getReferencedPrimaryKey())
+				.e(EntityDescriptor.TYPE.name(), reference.getReferencedEntityType());
+			if (withLocales) {
+				referenceAttributesBuilder
+					.e(EntityDescriptor.LOCALES.name(), new ArrayList<>())
+					.e(EntityDescriptor.ALL_LOCALES.name(), Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
+					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name());
+			}
+			referenceBuilder.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), referenceAttributesBuilder);
 		}
 
-		return map().
-			e(ReferenceDescriptor.REFERENCED_ENTITY.name(), referenceAttributesBuilder.build())
-			.e(ReferenceDescriptor.ATTRIBUTES.name(), convertAttributesIntoMap(reference))
-			.build();
+		return referenceBuilder.build();
 	}
 
 	private Map<String, Object> convertAttributesIntoMap(ReferenceContract reference) {

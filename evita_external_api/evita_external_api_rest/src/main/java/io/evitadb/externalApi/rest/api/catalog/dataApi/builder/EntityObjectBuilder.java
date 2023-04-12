@@ -422,7 +422,7 @@ public class EntityObjectBuilder {
 		final OpenApiTypeReference referencedEntityObject = buildReferenceReferencedEntityObject(referenceSchema, localized);
 		return ReferenceDescriptor.REFERENCED_ENTITY
 			.to(propertyBuilderTransformer)
-			.type(nonNull(referencedEntityObject))
+			.type(referencedEntityObject)
 			.build();
 	}
 
