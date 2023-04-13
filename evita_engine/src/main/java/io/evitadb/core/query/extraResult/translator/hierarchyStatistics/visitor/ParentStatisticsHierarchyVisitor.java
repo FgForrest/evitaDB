@@ -122,7 +122,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 				if (omitSiblings) {
 					siblings.forEach(s -> {
 						next.registerOmittedChild();
-						next.registerOmittedCardinality(s.getDirectlyQueriedEntitiesFormula());
+						next.registerOmittedCardinality(s.getQueriedEntitiesFormula());
 					});
 				} else {
 					siblings.forEach(next::add);
