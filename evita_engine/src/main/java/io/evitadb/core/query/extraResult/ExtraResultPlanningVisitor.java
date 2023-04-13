@@ -240,7 +240,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						it,
 						(visitor, constraint) -> {
 							final Function<FilterConstraint, FilterConstraint> wrapper = referenceSchema == null ?
-								FilterBy::new :
+								Function.identity() :
 								filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), filter));
 							if (constraint instanceof HierarchyFilterConstraint hfc) {
 								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
@@ -281,7 +281,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						(visitor, constraint) -> {
 							if (constraint instanceof HierarchyFilterConstraint hfc) {
 								final Function<FilterConstraint, FilterConstraint> wrapper = referenceSchema == null ?
-									FilterBy::new :
+									Function.identity() :
 									filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), filter));
 								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
 								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
