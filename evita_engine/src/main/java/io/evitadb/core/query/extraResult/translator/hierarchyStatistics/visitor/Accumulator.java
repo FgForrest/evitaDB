@@ -34,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -89,6 +90,18 @@ public class Accumulator {
 	 * - {@link #children}
 	 */
 	private Formula queriedEntitiesFormula;
+	/**
+	 * Performance optimization variable that speeds up evaluation of {@link #hasQueriedEntity()}.
+	 */
+	private boolean hasQueriedEntity;
+
+	/**
+	 * Alternative constructor that will not initialize entity reference.
+	 */
+	public Accumulator(@Nonnull Supplier<Formula> directlyQueriedEntitiesFormulaProducer) {
+		this.entity = null;
+		this.directlyQueriedEntitiesFormulaProducer = directlyQueriedEntitiesFormulaProducer;
+	}
 
 	/**
 	 * Adds information about this hierarchy node children statistics.
@@ -99,10 +112,19 @@ public class Accumulator {
 	}
 
 	/**
+	 * Returns list of all formulas with omitted entities.
+	 */
+	@Nonnull
+	public List<Formula> getOmittedQueuedEntities() {
+		return ofNullable(omittedQueuedEntities).orElse(Collections.emptyList());
+	}
+
+	/**
 	 * Converts accumulator data to immutable {@link LevelInfo} DTO.
 	 */
 	@Nonnull
 	public LevelInfo toLevelInfo(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
+		Assert.isPremiseValid(entity != null, "Entity reference was not initialized for this accumulator!");
 		// sort by their order in hierarchy
 		return new LevelInfo(
 			entity,
@@ -206,20 +228,24 @@ public class Accumulator {
 	 * computing the entire tree.
 	 */
 	public boolean hasQueriedEntity() {
-		if (!getDirectlyQueriedEntitiesFormula().compute().isEmpty()) {
-			return true;
-		}
-		for (Accumulator child : children) {
-			if (child.hasQueriedEntity()) {
-				return true;
+		if (!hasQueriedEntity) {
+			if (!getDirectlyQueriedEntitiesFormula().compute().isEmpty()) {
+				hasQueriedEntity = true;
+			}
+			for (Accumulator child : children) {
+				if (child.hasQueriedEntity()) {
+					hasQueriedEntity = true;
+				}
+			}
+			if (omittedQueuedEntities != null) {
+				for (Formula omittedQueuedEntity : omittedQueuedEntities) {
+					if (!omittedQueuedEntity.compute().isEmpty()) {
+						hasQueriedEntity = true;
+					}
+				}
 			}
 		}
-		for (Formula omittedQueuedEntity : omittedQueuedEntities) {
-			if (!omittedQueuedEntity.compute().isEmpty()) {
-				return true;
-			}
-		}
-		return false;
+		return hasQueriedEntity;
 	}
 
 	/**

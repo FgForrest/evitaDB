@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotFoundException;
 import io.evitadb.core.query.QueryContext;
@@ -111,7 +112,12 @@ public abstract class AbstractHierarchyTranslator {
 			final int requiredDistance = distanceCnt.getDistance();
 			return (hierarchyNodeId, level, distance) -> distance > -1 && distance <= requiredDistance;
 		} else if (filter instanceof HierarchyNode node) {
-			return new FilteringFormulaHierarchyEntityPredicate(context.queryContext(), context.entityIndex(), node.getFilterBy());
+			return new FilteringFormulaHierarchyEntityPredicate(
+				context.queryContext(),
+				context.entityIndex(),
+				node.getFilterBy(),
+				context.referenceSchema()
+			);
 		} else {
 			return null;
 		}
@@ -147,17 +153,18 @@ public abstract class AbstractHierarchyTranslator {
 				null,
 				null,
 				(entitySchema, attributeName) -> {
-					final AttributeSchemaContract attributeSchema = ofNullable(entitySchema)
-						.orElseGet(queryContext::getSchema)
+					final EntitySchemaContract theSchema = ofNullable(entitySchema)
+						.orElseGet(entityIndex::getEntitySchema);
+					final AttributeSchemaContract attributeSchema = theSchema
 						.getAttribute(attributeName)
 						.orElse(null);
 					notNull(
 						attributeSchema,
-						() -> new AttributeNotFoundException(attributeName, entitySchema)
+						() -> new AttributeNotFoundException(attributeName, theSchema)
 					);
 					isTrue(
 						attributeSchema.isFilterable() || attributeSchema.isUnique(),
-						() -> new AttributeNotFilterableException(attributeName, entitySchema)
+						() -> new AttributeNotFilterableException(attributeName, theSchema)
 					);
 					return attributeSchema;
 				},

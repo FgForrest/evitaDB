@@ -36,10 +36,12 @@ import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -78,6 +80,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -150,7 +153,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 *
 	 * TODO JNO - change documentation
 	 */
-	private FilterBy filterByWithoutHierarchyFilter;
+	@Nullable private FilterBy filterByWithoutHierarchyFilter;
 	/**
 	 * Contains {@link #getFilteringFormula()} without {@link UserFilterFormula} sub-trees. The field is initialized
 	 * lazily.
@@ -205,27 +208,48 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
+	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link UserFilterFormula} parts.
+	 * Result of this method is cached so that additional calls introduce no performance penalty and also the formula
+	 * memoized sub-results are shared once the {@link Formula#compute()} method is called for the first time.
+	 */
+	@Nonnull
+	public Formula getFilteringFormulaWithoutUserFilter() {
+		if (filteringFormulaWithoutUserFilter == null) {
+			filteringFormulaWithoutUserFilter = FormulaCloner.clone(
+				filteringFormula,
+				formula -> formula instanceof UserFilterFormula ? null : formula
+			);
+		}
+		return filteringFormulaWithoutUserFilter;
+	}
+
+	/**
 	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link HierarchyWithin} and
 	 * {@link HierarchyWithinRoot} formula parts. Result of this method is cached so that additional calls introduce no
 	 * performance penalty and also the formula memoized sub-results are shared once the {@link Formula#compute()}
 	 * method is called for the first time.
+	 *
+	 * TODO JNO - change description
 	 */
 	@Nonnull
-	public FilterBy getFilterByWithoutHierarchyFilter() {
+	public FilterBy getFilterByWithoutHierarchyFilter(@Nullable ReferenceSchemaContract referenceSchema) {
 		if (filterByWithoutHierarchyFilter == null) {
 			filterByWithoutHierarchyFilter = (FilterBy) ofNullable(getFilterBy())
 				.map(it ->
 					ConstraintCloneVisitor.clone(
 						it,
 						(visitor, constraint) -> {
+							final Function<FilterConstraint, FilterConstraint> wrapper = referenceSchema == null ?
+								FilterBy::new :
+								filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), filter));
 							if (constraint instanceof HierarchyFilterConstraint hfc) {
 								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
 								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
 									return null;
 								} else if (excludedChildrenFilter.length == 1){
-									return new Not(excludedChildrenFilter[0]);
+									return wrapper.apply(new Not(excludedChildrenFilter[0]));
 								} else {
-									return new Not(new And(excludedChildrenFilter));
+									return wrapper.apply(new Not(new And(excludedChildrenFilter)));
 								}
 							} else {
 								return constraint;
@@ -240,33 +264,15 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link UserFilterFormula} parts.
-	 * Result of this method is cached so that additional calls introduce no performance penalty and also the formula
-	 * memoized sub-results are shared once the {@link Formula#compute()} method is called for the first time.
-	 *
-	 * TODO JNO - change description
-	 */
-	@Nonnull
-	public Formula getFilteringFormulaWithoutUserFilter() {
-		if (filteringFormulaWithoutUserFilter == null) {
-			filteringFormulaWithoutUserFilter = FormulaCloner.clone(
-				filteringFormula,
-				formula -> formula instanceof UserFilterFormula ? null : formula
-			);
-		}
-		return filteringFormulaWithoutUserFilter;
-	}
-
-	/**
 	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link HierarchyWithin},
 	 * {@link HierarchyWithinRoot} formulas and {@link UserFilterFormula} parts. Result of this method is cached so that
 	 * additional calls introduce no performance penalty and also the formula memoized sub-results are shared once
 	 * the {@link Formula#compute()} method is called for the first time.
 	 *
-	 * TODO - JNO upravit dokumentaci a možná zrušit HierarchyFormula!
+	 * TODO - JNO upravit dokumentaci
 	 */
 	@Nonnull
-	public FilterBy getFilteringFormulaWithoutHierarchyAndUserFilter() {
+	public FilterBy getFilteringFormulaWithoutHierarchyAndUserFilter(@Nullable ReferenceSchemaContract referenceSchema) {
 		if (filteringFormulaWithoutHierarchyAndUserFilter == null) {
 			filteringFormulaWithoutHierarchyAndUserFilter = (FilterBy) ofNullable(getFilterBy())
 				.map(it ->
@@ -274,13 +280,16 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						it,
 						(visitor, constraint) -> {
 							if (constraint instanceof HierarchyFilterConstraint hfc) {
+								final Function<FilterConstraint, FilterConstraint> wrapper = referenceSchema == null ?
+									FilterBy::new :
+									filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), filter));
 								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
 								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
 									return null;
 								} else if (excludedChildrenFilter.length == 1){
-									return new Not(excludedChildrenFilter[0]);
+									return wrapper.apply(new Not(excludedChildrenFilter[0]));
 								} else {
-									return new Not(new And(excludedChildrenFilter));
+									return wrapper.apply(new Not(new And(excludedChildrenFilter)));
 								}
 							} else if (constraint instanceof UserFilter) {
 								return null;

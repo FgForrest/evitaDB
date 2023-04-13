@@ -70,7 +70,7 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 			0,
 			scopePredicate,
 			combinedFilteringPredicate,
-			value -> context.hierarchyReferencingEntityPks().apply(value, statisticsBase),
+			value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 			entityFetcher,
 			statisticsType
 		);

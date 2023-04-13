@@ -87,7 +87,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				0,
 				(hierarchyNodeId, level, distance) -> distance == 0,
 				combinedFilteringPredicate,
-				value -> context.hierarchyReferencingEntityPks().apply(value, statisticsBase),
+				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 				entityFetcher,
 				statisticsType
 			);
@@ -122,7 +122,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
 				scopePredicate,
 				combinedFilteringPredicate.and(exceptStartNode),
-				value -> context.hierarchyReferencingEntityPks().apply(value, statisticsBase),
+				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 				entityFetcher,
 				siblingsComputerToUse,
 				siblingsStatisticsComputer == null

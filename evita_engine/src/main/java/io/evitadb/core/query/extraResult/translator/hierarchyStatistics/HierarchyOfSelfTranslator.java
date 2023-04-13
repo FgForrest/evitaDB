@@ -90,8 +90,8 @@ public class HierarchyOfSelfTranslator
 			extraResultPlanner.getPrefetchRequirementCollector(),
 			(nodeId, statisticsBase) -> {
 				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
-					extraResultPlanner.getFilterByWithoutHierarchyFilter() :
-					extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter();
+					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
+					extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter(null);
 				final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
 					filter,
 					() -> createFilterFormula(

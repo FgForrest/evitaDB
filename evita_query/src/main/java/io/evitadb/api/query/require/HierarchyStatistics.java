@@ -40,6 +40,7 @@ import java.util.EnumSet;
 
 /**
  * TOBEDONE JNO: docs
+ * TODO JNO - dát jako default jen children count a upravit testy!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

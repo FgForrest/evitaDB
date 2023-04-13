@@ -27,6 +27,8 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotFoundException;
 import io.evitadb.core.query.QueryContext;
@@ -41,6 +43,7 @@ import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Supplier;
@@ -70,8 +73,9 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	public FilteringFormulaHierarchyEntityPredicate(
 		@Nonnull QueryContext queryContext,
 		@Nonnull EntityIndex entityIndex,
-		@Nonnull FilterBy filterBy
-	) {
+		@Nonnull FilterBy filterBy,
+		@Nullable ReferenceSchemaContract referenceSchema
+		) {
 		this.filterBy = filterBy;
 		try {
 			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
@@ -91,21 +95,22 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			final Formula theFormula = theFilterByVisitor.executeInContext(
 				Collections.singletonList(entityIndex),
 				null,
-				null,
+				referenceSchema,
 				null,
 				null,
 				(entitySchema, attributeName) -> {
-					final AttributeSchemaContract attributeSchema = ofNullable(entitySchema)
-						.orElseGet(queryContext::getSchema)
+					final EntitySchemaContract theSchema = ofNullable(entitySchema)
+						.orElseGet(entityIndex::getEntitySchema);
+					final AttributeSchemaContract attributeSchema = theSchema
 						.getAttribute(attributeName)
 						.orElse(null);
 					notNull(
 						attributeSchema,
-						() -> new AttributeNotFoundException(attributeName, entitySchema)
+						() -> new AttributeNotFoundException(attributeName, theSchema)
 					);
 					isTrue(
 						attributeSchema.isFilterable() || attributeSchema.isUnique(),
-						() -> new AttributeNotFilterableException(attributeName, entitySchema)
+						() -> new AttributeNotFilterableException(attributeName, theSchema)
 					);
 					return attributeSchema;
 				},

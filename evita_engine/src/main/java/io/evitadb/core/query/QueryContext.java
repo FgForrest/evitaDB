@@ -218,6 +218,10 @@ public class QueryContext {
 	 */
 	@Getter
 	private HierarchyFilteringPredicate hierarchyExclusionPredicate;
+	/**
+	 * Internal flag that singalizes the query context is already within {@link #computingOnce} scope.
+	 */
+	private boolean computingOnce;
 
 	public <S extends IndexKey, T extends Index<S>> QueryContext(
 		@Nonnull Catalog catalog,
@@ -919,17 +923,26 @@ public class QueryContext {
 		@Nonnull FilterConstraint constraint,
 		@Nonnull Supplier<Formula> formulaSupplier
 	) {
-		if (parentContext == null) {
-			if (internalCache == null) {
-				internalCache = new HashMap<>();
-			}
-			return internalCache.computeIfAbsent(
-				constraint, cnt -> formulaSupplier.get()
-			);
+		if (computingOnce) {
+			return formulaSupplier.get();
 		} else {
-			return parentContext.computeOnlyOnce(
-				constraint, formulaSupplier
-			);
+			try {
+				computingOnce = true;
+				if (parentContext == null) {
+					if (internalCache == null) {
+						internalCache = new HashMap<>();
+					}
+					return internalCache.computeIfAbsent(
+						constraint, cnt -> formulaSupplier.get()
+					);
+				} else {
+					return parentContext.computeOnlyOnce(
+						constraint, formulaSupplier
+					);
+				}
+			} finally {
+				computingOnce = false;
+			}
 		}
 	}
 

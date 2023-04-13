@@ -28,6 +28,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -43,6 +44,8 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link HierarchyWithinRoot} to {@link AbstractFormula}.
@@ -79,9 +82,12 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		final String referenceName = hierarchyWithinRoot.getReferenceName();
 		final boolean directRelation = hierarchyWithinRoot.isDirectRelation();
 
-		final EntitySchemaContract targetEntitySchema = referenceName == null ?
-			filterByVisitor.getSchema() :
-			filterByVisitor.getSchema(filterByVisitor.getSchema().getReferenceOrThrowException(referenceName).getReferencedEntityType());
+		final ReferenceSchemaContract referenceSchema = ofNullable(referenceName)
+			.map(it -> filterByVisitor.getSchema().getReferenceOrThrowException(it))
+			.orElse(null);
+		final EntitySchemaContract targetEntitySchema = ofNullable(referenceSchema)
+			.map(it -> filterByVisitor.getSchema(it.getReferencedEntityType()))
+			.orElse(filterByVisitor.getSchema());
 
 		Assert.isTrue(
 			targetEntitySchema.isWithHierarchy(),
@@ -95,7 +101,8 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 					createAndStoreExclusionPredicate(
 						queryContext,
 						hierarchyWithinRoot.getExcludedChildrenFilter(),
-						filterByVisitor.getGlobalEntityIndex()
+						filterByVisitor.getGlobalEntityIndex(),
+						referenceSchema
 					),
 					directRelation,
 					filterByVisitor.getGlobalEntityIndex()
@@ -117,7 +124,10 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 					final EntityIndex foreignEntityIndex = filterByVisitor.getGlobalEntityIndex(referenceName);
 					final FilterConstraint[] excludedChildrenFormula = hierarchyWithinRoot.getExcludedChildrenFilter();
 					final HierarchyFilteringPredicate exclusionPredicate = ArrayUtils.isEmpty(excludedChildrenFormula) ?
-						null : new FilteringFormulaHierarchyEntityPredicate(queryContext, foreignEntityIndex, new FilterBy(excludedChildrenFormula));
+						null :
+						new FilteringFormulaHierarchyEntityPredicate(
+							queryContext, foreignEntityIndex, new FilterBy(excludedChildrenFormula), referenceSchema
+						);
 					final Formula referencedIdsFormula = createFormulaFromHierarchyIndex(exclusionPredicate, directRelation, foreignEntityIndex);
 					return getReferencedEntityFormulas(filterByVisitor, referenceName, referencedIdsFormula.compute().getArray());
 				} else {

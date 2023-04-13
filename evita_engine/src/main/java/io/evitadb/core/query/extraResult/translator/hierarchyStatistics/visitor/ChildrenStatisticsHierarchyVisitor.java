@@ -136,11 +136,19 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 			// get current accumulator
 			final Accumulator topAccumulator = Objects.requireNonNull(accumulator.peek());
 			if (topAccumulator.isInOmissionBlock()) {
-				// in omission block compute only cardinality of queued entities
-				topAccumulator.registerOmittedCardinality(
-					queriedEntityComputer.apply(node.entityPrimaryKey())
-				);
-				traverser.run();
+				// we can short-circuit when the caller wants only StatisticsType.CHILDREN_COUNT and accumulator
+				// already registered some cardinality
+				if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT) || !topAccumulator.hasQueriedEntity()) {
+					// in omission block compute only cardinality of queued entities
+					topAccumulator.registerOmittedCardinality(
+						queriedEntityComputer.apply(node.entityPrimaryKey())
+					);
+					// we can short-circuit when the caller wants only StatisticsType.CHILDREN_COUNT and accumulator
+					// already registered some cardinality
+					if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT) || !topAccumulator.hasQueriedEntity()) {
+						traverser.run();
+					}
+				}
 			} else {
 				if (scopePredicate.test(entityPrimaryKey, level, distance + distanceCompensation)) {
 					// and create element in accumulator that will be filled in
@@ -172,20 +180,33 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 						topAccumulator.add(finalizedAccumulator);
 					}
 				} else if (!statisticsType.isEmpty()) {
+					// and create element in accumulator that will be filled in
+					final Accumulator theOmmissionAccumulator = new Accumulator(
+						() -> queriedEntityComputer.apply(node.entityPrimaryKey())
+					);
+					accumulator.push(theOmmissionAccumulator);
 					// if we need to compute statistics, but the positional predicate stops traversal
 					// we need to traverse the rest of the tree in the omission block
-					topAccumulator.executeOmissionBlock(traverser);
+					theOmmissionAccumulator.executeOmissionBlock(traverser);
+					// now remove current accumulator from stack
+					accumulator.pop();
 					// when we exit the omission block we may resolve the children count
 					if (statisticsType.contains(StatisticsType.CHILDREN_COUNT)) {
-						if (!(topAccumulator.getChildrenCount() == 0 && removeEmptyResults)) {
+						if (removeEmptyResults) {
+							// we need to fully compute cardinality of queried entities
+							if (theOmmissionAccumulator.hasQueriedEntity()) {
+								topAccumulator.registerOmittedChild();
+							}
+						} else {
 							topAccumulator.registerOmittedChild();
 						}
 					}
 					// and compute overall cardinality
 					if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
-						topAccumulator.registerOmittedCardinality(
-							queriedEntityComputer.apply(node.entityPrimaryKey())
-						);
+						// propagated all formulas with omitted children
+						theOmmissionAccumulator.getOmittedQueuedEntities().forEach(topAccumulator::registerOmittedCardinality);
+						// and now register omitted cardinality for this node as well
+						topAccumulator.registerOmittedCardinality(queriedEntityComputer.apply(node.entityPrimaryKey()));
 					}
 				}
 			}

@@ -51,7 +51,7 @@ import javax.annotation.Nullable;
  * @param hierarchyFilter               Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter.
  * @param entityIndex                   Contains reference to the owner {@link EntityIndex} of the {@link HierarchyIndex}.
  * @param prefetchRequirementCollector  Reference to the collector of requirements for entity prefetch phase.
- * @param hierarchyReferencingEntityPks Contains a function that produces bitmap of queried entity ids connected with particular hierarchical entity.
+ * @param directlyQueriedEntitiesFormulaProducer Contains a function that produces bitmap of queried entity ids connected with particular hierarchical entity.
  * @param removeEmptyResults            Contains true if hierarchy statistics should be stripped of results with zero occurrences.
  */
 public record HierarchyProducerContext(
@@ -61,7 +61,7 @@ public record HierarchyProducerContext(
 	@Nullable HierarchyFilterConstraint hierarchyFilter,
 	@Nonnull EntityIndex entityIndex,
 	@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
-	@Nonnull IntBiFunction<StatisticsBase, Formula> hierarchyReferencingEntityPks,
+	@Nonnull IntBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
 	boolean removeEmptyResults
 ) {
 

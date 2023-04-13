@@ -155,7 +155,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 								createAndStoreExclusionPredicate(
 									queryContext,
 									hierarchyWithinRoot.getExcludedChildrenFilter(),
-									targetHierarchyIndex
+									targetHierarchyIndex,
+									referencedSchema
 								),
 								hierarchyWithinRoot.isDirectRelation(),
 								targetHierarchyIndex
@@ -169,7 +170,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 								createAndStoreExclusionPredicate(
 									queryContext,
 									hierarchyWithin.getExcludedChildrenFilter(),
-									targetHierarchyIndex
+									targetHierarchyIndex,
+									referencedSchema
 								),
 								hierarchyWithin.isDirectRelation(),
 								hierarchyWithin.isExcludingRoot(),

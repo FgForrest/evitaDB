@@ -108,8 +108,8 @@ public class HierarchyOfReferenceTranslator
 					ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId)))
 						.map(hierarchyIndex -> {
 							final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
-								extraResultPlanner.getFilterByWithoutHierarchyFilter() :
-								extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter();
+								extraResultPlanner.getFilterByWithoutHierarchyFilter(referenceSchema) :
+								extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter(referenceSchema);
 							return createFilterFormula(
 								extraResultPlanner.getQueryContext(),
 								filter, hierarchyIndex

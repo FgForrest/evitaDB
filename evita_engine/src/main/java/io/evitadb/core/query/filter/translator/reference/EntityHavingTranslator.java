@@ -144,7 +144,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 						}
 					);
 					final Formula outputFormula;
-					if (entityIndex instanceof ReferencedTypeEntityIndex) {
+					if (entityIndex instanceof ReferencedTypeEntityIndex || entityIndex == referencedEntityCollection.getGlobalIndex()) {
 						outputFormula = nestedQueryFormula;
 					} else {
 						outputFormula = new ReferenceOwnerTranslatingFormula(

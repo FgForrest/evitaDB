@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.hierarchy;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -61,13 +62,14 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	public static HierarchyFilteringPredicate createAndStoreExclusionPredicate(
 		@Nonnull QueryContext queryContext,
 		@Nullable FilterConstraint[] exclusionFilter,
-		@Nonnull EntityIndex targetHierarchyIndex
-	) {
+		@Nonnull EntityIndex targetHierarchyIndex,
+		@Nullable ReferenceSchemaContract referenceSchema
+		) {
 		if (ArrayUtils.isEmpty(exclusionFilter)) {
 			return null;
 		} else {
 			final FilteringFormulaHierarchyEntityPredicate exclusionPredicate = new FilteringFormulaHierarchyEntityPredicate(
-				queryContext, targetHierarchyIndex, new FilterBy(exclusionFilter)
+				queryContext, targetHierarchyIndex, new FilterBy(exclusionFilter), referenceSchema
 			);
 			queryContext.setHierarchyExclusionPredicate(exclusionPredicate);
 			return exclusionPredicate;

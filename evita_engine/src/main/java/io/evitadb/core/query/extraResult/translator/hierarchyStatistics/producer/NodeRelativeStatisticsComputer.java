@@ -69,7 +69,12 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final FilteringFormulaHierarchyEntityPredicate parentIdPredicate = new FilteringFormulaHierarchyEntityPredicate(context.queryContext(), context.entityIndex(), parentId);
+		final FilteringFormulaHierarchyEntityPredicate parentIdPredicate = new FilteringFormulaHierarchyEntityPredicate(
+			context.queryContext(),
+			context.entityIndex(),
+			parentId,
+			context.referenceSchema()
+		);
 		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();
 
 		if (!parentId.isEmpty()) {
@@ -87,7 +92,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				0,
 				scopePredicate,
 				combinedFilteringPredicate,
-				value -> context.hierarchyReferencingEntityPks().apply(value, statisticsBase),
+				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 				entityFetcher,
 				statisticsType
 			);
