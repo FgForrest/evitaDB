@@ -40,7 +40,6 @@ import java.util.EnumSet;
 
 /**
  * TOBEDONE JNO: docs
- * TODO JNO - dát jako default jen children count a upravit testy!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -70,7 +69,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 				ArrayUtils.mergeArrays(
 					new Serializable[]{statisticsBase},
 					ArrayUtils.isEmpty(statisticsType) ?
-						new StatisticsType[]{StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT} :
+						new StatisticsType[]{StatisticsType.CHILDREN_COUNT} :
 						statisticsType
 				)
 		);

@@ -148,22 +148,18 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	private ExtraResultProducer lastReturnedProducer;
 	/**
-	 * Contains {@link #getFilteringFormula()} without {@link HierarchyWithin} / {@link HierarchyWithinRoot} sub-trees.
+	 * Contains {@link #getFilterBy()} without {@link HierarchyWithin} / {@link HierarchyWithinRoot} sub-constraints.
 	 * The field is initialized lazily.
-	 *
-	 * TODO JNO - change documentation
 	 */
 	@Nullable private FilterBy filterByWithoutHierarchyFilter;
 	/**
 	 * Contains {@link #getFilteringFormula()} without {@link UserFilterFormula} sub-trees. The field is initialized
 	 * lazily.
-	 *
-	 * TODO JNO - change documentation
 	 */
 	private Formula filteringFormulaWithoutUserFilter;
 	/**
-	 * Contains {@link #getFilteringFormula()} without {@link UserFilterFormula} and {@link HierarchyWithin} /
-	 * {@link HierarchyWithinRoot} sub-trees. The field is initialized lazily.
+	 * Contains {@link #getFilterBy()} ()} without {@link UserFilterFormula} and {@link HierarchyWithin} /
+	 * {@link HierarchyWithinRoot} sub-constraints. The field is initialized lazily.
 	 */
 	private FilterBy filteringFormulaWithoutHierarchyAndUserFilter;
 	/**
@@ -224,12 +220,26 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link HierarchyWithin} and
-	 * {@link HierarchyWithinRoot} formula parts. Result of this method is cached so that additional calls introduce no
-	 * performance penalty and also the formula memoized sub-results are shared once the {@link Formula#compute()}
-	 * method is called for the first time.
-	 *
-	 * TODO JNO - change description
+	 * Returns set (usually of size == 1 or 0) that contains references to the {@link UserFilterFormula} inside
+	 * {@link #filteringFormula}. Result of this method is cached so that additional calls introduce no performance
+	 * penalty.
+	 */
+	@Nonnull
+	public Set<Formula> getUserFilteringFormula() {
+		if (userFilterFormula == null) {
+			userFilterFormula = new HashSet<>(
+				FormulaFinder.find(
+					getFilteringFormula(), UserFilterFormula.class, LookUp.SHALLOW
+				)
+			);
+		}
+		return userFilterFormula;
+	}
+
+	/**
+	 * Returns the {@link #getFilterBy()} that is stripped of all {@link HierarchyWithin} and
+	 * {@link HierarchyWithinRoot} sub-constraints. Result of this method is cached so that additional calls introduce no
+	 * performance penalty.
 	 */
 	@Nonnull
 	public FilterBy getFilterByWithoutHierarchyFilter(@Nullable ReferenceSchemaContract referenceSchema) {
@@ -264,15 +274,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Returns the {@link #getFilteringFormula()} that is stripped of all {@link HierarchyWithin},
-	 * {@link HierarchyWithinRoot} formulas and {@link UserFilterFormula} parts. Result of this method is cached so that
-	 * additional calls introduce no performance penalty and also the formula memoized sub-results are shared once
-	 * the {@link Formula#compute()} method is called for the first time.
-	 *
-	 * TODO - JNO upravit dokumentaci
+	 * Returns the {@link #getFilterBy()} that is stripped of all {@link HierarchyWithin},
+	 * {@link HierarchyWithinRoot} constraints and {@link UserFilter} parts. Result of this method is cached so that
+	 * additional calls introduce no performance penalty.
 	 */
 	@Nonnull
-	public FilterBy getFilteringFormulaWithoutHierarchyAndUserFilter(@Nullable ReferenceSchemaContract referenceSchema) {
+	public FilterBy getFilterByWithoutHierarchyAndUserFilter(@Nullable ReferenceSchemaContract referenceSchema) {
 		if (filteringFormulaWithoutHierarchyAndUserFilter == null) {
 			filteringFormulaWithoutHierarchyAndUserFilter = (FilterBy) ofNullable(getFilterBy())
 				.map(it ->
@@ -303,23 +310,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 		}
 		return filteringFormulaWithoutHierarchyAndUserFilter;
-	}
-
-	/**
-	 * Returns set (usually of size == 1 or 0) that contains references to the {@link UserFilterFormula} inside
-	 * {@link #filteringFormula}. Result of this method is cached so that additional calls introduce no performance
-	 * penalty.
-	 */
-	@Nonnull
-	public Set<Formula> getUserFilteringFormula() {
-		if (userFilterFormula == null) {
-			userFilterFormula = new HashSet<>(
-				FormulaFinder.find(
-					getFilteringFormula(), UserFilterFormula.class, LookUp.SHALLOW
-				)
-			);
-		}
-		return userFilterFormula;
 	}
 
 	/**

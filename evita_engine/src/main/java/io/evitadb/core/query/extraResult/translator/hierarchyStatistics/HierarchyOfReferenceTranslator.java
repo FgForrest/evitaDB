@@ -109,7 +109,7 @@ public class HierarchyOfReferenceTranslator
 						.map(hierarchyIndex -> {
 							final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 								extraResultPlanner.getFilterByWithoutHierarchyFilter(referenceSchema) :
-								extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter(referenceSchema);
+								extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(referenceSchema);
 							return createFilterFormula(
 								extraResultPlanner.getQueryContext(),
 								filter, hierarchyIndex

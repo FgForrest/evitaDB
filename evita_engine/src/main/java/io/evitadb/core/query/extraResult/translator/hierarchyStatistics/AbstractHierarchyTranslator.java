@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -124,13 +125,15 @@ public abstract class AbstractHierarchyTranslator {
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param queryContext
-	 * @param filterBy
-	 * @param entityIndex
-	 * @return
+	 * Method creates formula that is responsible for computing the queried entity count for
+	 * {@link HierarchyStatisticsProducer}.
 	 */
-	protected Formula createFilterFormula(@Nonnull QueryContext queryContext, @Nonnull FilterBy filterBy, @Nonnull EntityIndex entityIndex) {
+	@Nonnull
+	protected Formula createFilterFormula(
+		@Nonnull QueryContext queryContext,
+		@Nonnull FilterBy filterBy,
+		@Nonnull EntityIndex entityIndex
+	) {
 		try {
 			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
 				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
@@ -195,13 +198,15 @@ public abstract class AbstractHierarchyTranslator {
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param extraResultPlanner
-	 * @param orderBy
-	 * @param entityIndex
-	 * @return
+	 * Method creates the {@link Sorter} implementation that should be used for sorting {@link LevelInfo} inside
+	 * the {@link HierarchyStatistics} result object.
 	 */
-	protected Sorter createSorter(ExtraResultPlanningVisitor extraResultPlanner, OrderBy orderBy, EntityIndex entityIndex) {
+	@Nonnull
+	protected Sorter createSorter(
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull OrderBy orderBy,
+		@Nonnull EntityIndex entityIndex
+	) {
 		final QueryContext queryContext = extraResultPlanner.getQueryContext();
 		try {
 			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +

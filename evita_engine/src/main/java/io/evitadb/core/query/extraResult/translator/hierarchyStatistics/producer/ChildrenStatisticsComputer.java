@@ -63,8 +63,6 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		/* TODO JNO - optimize traversing when only children statistics is required using `intersect` method of the roaringbitmap */
-
 		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
 			filterPredicate :
 			exclusionPredicate.negate().and(filterPredicate);

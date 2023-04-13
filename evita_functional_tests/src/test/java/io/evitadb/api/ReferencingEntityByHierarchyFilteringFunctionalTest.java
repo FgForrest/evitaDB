@@ -749,7 +749,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics()
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 								)
 							)
 						)
@@ -811,7 +811,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics()
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 								)
 							)
 						)
@@ -1232,7 +1232,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics()
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 								)
 							)
 						)
@@ -1727,8 +1727,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						require(
 							// we don't need the results whatsoever
 							page(1, 0),
-							/* TODO JNO - Uncomment */
-							/*debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),*/
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,

@@ -91,7 +91,7 @@ public class HierarchyOfSelfTranslator
 			(nodeId, statisticsBase) -> {
 				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
-					extraResultPlanner.getFilteringFormulaWithoutHierarchyAndUserFilter(null);
+					extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
 				final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
 					filter,
 					() -> createFilterFormula(

@@ -46,12 +46,11 @@ import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
 import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - document me
+ * The class contains shared logic for integration tests verifying hierarchy filtering and computation logic.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 abstract class AbstractHierarchyTest {
-
 	@Nonnull
 	protected List<LevelInfo> computeChildren(
 		@Nonnull EvitaSessionContract session,

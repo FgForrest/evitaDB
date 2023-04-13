@@ -903,7 +903,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								parents(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics()
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 								)
 							)
 						)
@@ -964,7 +964,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									siblings(),
-									statistics()
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 								)
 							)
 						)
@@ -1034,7 +1034,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									siblings(),
-									statistics()
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 								)
 							)
 						)
@@ -1101,7 +1101,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									siblings(stopAt(distance(1))),
-									statistics()
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 								)
 							)
 						)
@@ -1722,7 +1722,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics()
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 								)
 							)
 						)
