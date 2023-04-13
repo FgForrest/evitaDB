@@ -1795,7 +1795,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithin(
-									Entities.CATEGORY,6,
+									Entities.CATEGORY,16,
 									excluding(
 										entityHaving(
 											attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
@@ -1840,7 +1840,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeSiblings(
-							session, 6, categoryHierarchy,
+							session, 16, categoryHierarchy,
 							categoryCardinalities, true, true
 						)
 					)
@@ -1874,7 +1874,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithin(
-									Entities.CATEGORY,6,
+									Entities.CATEGORY,16,
 									excluding(
 										entityHaving(
 											attributeEqualsTrue(ATTRIBUTE_SHORTCUT)

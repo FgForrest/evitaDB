@@ -145,9 +145,8 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 		}
 	}
 
-	@ConstraintCreatorDef(silentImplicitClassifier = true)
 	public HierarchyOfSelf(
-		@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirements
+		HierarchyRequireConstraint... requirements
 	) {
 		super(new Serializable[0], requirements);
 	}
