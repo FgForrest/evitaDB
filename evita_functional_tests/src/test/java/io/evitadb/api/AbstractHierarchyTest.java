@@ -23,22 +23,26 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.Assert;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
+import org.junit.jupiter.params.provider.Arguments;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -51,6 +55,15 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 abstract class AbstractHierarchyTest {
+
+	protected static Stream<Arguments> statisticTypeVariants() {
+		return Stream.of(
+			Arguments.of(EnumSet.noneOf(StatisticsType.class)),
+			Arguments.of(EnumSet.allOf(StatisticsType.class)),
+			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT)),
+			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT))
+		);
+	}
 	@Nonnull
 	protected List<LevelInfo> computeChildren(
 		@Nonnull EvitaSessionContract session,
@@ -58,11 +71,12 @@ abstract class AbstractHierarchyTest {
 		@Nonnull Hierarchy categoryHierarchy,
 		@Nullable CardinalityProvider categoryCardinalities,
 		boolean excludeParent,
-		boolean computeChildrenCount
+		boolean computeChildrenCount,
+		boolean computeQueuedEntityStatistics
 	) {
 		return computeChildren(
 			session, parentCategoryId, categoryHierarchy, categoryCardinalities,
-			excludeParent, computeChildrenCount, null
+			excludeParent, computeChildrenCount, computeQueuedEntityStatistics, null
 		);
 	}
 
@@ -74,6 +88,7 @@ abstract class AbstractHierarchyTest {
 		@Nullable CardinalityProvider categoryCardinalities,
 		boolean excludeParent,
 		boolean computeChildrenCount,
+		boolean computeQueuedEntityStatistics,
 		@Nullable Comparator<SealedEntity> sorter
 	) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
@@ -90,12 +105,12 @@ abstract class AbstractHierarchyTest {
 			final int categoryId = Integer.parseInt(rootItem.getCode());
 			if (categoryCardinalities == null || categoryCardinalities.isValid(categoryId)) {
 				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
-					session, categoryId, categoryHierarchy, categoryCardinalities, true, computeChildrenCount, sorter
+					session, categoryId, categoryHierarchy, categoryCardinalities, computeChildrenCount, computeQueuedEntityStatistics, sorter
 				);
 				levelInfo.add(
 					new LevelInfo(
 						fetchHierarchyStatisticsEntity(session, categoryId),
-						ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null),
+						computeQueuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null) : null,
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,
 						childrenStatistics
 					)
@@ -110,16 +125,21 @@ abstract class AbstractHierarchyTest {
 	@Nonnull
 	protected List<LevelInfo> computeSiblings(
 		@Nonnull EvitaSessionContract session,
-		int categoryId,
+		@Nullable Integer categoryId,
 		@Nonnull Hierarchy categoryHierarchy,
 		@Nullable CardinalityProvider categoryCardinalities,
-		boolean queuedEntityStatistics,
-		boolean computeChildrenCount
+		boolean computeChildrenCount,
+		boolean computeQueriedEntities
 	) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
-		final HierarchyItem theNode = categoryHierarchy.getItem(String.valueOf(categoryId));
-		Assert.notNull(theNode, "Node with id `" + categoryId + "` is not present!");
-		final HierarchyItem parent = categoryHierarchy.getParentItem(String.valueOf(categoryId));
+		final HierarchyItem parent;
+		if (categoryId == null) {
+			parent = null;
+		} else {
+			final HierarchyItem theNode = categoryHierarchy.getItem(String.valueOf(categoryId));
+			Assert.notNull(theNode, "Node with id `" + categoryId + "` is not present!");
+			parent = categoryHierarchy.getParentItem(String.valueOf(categoryId));
+		}
 		final List<HierarchyItem> items = parent == null ?
 			categoryHierarchy.getRootItems() : categoryHierarchy.getChildItems(parent.getCode());
 
@@ -127,12 +147,12 @@ abstract class AbstractHierarchyTest {
 			final int cid = Integer.parseInt(rootItem.getCode());
 			if (categoryCardinalities == null || categoryCardinalities.isValid(cid)) {
 				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
-					session, cid, categoryHierarchy, categoryCardinalities, queuedEntityStatistics, computeChildrenCount
+					session, cid, categoryHierarchy, categoryCardinalities, computeChildrenCount, computeQueriedEntities
 				);
 				levelInfo.add(
 					new LevelInfo(
 						fetchHierarchyStatisticsEntity(session, cid),
-						queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null) : null,
+						computeQueriedEntities ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null) : null,
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
 						childrenStatistics
 					)
@@ -149,8 +169,8 @@ abstract class AbstractHierarchyTest {
 		@Nonnull Hierarchy categoryHierarchy,
 		@Nullable CardinalityProvider categoryCardinalities,
 		@Nullable Predicate<SealedEntity> siblingsPredicate,
-		boolean queuedEntityStatistics,
-		boolean computeChildrenCount
+		boolean computeChildrenCount,
+		boolean computeQueriedEntities
 	) {
 		final HierarchyItem theNode = categoryHierarchy.getItem(String.valueOf(categoryId));
 		Assert.notNull(theNode, "Node with id `" + categoryId + "` is not present!");
@@ -163,7 +183,7 @@ abstract class AbstractHierarchyTest {
 			final int cid = Integer.parseInt(parentItem.getCode());
 			final LevelInfo currentNodeInfo = new LevelInfo(
 				fetchHierarchyStatisticsEntity(session, cid),
-				queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null) : null,
+				computeQueriedEntities ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(cid)).orElse(null) : null,
 				computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(cid)).orElse(null) : null,
 				nextLevel
 			);
@@ -185,9 +205,9 @@ abstract class AbstractHierarchyTest {
 							if (siblingsPredicate.test(siblingEntity)) {
 								return new LevelInfo(
 									siblingEntity,
-									queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(siblingCid)).orElse(null) : null,
+									computeQueriedEntities ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(siblingCid)).orElse(null) : null,
 									computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(siblingCid)).orElse(null) : null,
-									fetchLevelInfo(session, siblingCid, categoryHierarchy, categoryCardinalities, queuedEntityStatistics, computeChildrenCount)
+									fetchLevelInfo(session, siblingCid, categoryHierarchy, categoryCardinalities, computeChildrenCount, computeQueriedEntities)
 								);
 							} else {
 								return null;
@@ -206,12 +226,12 @@ abstract class AbstractHierarchyTest {
 		int parentCategoryId,
 		@Nonnull Hierarchy categoryHierarchy,
 		@Nullable CardinalityProvider categoryCardinalities,
-		boolean queuedEntityStatistics,
-		boolean computeChildrenCount
+		boolean computeChildrenCount,
+		boolean computeQueriedEntity
 	) {
 		return fetchLevelInfo(
 			session, parentCategoryId, categoryHierarchy, categoryCardinalities,
-			queuedEntityStatistics, computeChildrenCount, null
+			computeChildrenCount, computeQueriedEntity, null
 		);
 	}
 
@@ -220,8 +240,8 @@ abstract class AbstractHierarchyTest {
 		int parentCategoryId,
 		@Nonnull Hierarchy categoryHierarchy,
 		@Nullable CardinalityProvider categoryCardinalities,
-		boolean queuedEntityStatistics,
 		boolean computeChildrenCount,
+		boolean computeQueriedEntities,
 		@Nullable Comparator<SealedEntity> sorter
 	) {
 		final LinkedList<LevelInfo> levelInfo = new LinkedList<>();
@@ -230,12 +250,12 @@ abstract class AbstractHierarchyTest {
 			if (categoryCardinalities == null || categoryCardinalities.isValid(categoryId)) {
 				final List<LevelInfo> childrenStatistics = fetchLevelInfo(
 					session, categoryId, categoryHierarchy, categoryCardinalities,
-					queuedEntityStatistics, computeChildrenCount, sorter
+					computeChildrenCount, computeQueriedEntities, sorter
 				);
 				levelInfo.add(
 					new LevelInfo(
 						fetchHierarchyStatisticsEntity(session, categoryId),
-						queuedEntityStatistics ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null) : null,
+						computeQueriedEntities ? ofNullable(categoryCardinalities).map(it -> it.getCardinality(categoryId)).orElse(null) : null,
 						computeChildrenCount ? ofNullable(categoryCardinalities).map(it -> it.getChildrenCount(categoryId)).orElse(null) : null,
 						childrenStatistics
 					)

@@ -26,11 +26,10 @@ package io.evitadb.externalApi.graphql.api.system;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.test.tester.GraphQLTester;
-import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -56,8 +55,8 @@ public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointF
 
 	@Override
 	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_SYSTEM_REPLACE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
-	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return super.setUpData(evita, evitaServer, 20);
+	protected DataCarrier setUp(Evita evita) {
+		return super.setUpData(evita, 20);
 	}
 
 	@Test

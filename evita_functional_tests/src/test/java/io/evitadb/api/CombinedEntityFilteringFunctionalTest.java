@@ -39,7 +39,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.AssertionUtils;
 import one.edee.oss.pmptt.model.Hierarchy;
@@ -72,7 +72,7 @@ import static io.evitadb.test.generator.DataGenerator.*;
  */
 @DisplayName("Evita entity filtering by combined constraints")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 public class CombinedEntityFilteringFunctionalTest {
 	private static final String THREE_HUNDRED_PRODUCTS_WITH_ALL_DATA = "HundredProductsWithAllData";
 	private static final String ATTRIBUTE_SIZE = "size";

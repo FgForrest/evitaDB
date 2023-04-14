@@ -48,7 +48,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Multiple;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -115,7 +115,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SuppressWarnings({"StatementWithEmptyBody", "Convert2MethodRef"})
 @DisplayName("Evita base API")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 class EvitaApiFunctionalTest {
 	public static final String BRAND = "brand";
 	public static final String PRODUCT = "product";

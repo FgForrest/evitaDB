@@ -51,7 +51,7 @@ class HierarchyStatisticsTest {
 	@Test
 	void shouldToStringReturnExpectedFormat() {
 		final HierarchyStatistics hierarchyStatistics = statistics();
-		assertEquals("statistics(WITHOUT_USER_FILTER,CHILDREN_COUNT,QUERIED_ENTITY_COUNT)", hierarchyStatistics.toString());
+		assertEquals("statistics(WITHOUT_USER_FILTER,CHILDREN_COUNT)", hierarchyStatistics.toString());
 	}
 
 	@Test

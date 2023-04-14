@@ -86,7 +86,7 @@ class HierarchyFromNodeTest {
 		assertEquals("fromNode('megaMenu',node(filterBy(entityPrimaryKeyInSet(1))),entityFetch(attributeContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", hierarchyFromNode2.toString());
 
 		final HierarchyFromNode hierarchyFromNode3 = fromNode("megaMenu", NODE_REF, statistics());
-		assertEquals("fromNode('megaMenu',node(filterBy(entityPrimaryKeyInSet(1))),statistics(WITHOUT_USER_FILTER,CHILDREN_COUNT,QUERIED_ENTITY_COUNT))", hierarchyFromNode3.toString());
+		assertEquals("fromNode('megaMenu',node(filterBy(entityPrimaryKeyInSet(1))),statistics(WITHOUT_USER_FILTER,CHILDREN_COUNT))", hierarchyFromNode3.toString());
 	}
 
 	@Test

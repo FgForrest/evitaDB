@@ -74,7 +74,7 @@ class HierarchySiblingsTest {
 		assertEquals("siblings('megaMenu',entityFetch(attributeContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", hierarchySiblings1.toString());
 
 		final HierarchySiblings hierarchySiblings2 = siblings("megaMenu", statistics());
-		assertEquals("siblings('megaMenu',statistics(WITHOUT_USER_FILTER,CHILDREN_COUNT,QUERIED_ENTITY_COUNT))", hierarchySiblings2.toString());
+		assertEquals("siblings('megaMenu',statistics(WITHOUT_USER_FILTER,CHILDREN_COUNT))", hierarchySiblings2.toString());
 	}
 
 	@Test

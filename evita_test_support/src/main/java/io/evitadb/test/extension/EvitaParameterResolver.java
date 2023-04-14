@@ -114,7 +114,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DbInstanceParameterResolver implements ParameterResolver, BeforeAllCallback, AfterAllCallback, AfterEachCallback, EvitaTestSupport {
+public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallback, AfterAllCallback, AfterEachCallback, EvitaTestSupport {
 	protected static final Path STORAGE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita");
 	protected final static AtomicInteger CREATED_EVITA_ENTITIES = new AtomicInteger();
 	protected final static AtomicInteger CREATED_EVITA_INSTANCES = new AtomicInteger();
@@ -125,6 +125,12 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			ExternalApiProviderRegistrar::getExternalApiCode,
 			Function.identity()
 		));
+	private static final String PARAMETER_CATALOG_NAME = "catalogName";
+
+	private static final String DATA_NAME_EVITA = "evita";
+	private static final String DATA_NAME_CATALOG_NAME = "catalogName";
+	private static final String DATA_NAME_EVITA_SESSION = "evitaSession";
+	private static final String DATA_NAME_EVITA_SERVER = "evitaServer";
 	private static final String EVITA_DATA_SET_INDEX = "__dataSetIndex";
 	private static final String EVITA_ANONYMOUS_EVITA = "__anonymousEvita";
 	private static final Random RANDOM = new Random();
@@ -466,14 +472,29 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
 		final UseDataSet methodUseDataSet = ofNullable(extensionContext.getRequiredTestMethod().getAnnotation(UseDataSet.class))
 			.orElseGet(() -> getAnnotationOnSuperMethod(extensionContext, UseDataSet.class));
-		final UseDataSet useDataSet = resolveUseDataSetAnnotation(extensionContext, methodUseDataSet);
-		final Optional<DataSetInfo> dataSetInfo = ofNullable(useDataSet)
-			.map(it -> getDataSetIndex(extensionContext).get(it.value()));
+		final UseDataSet parameterUseDataSet = ofNullable(parameterContext.getParameter().getAnnotation(UseDataSet.class))
+			.orElseGet(() -> getParameterAnnotationOnSuperMethod(parameterContext, extensionContext, UseDataSet.class));
+		Assert.isTrue(
+			parameterUseDataSet == null || methodUseDataSet == null,
+			"UseDataSet annotation can be specified on parameter OR method level, but not both!"
+		);
+		final Map<String, DataSetInfo> dataSetIndex = getDataSetIndex(extensionContext);
+		final UseDataSet useDataSet = ofNullable(methodUseDataSet).orElse(parameterUseDataSet);
+		final DataSetInfo dataSetInfo = getInitializedDataSetInfo(useDataSet, dataSetIndex, extensionContext);
 
 		return EvitaContract.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			EvitaSessionContract.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			EvitaServer.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
-			dataSetInfo.isPresent();
+			GraphQLTester.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
+			RestTester.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
+			EvitaClient.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
+			(String.class.isAssignableFrom(parameterContext.getParameter().getType()) && PARAMETER_CATALOG_NAME.equals(parameterContext.getParameter().getName())) ||
+			ofNullable(dataSetInfo.dataCarrier())
+				.map(
+					it -> ofNullable(it.getValueByName(parameterContext.getParameter().getName()))
+						.orElseGet(() -> it.getValueByType(parameterContext.getParameter().getType()))
+				)
+				.orElse(null) != null;
 	}
 
 	@Nullable
@@ -581,7 +602,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 					);
 				}
 			);
-		} else if ("catalogName".equals(requestedParam.getName())) {
+		} else if (PARAMETER_CATALOG_NAME.equals(requestedParam.getName())) {
 			// return catalog name
 			return dataSetInfo.catalogName();
 		} else {
@@ -659,10 +680,10 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 							try {
 								final Method initMethod = dataSetInfo.initMethod().method();
 								final LinkedHashMap<String, Object> argumentDictionary = createLinkedHashMap(
-									property("evita", evita),
-									property("catalogName", dataSetInfo.catalogName()),
+									property(DATA_NAME_EVITA, evita),
+									property(DATA_NAME_CATALOG_NAME, dataSetInfo.catalogName()),
 									property(
-										"evitaSession",
+										DATA_NAME_EVITA_SESSION,
 										new LazyParameter<>(
 											EvitaSessionContract.class,
 											() -> evita.createReadWriteSession(dataSetInfo.catalogName())
@@ -670,7 +691,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 									)
 								);
 								if (evitaServer != null) {
-									argumentDictionary.put("evitaServer", evitaServer);
+									argumentDictionary.put(DATA_NAME_EVITA_SERVER, evitaServer);
 								}
 								final Object[] arguments = placeArguments(initMethod, argumentDictionary);
 								if (arguments == null) {
@@ -749,7 +770,7 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 	}
 
 	@Nonnull
-	private EvitaServer openWebApi(
+	private static EvitaServer openWebApi(
 		@Nonnull Evita evita,
 		@Nonnull ApiOptions apiOptions
 	) {
@@ -984,9 +1005,9 @@ public class DbInstanceParameterResolver implements ParameterResolver, BeforeAll
 			for (Method destroyMethod : dataSetInfo.destroyMethods()) {
 				try {
 					final HashMap<String, Object> availableParameters = createLinkedHashMap(
-						property("evita", evitaInstance),
-						property("evitaServer", evitaServerInstance),
-						property("catalogName", dataSetInfo.catalogName())
+						property(DATA_NAME_EVITA, evitaInstance),
+						property(DATA_NAME_EVITA_SERVER, evitaServerInstance),
+						property(DATA_NAME_CATALOG_NAME, dataSetInfo.catalogName())
 					);
 					for (Entry<String, Object> entry : dataCarrier.entrySet()) {
 						availableParameters.put(entry.getKey(), entry.getValue());

@@ -47,7 +47,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +57,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -89,7 +91,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @DisplayName("Evita referenced entity filtering by hierarchy functionality")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class ReferencingEntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyTest {
 	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
@@ -725,8 +727,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return cardinalities for products")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
-	void shouldReturnCardinalitiesForProducts(Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForProducts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -749,7 +752,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -766,7 +769,12 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
-						computeChildren(session, null, categoryHierarchy, categoryCardinalities, false, true)
+						computeChildren(
+							session, null, categoryHierarchy, categoryCardinalities,
+							false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+						)
 					)
 				);
 
@@ -781,8 +789,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return cardinalities for products in subtree")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForProductsWhenSubTreeIsRequested(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -811,7 +821,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -828,7 +838,13 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
-						computeChildren(session, null, categoryHierarchy, categoryCardinalities, false, true)
+						computeChildren(
+							session, null,
+							categoryHierarchy, categoryCardinalities,
+							false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+						)
 					)
 				);
 
@@ -843,8 +859,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for sibling categories with all statistics within requested category 2")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForCategorySiblingsWhenSubTreeIsRequested(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -872,7 +890,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								siblings(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -894,7 +912,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -910,8 +930,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for categories with all statistics within category 2")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForCategoriesOfCertainCategory(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -940,7 +962,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(2))),
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -968,7 +990,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, 2, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -984,8 +1008,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for root categories with all statistics in distance 1")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForRootCategoriesInDistanceOne(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1014,7 +1040,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1037,7 +1063,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1053,8 +1081,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for requested categories with all statistics in distance 1")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForRequestedCategoriesInDistanceOne(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1083,7 +1113,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1111,7 +1141,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1127,8 +1159,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for requested category siblings with all statistics in distance 1")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForRequestedCategorySiblingsInDistanceOne(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1157,7 +1191,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1185,7 +1219,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1201,8 +1237,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for specified category with all statistics in distance 1")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForSpecifiedCategoryInDistanceOne(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1232,7 +1270,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1259,7 +1297,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1275,8 +1315,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return root children for categories with all statistics in distance 1 within when no filtering constraint is specified")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForWithinCategoryInDistanceOne(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1304,7 +1346,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1326,7 +1368,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities, true,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1342,8 +1386,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for root categories with all statistics until shortcut category is reached")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForRootCategoriesAndStopAtShortCuts(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1371,7 +1417,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1390,7 +1436,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1406,8 +1454,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for categories with all statistics until shortcut category is reached within category 1")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedAndStopAtShortCuts(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1436,7 +1486,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
 									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1462,7 +1512,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1478,8 +1530,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for categories with all statistics until shortcut category is reached within requested category 1")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForRequestedCategoryAndStopAtShortCuts(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1508,7 +1562,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1536,7 +1590,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1552,8 +1608,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return siblings for categories with all statistics until shortcut category is reached within requested category 6")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnSiblingsCardinalitiesForRequestedCategoryAndStopAtShortCuts(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1582,7 +1640,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1610,7 +1668,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1626,8 +1686,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for categories with all statistics except shortcut categories")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForCategoriesExceptShortCuts(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1662,7 +1724,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1682,7 +1744,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1698,8 +1762,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for categories with all statistics except shortcut categories within category 1")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedExceptShortCuts(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1734,7 +1800,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								children(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1761,7 +1827,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1777,8 +1845,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children categories with all statistics except shortcut categories for siblings of category 6")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnSiblingCardinalitiesForCategoriesWhenSubTreeIsRequestedExceptShortCuts(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1813,7 +1883,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								siblings(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1840,7 +1910,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeSiblings(
 							session, 16, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1856,8 +1928,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for categories with all statistics except shortcut categories for category 1")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForCategoriesForRequestedSubTreeExceptShortCuts(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1893,7 +1967,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1920,7 +1994,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1936,8 +2012,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for categories with all statistics until level 2")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForCategoriesUntilLevelTwo(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -1965,7 +2043,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(level(2)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1987,7 +2065,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2003,8 +2083,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for categories with all statistics in category 1 until level two")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedUntilLevelTwo(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -2033,7 +2115,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(level(2)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2059,7 +2141,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2075,8 +2159,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return children for categories with all statistics in category 1 until level two")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnCardinalitiesForCategoriesForSelectedSubTreeUntilLevelTwo(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -2106,7 +2192,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
 									stopAt(level(2)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2132,7 +2218,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2148,8 +2236,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 	@DisplayName("Should return sorted children for categories with all statistics until level two")
 	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
 	void shouldReturnSortedCardinalitiesUntilLevelTwo(
+		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
 		List<SealedEntity> originalCategoryEntities,
@@ -2181,7 +2271,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(level(2)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2203,7 +2293,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true,
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
 							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class))
 						)
 					)

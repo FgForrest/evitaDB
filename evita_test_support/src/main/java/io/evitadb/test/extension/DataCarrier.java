@@ -50,6 +50,11 @@ public class DataCarrier {
 		}
 	}
 
+	public DataCarrier(String name, Object value) {
+		this.valuesByName.put(name, value);
+		this.valuesByType.put(value.getClass(), value);
+	}
+
 	public DataCarrier(String name, Object value, String name2, Object value2) {
 		this.valuesByName.put(name, value);
 		this.valuesByName.put(name2, value2);

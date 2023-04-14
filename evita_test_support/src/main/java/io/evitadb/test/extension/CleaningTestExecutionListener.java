@@ -24,7 +24,7 @@
 package io.evitadb.test.extension;
 
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.extension.DbInstanceParameterResolver.DataSetInfo;
+import io.evitadb.test.extension.EvitaParameterResolver.DataSetInfo;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -43,8 +43,8 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.stream.Collectors;
 
-import static io.evitadb.test.extension.DbInstanceParameterResolver.DATA_SET_INFO;
-import static io.evitadb.test.extension.DbInstanceParameterResolver.STORAGE_PATH;
+import static io.evitadb.test.extension.EvitaParameterResolver.DATA_SET_INFO;
+import static io.evitadb.test.extension.EvitaParameterResolver.STORAGE_PATH;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -137,9 +137,9 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 		ConsoleWriter.write("\nTests finished in: " + StringUtils.formatNano(System.nanoTime() - this.testsStarted) + "\n", ConsoleColor.BRIGHT_YELLOW);
 		ConsoleWriter.write(
 			"Evita statistics:\n" +
-				"\t- instances created: " + DbInstanceParameterResolver.CREATED_EVITA_INSTANCES + "\n" +
-				"\t- simultaneous instances peak: " + DbInstanceParameterResolver.PEAK_EVITA_INSTANCES + "\n" +
-				"\t- entities created: " + DbInstanceParameterResolver.CREATED_EVITA_ENTITIES + "\n" +
+				"\t- instances created: " + EvitaParameterResolver.CREATED_EVITA_INSTANCES + "\n" +
+				"\t- simultaneous instances peak: " + EvitaParameterResolver.PEAK_EVITA_INSTANCES + "\n" +
+				"\t- entities created: " + EvitaParameterResolver.CREATED_EVITA_ENTITIES + "\n" +
 				"\t- ports opened: " + getPortManager().getCounter() + "\n" +
 				"\t- simultaneously opened ports: " + getPortManager().getPeak() + "\n\n",
 			ConsoleColor.DARK_GREEN

@@ -26,13 +26,10 @@ package io.evitadb.externalApi.graphql.api.testSuite;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
-import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,7 +46,7 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public abstract class GraphQLEndpointFunctionalTest {
 
@@ -61,21 +58,17 @@ public abstract class GraphQLEndpointFunctionalTest {
 	}
 
 	@DataSet(value = TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS, openWebApi = GraphQLProvider.CODE)
-	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
-		return setUpData(evita, evitaServer, 1000);
+	protected DataCarrier setUp(Evita evita) {
+		return setUpData(evita, 1000);
 	}
 
 	@Nonnull
-	protected DataCarrier setUpData(Evita evita, EvitaServer evitaServer, int productCount) {
+	protected DataCarrier setUpData(Evita evita, int productCount) {
 		TestDataGenerator.generateMockCatalogs(evita);
 		final List<SealedEntity> entities = TestDataGenerator.generateMainCatalogEntities(evita, productCount);
-		final HostDefinition[] host = evitaServer.getExternalApiServer().getApiOptions()
-			.getEndpointConfiguration(GraphQLProvider.CODE)
-			.getHost();
 
 		return new DataCarrier(
-			"entities", entities,
-			"tester"
+			"originalProductEntities", entities
 		);
 	}
 }

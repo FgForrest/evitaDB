@@ -49,7 +49,7 @@ import io.evitadb.test.TestConstants;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -89,7 +89,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaClientDataSet";

@@ -71,7 +71,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.CollectionUtils;
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
@@ -109,7 +109,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("EvitaSessionService gRPC functional test")
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Tag(FUNCTIONAL_TEST)
 @Slf4j
 class EvitaSessionServiceFunctionalTest {

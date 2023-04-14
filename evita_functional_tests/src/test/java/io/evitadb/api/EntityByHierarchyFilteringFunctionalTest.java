@@ -36,12 +36,13 @@ import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
@@ -50,17 +51,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -88,7 +83,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @DisplayName("Evita entity filtering by hierarchy functionality")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyTest {
 	private static final String THOUSAND_CATEGORIES = "ThousandCategories";
@@ -111,7 +106,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						schemaBuilder -> {
 							schemaBuilder
 								.withAttribute(ATTRIBUTE_PRIORITY, Long.class, whichIs -> whichIs.filterable().sortable())
-								.withAttribute(ATTRIBUTE_SHORTCUT, Boolean.class, whichIs -> whichIs.filterable());
+								.withAttribute(ATTRIBUTE_SHORTCUT, Boolean.class, AttributeSchemaEditor::filterable);
 						}
 					),
 					randomEntityPicker,
@@ -472,7 +467,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				// all results should start with same parents when we query by hierarchy
 				for (EntityReference entityReference : result.getRecordData()) {
 					final Integer[] relatedParents = Arrays.stream(categoryParents.getParentsFor(entityReference.getPrimaryKey()))
-						.map(it -> it.getPrimaryKey())
+						.map(EntityClassifier::getPrimaryKey)
 						.toArray(Integer[]::new);
 					final Integer[] parentIds = categoryHierarchy
 						.getParentItems(String.valueOf(entityReference.getPrimaryKey()))
@@ -524,7 +519,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				// all results should start with same parents when we query by hierarchy
 				for (SealedEntity entity : result.getRecordData()) {
 					final Integer[] relatedParents = Arrays.stream(categoryParents.getParentsFor(entity.getPrimaryKey()))
-						.map(it -> it.getPrimaryKey())
+						.map(EntityClassifier::getPrimaryKey)
 						.toArray(Integer[]::new);
 					final Integer[] parentIds = categoryHierarchy
 						.getParentItems(String.valueOf(entity.getPrimaryKey()))
@@ -600,10 +595,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories without statistics")
+	@DisplayName("Should return children for categories")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategories(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -621,7 +617,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent())
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -637,7 +634,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							null, false, false
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -651,10 +650,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories without statistics for category 1")
+	@DisplayName("Should return children for categories for category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForRequestedNodeWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesForRequestedNode(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -673,170 +673,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								fromNode(
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
-									entityFetch(attributeContent())
-								)
-							)
-						)
-					),
-					EntityReference.class
-				);
-
-				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
-				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, languagePredicate,
-					categoryCardinalities -> new HierarchyStatisticsTuple(
-						"megaMenu",
-						computeChildren(
-							session, 1, categoryHierarchy,
-							null, false, false
-						)
-					)
-				);
-
-				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
-				assertNotNull(statistics);
-				assertEquals(expectedStatistics, statistics);
-
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return children for categories without statistics for requested category 1")
-	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.CATEGORY),
-						filterBy(
-							and(
-								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(1)
-							)
-						),
-						require(
-							// we don't need the results whatsoever
-							page(1, 0),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							// we need only data about cardinalities
-							hierarchyOfSelf(
-								children(
-									"megaMenu",
-									entityFetch(attributeContent())
-								)
-							)
-						)
-					),
-					EntityReference.class
-				);
-
-				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
-				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, languagePredicate,
-					categoryCardinalities -> new HierarchyStatisticsTuple(
-						"megaMenu",
-						computeChildren(
-							session, 1, categoryHierarchy,
-							null, false, false
-						)
-					)
-				);
-
-				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
-				assertNotNull(statistics);
-				assertEquals(expectedStatistics, statistics);
-
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return parents for categories without statistics for requested category 6")
-	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForParentsWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.CATEGORY),
-						filterBy(
-							and(
-								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(30)
-							)
-						),
-						require(
-							// we don't need the results whatsoever
-							page(1, 0),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							// we need only data about cardinalities
-							hierarchyOfSelf(
-								parents(
-									"megaMenu",
-									entityFetch(attributeContent())
-								)
-							)
-						)
-					),
-					EntityReference.class
-				);
-
-				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
-				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, languagePredicate,
-					categoryCardinalities -> new HierarchyStatisticsTuple(
-						"megaMenu",
-						computeParents(
-							session, 30, categoryHierarchy,
-							null, null, false,false
-						)
-					)
-				);
-
-				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
-				assertNotNull(statistics);
-				assertEquals(expectedStatistics, statistics);
-
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return parents with siblings for categories without statistics for requested category 6")
-	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForParentsWithSiblingsWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.CATEGORY),
-						filterBy(
-							and(
-								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(30)
-							)
-						),
-						require(
-							// we don't need the results whatsoever
-							page(1, 0),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							// we need only data about cardinalities
-							hierarchyOfSelf(
-								parents(
-									"megaMenu",
 									entityFetch(attributeContent()),
-									siblings(entityFetch(attributeContent()))
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -844,27 +682,17 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					EntityReference.class
 				);
 
-				final Set<Integer> allowedParents = Stream.of(1, 6, 21, 30).collect(Collectors.toSet());
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
-				final TestHierarchyPredicate scopePredicate =
-					(entity, parentItems) ->
-					{
-						final boolean isDirectParent = allowedParents.contains(entity.getPrimaryKey());
-						final boolean isRoot = parentItems.isEmpty();
-						final boolean isChildOfAnyParent = !isRoot && allowedParents.contains(Integer.parseInt(parentItems.get(parentItems.size() - 1).getCode()));
-						final boolean isChildOfRequestedCategory = parentItems.stream().anyMatch(it -> it.getCode().equals("30"));
-						return entity.getLocales().contains(CZECH_LOCALE) &&
-							(isDirectParent || isRoot || isChildOfAnyParent || isChildOfRequestedCategory);
-					};
 				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, scopePredicate,
+					languagePredicate, languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
-						computeParents(
-							session, 30, categoryHierarchy,
-							categoryCardinalities, entity -> true,
-							false, false
+						computeChildren(
+							session, 1, categoryHierarchy,
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -880,8 +708,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return parents for categories with statistics for requested category 30")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForParentsWithStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesForParents(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -903,7 +732,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								parents(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -924,7 +753,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeParents(
 							session, 30, categoryHierarchy,
-							categoryCardinalities, null, true,true
+							categoryCardinalities, null,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -940,8 +770,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return parents with siblings for categories with statistics for requested category 30")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForParentsAndSiblingsWithStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesForParentsAndSiblings(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -964,7 +795,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									siblings(),
-									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -991,7 +822,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeParents(
 							session, 30, categoryHierarchy,
-							categoryCardinalities, entity -> true, true, true
+							categoryCardinalities, entity -> true,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1005,10 +837,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return parents with filtered siblings for categories with statistics for requested category 30")
+	@DisplayName("Should return parents with filtered siblings for categories for requested category 30")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForParentsAndFilteredSiblingsWithStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesForParentsAndFilteredSiblings(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1034,7 +867,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									siblings(),
-									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1061,7 +894,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeParents(
 							session, 30, categoryHierarchy,
 							categoryCardinalities, entity -> !disallowedParents.contains(entity.getPrimaryKey()),
-							true, true
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1075,10 +908,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return parents with siblings with level below for categories with statistics for requested category 30")
+	@DisplayName("Should return parents with siblings with level below for categories for requested category 30")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForParentsAndSiblingsWithLevelBelowWithStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesForParentsAndSiblingsWithLevelBelow(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1101,7 +935,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									siblings(stopAt(distance(1))),
-									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1129,7 +963,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeParents(
 							session, 30, categoryHierarchy,
 							categoryCardinalities, entity -> true,
-							true, true
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1143,10 +977,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return siblings children for categories without statistics for requested root category 1")
+	@DisplayName("Should return root siblings for categories")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForSiblingCategoriesWhenRootSubTreeIsRequestedWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForSiblingCategoriesWhenRootIsRequested(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1154,10 +989,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
-							and(
-								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(1)
-							)
+							entityLocaleEquals(CZECH_LOCALE)
 						),
 						require(
 							// we don't need the results whatsoever
@@ -1167,7 +999,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							hierarchyOfSelf(
 								siblings(
 									"megaMenu",
-									entityFetch(attributeContent())
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1184,118 +1017,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeSiblings(
-							session, 1, categoryHierarchy,
-							categoryCardinalities, false, false
-						)
-					)
-				);
-
-				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
-				assertNotNull(statistics);
-				assertEquals(expectedStatistics, statistics);
-
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return siblings children for categories without statistics for requested category 2")
-	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForSiblingCategoriesWhenSubTreeIsRequestedWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.CATEGORY),
-						filterBy(
-							and(
-								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(2)
-							)
-						),
-						require(
-							// we don't need the results whatsoever
-							page(1, 0),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							// we need only data about cardinalities
-							hierarchyOfSelf(
-								siblings(
-									"megaMenu",
-									entityFetch(attributeContent())
-								)
-							)
-						)
-					),
-					EntityReference.class
-				);
-
-				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
-				final TestHierarchyPredicate scopePredicate = (entity, parentItems) -> parentItems.isEmpty() && languagePredicate.test(entity, parentItems);
-				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, scopePredicate,
-					categoryCardinalities -> new HierarchyStatisticsTuple(
-						"megaMenu",
-						computeSiblings(
-							session, 2, categoryHierarchy,
-							categoryCardinalities, false, false
-						)
-					)
-				);
-
-				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
-				assertNotNull(statistics);
-				assertEquals(expectedStatistics, statistics);
-
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return siblings for requested category 1 without statistics")
-	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForSiblingsWithoutStatistics(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.CATEGORY),
-						filterBy(
-							and(
-								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(1)
-							)
-						),
-						require(
-							// we don't need the results whatsoever
-							page(1, 0),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							// we need only data about cardinalities
-							hierarchyOfSelf(
-								siblings(
-									"megaMenu",
-									entityFetch(attributeContent())
-								)
-							)
-						)
-					),
-					EntityReference.class
-				);
-
-				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
-				final TestHierarchyPredicate scopePredicate = (entity, parentItems) -> parentItems.isEmpty() && languagePredicate.test(entity, parentItems);
-				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalCategoryEntities,
-					languagePredicate, scopePredicate,
-					categoryCardinalities -> new HierarchyStatisticsTuple(
-						"megaMenu",
-						computeSiblings(
-							session, 1, categoryHierarchy,
-							categoryCardinalities, false, false
+							session, null, categoryHierarchy,
+							categoryCardinalities,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1311,8 +1035,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics within requested category 2")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequested(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequested(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1334,7 +1059,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								children(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1359,7 +1084,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 2, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1375,8 +1102,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for sibling categories with all statistics within requested category 2")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategorySiblingsWhenSubTreeIsRequested(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategorySiblingsWhenSubTreeIsRequested(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1398,7 +1126,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								siblings(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1419,7 +1147,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1435,8 +1164,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics within category 2")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesOfCertainCategory(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesOfCertainCategory(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1459,7 +1189,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(2))),
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1486,7 +1216,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 2, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1502,8 +1234,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for root categories with all statistics in distance 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForRootCategoriesInDistanceOne(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForRootCategoriesInDistanceOne(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1526,7 +1259,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1547,7 +1280,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1563,8 +1298,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for requested categories with all statistics in distance 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForRequestedCategoriesInDistanceOne(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForRequestedCategoriesInDistanceOne(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1587,7 +1323,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1614,7 +1350,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1630,8 +1368,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for requested category siblings with all statistics in distance 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForRequestedCategorySiblingsInDistanceOne(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForRequestedCategorySiblingsInDistanceOne(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1654,7 +1393,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1681,7 +1420,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1697,8 +1437,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for specified category with all statistics in distance 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForSpecifiedCategoryInDistanceOne(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForSpecifiedCategoryInDistanceOne(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1722,7 +1463,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1748,7 +1489,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1764,8 +1507,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return root children for categories with all statistics in distance 1 within when no filtering constraint is specified")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForWithinCategoryInDistanceOne(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForWithinCategoryInDistanceOne(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1787,7 +1531,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(distance(1)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1808,7 +1552,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities, true,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1824,8 +1570,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for root categories with all statistics until shortcut category is reached")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForRootCategoriesAndStopAtShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForRootCategoriesAndStopAtShortCuts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1847,7 +1594,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1865,7 +1612,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1881,8 +1630,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics until shortcut category is reached within category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedAndStopAtShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedAndStopAtShortCuts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1905,7 +1655,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
 									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1930,7 +1680,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -1946,8 +1698,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics until shortcut category is reached within requested category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForRequestedCategoryAndStopAtShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForRequestedCategoryAndStopAtShortCuts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1970,7 +1723,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -1997,7 +1750,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2013,8 +1768,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return siblings for categories with all statistics until shortcut category is reached within requested category 6")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnSiblingsCardinalitiesForRequestedCategoryAndStopAtShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnSiblingsCardinalitiesForRequestedCategoryAndStopAtShortCuts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2037,7 +1793,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2064,7 +1820,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2080,8 +1837,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics except shortcut categories")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesExceptShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesExceptShortCuts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2107,7 +1865,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2126,7 +1884,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2142,8 +1902,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics except shortcut categories within category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedExceptShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedExceptShortCuts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2165,7 +1926,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								children(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2191,7 +1952,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2207,8 +1970,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children categories with all statistics except shortcut categories for siblings of category 6")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnSiblingCardinalitiesForCategoriesWhenSubTreeIsRequestedExceptShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnSiblingCardinalitiesForCategoriesWhenSubTreeIsRequestedExceptShortCuts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2230,7 +1994,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								siblings(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2256,7 +2020,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeSiblings(
 							session, 6, categoryHierarchy,
-							categoryCardinalities, true, true
+							categoryCardinalities,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2272,8 +2037,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics except shortcut categories for category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForRequestedSubTreeExceptShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesForRequestedSubTreeExceptShortCuts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2296,7 +2062,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2322,7 +2088,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2338,8 +2106,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics until level 2")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesUntilLevelTwo(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesUntilLevelTwo(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2361,7 +2130,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(level(2)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2382,7 +2151,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2398,8 +2169,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics in category 1 until level two")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedUntilLevelTwo(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesWhenSubTreeIsRequestedUntilLevelTwo(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2422,7 +2194,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(level(2)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2447,7 +2219,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2463,8 +2237,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return children for categories with all statistics in category 1 until level two")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnCardinalitiesForCategoriesForSelectedSubTreeUntilLevelTwo(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnCardinalitiesForCategoriesForSelectedSubTreeUntilLevelTwo(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2488,7 +2263,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
 									stopAt(level(2)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2513,7 +2288,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, 1, categoryHierarchy,
-							categoryCardinalities, false, true
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);
@@ -2529,8 +2306,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 	@DisplayName("Should return sorted children for categories with all statistics until level two")
 	@UseDataSet(THOUSAND_CATEGORIES)
-	@Test
-	void shouldReturnSortedCardinalitiesUntilLevelTwo(Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest
+	@MethodSource("statisticTypeVariants")
+	void shouldReturnSortedCardinalitiesUntilLevelTwo(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2556,7 +2334,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 									"megaMenu",
 									entityFetch(attributeContent()),
 									stopAt(level(2)),
-									statistics(StatisticsType.QUERIED_ENTITY_COUNT, StatisticsType.CHILDREN_COUNT)
+									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
@@ -2577,7 +2355,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeChildren(
 							session, null, categoryHierarchy,
-							categoryCardinalities, false, true,
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
 							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class))
 						)
 					)
