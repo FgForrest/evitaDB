@@ -83,6 +83,7 @@ public class HierarchyParentsTranslator
 						parents.getEntityFetch().orElse(null),
 						producer.getContext(parents.getName())
 					),
+					context.hierarchyFilterPredicateProducer(),
 					extraResultPlanningVisitor.getQueryContext().getHierarchyExclusionPredicate(),
 					scopePredicate,
 					statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
@@ -119,6 +120,7 @@ public class HierarchyParentsTranslator
 				siblings.getEntityFetch().orElse(parentEntityFetch),
 				context
 			),
+			context.hierarchyFilterPredicateProducer(),
 			context.queryContext().getHierarchyExclusionPredicate(),
 			scopePredicate,
 			statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),

@@ -55,6 +55,17 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		super(arguments);
 	}
 
+	public HierarchyStatistics(
+		@Nonnull StatisticsBase statisticsBase
+	) {
+		// because this query can be used only within some other hierarchy query, it would be
+		// unnecessary to duplicate the hierarchy prefix
+		super(
+			"statistics",
+			new Serializable[]{statisticsBase}
+		);
+	}
+
 	@ConstraintCreatorDef
 	public HierarchyStatistics(
 		@Nonnull @ConstraintValueParamDef StatisticsBase statisticsBase,
@@ -64,14 +75,13 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		// unnecessary to duplicate the hierarchy prefix
 		super(
 			"statistics",
-			statisticsBase == null ?
-				new Serializable[0] :
-				ArrayUtils.mergeArrays(
-					new Serializable[]{statisticsBase},
-					ArrayUtils.isEmpty(statisticsType) ?
-						new StatisticsType[]{StatisticsType.CHILDREN_COUNT} :
-						statisticsType
-				)
+			ArrayUtils.mergeArrays(
+				statisticsBase == null ?
+					new Serializable[] {StatisticsBase.WITHOUT_USER_FILTER} : new Serializable[] {statisticsBase},
+				ArrayUtils.isEmpty(statisticsType) ?
+					new StatisticsType[]{StatisticsType.CHILDREN_COUNT} :
+					statisticsType
+			)
 		);
 	}
 

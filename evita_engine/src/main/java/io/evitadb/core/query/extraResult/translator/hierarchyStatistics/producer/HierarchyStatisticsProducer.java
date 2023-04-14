@@ -60,6 +60,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -95,16 +96,16 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 */
 	@Nonnull private final Map<String, HierarchySet> hierarchyRequests = new HashMap<>(16);
 	/**
-	 * Contains producer instance of the computer that should build collections of {@link LevelInfo} for each queried
-	 * hierarchical entity. Each producer contains all information necessary.
-	 */
-	@Nullable private HierarchySet selfHierarchyRequest;
-	/**
 	 * The reference contains the information captured at the moment when translator visitor encounters constraints
 	 * {@link HierarchyOfSelf} or {@link HierarchyOfReference} and contains shared context for all internal
 	 * sub-translators.
 	 */
 	private final AtomicReference<HierarchyProducerContext> context = new AtomicReference<>();
+	/**
+	 * Contains producer instance of the computer that should build collections of {@link LevelInfo} for each queried
+	 * hierarchical entity. Each producer contains all information necessary.
+	 */
+	@Nullable private HierarchySet selfHierarchyRequest;
 
 	@Nullable
 	@Override
@@ -129,14 +130,16 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	/**
 	 * Registers new {@link LevelInfo} collection computation request for passed `referenceSchema`.
 	 *
-	 * @param entitySchema                  target hierarchy entity {@link EntitySchema}
-	 * @param referenceSchema               relates to reference schema {@link ReferenceSchema} that target the hierarchy entity
-	 * @param hierarchyWithin               limits the statistics to certain subtree of the hierarchy
-	 * @param targetIndex                   owner entityIndex for hierarchy index
-	 * @param hierarchyReferencingEntityPks represents function that produces bitmap of queried entity ids connected
-	 *                                      with particular hierarchical entity
-	 * @param behaviour                     controls whether items with {@link LevelInfo#queriedEntityCount()} equal to zero should be excluded
-	 * @param interpretationLambda          lambda that allows additional configuration of the {@link AbstractHierarchyStatisticsComputer}
+	 * @param entitySchema                           target hierarchy entity {@link EntitySchema}
+	 * @param referenceSchema                        relates to reference schema {@link ReferenceSchema} that target the hierarchy entity
+	 * @param hierarchyWithin                        limits the statistics to certain subtree of the hierarchy
+	 * @param targetIndex                            owner entityIndex for hierarchy index
+	 * @param directlyQueriedEntitiesFormulaProducer represents function that produces bitmap of queried entity ids connected
+	 *                                               with particular hierarchical entity
+	 * @param behaviour                              controls whether items with {@link LevelInfo#queriedEntityCount()} equal to zero should be excluded
+	 * @param hierarchyFilterPredicateProducer       lambda that creates a {@link HierarchyFilteringPredicate} based respecting the statistics base
+	 * @param sorter                                 sorter for sorting {@link LevelInfo}
+	 * @param interpretationLambda                   lambda that allows additional configuration of the {@link AbstractHierarchyStatisticsComputer}
 	 */
 	public void interpret(
 		@Nonnull EntitySchemaContract entitySchema,
@@ -144,7 +147,8 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 		@Nullable HierarchyFilterConstraint hierarchyWithin,
 		@Nonnull EntityIndex targetIndex,
 		@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
-		@Nonnull IntBiFunction<StatisticsBase, Formula> hierarchyReferencingEntityPks,
+		@Nonnull IntBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
+		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nonnull EmptyHierarchicalEntityBehaviour behaviour,
 		@Nullable Sorter sorter,
 		@Nonnull Runnable interpretationLambda
@@ -158,7 +162,8 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 					hierarchyWithin,
 					targetIndex,
 					prefetchRequirementCollector,
-					hierarchyReferencingEntityPks,
+					directlyQueriedEntitiesFormulaProducer,
+					hierarchyFilterPredicateProducer,
 					behaviour == EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY
 				)
 			);

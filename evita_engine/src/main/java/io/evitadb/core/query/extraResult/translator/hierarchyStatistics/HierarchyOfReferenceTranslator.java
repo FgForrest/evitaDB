@@ -116,6 +116,7 @@ public class HierarchyOfReferenceTranslator
 							);
 						})
 						.orElse(EmptyFormula.INSTANCE),
+				null,
 				hierarchyOfReference.getEmptyHierarchicalEntityBehaviour(),
 				sorter,
 				() -> {

@@ -26,6 +26,7 @@ package io.evitadb.api;
 import com.github.javafaker.Faker;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -706,7 +707,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return parents for categories with statistics for requested category 30")
+	@DisplayName("Should return parents for categories for requested category 30")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -768,7 +769,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return parents with siblings for categories with statistics for requested category 30")
+	@DisplayName("Should return parents with siblings for categories for requested category 30")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1033,7 +1034,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics within requested category 2")
+	@DisplayName("Should return children for categories within requested category 2")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1100,7 +1101,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for sibling categories with all statistics within requested category 2")
+	@DisplayName("Should return children for sibling categories within requested category 2")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1162,7 +1163,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics within category 2")
+	@DisplayName("Should return children for categories within category 2")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1232,7 +1233,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for root categories with all statistics in distance 1")
+	@DisplayName("Should return children for root categories in distance 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1296,7 +1297,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for requested categories with all statistics in distance 1")
+	@DisplayName("Should return children for requested categories in distance 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1366,7 +1367,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for requested category siblings with all statistics in distance 1")
+	@DisplayName("Should return children for requested category siblings in distance 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1435,7 +1436,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for specified category with all statistics in distance 1")
+	@DisplayName("Should return children for specified category in distance 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1505,7 +1506,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return root children for categories with all statistics in distance 1 within when no filtering constraint is specified")
+	@DisplayName("Should return root children for categories in distance 1 within when no filtering constraint is specified")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1568,7 +1569,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for root categories with all statistics until shortcut category is reached")
+	@DisplayName("Should return children for root categories until shortcut category is reached")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1628,7 +1629,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics until shortcut category is reached within category 1")
+	@DisplayName("Should return children for categories until shortcut category is reached within category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1696,7 +1697,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics until shortcut category is reached within requested category 1")
+	@DisplayName("Should return children for categories until shortcut category is reached within requested category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1766,7 +1767,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return siblings for categories with all statistics until shortcut category is reached within requested category 6")
+	@DisplayName("Should return siblings for categories until shortcut category is reached within requested category 6")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1835,7 +1836,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics except shortcut categories")
+	@DisplayName("Should return children for categories except shortcut categories")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1900,7 +1901,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics except shortcut categories within category 1")
+	@DisplayName("Should return children for categories except shortcut categories within category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1968,7 +1969,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children categories with all statistics except shortcut categories for siblings of category 6")
+	@DisplayName("Should return children categories except shortcut categories for siblings of category 6")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -2035,7 +2036,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics except shortcut categories for category 1")
+	@DisplayName("Should return children for categories except shortcut categories for category 1")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -2104,7 +2105,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics until level 2")
+	@DisplayName("Should return children for categories until level 2")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -2167,7 +2168,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics in category 1 until level two")
+	@DisplayName("Should return children for categories in category 1 until level two")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -2235,7 +2236,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return children for categories with all statistics in category 1 until level two")
+	@DisplayName("Should return children for categories in category 1 until level two")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -2304,7 +2305,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return sorted children for categories with all statistics until level two")
+	@DisplayName("Should return sorted children for categories until level two")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -2359,6 +2360,80 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
 							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
 							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class))
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children for all categories until level three on different filter base")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@ParameterizedTest
+	@MethodSource({"statisticTypeAndBaseVariants"})
+	void shouldReturnChildrenToLevelThreeFroDifferentFilterBase(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								userFilter(
+									attributeEqualsFalse(ATTRIBUTE_SHORTCUT)
+								),
+								hierarchyWithinRootSelf()
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(level(3)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final TestHierarchyPredicate filterPredicate;
+				if (base == StatisticsBase.COMPLETE_FILTER) {
+					filterPredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE)
+						&& !entity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
+				} else {
+					filterPredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				}
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+					final int level = parentItems.size() + 1;
+					return filterPredicate.test(sealedEntity, parentItems) && level <= 3;
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalCategoryEntities,
+					filterPredicate, treePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, null, categoryHierarchy,
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);

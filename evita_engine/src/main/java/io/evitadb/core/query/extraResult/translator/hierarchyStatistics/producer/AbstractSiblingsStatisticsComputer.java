@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.OptionalInt;
+import java.util.function.Function;
 
 /**
  * Abstract ancestor for siblings hierarchy statistics computers. Contains shared logic and data.
@@ -46,12 +47,13 @@ abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarchyStati
 	public AbstractSiblingsStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Nonnull

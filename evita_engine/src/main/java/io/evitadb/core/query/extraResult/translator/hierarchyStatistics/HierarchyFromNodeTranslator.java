@@ -71,6 +71,7 @@ public class HierarchyFromNodeTranslator
 					fromNode.getEntityFetch().orElse(null),
 					producer.getContext(fromNode.getName())
 				),
+				context.hierarchyFilterPredicateProducer(),
 				extraResultPlanningVisitor.getQueryContext().getHierarchyExclusionPredicate(),
 				scopePredicate,
 				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),

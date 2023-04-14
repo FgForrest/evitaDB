@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
@@ -62,6 +63,19 @@ abstract class AbstractHierarchyTest {
 			Arguments.of(EnumSet.allOf(StatisticsType.class)),
 			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT)),
 			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT))
+		);
+	}
+
+	protected static Stream<Arguments> statisticTypeAndBaseVariants() {
+		return Stream.of(
+			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.WITHOUT_USER_FILTER)
 		);
 	}
 	@Nonnull

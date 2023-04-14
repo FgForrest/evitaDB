@@ -39,6 +39,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * The node relative statistics computer computes hierarchy statistics for all children of particular parent node in
@@ -53,13 +54,14 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 	public NodeRelativeStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType,
 		@Nonnull FilterBy parentId
 	) {
-		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 		this.parentId = parentId;
 	}
 
@@ -83,15 +85,12 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				() -> "The filter by constraint: `" + parentIdPredicate.getFilterBy() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
 					"Hierarchy statistics computation expects only single node will be matched (due to performance reasons)."
 			);
-			final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
-				filterPredicate :
-				exclusionPredicate.negate().and(filterPredicate);
 			// we always start at specific node, but we respect the excluded children
 			final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 				context.removeEmptyResults(),
 				0,
 				scopePredicate,
-				combinedFilteringPredicate,
+				filterPredicate,
 				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 				entityFetcher,
 				statisticsType
@@ -100,7 +99,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				visitor,
 				parentId.getFirst(),
 				false,
-				combinedFilteringPredicate.negate()
+				filterPredicate.negate()
 			);
 			return visitor.getAccumulators();
 		} else {

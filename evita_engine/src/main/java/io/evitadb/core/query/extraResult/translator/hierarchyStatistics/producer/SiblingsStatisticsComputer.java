@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.OptionalInt;
+import java.util.function.Function;
 
 /**
  * The siblings statistics computer computes hierarchy statistics for all siblings of requested hierarchy node.
@@ -46,12 +47,13 @@ public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComput
 	public SiblingsStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Override

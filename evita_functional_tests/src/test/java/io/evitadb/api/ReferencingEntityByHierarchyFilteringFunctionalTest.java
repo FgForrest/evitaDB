@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.EntityByHierarchyFilteringFunctionalTest.TestHierarchyPredicate;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -2297,6 +2298,90 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
 							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
 							Comparator.comparing(o -> o.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class))
+						)
+					)
+				);
+
+				final HierarchyStatistics statistics = result.getExtraResult(HierarchyStatistics.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return children for all categories until level three on different filter base")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@ParameterizedTest
+	@MethodSource({"statisticTypeAndBaseVariants"})
+	void shouldReturnChildrenToLevelThreeFroDifferentFilterBase(
+		EnumSet<StatisticsType> statisticsType,
+		StatisticsBase base,
+		Evita evita,
+		List<SealedEntity> originalProductEntities,
+		List<SealedEntity> originalCategoryEntities,
+		Hierarchy categoryHierarchy
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								userFilter(
+									attributeEqualsFalse(ATTRIBUTE_ALIAS)
+								),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(level(3)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Predicate<SealedEntity> filterPredicate;
+				if (base == StatisticsBase.COMPLETE_FILTER) {
+					filterPredicate = (sealedEntity) -> sealedEntity.getLocales().contains(CZECH_LOCALE)
+						&& !sealedEntity.getAttribute(ATTRIBUTE_ALIAS, Boolean.class);
+				} else {
+					filterPredicate = (entity) -> entity.getLocales().contains(CZECH_LOCALE);
+				}
+				final TestHierarchyPredicate treeFilterPredicate = (sealedEntity, parentItems) -> sealedEntity.getLocales().contains(CZECH_LOCALE);
+				final TestHierarchyPredicate scopePredicate = (sealedEntity, parentItems) -> {
+					final int level = parentItems.size() + 1;
+					return treeFilterPredicate.test(sealedEntity, parentItems) && level <= 3;
+				};
+
+				final HierarchyStatistics expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					filterPredicate,
+					treeFilterPredicate, scopePredicate,
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, null, categoryHierarchy,
+							categoryCardinalities, false,
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
 						)
 					)
 				);

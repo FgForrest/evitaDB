@@ -41,6 +41,7 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.utils.Assert;
 
 import java.util.List;
@@ -103,6 +104,21 @@ public class HierarchyOfSelfTranslator
 				return FormulaFactory.and(
 					baseFormula,
 					globalIndex.getHierarchyNodesForParentFormula(nodeId)
+				);
+			},
+			statisticsBase -> {
+				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
+					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
+					extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
+				final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+					filter,
+					() -> createFilterFormula(
+						extraResultPlanner.getQueryContext(),
+						filter, globalIndex
+					)
+				);
+				return new FilteringFormulaHierarchyEntityPredicate(
+					filter, baseFormula
 				);
 			},
 			EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,

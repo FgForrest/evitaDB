@@ -37,22 +37,25 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.function.IntBiFunction;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.function.Function;
 
 /**
  * Context captures the context of the top {@link HierarchyOfSelf} / {@link HierarchyOfReference} constraint
  * evaluation context to be used in {@link AbstractHierarchyStatisticsComputer}.
  *
- * @param queryContext                  Reference to the query context that allows to access entity bodies.
- * @param entitySchema                  Target entity schema of the entity.
- * @param referenceSchema               Target entity schema of the entity.
- * @param hierarchyFilter               Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter.
- * @param entityIndex                   Contains reference to the owner {@link EntityIndex} of the {@link HierarchyIndex}.
- * @param prefetchRequirementCollector  Reference to the collector of requirements for entity prefetch phase.
+ * @param queryContext                           Reference to the query context that allows to access entity bodies.
+ * @param entitySchema                           Target entity schema of the entity.
+ * @param referenceSchema                        Target entity schema of the entity.
+ * @param hierarchyFilter                        Contains {@link HierarchyWithin} or {@link HierarchyWithinRoot} filtering query if it was part of the query filter.
+ * @param entityIndex                            Contains reference to the owner {@link EntityIndex} of the {@link HierarchyIndex}.
+ * @param prefetchRequirementCollector           Reference to the collector of requirements for entity prefetch phase.
  * @param directlyQueriedEntitiesFormulaProducer Contains a function that produces bitmap of queried entity ids connected with particular hierarchical entity.
- * @param removeEmptyResults            Contains true if hierarchy statistics should be stripped of results with zero occurrences.
+ * @param hierarchyFilterPredicateProducer       lambda that creates a {@link HierarchyFilteringPredicate} based respecting the statistics base
+ * @param removeEmptyResults                     Contains true if hierarchy statistics should be stripped of results with zero occurrences.
  */
 public record HierarchyProducerContext(
 	@Nonnull QueryContext queryContext,
@@ -62,6 +65,7 @@ public record HierarchyProducerContext(
 	@Nonnull EntityIndex entityIndex,
 	@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
 	@Nonnull IntBiFunction<StatisticsBase, Formula> directlyQueriedEntitiesFormulaProducer,
+	@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 	boolean removeEmptyResults
 ) {
 

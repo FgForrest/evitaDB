@@ -41,6 +41,7 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * The parent statistics computer computes hierarchy statistics for all parents of requested hierarchy node.
@@ -60,13 +61,14 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 	public ParentStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType,
 		@Nullable SiblingsStatisticsTravelingComputer siblingsStatisticsComputer
 	) {
-		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 		this.siblingsStatisticsComputer = siblingsStatisticsComputer;
 	}
 
@@ -76,9 +78,6 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
-			filterPredicate :
-			exclusionPredicate.negate().and(filterPredicate);
 		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
 			final EntityIndex entityIndex = context.entityIndex();
 
@@ -86,7 +85,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				context.removeEmptyResults(),
 				0,
 				(hierarchyNodeId, level, distance) -> distance == 0,
-				combinedFilteringPredicate,
+				filterPredicate,
 				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 				entityFetcher,
 				statisticsType
@@ -95,7 +94,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				childVisitor,
 				hierarchyWithin.getParentId(),
 				false,
-				combinedFilteringPredicate.negate()
+				filterPredicate.negate()
 			);
 
 			final List<Accumulator> children = childVisitor.getAccumulators();
@@ -110,6 +109,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			} else {
 				siblingsComputerToUse = new SiblingsStatisticsTravelingComputer(
 					context, entityPk -> new EntityReference(context.entitySchema().getName(), entityPk),
+					context.hierarchyFilterPredicateProducer(),
 					exclusionPredicate,
 					HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS,
 					statisticsBase, statisticsType
@@ -121,7 +121,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			).negate();
 			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
 				scopePredicate,
-				combinedFilteringPredicate.and(exceptStartNode),
+				filterPredicate.and(exceptStartNode),
 				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 				entityFetcher,
 				siblingsComputerToUse,

@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
 
@@ -69,6 +70,13 @@ abstract class AbstractHierarchyStatisticsComputer {
 	@Nonnull
 	protected final HierarchyTraversalPredicate scopePredicate;
 	/**
+	 * The lambda allowing to create inclusion predicate controlling which hierarchical entities will be taken into
+	 * an account in {@link LevelInfo#childrenCount()} and {@link LevelInfo#queriedEntityCount()} respecting the
+	 * {@link StatisticsBase}.
+	 */
+	@Nullable
+	private final Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer;
+	/**
 	 * The predicate controlling which hierarchical entities will be taken into an account
 	 * in {@link LevelInfo#childrenCount()} and {@link LevelInfo#queriedEntityCount()}. The predicate is driven
 	 * by {@link io.evitadb.api.query.filter.HierarchyExcluding} filtering constraint.
@@ -86,6 +94,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 	public AbstractHierarchyStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
@@ -93,6 +102,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 	) {
 		this.context = context;
 		this.entityFetcher = entityFetcher;
+		this.hierarchyFilterPredicateProducer = hierarchyFilterPredicateProducer;
 		this.exclusionPredicate = exclusionPredicate;
 		this.scopePredicate = ofNullable(scopePredicate).orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		this.statisticsBase = statisticsBase;
@@ -108,12 +118,26 @@ abstract class AbstractHierarchyStatisticsComputer {
 	public final List<LevelInfo> createStatistics(
 		@Nullable Locale language
 	) {
+		HierarchyFilteringPredicate filteringPredicate = hierarchyFilterPredicateProducer == null ?
+			HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE : hierarchyFilterPredicateProducer.apply(statisticsBase);
+		if (exclusionPredicate != null) {
+			if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
+				filteringPredicate = exclusionPredicate.negate();
+			} else {
+				filteringPredicate.and(exclusionPredicate.negate());
+			}
+		}
+		if (language != null) {
+			if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
+				filteringPredicate = new LocaleHierarchyEntityPredicate(context.entityIndex(), language);
+			} else {
+				filteringPredicate.and(new LocaleHierarchyEntityPredicate(context.entityIndex(), language));
+			}
+		}
 		// the language predicate is used to filter out entities that doesn't have requested language variant
 		return createStatistics(
 			scopePredicate,
-			language == null ?
-				HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE :
-				new LocaleHierarchyEntityPredicate(context.entityIndex(), language)
+			filteringPredicate
 		)
 			.stream()
 			.map(it -> it.toLevelInfo(statisticsType))

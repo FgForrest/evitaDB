@@ -69,6 +69,7 @@ public class HierarchySiblingsTranslator
 					siblings.getEntityFetch().orElse(null),
 					context
 				),
+				context.hierarchyFilterPredicateProducer(),
 				extraResultPlanningVisitor.getQueryContext().getHierarchyExclusionPredicate(),
 				scopePredicate,
 				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),

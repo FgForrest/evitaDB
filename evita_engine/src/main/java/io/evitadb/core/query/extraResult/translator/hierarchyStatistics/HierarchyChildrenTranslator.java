@@ -65,6 +65,7 @@ public class HierarchyChildrenTranslator
 					children.getEntityFetch().orElse(null),
 					producer.getContext(children.getName())
 				),
+				context.hierarchyFilterPredicateProducer(),
 				extraResultPlanningVisitor.getQueryContext().getHierarchyExclusionPredicate(),
 				scopePredicate,
 				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),

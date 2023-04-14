@@ -39,6 +39,7 @@ import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.OptionalInt;
+import java.util.function.Function;
 
 /**
  * The siblings statistics computer computes hierarchy statistics for all siblings of hierarchy node that is changed
@@ -59,12 +60,13 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 	public SiblingsStatisticsTravelingComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Override
@@ -83,9 +85,6 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 		@Nullable Integer parentNodeId,
 		int exceptNodeId
 	) {
-		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
-			filterPredicate :
-			exclusionPredicate.negate().and(filterPredicate);
 		try {
 			Assert.isPremiseValid(this.parentNodeId == null, "The context was not properly cleared!");
 			this.parentNodeId = parentNodeId;
@@ -93,7 +92,7 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 			final HierarchyFilteringPredicate exceptPivotNode = new MatchNodeIdHierarchyFilteringPredicate(exceptNodeId).negate();
 			return createStatistics(
 				scopePredicate,
-				combinedFilteringPredicate.and(exceptPivotNode)
+				filterPredicate.and(exceptPivotNode)
 			);
 		} finally {
 			this.parentNodeId = null;

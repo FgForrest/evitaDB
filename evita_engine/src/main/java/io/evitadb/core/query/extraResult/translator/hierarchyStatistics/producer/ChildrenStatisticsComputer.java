@@ -36,6 +36,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * The children statistics computer computes hierarchy statistics for all children of requested hierarchy node in
@@ -49,12 +50,13 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 	public ChildrenStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nonnull HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Nonnull
@@ -63,14 +65,11 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
-			filterPredicate :
-			exclusionPredicate.negate().and(filterPredicate);
 		final ChildrenStatisticsHierarchyVisitor childrenVisitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
 			0,
 			scopePredicate,
-			combinedFilteringPredicate,
+			filterPredicate,
 			value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 			entityFetcher,
 			statisticsType
@@ -79,7 +78,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			// if there is within hierarchy root query we start at root nodes
 			context.entityIndex().traverseHierarchy(
 				childrenVisitor,
-				combinedFilteringPredicate.negate()
+				filterPredicate.negate()
 			);
 		} else if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
 			// if root node is set, use different traversal method
@@ -87,13 +86,13 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 				childrenVisitor,
 				hierarchyWithin.getParentId(),
 				false,
-				combinedFilteringPredicate.negate()
+				filterPredicate.negate()
 			);
 		} else {
 			// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
 			context.entityIndex().traverseHierarchy(
 				childrenVisitor,
-				combinedFilteringPredicate.negate()
+				filterPredicate.negate()
 			);
 		}
 

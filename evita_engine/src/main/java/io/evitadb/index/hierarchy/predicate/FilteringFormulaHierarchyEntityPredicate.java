@@ -70,6 +70,11 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 */
 	@Getter @Nonnull private final Formula filteringFormula;
 
+	public FilteringFormulaHierarchyEntityPredicate(@Nonnull FilterBy filterBy, @Nonnull Formula filteringFormula) {
+		this.filterBy = filterBy;
+		this.filteringFormula = filteringFormula;
+	}
+
 	public FilteringFormulaHierarchyEntityPredicate(
 		@Nonnull QueryContext queryContext,
 		@Nonnull EntityIndex entityIndex,

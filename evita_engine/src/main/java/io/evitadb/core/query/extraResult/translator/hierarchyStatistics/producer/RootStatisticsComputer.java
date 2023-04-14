@@ -34,6 +34,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * The root statistics computer computes hierarchy statistics for entire hierarchy tree. The computer traverses
@@ -47,12 +48,13 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 	public RootStatisticsComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
+		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
 	}
 
 	@Nonnull
@@ -61,22 +63,19 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
-			filterPredicate :
-			exclusionPredicate.negate().and(filterPredicate);
 		// we always start with root nodes, but we respect the children exclusion
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
 			0,
 			scopePredicate,
-			combinedFilteringPredicate,
+			filterPredicate,
 			value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 			entityFetcher,
 			statisticsType
 		);
 		context.entityIndex().traverseHierarchy(
 			visitor,
-			combinedFilteringPredicate.negate()
+			filterPredicate.negate()
 		);
 
 		return visitor.getAccumulators();
