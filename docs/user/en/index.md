@@ -41,8 +41,8 @@ will require all existing data to be dropped and re-indexed from the primary sto
 **Please do not use evitaDB to store your primary data for the reasons mentioned above.**
 
 In the fall of 2023, we plan to release a beta version and deploy it first to our own customers to gain first-hand 
-experience using it in production ourselves. When we are confident that the database engine is stable and reliable, we 
-will release the first general release.
+experience using it ourselves. When we can be sure that the database engine is stable and reliable, we will release 
+the first version to the general public.
 </Note>
 
 ## Get started
