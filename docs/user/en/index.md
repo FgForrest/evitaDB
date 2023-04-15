@@ -27,6 +27,24 @@ time trying to create an alternative to general-purpose databases, that would me
 and results of our research](https://evitadb.io/research/introduction) happening between 2019 and 2022 are documented 
 in the separate part of this site.
 
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Use at your own risk and responsibility
+</NoteTitle>
+
+evitaDB is currently in alpha version and a lot of development is going on right now. We plan to stabilize the first 
+generally available version at the beginning of 2024. Until that time, the storage format may change at any time, which 
+will require all existing data to be dropped and re-indexed from the primary storage.
+
+**Please do not use evitaDB to store your primary data for the reasons mentioned above.**
+
+In the fall of 2023, we plan to release a beta version and deploy it first to our own customers to gain first-hand 
+experience using it in production ourselves. When we are confident that the database engine is stable and reliable, we 
+will release the first general release.
+</Note>
+
 ## Get started
 
 1. [Run evitaDB](get-started/run-evitadb.md)
