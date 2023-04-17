@@ -39,7 +39,8 @@ jobs:
         EVITA_JAR_NAME: evita_performance_tests/target/benchmarks.jar
       run: |
         echo "Evita JAR name: $EVITA_JAR_NAME"
-        echo "Build root: $BUILD_ROOT"        
+        echo "Build root: $BUILD_ROOT"
+        ls -la .
         mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"    
         ls -la $BUILD_ROOT        
         $BUILD_ROOT/build.sh        
