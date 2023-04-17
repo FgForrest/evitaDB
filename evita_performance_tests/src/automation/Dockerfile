@@ -6,8 +6,8 @@ FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:latest
 
 USER root
 
-RUN microdnf install -y wget
-RUN microdnf install -y gh
+RUN microdnf install wget
+RUN microdnf install --enablerepo=https://cli.github.com/packages/rpm/gh-cli.repo gh
 
 WORKDIR evita_performance_tests
 
