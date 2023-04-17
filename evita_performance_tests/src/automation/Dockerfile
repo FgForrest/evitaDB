@@ -4,11 +4,13 @@
 
 FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:latest
 
-RUN dnf install -y wget
+RUN microdnf install -y coreutils
+RUN microdnf install -y wget
+RUN microdnf install -y curl
 
 RUN rpm --import https://rpm.github.com/gpg.key && \
     curl -sL https://cli.github.com/packages/githubcli.repo | tee /etc/yum.repos.d/githubcli.repo && \
-    dnf install -y gh
+    microdnf install -y gh
 
 WORKDIR evita_performance_tests
 
