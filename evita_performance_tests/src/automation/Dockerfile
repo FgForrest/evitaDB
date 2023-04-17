@@ -4,15 +4,11 @@
 
 FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:latest
 
-ARG GH_VERSION
-RUN set -ex \
-    && wget "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.deb" \
-    && dpkg -i "gh_${GH_VERSION}_linux_amd64.deb" \
-    && rm -f "gh_${GH_VERSION}_linux_amd64.deb" \
-    && gh --version \
-    && :
-
 RUN dnf install -y wget
+
+RUN rpm --import https://rpm.github.com/gpg.key && \
+    curl -sL https://cli.github.com/packages/githubcli.repo | tee /etc/yum.repos.d/githubcli.repo && \
+    dnf install -y gh
 
 WORKDIR evita_performance_tests
 
