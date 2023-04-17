@@ -1146,9 +1146,6 @@ class EvitaQLFilterConstraintVisitorTest {
 
         final FilterConstraint constraint9 = parseFilterConstraint("excluding(entityPrimaryKeyInSet(@pk1,@pk2))", Map.of("pk1", 1, "pk2", 2));
         assertEquals(excluding(entityPrimaryKeyInSet(1, 2)), constraint9);
-
-        final FilterConstraint constraint10 = parseFilterConstraintUnsafe("excluding()");
-        assertEquals(excluding(), constraint10);
     }
 
     @Test
@@ -1158,6 +1155,7 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("excluding(@a)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding(1)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding('a','b')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("excluding(1,'a')"));
     }

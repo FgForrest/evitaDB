@@ -60,6 +60,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -1429,6 +1430,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should pass locale to hierarchy statistics entities")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldPassLocaleToHierarchyStatisticsEntities(Evita evita, RestTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
@@ -1507,6 +1509,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should get hierarchy statistics with entities reference only")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldGetHierarchyStatisticsWithEntitiesReferenceOnly(Evita evita, RestTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,

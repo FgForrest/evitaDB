@@ -26,7 +26,10 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -65,7 +68,7 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		}
 	}
 
-	public HierarchyParents(@Nullable String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	public HierarchyParents(@Nonnull String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[]{outputName},
@@ -76,7 +79,11 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		);
 	}
 
-	public HierarchyParents(@Nullable String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	@Creator(silentImplicitClassifier = true)
+	public HierarchyParents(@Nonnull @Value String outputName,
+	                        @Nullable @Child EntityFetch entityFetch,
+	                        @Nullable @Child HierarchySiblings siblings,
+	                        @Nonnull @Child(uniqueChildren = true) HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[]{outputName},
@@ -87,7 +94,7 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		);
 	}
 
-	public HierarchyParents(@Nullable String outputName, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	public HierarchyParents(@Nonnull String outputName, @Nonnull HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[]{outputName},
@@ -95,7 +102,7 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		);
 	}
 
-	public HierarchyParents(@Nullable String outputName,  @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	public HierarchyParents(@Nonnull String outputName,  @Nonnull HierarchySiblings siblings, @Nonnull HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[]{outputName},

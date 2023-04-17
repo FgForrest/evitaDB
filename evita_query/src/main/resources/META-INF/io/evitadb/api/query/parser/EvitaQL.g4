@@ -77,7 +77,7 @@ filterConstraint
     | 'hierarchyWithinRootSelf'         args = hierarchyWithinRootSelfConstraintArgs            # hierarchyWithinRootSelfConstraint
     | 'directRelation'                  emptyArgs                                               # hierarchyDirectRelationConstraint
     | 'excludingRoot'                   emptyArgs                                               # hierarchyExcludingRootConstraint
-    | 'excluding'                       (emptyArgs | args = filterConstraintListArgs)           # hierarchyExcludingConstraint
+    | 'excluding'                       args = filterConstraintListArgs                         # hierarchyExcludingConstraint
     | 'entityHaving'                    args = filterConstraintArgs                             # entityHavingConstraint
     ;
 

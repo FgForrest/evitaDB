@@ -26,6 +26,7 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -115,7 +116,7 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "hierarchyOfSelf",
+	name = "ofSelf",
 	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of same hierarchical collection into response."
 )
 public class HierarchyOfSelf extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
@@ -153,7 +154,8 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 
 	@Creator(silentImplicitClassifier = true)
 	public HierarchyOfSelf(
-		@Nullable @Child OrderBy orderBy,
+		@Nullable @AdditionalChild OrderBy orderBy,
+		// todo lho we cannot use uniqueChildren here because we need duplicate constraints, but we dont have any generic joining containers here. What to do?
 		@Nonnull @Child HierarchyRequireConstraint... requirements
 	) {
 		super(new Serializable[0], requirements, orderBy);

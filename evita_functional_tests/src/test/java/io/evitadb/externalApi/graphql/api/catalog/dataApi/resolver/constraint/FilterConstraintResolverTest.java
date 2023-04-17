@@ -249,13 +249,17 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 								"facetBrandInSet", List.of(10, 20, 30)
 							)
 						),
-						"referenceCategoryHaving", mapOf(
-							"attributeCodeStartsWith", "ab",
-							"entityPrimaryKeyInSet", List.of(2),
-							"entityHaving", mapOf(
-								"attributeNameEquals", "cd",
-								"referenceRelatedProductsHaving", mapOf(
-									"attributeOrderEquals", 1
+						"referenceCategoryHaving", List.of(
+							mapOf(
+								"attributeCodeStartsWith", "ab",
+								"entityPrimaryKeyInSet", List.of(2),
+								"entityHaving", mapOf(
+									"attributeNameEquals", "cd",
+									"referenceRelatedProductsHaving", List.of(
+										mapOf(
+											"attributeOrderEquals", 1
+										)
+									)
 								)
 							)
 						)

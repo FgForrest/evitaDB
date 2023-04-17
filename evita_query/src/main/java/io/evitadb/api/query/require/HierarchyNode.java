@@ -26,7 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -51,7 +53,8 @@ public class HierarchyNode extends AbstractRequireConstraintContainer implements
 	@Serial private static final long serialVersionUID = -7033476265993356981L;
 	private static final String CONSTRAINT_NAME = "node";
 
-	public HierarchyNode(@Nonnull FilterBy filterBy) {
+	@Creator(silentImplicitClassifier = true)
+	public HierarchyNode(@Nonnull @AdditionalChild FilterBy filterBy) {
 		super(CONSTRAINT_NAME, new Serializable[0], new RequireConstraint[0], filterBy);
 	}
 

@@ -26,11 +26,15 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
@@ -67,7 +71,10 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 		);
 	}
 
-	public HierarchyFromRoot(@Nonnull String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	@Creator(silentImplicitClassifier = true)
+	public HierarchyFromRoot(@Nonnull @Value String outputName,
+	                         @Nullable @Child EntityFetch entityFetch,
+	                         @Nonnull @Child(uniqueChildren = true) HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[]{outputName},

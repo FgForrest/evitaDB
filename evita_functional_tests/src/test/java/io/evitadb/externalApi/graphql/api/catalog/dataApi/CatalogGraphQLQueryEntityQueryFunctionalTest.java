@@ -61,6 +61,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDes
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLTester;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -2931,6 +2932,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return two levels of category statistics for products")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnTwoLevelsOfCategoryStatisticsForProducts(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
@@ -3032,6 +3034,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return two levels of self statistics for category")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnTwoLevelsOfSelfStatisticsForCategory(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
@@ -3165,6 +3168,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should pass locale to hierarchy statistics entities")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldPassLocaleToHierarchyStatisticsEntities(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,

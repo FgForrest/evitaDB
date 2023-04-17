@@ -26,7 +26,10 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -68,7 +71,10 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 		);
 	}
 
-	public HierarchySiblings(@Nullable String outputName, @Nonnull EntityFetch entityFetch, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	@Creator(silentImplicitClassifier = true)
+	public HierarchySiblings(@Nullable @Value String outputName,
+	                         @Nullable @Child EntityFetch entityFetch,
+	                         @Nonnull @Child(uniqueChildren = true) HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[]{outputName},

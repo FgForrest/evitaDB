@@ -55,7 +55,7 @@ public class HierarchyDistance extends AbstractRequireConstraintLeaf implements 
 		super(CONSTRAINT_NAME, arguments);
 	}
 
-	@Creator(implicitClassifier = CONSTRAINT_NAME)
+	@Creator(silentImplicitClassifier = true)
 	public HierarchyDistance(@Value int distance) {
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix

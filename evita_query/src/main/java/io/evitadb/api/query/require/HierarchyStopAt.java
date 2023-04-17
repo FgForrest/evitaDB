@@ -26,7 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -53,7 +55,8 @@ public class HierarchyStopAt extends AbstractRequireConstraintContainer implemen
 		super(CONSTRAINT_NAME, children);
 	}
 
-	public HierarchyStopAt(@Nonnull HierarchyStopAtRequireConstraint genericHierarchyOutput) {
+	@Creator(silentImplicitClassifier = true)
+	public HierarchyStopAt(@Nonnull @Child HierarchyStopAtRequireConstraint genericHierarchyOutput) {
 		super(CONSTRAINT_NAME, genericHierarchyOutput);
 	}
 

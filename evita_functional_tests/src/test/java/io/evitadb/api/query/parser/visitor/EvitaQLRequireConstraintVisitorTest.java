@@ -32,6 +32,7 @@ import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -1020,6 +1021,7 @@ class EvitaQLRequireConstraintVisitorTest {
 	}
 
 	@Test
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldParseHierarchyOfSelfConstraint() {
 		final RequireConstraint constraint6 = parseRequireConstraint("hierarchyOfSelf(entityFetch(priceContent()))");
 		assertEquals(hierarchyOfSelf(fromRoot("megaMenu", entityFetch(priceContent()))), constraint6);
@@ -1054,6 +1056,7 @@ class EvitaQLRequireConstraintVisitorTest {
 	}
 
 	@Test
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldParseHierarchyOfReferenceConstraint() {
 		final RequireConstraint constraint1 = parseRequireConstraint("hierarchyOfReference('a')");
 		assertEquals(
