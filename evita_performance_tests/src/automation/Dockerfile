@@ -8,8 +8,8 @@ USER root
 
 RUN microdnf install -y wget
 
-RUN rpm --import https://rpm.github.com/gpg.key && \
-    curl -sL https://cli.github.com/packages/githubcli.repo | tee /etc/yum.repos.d/githubcli.repo && \
+RUN microdnf install 'dnf-command(config-manager)' && \
+    microdnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo && \
     microdnf install -y gh
 
 WORKDIR evita_performance_tests
