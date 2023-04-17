@@ -37,8 +37,8 @@ function help {
 [ "$1" != "bash" ] || exec bash "$@"
 
 ## args
-EXTRA_JAVA_OPTS="${1:-.*}"
-BENCHMARK_SELECTOR="$2"
+EXTRA_JAVA_OPTS=""
+BENCHMARK_SELECTOR="${2:-.*}"
 SHARED_GIST='abc12461f21d1cc66a541417edcb6ba7'
 RESULT_JSON=latest-performance-results.json
 DO_CLUSTER_NODE_SLUG="mock"
@@ -61,19 +61,21 @@ echo
 wget https://evitadb.io/download/performance_test_datasets.zip
 unzip -d /evita-data performance_test_datasets.zip
 
-[ -n "$CHILL_OUT_SEC" ] || CHILL_OUT_SEC=120
+[ -n "$CHILL_OUT_SEC" ] || CHILL_OUT_SEC=5
 echo "Let the cluster chill-out before benchmark: $CHILL_OUT_SEC sec"
 echo "  - $(date -Isec)"
 echo
 sleep $CHILL_OUT_SEC
 set -x
 
+ls -la
+
 ## run benchmark
 java \
     -XshowSettings \
     -jar benchmarks.jar "$BENCHMARK_SELECTOR" \
         $JMH_ARGS -rf json -rff $RESULT_JSON \
-        -jvmArgs $EXTRA_JAVA_OPTS $BENCHMARK_JAVA_OPTS -DdataFolder=/data -DevitaData=/evita-data"
+        -jvmArgs "$EXTRA_JAVA_OPTS $BENCHMARK_JAVA_OPTS -DdataFolder=/data -DevitaData=/evita-data/data"
 
 ## public gist
 gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG)" --public $RESULT_JSON
@@ -82,7 +84,7 @@ gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: 
 rm -rf "$SHARED_GIST"
 gh gist clone "$SHARED_GIST" "$SHARED_GIST"
 cd "$SHARED_GIST"
-cp -f ../$RESULT_JSON
+cp -f ../$RESULT_JSON $RESULT_JSON
 
 ## push back
 git config user.email "novotny@fg.cz"

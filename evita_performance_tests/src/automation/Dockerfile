@@ -2,12 +2,15 @@
 ## build context in directory: evita_performance_tests
 ##
 
-FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:latest
+FROM ubuntu:jammy
 
 USER root
 
-RUN microdnf install wget
-RUN microdnf install --enablerepo=https://cli.github.com/packages/rpm/gh-cli.repo gh
+RUN apt-get update && \
+    apt-get install -y openjdk-17-jdk-headless
+RUN apt-get install -y wget
+RUN apt-get install -y gh
+RUN apt-get install -y unzip
 
 WORKDIR evita_performance_tests
 
