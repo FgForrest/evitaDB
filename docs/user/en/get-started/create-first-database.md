@@ -115,7 +115,7 @@ When you delete a hierarchical entity, you can choose whether or not to delete i
 
 For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
 
-</Language>
+</LanguageSpecific>
 <LanguageSpecific to="evitaql,graphql,rest,csharp">
 
 Creating new catalog in other APIs than Java is being prepared.
