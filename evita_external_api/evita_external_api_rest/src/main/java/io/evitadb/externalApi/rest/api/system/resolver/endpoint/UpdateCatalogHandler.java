@@ -82,7 +82,7 @@ public class UpdateCatalogHandler extends RestHandler<SystemRestHandlingContext>
 		final boolean overwriteTarget = Optional.ofNullable(requestBody.overwriteTarget()).orElse(false);
 
 		if (overwriteTarget) {
-			restApiHandlingContext.getEvita().replaceCatalog(newCatalogName, catalog.get().getName());
+			restApiHandlingContext.getEvita().replaceCatalog(catalog.get().getName(), newCatalogName);
 		} else {
 			restApiHandlingContext.getEvita().renameCatalog(catalog.get().getName(), newCatalogName);
 		}

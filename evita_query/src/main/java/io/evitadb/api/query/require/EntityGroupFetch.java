@@ -29,6 +29,10 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -43,7 +47,7 @@ import java.util.stream.Stream;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "groupFetch",
 	shortDescription = "Returns richer group entities instead of just entity references (empty container returns only entity body).",
 	supportedIn = {ConstraintDomain.FACET}
@@ -60,8 +64,8 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 		super();
 	}
 
-	@ConstraintCreatorDef
-	public EntityGroupFetch(@Nonnull @ConstraintChildrenParamDef EntityContentRequire... requirements) {
+	@Creator
+	public EntityGroupFetch(@Nonnull @Child EntityContentRequire... requirements) {
 		super(requirements);
 	}
 

@@ -26,9 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -57,7 +57,7 @@ import java.util.Currency;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "inCurrency",
 	shortDescription = "The constraint filters out all entities that lack selling price in specified currency.",
 	supportedIn = ConstraintDomain.ENTITY
@@ -73,8 +73,8 @@ public class PriceInCurrency extends AbstractFilterConstraintLeaf implements Pri
 		super(null, currency);
 	}
 
-	@ConstraintCreatorDef
-	public PriceInCurrency(@Nonnull @ConstraintValueParamDef Currency currency) {
+	@Creator
+	public PriceInCurrency(@Nonnull @Value Currency currency) {
 		super(currency);
 	}
 

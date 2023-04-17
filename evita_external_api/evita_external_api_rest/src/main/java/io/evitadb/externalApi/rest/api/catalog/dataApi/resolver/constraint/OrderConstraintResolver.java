@@ -21,46 +21,67 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
-import java.util.function.Predicate;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * Implementation of {@link ConstraintSchemaBuilder} for building order query tree starting from {@link OrderBy}.
+ * Implementation of {@link ConstraintResolver} for resolving {@link OrderConstraint} usually with {@link OrderBy}
+ * as root container.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
- * @author Martin Veska, FG Forrest a.s. (c) 2022
+ * It doesn't use any `wrapper container` as `order` constraints don't have any `default` container to use.
+ * Also, currently, all `order` container have unique children in GraphQL formatted constraints thanks to the
+ * classifier presents in keys.
+ *
+ * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class OrderBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
+public class OrderConstraintResolver extends RestConstraintResolver<OrderConstraint> {
 
-	public OrderBySchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                            @Nonnull String rootEntityType) {
+	public OrderConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
 		super(
-			constraintSchemaBuildingCtx,
-			rootEntityType,
-			Set.of(),
-			Set.of(OrderBy.class)
+			restHandlingContext,
+			createHashMap(0) // currently, we don't support any order constraints with additional children
 		);
+	}
+
+	@Override
+	protected Class<OrderConstraint> getConstraintClass() {
+		return OrderConstraint.class;
+	}
+
+	@Override
+	@Nonnull
+	protected ConstraintType getConstraintType() {
+		return ConstraintType.ORDER;
+	}
+
+	@Override
+	@Nonnull
+	protected ConstraintDescriptor getWrapperContainer() {
+		throw new RestInternalError("Wrapper container is not supported for `order` constraints.");
 	}
 
 	@Nonnull
 	@Override
-	protected ConstraintType getConstraintType() {
-		return ConstraintType.ORDER;
+	protected DataLocator getRootDataLocator() {
+		return new EntityDataLocator(restHandlingContext.getEntityType());
 	}
 
 	@Nonnull
@@ -80,30 +101,8 @@ public class OrderBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
 		return descriptors.iterator().next();
 	}
 
-	@Nonnull
-	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(rootEntityType);
-	}
-
-	@Nonnull
-	@Override
-	protected String getContainerObjectTypeName() {
-		return "OrderContainer_";
-	}
-
 	@Override
 	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		// We don't want list of wrapper container because in "order" constraints there are no generic conjunction
-		// containers (and also there is currently no need to support that). Essentially, we want order constraints
-		// with children to act as if they were `ChildParameterDescriptor#uniqueChildren` as, although they are
-		// originally not, in case of GraphQL where classifiers are in keys those fields are in fact unique children.
 		return true;
-	}
-
-	@Nonnull
-	@Override
-	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
-		return AttributeSchemaContract::isSortable;
 	}
 }

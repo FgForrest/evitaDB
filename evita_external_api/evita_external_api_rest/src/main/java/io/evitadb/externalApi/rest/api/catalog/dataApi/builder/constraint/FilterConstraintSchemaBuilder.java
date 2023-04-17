@@ -30,8 +30,8 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 
@@ -39,24 +39,31 @@ import javax.annotation.Nonnull;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
  * Implementation of {@link OpenApiConstraintSchemaBuilder} for building filter constraint tree starting from {@link FilterBy}.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class FilterBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
+public class FilterConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder {
+
 	private static final Set<Class<? extends Constraint<?>>> FORBIDDEN_CONSTRAINTS = Set.of(FilterBy.class);
 	private static final Set<Class<? extends Constraint<?>>> FORBIDDEN_CONSTRAINTS_WITH_LOCALE = Set.of(FilterBy.class, EntityLocaleEquals.class);
 
-	public FilterBySchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-								 @Nonnull String rootEntityType,
-		                         boolean forbidLocaleInQuery) {
+	public FilterConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
+	                                     boolean forbidLocaleInQuery) {
 		super(
 			constraintSchemaBuildingCtx,
-			rootEntityType,
+			createHashMap(0), // currently, we don't support any filter constraint with additional children
 			Set.of(),
 			forbidLocaleInQuery?FORBIDDEN_CONSTRAINTS_WITH_LOCALE:FORBIDDEN_CONSTRAINTS
 		);
+	}
+
+	@Nonnull
+	public OpenApiSimpleType build(@Nonnull String rootEntityType) {
+		return build(new EntityDataLocator(rootEntityType));
 	}
 
 	@Nonnull
@@ -66,7 +73,7 @@ public class FilterBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
@@ -81,14 +88,8 @@ public class FilterBySchemaBuilder extends OpenApiConstraintSchemaBuilder {
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(rootEntityType);
-	}
-
-	@Nonnull
-	@Override
 	protected String getContainerObjectTypeName() {
-		return "FilterContainer_";
+		return "FilterContainer";
 	}
 
 	@Nonnull

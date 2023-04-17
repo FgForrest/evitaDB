@@ -25,8 +25,8 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -85,7 +85,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "excludingRoot",
 	shortDescription = "The constraint limits hierarchy within parent constraint to exclude the entities directly related to the searched root node.",
 	supportedIn = ConstraintDomain.HIERARCHY
@@ -100,7 +100,7 @@ public class HierarchyExcludingRoot extends AbstractFilterConstraintLeaf impleme
 		super(CONSTRAINT_NAME, arguments);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public HierarchyExcludingRoot() {
 		super(CONSTRAINT_NAME);
 	}

@@ -345,6 +345,26 @@ public class StringUtils {
 	}
 
 	/**
+	 * Splits string which is in certain case (camelCase, snake_case, ...) to individual words for transforming the string
+	 * to other cases.
+	 */
+	@Nonnull
+	public static List<String> splitStringWithCaseIntoWords(@Nullable String s) {
+		if (s == null || s.isBlank()) {
+			return List.of();
+		}
+
+		// remove unsupported characters in concrete cases (not base case)
+		// characters are based on ClassifierUtils#SUPPORTED_FORMAT_PATTERN regex
+		s = s.replaceAll("[.:+\\-@/\\\\|`~]", " ");
+
+		return STRING_WITH_CASE_WORD_SPLITTING_PATTERN.matcher(s)
+			.results()
+			.map(MatchResult::group)
+			.toList();
+	}
+
+	/**
 	 * Returns MD5 hash of the passed string.
 	 */
 	public static String hashChars(@Nonnull String string) {
@@ -459,25 +479,5 @@ public class StringUtils {
 			sb.append(" ");
 		}
 		sb.append(prefix).append(value).append(suffix);
-	}
-
-	/**
-	 * Splits string which is in certain case (camelCase, snake_case, ...) to individual words for transforming the string
-	 * to other cases.
-	 */
-	@Nonnull
-	private static List<String> splitStringWithCaseIntoWords(@Nullable String s) {
-		if (s == null || s.isBlank()) {
-			return List.of();
-		}
-
-		// remove unsupported characters in concrete cases (not base case)
-		// characters are based on ClassifierUtils#SUPPORTED_FORMAT_PATTERN regex
-		s = s.replaceAll("[.:+\\-@/\\\\|`~]", " ");
-
-		return STRING_WITH_CASE_WORD_SPLITTING_PATTERN.matcher(s)
-			.results()
-			.map(MatchResult::group)
-			.toList();
 	}
 }

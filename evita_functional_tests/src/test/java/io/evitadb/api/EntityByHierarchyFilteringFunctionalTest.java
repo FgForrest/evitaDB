@@ -553,7 +553,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					query(
 						collection(Entities.CATEGORY),
 						require(
-							entityFetchAllContentAnd(
+							entityFetchAllAnd(
 								// wants obviously non-existed page to test evita that returns first page.
 								page(94, Integer.MAX_VALUE),
 								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),

@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -65,6 +66,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.text.NumberFormat;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
@@ -76,6 +79,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.not;
@@ -99,9 +103,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	private static final int SEED = 40;
 
-	private static final String PRODUCT_QUERY_PATH = "data.query_product";
-	private static final String CATEGORY_QUERY_PATH = "data.query_category";
-	private static final String ERRORS_PATH = "errors";
+	private static final String PRODUCT_QUERY_PATH = "data.queryProduct";
+	private static final String CATEGORY_QUERY_PATH = "data.queryCategory";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -132,29 +135,29 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        entity_primaryKey_inSet: [%d, %d]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            __typename
-					                            primaryKey
-					                      type
-					                      locales
-					                      allLocales
-					                         attributes {
-					                             __typename
-					                             code
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%d, %d]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                __typename
+	                                primaryKey
+			                        type
+			                        locales
+			                        allLocales
+		                            attributes {
+		                                __typename
+		                                code
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -195,28 +198,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                      locales
-					                      allLocales
-					                         attributes(locale: en) {
-					                             code
-					                             name
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+			                        locales
+			                        allLocales
+		                            attributes(locale: en) {
+		                                code
+		                                name
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -249,21 +252,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query ($size: IntegerNumberRange!) {
-					                query_product(
-					                    filterBy: {
-					                        attribute_size_inSet: [$size]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                        }
-					                    }
-					                }
-					            }
+	                query ($size: IntegerNumberRange!) {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeSizeInSet: [$size]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+	                            }
+	                        }
+	                    }
+	                }
 					"""
 			)
 			.variable(
@@ -289,25 +292,25 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                   ) {
-					                       __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         attributes {
-					                             quantity(formatted: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            attributes {
+		                                quantity(formatted: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -346,30 +349,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"],
-					                        entity_locale_equals: cs_CZ
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         attributes {
-					                             quantity
-					                             formattedQuantity: quantity(formatted: true)
-					                         }
-					                         enAttributes: attributes(locale: en) {
-					                             enFormattedQuantity: quantity(formatted: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"],
+	                            entityLocaleEquals: cs_CZ
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            attributes {
+		                                quantity
+		                                formattedQuantity: quantity(formatted: true)
+		                            }
+		                            enAttributes: attributes(locale: en) {
+		                                enFormattedQuantity: quantity(formatted: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -409,29 +412,29 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_url_inSet: ["%s", "%s"]
-					                        entity_locale_equals: en
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                      locales
-					                      allLocales
-					                         attributes {
-					                             url
-					                             name
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeUrlInSet: ["%s", "%s"]
+	                            entityLocaleEquals: en
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+			                        locales
+			                        allLocales
+		                            attributes {
+		                                url
+		                                name
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH),
 				entities.get(1).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH)
@@ -451,15 +454,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                ) {
-					                    primaryKey
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        primaryKey
+	                    }
+	                }
 					""",
 				codeAttribute1,
 				codeAttribute2
@@ -476,17 +479,17 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(code: "product") {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(code: "product") {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+	                            }
+	                        }
+	                    }
+	                }
 					"""
 			)
 			.executeAndThen()
@@ -505,30 +508,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                     attribute_code_inSet: ["%s", "%s"]
-					                     price_inCurrency: CZK,
-					                     price_inPriceLists: "basic"
-					                    }
-					                   ) {
-					                       __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         priceForSale {
-					                             __typename
-					                             currency
-					                             priceList
-					                             priceWithTax
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            priceForSale {
+		                                __typename
+		                                currency
+		                                priceList
+		                                priceWithTax
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -548,24 +551,24 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                     price_inCurrency: CZK,
-					                     price_inPriceLists: "nonexistent"
-					                    }
-					                   ) {
-					                       __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                            type
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "nonexistent"
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+	                                type
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -585,24 +588,24 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                     price_inCurrency: AAA,
-					                     price_inPriceLists: "basic"
-					                    }
-					                   ) {
-					                       __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                            type
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: AAA,
+		                        priceInPriceLists: "basic"
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+	                                type
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -627,28 +630,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        entity_primaryKey_inSet: [%d, %d]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         priceForSale(currency: CZK, priceList: "basic") {
-					                             __typename
-					                             currency
-					                             priceList
-					                             priceWithTax
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%d, %d]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            priceForSale(currency: CZK, priceList: "basic") {
+		                                __typename
+		                                currency
+		                                priceList
+		                                priceWithTax
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -670,26 +673,26 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                     attribute_code_inSet: ["%s", "%s"]
-					                     price_inCurrency: CZK,
-					                     price_inPriceLists: "basic",
-					                     entity_locale_equals: cs_CZ
-					                    }
-					                   ) {
-					                       __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         priceForSale {
-					                             priceWithTax(formatted: true, withCurrency: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic",
+		                        entityLocaleEquals: cs_CZ
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            priceForSale {
+		                                priceWithTax(formatted: true, withCurrency: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -711,25 +714,25 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                     attribute_code_inSet: ["%s", "%s"]
-					                     price_inCurrency: CZK,
-					                     price_inPriceLists: "basic"
-					                    }
-					                   ) {
-					                       __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         priceForSale(locale: cs_CZ) {
-					                             priceWithTax(formatted: true, withCurrency: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            priceForSale(locale: cs_CZ) {
+		                                priceWithTax(formatted: true, withCurrency: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -751,25 +754,25 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                     attribute_code_inSet: ["%s", "%s"]
-					                     price_inCurrency: CZK,
-					                     price_inPriceLists: "basic"
-					                    }
-					                   ) {
-					                       __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         priceForSale {
-					                             priceWithTax(formatted: true, withCurrency: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            priceForSale {
+		                                priceWithTax(formatted: true, withCurrency: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -793,30 +796,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                        price_inCurrency: CZK
-					                        price_inPriceLists: "basic"
-					                    }
-					                   ) {
-					                       __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         price(priceList: "basic") {
-					                             __typename
-					                             currency
-					                             priceList
-					                             priceWithTax
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            priceInCurrency: CZK
+	                            priceInPriceLists: "basic"
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            price(priceList: "basic") {
+		                                __typename
+		                                currency
+		                                priceList
+		                                priceWithTax
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -841,28 +844,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         price(priceList: "basic", currency: CZK) {
-					                             __typename
-					                             currency
-					                             priceList
-					                             priceWithTax
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            price(priceList: "basic", currency: CZK) {
+		                                __typename
+		                                currency
+		                                priceList
+		                                priceWithTax
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -887,24 +890,24 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"],
-					                        entity_locale_equals: cs_CZ
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         price(priceList: "basic", currency: CZK) {
-					                             priceWithTax(formatted: true, withCurrency: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"],
+	                            entityLocaleEquals: cs_CZ
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            price(priceList: "basic", currency: CZK) {
+		                                priceWithTax(formatted: true, withCurrency: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -929,23 +932,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         price(priceList: "basic", currency: CZK, locale: cs_CZ) {
-					                             priceWithTax(formatted: true, withCurrency: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            price(priceList: "basic", currency: CZK, locale: cs_CZ) {
+		                                priceWithTax(formatted: true, withCurrency: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -965,23 +968,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         price(priceList: "basic", currency: CZK) {
-					                             priceWithTax(formatted: true, withCurrency: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            price(priceList: "basic", currency: CZK) {
+		                                priceWithTax(formatted: true, withCurrency: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1004,25 +1007,25 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         prices {
-					                             priceWithTax
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            prices {
+		                                priceWithTax
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1070,28 +1073,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                 filterBy: {
-					                     entity_primaryKey_inSet: [%d, %d]
-					                 }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         prices(priceLists: "basic", currency: CZK) {
-					                             __typename
-					                             currency
-					                             priceList
-					                             priceWithTax
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d]
+		                    }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            prices(priceLists: "basic", currency: CZK) {
+		                                __typename
+		                                currency
+		                                priceList
+		                                priceWithTax
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -1126,23 +1129,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                 filterBy: {
-					                     entity_primaryKey_inSet: [%d, %d]
-					                 }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         prices(priceLists: ["basic", "vip"], currency: CZK) {
-					                             priceWithTax
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d]
+		                    }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            prices(priceLists: ["basic", "vip"], currency: CZK) {
+		                                priceWithTax
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -1167,24 +1170,24 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                 filterBy: {
-					                     entity_primaryKey_inSet: [%d, %d],
-					                     entity_locale_equals: cs_CZ
-					                 }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         prices(priceLists: "basic", currency: CZK) {
-					                             priceWithTax(formatted: true, withCurrency: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d],
+		                        entityLocaleEquals: cs_CZ
+		                    }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            prices(priceLists: "basic", currency: CZK) {
+		                                priceWithTax(formatted: true, withCurrency: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -1209,23 +1212,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                 filterBy: {
-					                     entity_primaryKey_inSet: [%d, %d]
-					                 }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         prices(priceLists: "basic", currency: CZK, locale: cs_CZ) {
-					                             priceWithTax(formatted: true, withCurrency: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d]
+		                    }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            prices(priceLists: "basic", currency: CZK, locale: cs_CZ) {
+		                                priceWithTax(formatted: true, withCurrency: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -1245,23 +1248,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                 filterBy: {
-					                     entity_primaryKey_inSet: [%d, %d]
-					                 }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                         prices(priceLists: "basic", currency: CZK) {
-					                             priceWithTax(formatted: true, withCurrency: true)
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: [%d, %d]
+		                    }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+		                            prices(priceLists: "basic", currency: CZK) {
+		                                priceWithTax(formatted: true, withCurrency: true)
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -1290,27 +1293,27 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                        entity_locale_equals: en
-					                    }
-					                   ) {
-					                       __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         associatedData {
-					                             __typename
-					                             labels
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            entityLocaleEquals: en
+	                        }
+                        ) {
+                            __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            associatedData {
+		                                __typename
+		                                labels
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1339,26 +1342,26 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         associatedData(locale: en) {
-					                             __typename
-					                             labels
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            associatedData(locale: en) {
+		                                __typename
+		                                labels
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1430,45 +1433,45 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         parameter {
-					                             __typename
-					                             attributes {
-					                                 __typename
-					                                 marketShare
-					                             }
-					                             referencedEntity {
-					                                 __typename
-					                                 primaryKey
-					                                 type
-					                                 attributes {
-					                                     code
-					                                 }
-					                             }
-					                             groupEntity {
-					                                 __typename
-					                                 primaryKey
-					                                 type
-					                                 attributes {
-					                                     code
-					                                 }
-					                             }
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            parameter {
+		                                __typename
+		                                attributes {
+		                                    __typename
+		                                    marketShare
+		                                }
+		                                referencedEntity {
+		                                    __typename
+		                                    primaryKey
+		                                    type
+		                                    attributes {
+		                                        code
+		                                    }
+		                                }
+		                                groupEntity {
+		                                    __typename
+		                                    primaryKey
+		                                    type
+		                                    attributes {
+		                                        code
+		                                    }
+		                                }
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1513,30 +1516,142 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        attribute_code_inSet: ["%s", "%s"]
-					                    }
-					                ) {
-					                    __typename
-					                    recordPage {
-					                        __typename
-					                        data {
-					                            primaryKey
-					                      type
-					                         store {
-					                             referencedEntity {
-					                                 primaryKey
-					                             }
-					                         }
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            attributeCodeInSet: ["%s", "%s"]
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            store {
+		                                referencedEntity {
+		                                    primaryKey
+		                                }
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return filtered and ordered reference list for products")
+	void shouldReturnFilteredAndOrderedReferenceListForProducts(GraphQLTester tester, List<SealedEntity> originalProductsEntities, List<SealedEntity> originalStoreEntities) {
+		final Map<Integer, SealedEntity> storesIndexedByPk = originalStoreEntities.stream()
+			.collect(Collectors.toMap(
+				EntityContract::getPrimaryKey,
+				Function.identity()
+			));
+
+		final Map<Integer, Set<String>> productsWithLotsOfStores = originalProductsEntities.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 4 && it.getLocales().contains(CZECH_LOCALE))
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getReferences(Entities.STORE)
+						.stream()
+						.map(ref -> ref.getReferenceKey().primaryKey())
+						.map(storesIndexedByPk::get)
+						.map(store -> store.getAttribute(ATTRIBUTE_CODE, String.class))
+						.collect(Collectors.toSet())
+				)
+			);
+
+		final AtomicBoolean atLeastFirst = new AtomicBoolean();
+		final Random rnd = new Random(5);
+		final String[] randomStores = productsWithLotsOfStores
+			.values()
+			.stream()
+			.flatMap(Collection::stream)
+			.filter(it -> atLeastFirst.compareAndSet(false, true) || rnd.nextInt(10) == 0)
+			.distinct()
+			.toArray(String[]::new);
+
+		final var expectedBody = createBasicPageResponse(
+			productsWithLotsOfStores.keySet()
+				.stream()
+				.sorted()
+				.map(id -> originalProductsEntities.stream()
+					.filter(it -> it.getPrimaryKey().equals(id))
+					.findFirst()
+					.orElseThrow())
+				.toList(),
+			entity -> {
+				final var references = entity.getReferences(Entities.STORE)
+					.stream()
+					.map(it -> storesIndexedByPk.get(it.getReferencedPrimaryKey()))
+					.filter(it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null)
+					.sorted(Comparator.comparing(it -> (String) it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE), Comparator.reverseOrder()))
+					.map(reference ->
+						map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getPrimaryKey()))
+							.build())
+					.toList();
+				assertFalse(references.isEmpty());
+
+				return map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+					.e("store", references)
+					.build();
+			}
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%s],
+	                            entityLocaleEquals: cs_CZ
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage(number: 1, size: %d) {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            store(
+		                                filterBy: {
+		                                    entityHaving: {
+		                                        attributeCodeInSet: [%s]
+		                                    }
+		                                },
+		                                orderBy: {
+		                                    entityProperty: {
+		                                        attributeNameNatural: DESC
+		                                    }
+		                                }
+		                            ) {
+		                                referencedEntity {
+		                                    primaryKey
+		                                }
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				productsWithLotsOfStores.keySet().stream().map(Object::toString).collect(Collectors.joining(",")),
+				Integer.MAX_VALUE,
+				Arrays.stream(randomStores).map(it -> "\"" + it + "\"").collect(Collectors.joining(","))
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -1611,35 +1726,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					            query {
-					                query_product(
-					                    filterBy: {
-					                        or: [
-					                            {
-					                                attribute_alias_equals: %b
-					                                attribute_priority_equals: "%s"
-					                            },
-					                            {
-					                                attribute_alias_equals: %b
-					                                attribute_priority_equals: "%s"
-					                            },
-					                            {
-					                                attribute_alias_equals: false
-					                                attribute_priority_inSet: ["%s", "%s", "%s", "%s"]
-					                            }
-					                        ]
-					                        not: {
-					                            attribute_code_equals: "%s"
-					                        }
-					                    }
-					                ) {
-					                    recordStrip(limit: %d) {
-					                        data {
-					                            primaryKey
-					                        }
-					                    }
-					                }
-					            }
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            or: [
+	                                {
+	                                    attributeAliasEquals: %b
+	                                    attributePriorityEquals: "%s"
+	                                },
+	                                {
+	                                    attributeAliasEquals: %b
+	                                    attributePriorityEquals: "%s"
+	                                },
+	                                {
+	                                    attributeAliasEquals: false
+	                                    attributePriorityInSet: ["%s", "%s", "%s", "%s"]
+	                                }
+	                            ]
+	                            not: {
+	                                attributeCodeEquals: "%s"
+	                            }
+	                        }
+	                    ) {
+	                        recordStrip(limit: %d) {
+	                            data {
+	                                primaryKey
+	                            }
+	                        }
+	                    }
+	                }
 					""",
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_ALIAS),
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
@@ -1694,23 +1809,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_priority_lessThan: "35000"
-					                 }
-					                 orderBy: {
-					                     attribute_created_natural: DESC,
-					                     attribute_manufactured_natural: ASC
-					                 }
-					             ) {
-					                 recordStrip(limit: 30) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributePriorityLessThan: "35000"
+		                    }
+		                    orderBy: {
+		                        attributeCreatedNatural: DESC,
+		                        attributeManufacturedNatural: ASC
+		                    }
+		                ) {
+		                    recordStrip(limit: 30) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                }
+		            }
 					"""
 			)
 			.executeAndThen()
@@ -1752,19 +1867,19 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_priority_lessThan: "35000"
-					                 }
-					             ) {
-					                 recordPage(number: 2, size: 3) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributePriorityLessThan: "35000"
+		                    }
+		                ) {
+		                    recordPage(number: 2, size: 3) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                }
+		            }
 					"""
 			)
 			.executeAndThen()
@@ -1811,19 +1926,19 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_priority_lessThan: "35000"
-					                 }
-					             ) {
-					                 recordStrip(offset: 2, limit: 3) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributePriorityLessThan: "35000"
+		                    }
+		                ) {
+		                    recordStrip(offset: 2, limit: 3) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                }
+		            }
 					"""
 			)
 			.executeAndThen()
@@ -1868,37 +1983,37 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_alias_is: NOT_NULL
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     __typename
-					                     attributeHistogram {
-					                         __typename
-					                         quantity {
-					                             __typename
-					                             min
-					                             max
-					                             overallCount
-					                             buckets(requestedCount: 20) {
-					                                 __typename
-					                                 index
-					                                 threshold
-					                                 occurrences
-					                             }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        attributeHistogram {
+		                            __typename
+		                            quantity {
+		                                __typename
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 20) {
+		                                    __typename
+		                                    index
+		                                    threshold
+		                                    occurrences
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -1948,51 +2063,51 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_alias_is: NOT_NULL
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     attributeHistogram {
-					                         quantity {
-					                             __typename
-					                             min
-					                             max
-					                             overallCount
-					                             buckets(requestedCount: 20) {
-					                                 __typename
-					                                 index
-					                                 threshold
-					                                 occurrences
-					                             }
-					                         }
-					                     }
-					                 }
-					                 otherExtraResults: extraResults {
-					                     attributeHistogram {
-					                         priority {
-					                             __typename
-					                             min
-					                             max
-					                             overallCount
-					                             buckets(requestedCount: 20) {
-					                                 __typename
-					                                 index
-					                                 threshold
-					                                 occurrences
-					                             }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        attributeHistogram {
+		                            quantity {
+		                                __typename
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 20) {
+		                                    __typename
+		                                    index
+		                                    threshold
+		                                    occurrences
+		                                }
+		                            }
+		                        }
+		                    }
+		                    otherExtraResults: extraResults {
+		                        attributeHistogram {
+		                            priority {
+		                                __typename
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 20) {
+		                                    __typename
+		                                    index
+		                                    threshold
+		                                    occurrences
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2031,47 +2146,47 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_alias_is: NOT_NULL
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     attributeHistogram {
-					                         quantity {
-					                             __typename
-					                             min
-					                             max
-					                             overallCount
-					                             buckets(requestedCount: 20) {
-					                                 __typename
-					                                 index
-					                                 threshold
-					                                 occurrences
-					                             }
-					                         }
-					                         otherQuantity: quantity {
-					                             __typename
-					                             min
-					                             max
-					                             overallCount
-					                             buckets(requestedCount: 20) {
-					                                 __typename
-					                                 index
-					                                 threshold
-					                                 occurrences
-					                             }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        attributeHistogram {
+		                            quantity {
+		                                __typename
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 20) {
+		                                    __typename
+		                                    index
+		                                    threshold
+		                                    occurrences
+		                                }
+		                            }
+		                            otherQuantity: quantity {
+		                                __typename
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 20) {
+		                                    __typename
+		                                    index
+		                                    threshold
+		                                    occurrences
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2094,33 +2209,33 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_alias_is: NOT_NULL
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     attributeHistogram {
-					                         quantity {
-					                             min
-					                             max
-					                             overallCount
-					                             buckets {
-					                                 index
-					                                 threshold
-					                                 occurrences
-					                             }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        attributeHistogram {
+		                            quantity {
+		                                min
+		                                max
+		                                overallCount
+		                                buckets {
+		                                    index
+		                                    threshold
+		                                    occurrences
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2136,28 +2251,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_alias_is: NOT_NULL
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     attributeHistogram {
-					                         quantity {
-					                             min
-					                             max
-					                             overallCount
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        attributeHistogram {
+		                            quantity {
+		                                min
+		                                max
+		                                overallCount
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2173,34 +2288,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_alias_is: NOT_NULL
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     attributeHistogram {
-					                         quantity {
-					                             min
-					                             max
-					                             overallCount
-					                             buckets(requestedCount: 10) {
-					                                 index
-					                             }
-					                             otherBuckets: buckets(requestedCount: 20) {
-					                                 index
-					                             }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        attributeHistogram {
+		                            quantity {
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 10) {
+		                                    index
+		                                }
+		                                otherBuckets: buckets(requestedCount: 20) {
+		                                    index
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2240,35 +2355,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     price_inCurrency: EUR
-					                     price_inPriceLists: ["vip", "basic"]
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     __typename
-					                     priceHistogram {
-					                         __typename
-					                            min
-					                            max
-					                            overallCount
-					                            buckets(requestedCount: 20) {
-					                                __typename
-					                                index
-					                                threshold
-					                                occurrences
-					                            }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        priceHistogram {
+		                            __typename
+	                                min
+	                                max
+	                                overallCount
+	                                buckets(requestedCount: 20) {
+	                                    __typename
+	                                    index
+	                                    threshold
+	                                    occurrences
+	                                }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2316,46 +2431,46 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     price_inCurrency: EUR
-					                     price_inPriceLists: ["vip", "basic"]
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     priceHistogram {
-					                         __typename
-					                            min
-					                            max
-					                            overallCount
-					                            buckets(requestedCount: 20) {
-					                                __typename
-					                                index
-					                                threshold
-					                                occurrences
-					                            }
-					                     }
-					                     otherPriceHistogram: priceHistogram {
-					                         __typename
-					                            min
-					                            max
-					                            overallCount
-					                            buckets(requestedCount: 20) {
-					                                __typename
-					                                index
-					                                threshold
-					                                occurrences
-					                            }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        priceHistogram {
+		                            __typename
+	                                min
+	                                max
+	                                overallCount
+	                                buckets(requestedCount: 20) {
+	                                    __typename
+	                                    index
+	                                    threshold
+	                                    occurrences
+	                                }
+		                        }
+		                        otherPriceHistogram: priceHistogram {
+		                            __typename
+	                                min
+	                                max
+	                                overallCount
+	                                buckets(requestedCount: 20) {
+	                                    __typename
+	                                    index
+	                                    threshold
+	                                    occurrences
+	                                }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2379,32 +2494,32 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     price_inCurrency: EUR
-					                     price_inPriceLists: ["vip", "basic"]
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     priceHistogram {
-					                            min
-					                            max
-					                            overallCount
-					                            buckets {
-					                                index
-					                                threshold
-					                                occurrences
-					                            }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        priceHistogram {
+	                                min
+	                                max
+	                                overallCount
+	                                buckets {
+	                                    index
+	                                    threshold
+	                                    occurrences
+	                                }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2420,27 +2535,27 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     price_inCurrency: EUR
-					                     price_inPriceLists: ["vip", "basic"]
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     priceHistogram {
-					                            min
-					                            max
-					                            overallCount
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        priceHistogram {
+	                                min
+	                                max
+	                                overallCount
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2456,37 +2571,37 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     price_inCurrency: EUR
-					                     price_inPriceLists: ["vip", "basic"]
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     priceHistogram {
-					                            min
-					                            max
-					                            overallCount
-					                            buckets(requestedCount: 10) {
-					                                index
-					                                threshold
-					                                occurrences
-					                            }
-					                            otherBuckets: buckets(requestedCount: 20) {
-					                                index
-					                                threshold
-					                                occurrences
-					                            }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        priceHistogram {
+	                                min
+	                                max
+	                                overallCount
+	                                buckets(requestedCount: 10) {
+	                                    index
+	                                    threshold
+	                                    occurrences
+	                                }
+	                                otherBuckets: buckets(requestedCount: 20) {
+	                                    index
+	                                    threshold
+	                                    occurrences
+	                                }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2524,42 +2639,42 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     hierarchy_category_within: {
-					                         ofParent: 95
-					                     }
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     __typename
-					                     hierarchyParents {
-					                         __typename
-					                         category {
-					                             __typename
-					                             primaryKey
-					                             references {
-					                                 __typename
-					                                 primaryKey
-					                                 parentEntities {
-					                                     __typename
-					                                     primaryKey
-					                                     attributes {
-					                                         code
-					                                        }
-					                                 }
-					                             }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        hierarchyCategoryWithin: {
+		                            ofParent: 95
+		                        }
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        hierarchyParents {
+		                            __typename
+		                            category {
+		                                __typename
+		                                primaryKey
+		                                references {
+		                                    __typename
+		                                    primaryKey
+		                                    parentEntities {
+		                                        __typename
+		                                        primaryKey
+		                                        attributes {
+		                                            code
+	                                            }
+		                                    }
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2587,42 +2702,42 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     hierarchy_category_within: {
-					                         ofParent: 95
-					                     }
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     __typename
-					                     hierarchyParents {
-					                         __typename
-					                         self {
-					                             __typename
-					                             primaryKey
-					                             references {
-					                                 __typename
-					                                 primaryKey
-					                                 parentEntities {
-					                                     __typename
-					                                     primaryKey
-					                                     attributes {
-					                                         code
-					                                        }
-					                                 }
-					                             }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        hierarchyCategoryWithin: {
+		                            ofParent: 95
+		                        }
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        hierarchyParents {
+		                            __typename
+		                            self {
+		                                __typename
+		                                primaryKey
+		                                references {
+		                                    __typename
+		                                    primaryKey
+		                                    parentEntities {
+		                                        __typename
+		                                        primaryKey
+		                                        attributes {
+		                                            code
+	                                            }
+		                                    }
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2657,32 +2772,32 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_category {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     __typename
-					                     hierarchyParents {
-					                         __typename
-					                         self {
-					                             __typename
-					                             primaryKey
-					                             parentEntities {
-					                                    __typename
-					                                    primaryKey
-					                                    attributes {
-					                                        code
-					                                       }
-					                                }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryCategory {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        hierarchyParents {
+		                            __typename
+		                            self {
+		                                __typename
+		                                primaryKey
+		                                parentEntities {
+	                                        __typename
+	                                        primaryKey
+	                                        attributes {
+	                                            code
+                                            }
+	                                    }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2710,28 +2825,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_category {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     hierarchyParentsOfSelf {
-					                         self {
-					                             primaryKey
-					                             parentEntities {
-					                                    primaryKey
-					                                }
-					                                references {
-					                                 primaryKey
-					                             }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryCategory {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        hierarchyParentsOfSelf {
+		                            self {
+		                                primaryKey
+		                                parentEntities {
+	                                        primaryKey
+	                                    }
+	                                    references {
+		                                    primaryKey
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2772,35 +2887,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     hierarchy_category_within: {
-					                         ofParent: 95
-					                     }
-					                     entity_locale_equals: cs_CZ
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     hierarchyParents {
-					                         category {
-					                             references {
-					                                 parentEntities {
-					                                     attributes {
-					                                         name
-					                                        }
-					                                 }
-					                             }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        hierarchyCategoryWithin: {
+		                            ofParent: 95
+		                        }
+		                        entityLocaleEquals: cs_CZ
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        hierarchyParents {
+		                            category {
+		                                references {
+		                                    parentEntities {
+		                                        attributes {
+		                                            name
+	                                            }
+		                                    }
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2852,48 +2967,48 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_alias_equals: true
-					                     entity_locale_equals: cs_CZ
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     __typename
-					                     hierarchyStatistics {
-					                         __typename
-					                         category {
-					                             __typename
-					                             cardinality
-					                             entity {
-					                                 __typename
-					                                    primaryKey
-					                                    attributes {
-					                                        code
-					                                    }
-					                                }
-					                             childrenStatistics {
-					                                 __typename
-					                                 cardinality
-					                                 entity {
-					                                     __typename
-					                                     primaryKey
-					                                     attributes {
-					                                         code
-					                                     }
-					                                 }
-					                                }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasEquals: true
+		                        entityLocaleEquals: cs_CZ
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        hierarchyStatistics {
+		                            __typename
+		                            category {
+		                                __typename
+		                                cardinality
+		                                entity {
+		                                    __typename
+	                                        primaryKey
+	                                        attributes {
+	                                            code
+	                                        }
+	                                    }
+		                                childrenStatistics {
+		                                    __typename
+		                                    cardinality
+		                                    entity {
+		                                        __typename
+		                                        primaryKey
+		                                        attributes {
+		                                            code
+		                                        }
+		                                    }
+	                                    }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -2951,47 +3066,47 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_category(
-					                 filterBy: {
-					                     entity_locale_equals: cs_CZ
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     __typename
-					                     hierarchyStatistics {
-					                         __typename
-					                         self {
-					                             __typename
-					                             cardinality
-					                             entity {
-					                                 __typename
-					                                    primaryKey
-					                                    attributes {
-					                                        code
-					                                    }
-					                                }
-					                             childrenStatistics {
-					                                 __typename
-					                                 cardinality
-					                                 entity {
-					                                     __typename
-					                                     primaryKey
-					                                     attributes {
-					                                         code
-					                                     }
-					                                 }
-					                                }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryCategory(
+		                    filterBy: {
+		                        entityLocaleEquals: cs_CZ
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        hierarchyStatistics {
+		                            __typename
+		                            self {
+		                                __typename
+		                                cardinality
+		                                entity {
+		                                    __typename
+	                                        primaryKey
+	                                        attributes {
+	                                            code
+	                                        }
+	                                    }
+		                                childrenStatistics {
+		                                    __typename
+		                                    cardinality
+		                                    entity {
+		                                        __typename
+		                                        primaryKey
+		                                        attributes {
+		                                            code
+		                                        }
+		                                    }
+	                                    }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -3019,26 +3134,26 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     entity_locale_equals: cs_CZ
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     hierarchyStatistics {
-					                         self {
-					                             cardinality
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        entityLocaleEquals: cs_CZ
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        hierarchyStatistics {
+		                            self {
+		                                cardinality
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -3093,31 +3208,31 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product(
-					                 filterBy: {
-					                     attribute_alias_equals: true
-					                     entity_locale_equals: cs_CZ
-					                 }
-					             ) {
-					                 recordPage(size: %d) {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					                 extraResults {
-					                     hierarchyStatistics {
-					                         category {
-					                             entity {
-					                                    attributes {
-					                                        name
-					                                    }
-					                                }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasEquals: true
+		                        entityLocaleEquals: cs_CZ
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        hierarchyStatistics {
+		                            category {
+		                                entity {
+	                                        attributes {
+	                                            name
+	                                        }
+	                                    }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -3155,34 +3270,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product {
-					                 extraResults {
-					                     __typename
-					                     facetSummary {
-					                         __typename
-					                         brand {
-					                             __typename
-					                             groupEntity {
-					                              __typename
-					                              primaryKey
-					                              type
-					                          }
-					                          facetStatistics {
-					                              __typename
-					                              facetEntity {
-					                                  __typename
-					                                  primaryKey
-					                                  type
-					                              }
-					                              requested
-					                              count
-					                          }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        __typename
+		                        facetSummary {
+		                            __typename
+		                            brand {
+		                                __typename
+		                                groupEntity {
+			                                __typename
+			                                primaryKey
+			                                type
+			                            }
+			                            count
+			                            facetStatistics {
+			                                __typename
+			                                facetEntity {
+			                                    __typename
+			                                    primaryKey
+			                                    type
+			                                }
+			                                requested
+			                                count
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -3232,37 +3348,38 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-					         query {
-					             query_product {
-					                 extraResults {
-					                     facetSummary {
-					                         brand {
-					                             groupEntity {
-					                                 primaryKey
-					                                 type
-					                             }
-					                          facetStatistics {
-					                              facetEntity {
-					                                  primaryKey
-					                                  type
-					                                  attributes {
-					                                      code
-					                                  }
-					                              }
-					                              requested
-					                              count
-					                              impact {
-					                                  __typename
-					                                  difference
-					                                  matchCount
-					                                  hasSense
-					                              }
-					                          }
-					                         }
-					                     }
-					                 }
-					             }
-					         }
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        facetSummary {
+		                            brand {
+		                                groupEntity {
+		                                    primaryKey
+		                                    type
+		                                }
+		                                count
+			                            facetStatistics {
+			                                facetEntity {
+			                                    primaryKey
+			                                    type
+			                                    attributes {
+			                                        code
+			                                    }
+			                                }
+			                                requested
+			                                count
+			                                impact {
+			                                    __typename
+			                                    difference
+			                                    matchCount
+			                                    hasSense
+			                                }
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -3566,6 +3683,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				map()
 					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics ->
@@ -3594,6 +3712,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.map(groupStatistics ->
 				map()
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics ->

@@ -99,13 +99,13 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.requestBody("{" +
 					"\"filterBy\": {" +
 					"  \"and\": [ {" +
-					"    \"entity_primaryKey_inSet\": [%d, %d]" +
+					"    \"entityPrimaryKeyInSet\": [%d, %d]" +
 					"     }" +
 					"  ]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"attribute_content\": [\"code\"]" +
+					"  \"entityFetch\": {" +
+					"     \"attributeContent\": [\"code\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -157,14 +157,14 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.requestBody("{" +
 					"\"filterBy\": {" +
 					"  \"and\": [ {" +
-					"    \"entity_primaryKey_inSet\": [%d, %d]," +
-					"    \"entity_locale_equals\": \"en\"" +
+					"    \"entityPrimaryKeyInSet\": [%d, %d]," +
+					"    \"entityLocaleEquals\": \"en\"" +
 					"     }" +
 					"  ]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"attribute_content\": [\"code\",\"name\"]" +
+					"  \"entityFetch\": {" +
+					"     \"attributeContent\": [\"code\",\"name\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -208,13 +208,13 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.requestBody("{" +
 					"\"filterBy\": {" +
 					"  \"and\": [ {" +
-					"    \"entity_primaryKey_inSet\": [%d, %d]" +
+					"    \"entityPrimaryKeyInSet\": [%d, %d]" +
 					"     }" +
 					"  ]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"attribute_content\": [\"code\",\"name\"]" +
+					"  \"entityFetch\": {" +
+					"     \"attributeContent\": [\"code\",\"name\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -263,14 +263,14 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.requestBody("{" +
 					"\"filterBy\": {" +
 					"  \"and\": [ {" +
-					"    \"attribute_url_inSet\": [\"%s\", \"%s\"]," +
-					"    \"entity_locale_equals\": \"en\"" +
+					"    \"attributeUrlInSet\": [\"%s\", \"%s\"]," +
+					"    \"entityLocaleEquals\": \"en\"" +
 					"     }" +
 					"  ]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"attribute_content\": [\"url\",\"name\"]" +
+					"  \"entityFetch\": {" +
+					"     \"attributeContent\": [\"url\",\"name\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -298,13 +298,13 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
     """
                     {
 						"filterBy": {
-						    "attribute_code_inSet": ["%s", "%s"],
-						    "price_inCurrency": "CZK",
-						    "price_inPriceLists": ["basic"]
+						    "attributeCodeInSet": ["%s", "%s"],
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": ["basic"]
 						},
 						"require": {
-						    "entity_fetch": {
-						        "price_content": {
+						    "entityFetch": {
+						        "priceContent": {
 						            "contentMode": "RESPECTING_FILTER"
 					            }
 						    }
@@ -330,9 +330,9 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"    \"attribute_code_inSet\": [\"%s\", \"%s\"]," +
-					"    \"price_inCurrency\": \"CZK\"," +
-					"    \"price_inPriceLists\": [\"nonexistent\"]" +
+					"    \"attributeCodeInSet\": [\"%s\", \"%s\"]," +
+					"    \"priceInCurrency\": \"CZK\"," +
+					"    \"priceInPriceLists\": [\"nonexistent\"]" +
 					"   }" +
 					"}",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
@@ -353,9 +353,9 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"    \"attribute_code_inSet\": [\"%s\", \"%s\"]," +
-					"    \"price_inCurrency\": \"AAA\"," +
-					"    \"price_inPriceLists\": [\"basic\"]" +
+					"    \"attributeCodeInSet\": [\"%s\", \"%s\"]," +
+					"    \"priceInCurrency\": \"AAA\"," +
+					"    \"priceInPriceLists\": [\"basic\"]" +
 					"   }" +
 					"}",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
@@ -382,13 +382,13 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				"""
                     {
 						"filterBy": {
-						    "entity_primaryKey_inSet": [%d, %d],
-						    "price_inCurrency": "CZK",
-						    "price_inPriceLists": ["basic"]
+						    "entityPrimaryKeyInSet": [%d, %d],
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": ["basic"]
 						},
 						"require": {
-						    "entity_fetch": {
-						        "price_content": {
+						    "entityFetch": {
+						        "priceContent": {
 						            "contentMode": "RESPECTING_FILTER"
 					            }
 					        }
@@ -419,13 +419,13 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				"""
                     {
 						"filterBy": {
-						    "attribute_code_inSet": ["%s", "%s"],
-						    "price_inCurrency": "CZK",
-						    "price_inPriceLists": ["basic"]
+						    "attributeCodeInSet": ["%s", "%s"],
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": ["basic"]
 						},
 						"require": {
-						    "entity_fetch": {
-						        "price_content": {
+						    "entityFetch": {
+						        "priceContent": {
 						            "contentMode": "RESPECTING_FILTER"
 					            }
 						    }
@@ -455,11 +455,11 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 	"""
                     {
 						"filterBy": {
-						    "attribute_code_inSet": ["%s", "%s"]
+						    "attributeCodeInSet": ["%s", "%s"]
 						},
 						"require": {
-						    "entity_fetch": {
-						        "price_content": {
+						    "entityFetch": {
+						        "priceContent": {
 						            "contentMode": "RESPECTING_FILTER"
 					            }
 						    }
@@ -494,12 +494,12 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"    \"attribute_code_inSet\": [\"%s\", \"%s\"]," +
-					"    \"entity_locale_equals\": \"en\"" +
+					"    \"attributeCodeInSet\": [\"%s\", \"%s\"]," +
+					"    \"entityLocaleEquals\": \"en\"" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"associatedData_content\": [\"labels\"]" +
+					"  \"entityFetch\": {" +
+					"     \"associatedDataContent\": [\"labels\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -529,11 +529,11 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"    \"attribute_code_inSet\": [\"%s\", \"%s\"]" +
+					"    \"attributeCodeInSet\": [\"%s\", \"%s\"]" +
 					"}," +
 					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"associatedData_content\": [\"labels\"]" +
+					"  \"entityFetch\": {" +
+					"     \"associatedDataContent\": [\"labels\"]" +
 					"    }" +
 					"  }" +
 					"}",
@@ -570,7 +570,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 					.e(EntityDescriptor.LOCALES.name(), new ArrayList<>(0))
 					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true))
+					.e(Entities.BRAND.toLowerCase(), createReferenceDto(entity, Entities.BRAND, true, true))
 					.build();
 			})
 			.toList();
@@ -578,21 +578,25 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/list")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("{" +
-					"\"filterBy\": {" +
-					"    \"attribute_code_inSet\": [\"%s\", \"%s\"]" +
-					"}," +
-					"\"require\": {" +
-					"  \"entity_fetch\": {" +
-					"     \"reference_brand_content\": {" +
-					"        \"entity_fetch\": {" +
-					"          \"attribute_content\": [\"marketShare\"]" +
-					"          }" +
-					"       }" +
-					"    }" +
-					"  }" +
-					" }" +
-					"}",
+			.requestBody(
+					"""
+                    {
+						"filterBy": {
+						    "attributeCodeInSet": ["%s", "%s"]
+						},
+						"require": {
+						    "entityFetch": {
+						        "referenceBrandContent": {
+						            "requirements": {
+							             "entityFetch": {
+							                "attributeContent": ["marketShare"]
+							            }
+						            }
+						        }
+					        }
+					    }
+					}
+					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE))
 			.executeAndThen()
@@ -669,23 +673,23 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"   \"or\": [" +
-					"       {" +
-					"           \"attribute_alias_equals\": %b," +
-					"           \"attribute_priority_equals\": \"%s\"" +
-					"       }," +
-					"       {" +
-					"           \"attribute_alias_equals\": %b," +
-					"           \"attribute_priority_equals\": \"%s\"" +
-					"       }," +
-					"       {" +
-					"           \"attribute_alias_equals\": false," +
-					"           \"attribute_priority_inSet\": [\"%s\", \"%s\", \"%s\", \"%s\"]" +
-					"       }" +
-					"   ]," +
-					"   \"not\": {" +
-					"       \"attribute_code_equals\": \"%s\"" +
-					"   }" +
+					"\"or\": [" +
+					"    {" +
+					"        \"attributeAliasEquals\": %b," +
+					"        \"attributePriorityEquals\": \"%s\"" +
+					"    }," +
+					"    {" +
+					"        \"attributeAliasEquals\": %b," +
+					"        \"attributePriorityEquals\": \"%s\"" +
+					"    }," +
+					"    {" +
+					"        \"attributeAliasEquals\": false," +
+					"        \"attributePriorityInSet\": [\"%s\", \"%s\", \"%s\", \"%s\"]" +
+					"    }" +
+					"]," +
+					"\"not\": {" +
+					"    \"attributeCodeEquals\": \"%s\"" +
+					"}" +
 					"}," +
 					"\"require\": {" +
 					"  \"page\": {" +
@@ -744,11 +748,11 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
-					"  \"attribute_priority_lessThan\": 35000" +
+					"  \"attributePriorityLessThan\": 35000" +
 					"}," +
 					"\"orderBy\": {" +
-					"  \"attribute_created_natural\": \"DESC\"," +
-					"  \"attribute_manufactured_natural\": \"ASC\"" +
+					"  \"attributeCreatedNatural\": \"DESC\"," +
+					"  \"attributeManufacturedNatural\": \"ASC\"" +
 					"}," +
 					"\"require\": {" +
 					"  \"page\": {" +
@@ -794,7 +798,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 				"\"filterBy\": {" +
-				"  \"attribute_priority_lessThan\": 35000" +
+				"  \"attributePriorityLessThan\": 35000" +
 				"}," +
 				"\"require\": {" +
 				"  \"page\": {" +

@@ -25,7 +25,6 @@ package io.evitadb.externalApi.api.model;
 
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
-import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import lombok.Builder;
@@ -93,14 +92,14 @@ public record ObjectDescriptor(@Nonnull String name,
 				Stream.of(suffix)
 					.filter(Objects::nonNull)
 			)
-			.collect(Collectors.joining(CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER));
+			.collect(Collectors.joining());
 
 		if (this.name.equals(NAME_WILDCARD)) {
-			return String.join(CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER, schemaName);
+			return schemaName;
 		} else if (this.name.startsWith(NAME_WILDCARD)) {
-			return String.join(CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER, schemaName, this.name.substring(1));
+			return schemaName + this.name.substring(1);
 		} else if (this.name.endsWith(NAME_WILDCARD)) {
-			return String.join(CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER, this.name.substring(0, this.name.length() - 1), schemaName);
+			return this.name.substring(0, this.name.length() - 1) + schemaName;
 		} else {
 			throw new ExternalApiInternalError("Unsupported placement of name wildcard. Wildcard must be at the beginning or at the end.");
 		}

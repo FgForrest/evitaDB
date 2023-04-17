@@ -26,10 +26,10 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -65,7 +65,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "parentsOfReference",
 	shortDescription = "The constraint triggers computation of parent entities of the referenced hierarchical entities into response."
 )
@@ -84,9 +84,9 @@ public class HierarchyParentsOfReference extends AbstractRequireConstraintContai
 		super(referenceName);
 	}
 
-	@ConstraintCreatorDef
-	public HierarchyParentsOfReference(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                                   @Nullable @ConstraintChildrenParamDef EntityFetch entityRequirement) {
+	@Creator
+	public HierarchyParentsOfReference(@Nonnull @Classifier String referenceName,
+	                                   @Nullable @Child EntityFetch entityRequirement) {
 		super(new String[] { referenceName }, entityRequirement);
 	}
 

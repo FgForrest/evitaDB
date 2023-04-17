@@ -25,11 +25,11 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -57,7 +57,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "lessThan",
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute is less than the passed value.",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
@@ -70,9 +70,9 @@ public class AttributeLessThan extends AbstractAttributeFilterConstraintLeaf imp
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public <T extends Serializable & Comparable<?>> AttributeLessThan(@Nonnull @ConstraintClassifierParamDef String attributeName,
-	                                                                  @Nonnull @ConstraintValueParamDef(requiresPlainType = true) T attributeValue) {
+	@Creator
+	public <T extends Serializable & Comparable<?>> AttributeLessThan(@Nonnull @Classifier String attributeName,
+	                                                                  @Nonnull @Value(requiresPlainType = true) T attributeValue) {
 		super(attributeName, attributeValue);
 	}
 

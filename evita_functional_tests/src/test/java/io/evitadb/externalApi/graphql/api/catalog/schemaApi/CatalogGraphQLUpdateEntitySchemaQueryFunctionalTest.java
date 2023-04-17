@@ -31,9 +31,12 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescripto
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.utils.StringUtils;
 import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,9 +57,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
-	private static final String EMPTY_SCHEMA_PATH = "data.get_empty_schema";
-	private static final String UPDATE_EMPTY_SCHEMA_PATH = "data.update_empty_schema";
+	private static final String EMPTY_SCHEMA_PATH = "data.getEmptySchema";
+	private static final String UPDATE_EMPTY_SCHEMA_PATH = "data.updateEmptySchema";
 	public static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE = GRAPHQL_THOUSAND_PRODUCTS + "forEntitySchemaChange";
 
 	@Override
@@ -74,7 +76,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema {
+					updateEmptySchema {
 						version
 					}
 				}	
@@ -96,7 +98,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: []
 					) {
 						version
@@ -130,7 +132,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								allowLocaleInEntitySchemaMutation: {
@@ -164,7 +166,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								disallowLocaleInEntitySchemaMutation: {
@@ -205,7 +207,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								createAttributeSchemaMutation: {
@@ -244,7 +246,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
                 query {
-                    get_empty_schema {
+                    getEmptySchema {
                         name
 						version
 						attributes {
@@ -300,7 +302,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								modifyAttributeSchemaDescriptionMutation: {
@@ -343,7 +345,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								removeAttributeSchemaMutation: {
@@ -390,7 +392,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								createAssociatedDataSchemaMutation: {
@@ -425,7 +427,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
                 query {
-                    get_empty_schema {
+                    getEmptySchema {
                         name
 						version
 						associatedData {
@@ -471,7 +473,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								modifyAssociatedDataSchemaDescriptionMutation: {
@@ -514,7 +516,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								removeAssociatedDataSchemaMutation: {
@@ -556,7 +558,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								createReferenceSchemaMutation: {
@@ -593,7 +595,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
                 query {
-                    get_empty_schema {
+                    getEmptySchema {
                         name
 						version
 						references {
@@ -647,7 +649,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								modifyReferenceAttributeSchemaMutation: {
@@ -698,7 +700,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				mutation {
-					update_empty_schema (
+					updateEmptySchema (
 						mutations: [
 							{
 								removeReferenceSchemaMutation: {
@@ -735,16 +737,16 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.document(
 				"""
 				query {
-					get_%s_schema {
+					get%sSchema {
 						version
 					}
 				}
 				""",
-				entityType
+				StringUtils.toPascalCase(entityType)
 			)
 			.executeAndThen()
 			.extract()
 			.jsonPath()
-			.get("data.get_" + entityType + "_schema." + EntitySchemaDescriptor.VERSION.name());
+			.get("data.get" + StringUtils.toPascalCase(entityType) + "Schema." + EntitySchemaDescriptor.VERSION.name());
 	}
 }

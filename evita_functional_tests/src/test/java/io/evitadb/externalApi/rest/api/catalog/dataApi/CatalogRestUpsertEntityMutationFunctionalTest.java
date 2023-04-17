@@ -36,6 +36,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -258,8 +260,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-							"attribute_content": [
+					    "entityFetch": {
+							"attributeContent": [
 								"name",
 								"quantity",
 								"deprecated"
@@ -280,11 +282,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d]
+						"entityPrimaryKeyInSet": [%d]
 					},
 					"require": {
-						"entity_fetch": {
-							"attribute_content": [
+						"entityFetch": {
+							"attributeContent": [
 								"name",
 								"quantity",
 								"deprecated"
@@ -350,8 +352,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-							"associatedData_content": [
+					    "entityFetch": {
+							"associatedDataContent": [
 								"labels",
 								"localization"
 							],
@@ -371,11 +373,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d]
+						"entityPrimaryKeyInSet": [%d]
 					},
 					"require": {
-						"entity_fetch": {
-							"associatedData_content": [
+						"entityFetch": {
+							"associatedDataContent": [
 								"labels",
 								"localization"
 							],
@@ -453,7 +455,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
+					    "entityFetch": {
 				        }
 					  }
 					}
@@ -491,7 +493,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
+					    "entityFetch": {
 				        }
 					  }
 					}
@@ -555,8 +557,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-							"price_content": {
+					    "entityFetch": {
+							"priceContent": {
 								"contentMode": "RESPECTING_FILTER"
 							}
 				        }
@@ -575,12 +577,12 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 					{
 						"filterBy": {
-							"entity_primaryKey_inSet": [%d],
-							"price_inPriceLists":["other"]
+							"entityPrimaryKeyInSet": [%d],
+							"priceInPriceLists":["other"]
 						},
 						"require": {
-							"entity_fetch": {
-								"price_content": {
+							"entityFetch": {
+								"priceContent": {
 									"contentMode": "RESPECTING_FILTER"
 								}
 							}
@@ -616,8 +618,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-							"price_content": {
+					    "entityFetch": {
+							"priceContent": {
 								"contentMode": "RESPECTING_FILTER"
 							}
 				        }
@@ -635,12 +637,12 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d],
-						"price_inPriceLists": ["other"]
+						"entityPrimaryKeyInSet": [%d],
+						"priceInPriceLists": ["other"]
 					},
 					"require": {
-						"entity_fetch": {
-							"price_content": {
+						"entityFetch": {
+							"priceContent": {
 								"contentMode": "RESPECTING_FILTER"
 							}
 				        }
@@ -697,8 +699,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                         }
                     ],
 					"require": {
-					    "entity_fetch": {
-					        "price_content": {
+					    "entityFetch": {
+					        "priceContent": {
 					            "contentMode": "RESPECTING_FILTER"
 				            }
 				        }
@@ -716,12 +718,12 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d],
-						"price_inPriceLists": ["basic"]
+						"entityPrimaryKeyInSet": [%d],
+						"priceInPriceLists": ["basic"]
 					},
 					"require": {
-						"entity_fetch": {
-							"price_content": {
+						"entityFetch": {
+							"priceContent": {
 								"contentMode": "RESPECTING_FILTER"
 							}
 				        }
@@ -749,28 +751,17 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		var expectedBody = entity.getReferences(Entities.STORE)
 			.stream()
 			.map(r -> map()
-				.e("referencedEntity", map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), r.getReferencedEntityType())
-					.e(EntityDescriptor.LOCALES.name(), new ArrayList<>(1))
-					.e(EntityDescriptor.ALL_LOCALES.name(), new ArrayList<>(Arrays.asList(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag())))
-					.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-					.build())
+				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
-					.e(ATTRIBUTE_CAPACITY, String.valueOf(r.getAttributeValue(ATTRIBUTE_CAPACITY).get().getValue()))
-					.build())
+					.e(ATTRIBUTE_CAPACITY, String.valueOf(r.getAttributeValue(ATTRIBUTE_CAPACITY).get().getValue())))
 				.build())
 			.toList();
 		expectedBody = new LinkedList<>(expectedBody);
 		expectedBody.add(map()
-			.e("referencedEntity", map()
-				.e(EntityDescriptor.PRIMARY_KEY.name(), 1_000_000_000)
-				.e(EntityDescriptor.TYPE.name(), Entities.STORE)
-				.build())
+			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), 1_000_000_000)
 			.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)
-				.build())
+				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true))
 			.build());
 
 		tester.test(TEST_CATALOG)
@@ -799,19 +790,16 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 				       }
 				   ],
 					"require": {
-					    "entity_fetch": {
-					        "attribute_contentAll": true,
-					        "reference_store_content": {
-					            "entity_fetch": {
-					            }
-					        }
+					    "entityFetch": {
+					        "attributeContentAll": true,
+					        "referenceStoreContent": {}
 					    }
 					}
 				}
 				""")
 			.executeAndThen()
 			.statusCode(200)
-			.body("store", containsInAnyOrder(expectedBody.toArray()));
+			.body("store", equalTo(expectedBody));
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/product/list")
@@ -819,14 +807,13 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d]
+						"entityPrimaryKeyInSet": [%d]
 					},
 					"require": {
-						"entity_fetch": {
-							"attribute_contentAll": true,
-					        "reference_store_content": {
-					            "entity_fetch": {
-					            }
+						"entityFetch": {
+							"attributeContentAll": true,
+					        "referenceStoreContent": {
+					            "requirements": {}
 					        }
 				        }
 					}
@@ -853,8 +840,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	                    }
 	                ],
 					"require": {
-					    "entity_fetch": {
-					        "attribute_contentAll": true
+					    "entityFetch": {
+					        "attributeContentAll": true
 					    }
 					}
 				}
@@ -869,11 +856,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entity_primaryKey_inSet": [%d]
+						"entityPrimaryKeyInSet": [%d]
 					},
 					"require": {
-						"entity_fetch": {
-							"attribute_contentAll": true
+						"entityFetch": {
+							"attributeContentAll": true
 				        }
 					}
 				}
@@ -982,10 +969,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 					{
 						"filterBy": {
-							"entity_primaryKey_inSet": [%d]
+							"entityPrimaryKeyInSet": [%d]
 						},
 						"require": {
-							"entity_fetch": {
+							"entityFetch": {
 					        }
 						}
 					}

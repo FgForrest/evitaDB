@@ -31,6 +31,9 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.utils.Assert;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -114,7 +117,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "hierarchyOfSelf",
 	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of same hierarchical collection into response."
 )
@@ -151,10 +154,10 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 		super(new Serializable[0], requirements);
 	}
 
-	@ConstraintCreatorDef(silentImplicitClassifier = true)
+	@Creator(silentImplicitClassifier = true)
 	public HierarchyOfSelf(
-		@Nullable @ConstraintChildrenParamDef OrderBy orderBy,
-		@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirements
+		@Nullable @Child OrderBy orderBy,
+		@Nonnull @Child HierarchyRequireConstraint... requirements
 	) {
 		super(new Serializable[0], requirements, orderBy);
 	}

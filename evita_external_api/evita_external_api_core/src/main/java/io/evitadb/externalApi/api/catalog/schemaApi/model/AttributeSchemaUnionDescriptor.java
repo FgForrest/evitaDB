@@ -25,15 +25,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
-import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.externalApi.dataType.Any;
-
-import java.util.List;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Descriptor of union of {@link AttributeSchemaContract} and {@link GlobalAttributeSchemaContract} for schema-based external APIs. It describes what properties of attribute schema are

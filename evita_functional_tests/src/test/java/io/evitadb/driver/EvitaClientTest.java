@@ -343,7 +343,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				})
 			);
 
-			evitaClient.replaceCatalog(newCatalog, TEST_CATALOG);
+			evitaClient.replaceCatalog(TEST_CATALOG, newCatalog);
 
 			final Set<String> catalogNamesAgain = evitaClient.getCatalogNames();
 			assertEquals(1, catalogNamesAgain.size());
@@ -358,7 +358,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		} finally {
 			evitaClient.defineCatalog(TEST_CATALOG);
-			evitaClient.replaceCatalog(TEST_CATALOG, newCatalog);
+			evitaClient.replaceCatalog(newCatalog, TEST_CATALOG);
 		}
 	}
 

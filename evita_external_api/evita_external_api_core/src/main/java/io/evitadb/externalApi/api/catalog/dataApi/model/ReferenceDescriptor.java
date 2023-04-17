@@ -26,6 +26,10 @@ package io.evitadb.externalApi.api.catalog.dataApi.model;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
+import java.util.List;
+
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+
 /**
  * Represents {@link io.evitadb.api.requestResponse.data.ReferenceContract}.
  *
@@ -36,10 +40,13 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
  */
 public interface ReferenceDescriptor {
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*Reference")
+	PropertyDescriptor REFERENCED_PRIMARY_KEY = PropertyDescriptor.builder()
+		.name("referencedPrimaryKey")
+		.description("""
+            Returns primary key of the referenced (internal or external) entity.
+			""")
+		.type(nonNull(Integer.class))
 		.build();
-
 	PropertyDescriptor REFERENCED_ENTITY = PropertyDescriptor.builder()
 		.name("referencedEntity")
 		.description("""
@@ -47,7 +54,6 @@ public interface ReferenceDescriptor {
 			""")
 		// type is expected to be a sealed entity
 		.build();
-
 	PropertyDescriptor GROUP_ENTITY = PropertyDescriptor.builder()
 		.name("groupEntity")
 		.description("""
@@ -55,7 +61,6 @@ public interface ReferenceDescriptor {
 			""")
 		// type is expected to be a sealed entity
 		.build();
-
 	PropertyDescriptor ATTRIBUTES = PropertyDescriptor.builder()
 		.name("attributes")
 		.description("""
@@ -63,5 +68,10 @@ public interface ReferenceDescriptor {
 			Attributes may be used for fast filtering or can be used to sort along.
 			""")
 		// type is expected to be a map with attribute names as key and attribute values as values
+		.build();
+
+	ObjectDescriptor THIS = ObjectDescriptor.builder()
+		.name("*Reference")
+		.staticFields(List.of(REFERENCED_PRIMARY_KEY))
 		.build();
 }

@@ -26,6 +26,8 @@ package io.evitadb.externalApi.graphql.api.system;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
@@ -46,7 +48,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class SystemGraphQLMutationsFunctionalTest extends SystemGraphQLEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String CREATE_CATALOG_PATH = "data.createCatalog";
 	private static final String RENAME_CATALOG_PATH = "data.renameCatalog";
 	private static final String REPLACE_CATALOG_PATH = "data.replaceCatalog";

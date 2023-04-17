@@ -34,6 +34,7 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
@@ -67,7 +68,26 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 			"Constraint must have maximum of 1 classifier."
 		);
 
-		// todo lho what about additional children parameters, should it be as parameters or as other children and what about validation
+		final long numberOfChildParameters = parameters().stream()
+			.filter(ChildParameterDescriptor.class::isInstance)
+			.map(ChildParameterDescriptor.class::cast)
+			.count();
+		Assert.isPremiseValid(
+			numberOfChildParameters <= 1,
+			() -> new EvitaInternalError("Constraint cannot have multiple child parameters.")
+		);
+
+		final List<AdditionalChildParameterDescriptor> additionalChildParameters = parameters.stream()
+			.filter(AdditionalChildParameterDescriptor.class::isInstance)
+			.map(AdditionalChildParameterDescriptor.class::cast)
+			.toList();
+		final Set<ConstraintType> additionalChildParameterTypes = additionalChildParameters.stream()
+			.map(AdditionalChildParameterDescriptor::constraintType)
+			.collect(Collectors.toUnmodifiableSet());
+		Assert.isPremiseValid(
+			additionalChildParameters.size() == additionalChildParameterTypes.size(),
+			() -> new EvitaInternalError("Constraint cannot have multiple additional child parameters of same constraint type.")
+		);
 	}
 
 	/**
@@ -145,6 +165,17 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	}
 
 	/**
+	 * Finds all additional child parameters categorized by constraint type.
+	 */
+	@Nonnull
+	public List<AdditionalChildParameterDescriptor> additionalChildParameters() {
+		return parameters().stream()
+			.filter(AdditionalChildParameterDescriptor.class::isInstance)
+			.map(AdditionalChildParameterDescriptor.class::cast)
+			.toList();
+	}
+
+	/**
 	 * Represents classifier that is not specified by client but by system.
 	 */
 	public sealed interface ImplicitClassifier permits SilentImplicitClassifier, FixedImplicitClassifier {}
@@ -192,7 +223,8 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	}
 
 	/**
-	 * Describes single constraint constructor parameter.
+	 * Describes single constraint constructor parameter which holds single or multiple child constraints (of
+	 * same type as parent container).
 	 *
 	 * @param name name of original parameter
 	 * @param type data type of original parameter
@@ -207,5 +239,20 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	                                       boolean uniqueChildren,
 	                                       @Nonnull Set<Class<? extends Constraint<?>>> allowedChildTypes,
 	                                       @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) implements ParameterDescriptor {
+	}
+
+	/**
+	 * Describes single constraint constructor parameter which holds single or multiple additional child constraints (of different type
+	 * than the parent container).
+	 *
+	 * @param constraintType type of constraint, different from the parent container
+	 * @param name name of original parameter
+	 * @param type data type of original parameter
+	 * @param required children cannot be null
+	 */
+	public record AdditionalChildParameterDescriptor(@Nonnull ConstraintType constraintType,
+	                                                 @Nonnull String name,
+	                                                 @Nonnull Class<?> type,
+	                                                 boolean required) implements ParameterDescriptor {
 	}
 }

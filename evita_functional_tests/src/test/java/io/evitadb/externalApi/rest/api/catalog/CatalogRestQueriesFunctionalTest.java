@@ -28,6 +28,8 @@ import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.RestTester;
+import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -52,5 +54,22 @@ class CatalogRestQueriesFunctionalTest extends RestEndpointFunctionalTest {
 			.executeAndThen()
 			.statusCode(200)
 			.body(notNullValue());
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should ignore trailing slash in endpoint URLs")
+	void shouldIgnoreTrailingSlashInEndpointUrls(Evita evita, RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/collections")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndThen()
+			.statusCode(200);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/collections/")
+			.httpMethod(Request.METHOD_GET)
+			.executeAndThen()
+			.statusCode(200);
 	}
 }

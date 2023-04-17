@@ -794,6 +794,21 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
+    void shouldParsePriceValidNowConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("priceValidNow()");
+        assertEquals(priceValidNow(), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("priceValidNow  (  )");
+        assertEquals(priceValidNow(), constraint2);
+    }
+
+    @Test
+    void shouldNotParsePriceValidNowConstraint() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidNow"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidNow(2021-02-15T11:00:00+01:00)"));
+    }
+
+    @Test
     void shouldParsePriceValidInConstraint() {
         final FilterConstraint constraint1 = parseFilterConstraintUnsafe("priceValidIn(2021-02-15T11:00:00+01:00)");
         assertEquals(
@@ -824,6 +839,9 @@ class EvitaQLFilterConstraintVisitorTest {
             priceValidIn(OffsetDateTime.of(2021, 2, 15, 11, 0, 0, 0, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now()))),
             constraint4
         );
+
+        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("priceValidIn()");
+        assertEquals(priceValidNow(), constraint5);
     }
 
     @Test
@@ -832,7 +850,6 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceValidIn(?)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceValidIn(@a)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidIn"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidIn()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidIn('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidIn(1)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidIn(2021-02-15T11:00:00+01:00,2021-02-15T11:00:00+01:00)"));

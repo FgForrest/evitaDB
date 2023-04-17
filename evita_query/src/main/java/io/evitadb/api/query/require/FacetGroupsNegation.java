@@ -25,10 +25,10 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -52,7 +52,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "groupsNegation",
 	shortDescription = "[Negates](https://en.wikipedia.org/wiki/Negation) the meaning of selected facets in specified " +
 		"facet groups in the sense that their selection would return entities that don't have any of those facets."
@@ -64,9 +64,9 @@ public class FacetGroupsNegation extends AbstractRequireConstraintLeaf implement
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public FacetGroupsNegation(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                           @Nonnull @ConstraintValueParamDef Integer... facetGroups) {
+	@Creator
+	public FacetGroupsNegation(@Nonnull @Classifier String referenceName,
+	                           @Nonnull @Value Integer... facetGroups) {
 		super(concat(referenceName, facetGroups));
 	}
 

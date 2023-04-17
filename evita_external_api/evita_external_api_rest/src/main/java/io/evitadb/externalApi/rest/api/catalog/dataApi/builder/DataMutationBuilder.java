@@ -42,15 +42,13 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.Remov
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.RemoveReferenceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.reference.SetReferenceGroupMutationDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.OpenApiConstraintSchemaBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireSchemaBuilder;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUpsertRequestDescriptor;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
@@ -64,13 +62,22 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class DataMutationBuilder {
 
 	@Nonnull private final CatalogRestBuildingContext buildingContext;
-	@Nonnull private final OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
+	@Nonnull private final RequireConstraintSchemaBuilder requireConstraintSchemaBuilder;
+
+	public DataMutationBuilder(@Nonnull CatalogRestBuildingContext buildingContext,
+	                           @Nonnull PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer,
+	                           @Nonnull ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer,
+	                           @Nonnull RequireConstraintSchemaBuilder requireConstraintSchemaBuilder) {
+		this.buildingContext = buildingContext;
+		this.propertyBuilderTransformer = propertyBuilderTransformer;
+		this.objectBuilderTransformer = objectBuilderTransformer;
+		this.requireConstraintSchemaBuilder = requireConstraintSchemaBuilder;
+	}
 
 	public void buildCommonTypes() {
 		buildingContext.registerType(RemoveAssociatedDataMutationDescriptor.THIS.to(objectBuilderTransformer).build());
@@ -103,14 +110,9 @@ public class DataMutationBuilder {
 				.to(propertyBuilderTransformer)
 				.type(nonNull(arrayOf(localMutationSchema.get())))));
 
-		final RequireSchemaBuilder requireSchemaBuilder = new RequireSchemaBuilder(
-			constraintSchemaBuildingContext,
-			entitySchema.getName(),
-			RequireSchemaBuilder.ALLOWED_CONSTRAINTS_FOR_UPSERT
-		);
 		upsertEntityObjectBuilder.property(EntityUpsertRequestDescriptor.REQUIRE
 			.to(propertyBuilderTransformer)
-			.type(nonNull(requireSchemaBuilder.build())));
+			.type(nonNull(requireConstraintSchemaBuilder.build(entitySchema.getName()))));
 
 		return buildingContext.registerType(upsertEntityObjectBuilder.build());
 	}

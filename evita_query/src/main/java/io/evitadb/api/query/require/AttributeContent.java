@@ -26,10 +26,10 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -57,7 +57,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity attributes into the returned entities.",
 	supportedIn = ConstraintDomain.ENTITY,
@@ -71,13 +71,13 @@ public class AttributeContent extends AbstractRequireConstraintLeaf implements A
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef(suffix = "all")
+	@Creator(suffix = "all")
 	public AttributeContent() {
 		super();
 	}
 
-	@ConstraintCreatorDef
-	public AttributeContent(@Nonnull @ConstraintValueParamDef String... attributeName) {
+	@Creator
+	public AttributeContent(@Nonnull @Value String... attributeName) {
 		super(attributeName);
 	}
 

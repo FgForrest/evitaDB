@@ -249,6 +249,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPriceInPriceListsConstraints(EvitaQLParser.PriceInPriceListsConstraintsContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code priceValidNowConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPriceValidNowConstraint(EvitaQLParser.PriceValidNowConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code priceValidInConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree

@@ -30,6 +30,8 @@ import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.tester.GraphQLTester;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,6 +53,7 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 public abstract class GraphQLEndpointFunctionalTest {
 
 	public static final String TYPENAME_FIELD = "__typename";
+	protected static final String ERRORS_PATH = "errors";
 
 	@Nonnull
 	protected static EntitySchema createEmptyEntitySchema(@Nonnull String entityType) {
@@ -65,10 +68,6 @@ public abstract class GraphQLEndpointFunctionalTest {
 	@Nonnull
 	protected DataCarrier setUpData(Evita evita, int productCount) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		final List<SealedEntity> entities = TestDataGenerator.generateMainCatalogEntities(evita, productCount);
-
-		return new DataCarrier(
-			"originalProductEntities", entities
-		);
+		return TestDataGenerator.generateMainCatalogEntities(evita, productCount);
 	}
 }

@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.test.Entities;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.Data;
 
@@ -69,7 +70,6 @@ public class TestDataGenerator {
 	public static final String ENTITY_EMPTY_WITHOUT_PK = "emptyWithoutPk";
 	public static final String ENTITY_BRAND_GROUP = "BrandGroup";
 	public static final String ENTITY_STORE_GROUP = "BrandGroup";
-	public static final String ENTITY_TYPE_PRODUCT = "PRODUCT";
 	public static final String ATTRIBUTE_SIZE = "size";
 	public static final String ATTRIBUTE_CREATED = "created";
 	public static final String ATTRIBUTE_MANUFACTURED = "manufactured";
@@ -93,7 +93,7 @@ public class TestDataGenerator {
 	}
 
 	@Nullable
-	public static List<SealedEntity> generateMainCatalogEntities(@Nonnull Evita evita, int productCount) {
+	public static DataCarrier generateMainCatalogEntities(@Nonnull Evita evita, int productCount) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema()
 				.openForWrite()
@@ -131,13 +131,14 @@ public class TestDataGenerator {
 				.limit(4)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
+			final List<EntityReference> storedStores = dataGenerator.generateEntities(
 					dataGenerator.getSampleStoreSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(12)
-				.forEach(session::upsertEntity);
+				.map(session::upsertEntity)
+				.toList();
 
 			dataGenerator.generateEntities(
 					dataGenerator.getSampleParameterGroupSchema(session),
@@ -243,9 +244,17 @@ public class TestDataGenerator {
 				.map(session::upsertEntity)
 				.toList();
 
-			return storedProducts.stream()
+			final List<SealedEntity> products = storedProducts.stream()
 				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
 				.collect(Collectors.toList());
+			final List<SealedEntity> stores = storedStores.stream()
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+				.collect(Collectors.toList());
+
+			return new DataCarrier(
+				"originalProductEntities", products,
+				"originalStoreEntities", stores
+			);
 		});
 	}
 

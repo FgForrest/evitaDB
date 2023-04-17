@@ -245,24 +245,28 @@ public class CacheAnteroom {
 		);
 		if (cachedResult == null) {
 			final EntityDecorator entity = entityFetcher.get();
-			final AtomicBoolean enlarged = new AtomicBoolean(false);
-			final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
-			final CacheRecordAdept cacheRecordAdept = currentCacheAdepts.computeIfAbsent(
-				recordHash, fHash -> {
-					enlarged.set(true);
-					return new CacheRecordAdept(
-						fHash,
-						entityWrapper.getCostToPerformanceRatio(),
-						1,
-						entity.estimateSize()
-					);
+			if (entity == null) {
+				return null;
+			} else {
+				final AtomicBoolean enlarged = new AtomicBoolean(false);
+				final ConcurrentHashMap<Long, CacheRecordAdept> currentCacheAdepts = this.cacheAdepts.get();
+				final CacheRecordAdept cacheRecordAdept = currentCacheAdepts.computeIfAbsent(
+					recordHash, fHash -> {
+						enlarged.set(true);
+						return new CacheRecordAdept(
+							fHash,
+							entityWrapper.getCostToPerformanceRatio(),
+							1,
+							entity.estimateSize()
+						);
+					}
+				);
+				if (enlarged.get() && currentCacheAdepts.size() > maxRecordCount) {
+					CacheAnteroom.this.evaluateAssociatesAsynchronously();
 				}
-			);
-			if (enlarged.get() && currentCacheAdepts.size() > maxRecordCount) {
-				CacheAnteroom.this.evaluateAssociatesAsynchronously();
+				cacheRecordAdept.used();
+				return entity;
 			}
-			cacheRecordAdept.used();
-			return entity;
 		} else {
 			return cachedResult;
 		}

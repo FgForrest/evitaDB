@@ -25,9 +25,9 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -51,7 +51,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "histogram",
 	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of price for sale into response."
 )
@@ -62,8 +62,8 @@ public class PriceHistogram extends AbstractRequireConstraintLeaf implements Pri
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public PriceHistogram(@ConstraintValueParamDef int requestedBucketCount) {
+	@Creator
+	public PriceHistogram(@Value int requestedBucketCount) {
 		super(requestedBucketCount);
 	}
 

@@ -24,9 +24,11 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.AllowedConstraintPredicate;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
@@ -51,7 +53,9 @@ import java.util.Currency;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
@@ -69,20 +73,11 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 public abstract class OpenApiConstraintSchemaBuilder
 	extends ConstraintSchemaBuilder<OpenApiConstraintSchemaBuildingContext, OpenApiSimpleType, OpenApiObject, OpenApiProperty> {
 
-	@Nonnull
-	protected final String rootEntityType;
-
-	protected OpenApiConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext sharedContext, @Nonnull String rootEntityType) {
-		super(sharedContext);
-		this.rootEntityType = rootEntityType;
-	}
-
 	protected OpenApiConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext sharedContext,
-											 @Nonnull String rootEntityType,
+											 @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintSchemaBuilder<OpenApiConstraintSchemaBuildingContext, OpenApiSimpleType, OpenApiObject, OpenApiProperty>>> additionalBuilders,
 	                                         @Nonnull Set<Class<? extends Constraint<?>>> allowedConstraints,
 	                                         @Nonnull Set<Class<? extends Constraint<?>>> forbiddenConstraints) {
-		super(sharedContext, allowedConstraints, forbiddenConstraints);
-		this.rootEntityType = rootEntityType;
+		super(sharedContext, additionalBuilders, allowedConstraints, forbiddenConstraints);
 	}
 
 	@Nonnull
@@ -227,6 +222,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 	                                                              @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                              @Nonnull List<ValueParameterDescriptor> valueParameters,
 	                                                              @Nullable ChildParameterDescriptor childParameter,
+	                                                              @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                              @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
 		final OpenApiObject.Builder wrapperObjectBuilder = newObject().name(wrapperObjectName);
@@ -235,7 +231,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 		sharedContext.cacheWrapperObject(wrapperObjectKey, wrapperObjectPointer);
 
 		// build primitive values
-		for (ValueParameterDescriptor valueParameter : valueParameters) {
+		valueParameters.forEach(valueParameter -> {
 			final OpenApiSimpleType nestedPrimitiveConstraintValue = buildPrimitiveConstraintValue(
 				buildContext,
 				valueParameter,
@@ -245,7 +241,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 			wrapperObjectBuilder.property(p -> p
 				.name(valueParameter.name())
 				.type(nestedPrimitiveConstraintValue));
-		}
+		});
 
 		// build child value
 		if (childParameter != null) {
@@ -260,6 +256,20 @@ public abstract class OpenApiConstraintSchemaBuilder
 				.name(childParameter.name())
 				.type(nestedChildConstraintValue));
 		}
+
+		// build additional children values
+		additionalChildParameters.forEach(additionalChildParameter -> {
+			OpenApiSimpleType nestedAdditionalChildConstraintValue = buildAdditionalChildConstraintValue(buildContext, additionalChildParameter);
+			if (additionalChildParameter.required() &&
+				!additionalChildParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
+			) {
+				nestedAdditionalChildConstraintValue = nonNull(nestedAdditionalChildConstraintValue);
+			}
+
+			wrapperObjectBuilder.property(newProperty()
+				.name(additionalChildParameter.name())
+				.type(nestedAdditionalChildConstraintValue));
+		});
 
 		sharedContext.addNewType(wrapperObjectBuilder.build());
 		return wrapperObjectPointer;

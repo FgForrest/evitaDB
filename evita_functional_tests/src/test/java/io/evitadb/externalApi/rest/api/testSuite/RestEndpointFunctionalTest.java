@@ -34,6 +34,8 @@ import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Tag;
@@ -78,15 +80,7 @@ public abstract class RestEndpointFunctionalTest {
 	@Nonnull
 	protected DataCarrier setUpData(Evita evita, EvitaServer evitaServer, int productCount) {
 		TestDataGenerator.generateMockCatalogs(evita);
-		final List<SealedEntity> entities = TestDataGenerator.generateMainCatalogEntities(evita, productCount);
-		final HostDefinition[] host = evitaServer.getExternalApiServer().getApiOptions()
-			.getEndpointConfiguration(RestProvider.CODE)
-			.getHost();
-
-		return new DataCarrier(
-			"entities", entities,
-			"tester"
-		);
+		return TestDataGenerator.generateMainCatalogEntities(evita, productCount);
 	}
 
 	@Nullable

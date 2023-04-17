@@ -26,9 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 
@@ -90,7 +90,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "inPriceLists",
 	shortDescription = "The constraint filters out all entities that lack selling price in specified price lists. " +
 		"Order of price lists also defines priority for selecting the entity selling price - the price from first price " +
@@ -104,8 +104,8 @@ public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements P
 		super(priceListName);
 	}
 
-	@ConstraintCreatorDef
-	public PriceInPriceLists(@Nonnull @ConstraintValueParamDef String... priceListName) {
+	@Creator
+	public PriceInPriceLists(@Nonnull @Value String... priceListName) {
 		super(priceListName);
 	}
 

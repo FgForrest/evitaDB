@@ -33,6 +33,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -68,13 +70,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
-	private static final String GET_PRODUCT_PATH = "data.get_product";
-	private static final String GET_CATEGORY_PATH = "data.get_category";
-	private static final String UPSERT_PRODUCT_PATH = "data.upsert_product";
-	private static final String UPSERT_EMPTY_PATH = "data.upsert_empty";
-	private static final String UPSERT_EMPTY_WITHOUT_PK_PATH = "data.upsert_emptyWithoutPk";
-	private static final String UPSERT_CATEGORY_PATH = "data.upsert_category";
+	private static final String GET_PRODUCT_PATH = "data.getProduct";
+	private static final String GET_CATEGORY_PATH = "data.getCategory";
+	private static final String UPSERT_PRODUCT_PATH = "data.upsertProduct";
+	private static final String UPSERT_EMPTY_PATH = "data.upsertEmpty";
+	private static final String UPSERT_EMPTY_WITHOUT_PK_PATH = "data.upsertEmptyWithoutPk";
+	private static final String UPSERT_CATEGORY_PATH = "data.upsertCategory";
 	private static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE = GRAPHQL_THOUSAND_PRODUCTS + "forUpdate";
 
 	@Override
@@ -91,7 +92,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_empty (entityExistence: MUST_NOT_EXIST) {
+	                    upsertEmpty (entityExistence: MUST_NOT_EXIST) {
 	                        __typename
 	                        primaryKey
 	                    }
@@ -120,7 +121,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_emptyWithoutPk(primaryKey: 200, entityExistence: MUST_NOT_EXIST) {
+	                    upsertEmptyWithoutPk(primaryKey: 200, entityExistence: MUST_NOT_EXIST) {
 	                        primaryKey
 	                    }
 	                }
@@ -147,7 +148,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(primaryKey: 10, entityExistence: MUST_EXIST) {
+	                    upsertProduct(primaryKey: 10, entityExistence: MUST_EXIST) {
 	                        primaryKey
 	                    }
 	                }
@@ -174,7 +175,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product {
+	                    upsertProduct {
 	                        primaryKey
 	                    }
 	                }
@@ -193,7 +194,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(primaryKey: 1001, entityExistence: MAY_EXIST) {
+	                    upsertProduct(primaryKey: 1001, entityExistence: MAY_EXIST) {
 	                        primaryKey
 	                    }
 	                }
@@ -226,7 +227,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -271,7 +272,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        attributes(locale: cs_CZ) {
 	                            name
@@ -312,7 +313,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -352,7 +353,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        associatedData(locale: cs_CZ) {
 	                            labels
@@ -417,7 +418,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_category(
+	                    upsertCategory(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -458,7 +459,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_category(
+	                    upsertCategory(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -515,7 +516,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -558,7 +559,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        prices(priceLists: "other") {
 	                            priceId
@@ -590,7 +591,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -621,7 +622,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        prices(priceLists: "other") {
 	                            priceId
@@ -655,7 +656,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -682,7 +683,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        priceInnerRecordHandling
 	                    }
@@ -710,29 +711,24 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 		var expectedBody = entity.getReferences(Entities.STORE)
 			.stream()
 			.map(r -> map()
+				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
-					.build())
-				.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 					.build())
 				.build())
 			.toList();
 		expectedBody = new LinkedList<>(expectedBody);
 		expectedBody.add(map()
+			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), 1_000_000_000)
 			.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)
-				.build())
-			.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-				.e(EntityDescriptor.PRIMARY_KEY.name(), 1_000_000_000)
-				.build())
+				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true))
 			.build());
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -758,11 +754,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                        ]
                         ) {
 	                        store {
+	                            referencedPrimaryKey
 	                            attributes {
 	                                storeVisibleForB2C
-	                            }
-	                            referencedEntity {
-	                                primaryKey
 	                            }
 	                        }
 	                    }
@@ -773,19 +767,17 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(UPSERT_PRODUCT_PATH + ".store", containsInAnyOrder(expectedBody.toArray()));
+			.body(UPSERT_PRODUCT_PATH + ".store", equalTo(expectedBody));
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        store {
+	                            referencedPrimaryKey,
 	                            attributes {
 	                                storeVisibleForB2C
-	                            }
-	                            referencedEntity {
-	                                primaryKey
 	                            }
 	                        }
 	                    }
@@ -796,14 +788,14 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(GET_PRODUCT_PATH + ".store", containsInAnyOrder(expectedBody.toArray()));
+			.body(GET_PRODUCT_PATH + ".store", equalTo(expectedBody));
 
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -834,7 +826,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        store {
 	                            referencedEntity {
 	                                primaryKey
@@ -873,7 +865,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -903,7 +895,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -960,7 +952,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.document(
 				"""
 	                query {
-	                    get_category(primaryKey: %d) {
+	                    getCategory(primaryKey: %d) {
 	                        primaryKey
 	                        hierarchicalPlacement {
 	                            orderAmongSiblings

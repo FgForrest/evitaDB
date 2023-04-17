@@ -418,10 +418,21 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 								groupEntity = new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupAcc.getGroupId());
 							}
 
+							// compute overall count for group
+							final Formula entityMatchingAnyOfGroupFacetFormula = countCalculator.createGroupCountFormula(
+								referenceSchema, groupAcc.getGroupId(),
+								groupAcc.getFacetStatistics()
+									.values()
+									.stream()
+									.flatMap(it -> it.getFacetEntityIds().stream())
+									.toArray(Bitmap[]::new)
+							);
+
 							return new FacetGroupStatistics(
 								// translate Facet#type to EntitySchema#reference#groupType
 								referenceSchema,
 								groupEntity,
+								entityMatchingAnyOfGroupFacetFormula.compute().size(),
 								facetStatistics
 							);
 						}

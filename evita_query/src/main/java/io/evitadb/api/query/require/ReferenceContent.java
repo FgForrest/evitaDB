@@ -25,13 +25,15 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.utils.ArrayUtils;
@@ -60,7 +62,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching referenced entity bodies into returned main entities.",
 	supportedIn = ConstraintDomain.ENTITY
@@ -75,7 +77,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 		super(referencedEntityType, requirements, additionalChildren);
 	}
 
-	@ConstraintCreatorDef(suffix = "all")
+	@Creator(suffix = "all")
 	public ReferenceContent() {
 		super();
 	}
@@ -89,12 +91,12 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull EntityFetch entityRequirement) {
+	                        @Nullable EntityFetch entityRequirement) {
 		super(new String[] { referencedEntityType }, entityRequirement);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull EntityGroupFetch groupEntityRequirement) {
+	                        @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(new String[] { referencedEntityType }, groupEntityRequirement);
 	}
 
@@ -105,12 +107,12 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	}
 
 	public ReferenceContent(@Nonnull String[] referencedEntityTypes,
-	                        @Nonnull EntityFetch entityRequirement) {
+	                        @Nullable EntityFetch entityRequirement) {
 		super(referencedEntityTypes, entityRequirement);
 	}
 
 	public ReferenceContent(@Nonnull String[] referencedEntityTypes,
-	                        @Nonnull EntityGroupFetch groupEntityRequirement) {
+	                        @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(referencedEntityTypes, groupEntityRequirement);
 	}
 
@@ -121,78 +123,78 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull FilterBy filterBy,
-	                        @Nonnull EntityFetch entityRequirement) {
+	                        @Nullable FilterBy filterBy,
+	                        @Nullable EntityFetch entityRequirement) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement}, filterBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull FilterBy filterBy,
-	                        @Nonnull EntityGroupFetch groupEntityRequirement) {
+	                        @Nullable FilterBy filterBy,
+	                        @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {groupEntityRequirement}, filterBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull FilterBy filterBy,
+	                        @Nullable FilterBy filterBy,
 							@Nullable EntityFetch entityRequirement,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement, groupEntityRequirement}, filterBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull FilterBy filterBy) {
+	                        @Nullable FilterBy filterBy) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[0], filterBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull OrderBy orderBy,
-	                        @Nonnull EntityFetch entityRequirement) {
+	                        @Nullable OrderBy orderBy,
+	                        @Nullable EntityFetch entityRequirement) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement}, orderBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull OrderBy orderBy,
-	                        @Nonnull EntityGroupFetch groupEntityRequirement) {
+	                        @Nullable OrderBy orderBy,
+	                        @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {groupEntityRequirement}, orderBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull OrderBy orderBy,
+	                        @Nullable OrderBy orderBy,
 	                        @Nullable EntityFetch entityRequirement,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement, groupEntityRequirement}, orderBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-	                        @Nonnull OrderBy orderBy) {
+	                        @Nullable OrderBy orderBy) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[0], orderBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-							@Nonnull FilterBy filterBy,
-	                        @Nonnull OrderBy orderBy,
-	                        @Nonnull EntityFetch entityRequirement) {
+							@Nullable FilterBy filterBy,
+	                        @Nullable OrderBy orderBy,
+	                        @Nullable EntityFetch entityRequirement) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement}, filterBy, orderBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-							@Nonnull FilterBy filterBy,
-	                        @Nonnull OrderBy orderBy,
-	                        @Nonnull EntityGroupFetch groupEntityRequirement) {
+							@Nullable FilterBy filterBy,
+	                        @Nullable OrderBy orderBy,
+	                        @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {groupEntityRequirement}, filterBy, orderBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-							@Nonnull FilterBy filterBy,
-	                        @Nonnull OrderBy orderBy,
+							@Nullable FilterBy filterBy,
+	                        @Nullable OrderBy orderBy,
 	                        @Nullable EntityFetch entityRequirement,
 	                        @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement, groupEntityRequirement}, filterBy, orderBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
-							@Nonnull FilterBy filterBy,
-	                        @Nonnull OrderBy orderBy) {
+							@Nullable FilterBy filterBy,
+	                        @Nullable OrderBy orderBy) {
 		super(new String[] { referencedEntityType }, new RequireConstraint[0], filterBy, orderBy);
 	}
 
@@ -208,10 +210,12 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 		super(entityRequirement, groupEntityRequirement);
 	}
 
-	@ConstraintCreatorDef
-	public ReferenceContent(@Nonnull @ConstraintClassifierParamDef String referencedEntityType,
-	                        @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) EntityRequire... requirements) {
-		super(new String[] { referencedEntityType }, requirements);
+	@Creator
+	private ReferenceContent(@Nonnull @Classifier String referencedEntityType,
+	                         @Nullable @AdditionalChild FilterBy filterBy,
+	                         @Nullable @AdditionalChild OrderBy orderBy,
+	                         @Nullable @Child(uniqueChildren = true) EntityRequire... requirements) {
+		super(new String[] { referencedEntityType }, requirements, filterBy, orderBy);
 	}
 
 	/**
@@ -314,8 +318,8 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		if (additionalChildren.length > 1 || (additionalChildren.length == 1 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()))) {
-			throw new IllegalArgumentException("Expected single or no additional filter child query.");
+		if (additionalChildren.length > 2 || (additionalChildren.length == 2 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) && !OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType()))) {
+			throw new IllegalArgumentException("Expected single or no additional filter and order child query.");
 		}
 		return new ReferenceContent(getReferencedEntityTypes(), children, additionalChildren);
 	}

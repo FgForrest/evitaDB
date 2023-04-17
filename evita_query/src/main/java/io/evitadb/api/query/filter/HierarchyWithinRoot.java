@@ -31,6 +31,10 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -97,7 +101,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "withinRoot",
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree starting at the root of the tree (or has reference to any hierarchical entity in the tree).",
 	supportedIn = ConstraintDomain.ENTITY
@@ -122,17 +126,17 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 		);
 	}
 
-	@ConstraintCreatorDef(suffix = "self", silentImplicitClassifier = true)
+	@Creator(suffix = "self", silentImplicitClassifier = true)
 	public HierarchyWithinRoot(
-		@Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
+		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
 	) {
 		this(NO_ARGS, with);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public HierarchyWithinRoot(
-		@Nonnull @ConstraintClassifierParamDef String entityType,
-		@Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
+		@Nonnull @Classifier String entityType,
+		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
 	) {
 		this(new Serializable[]{entityType}, with);
 	}

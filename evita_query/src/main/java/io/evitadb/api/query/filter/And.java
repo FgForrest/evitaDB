@@ -27,9 +27,9 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -50,7 +50,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "and",
 	shortDescription = "The container that combines inner constraints with [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction).",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
@@ -58,8 +58,8 @@ import java.io.Serializable;
 public class And extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -3383976355275556890L;
 
-	@ConstraintCreatorDef
-	public And(@Nonnull @ConstraintChildrenParamDef FilterConstraint... children) {
+	@Creator
+	public And(@Nonnull @Child FilterConstraint... children) {
 		super(children);
 	}
 

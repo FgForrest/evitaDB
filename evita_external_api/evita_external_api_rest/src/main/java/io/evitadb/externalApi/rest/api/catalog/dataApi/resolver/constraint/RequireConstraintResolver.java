@@ -36,24 +36,33 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.Collect
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.utils.Assert;
-import io.swagger.v3.oas.models.Operation;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link RequireConstraint} usually with {@link io.evitadb.api.query.require.Require}
  * as root container.
  *
- * It doesn't use any `wrapper container` as `require` constraints don't have any `default` container to use and it is
+ * It doesn't use any `wrapper container` as `require` constraints don't have any `default` container to use, and it is
  * not needed.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class RequireConstraintResolver extends RestConstraintResolver<RequireConstraint> {
 
-	public RequireConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext, @Nonnull Operation operation) {
-		super(restHandlingContext, operation);
+	public RequireConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext,
+	                                 @Nonnull AtomicReference<FilterConstraintResolver> filterConstraintResolver,
+									 @Nonnull AtomicReference<OrderConstraintResolver> orderConstraintResolver) {
+		super(
+			restHandlingContext,
+			Map.of(
+				ConstraintType.FILTER, filterConstraintResolver,
+				ConstraintType.ORDER, orderConstraintResolver
+			)
+		);
 	}
 
 	@Override

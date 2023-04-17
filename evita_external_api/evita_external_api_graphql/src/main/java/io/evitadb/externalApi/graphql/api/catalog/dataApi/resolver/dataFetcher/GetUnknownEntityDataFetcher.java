@@ -147,6 +147,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
     private EntityContentRequire[] buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment,
                                                           @Nonnull String entityType) {
         final EntityFetch entityFetch = EntityFetchRequireBuilder.buildEntityRequirement(
+            catalogSchema,
             SelectionSetWrapper.from(
                 environment.getSelectionSet(),
                 entityDtoObjectTypeNameByEntityType.get(entityType)

@@ -60,8 +60,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
-	private static final String PRODUCT_PATH = "data.get_product";
+	private static final String PRODUCT_PATH = "data.getProduct";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -76,7 +75,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        __typename
 	                        primaryKey
 	                        type
@@ -129,7 +128,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
 	                        locales
@@ -176,7 +175,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
                             attributes {
@@ -205,7 +204,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s", locale: cs_CZ) {
+	                    getProduct(code: "%s", locale: cs_CZ) {
 	                        primaryKey
 	                        type
                             attributes {
@@ -255,7 +254,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(url: "%s") {
+	                    getProduct(url: "%s") {
 	                        primaryKey
 	                        type
 	                        locales
@@ -296,7 +295,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
                             relatedData
@@ -318,7 +317,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(limit: 1) {
+	                    getProduct(limit: 1) {
 	                        primaryKey
 	                        type
 	                    }
@@ -340,7 +339,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(
+	                    getProduct(
 	                        code: "%s"
 	                        priceInCurrency: CZK,
 	                        priceInPriceLists: "basic"
@@ -374,7 +373,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(
+	                    getProduct(
 	                        code: "%s"
 	                        priceInCurrency: CZK,
 	                        priceInPriceLists: "nonexistent"
@@ -402,7 +401,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(
+	                    getProduct(
 	                        code: "%s"
 	                        priceInCurrency: AAA,
 	                        priceInPriceLists: "basic"
@@ -430,7 +429,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
                             priceForSale(currency: CZK, priceList: "basic") {
@@ -460,7 +459,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(
+	                    getProduct(
 	                        code: "%s"
 	                        priceInCurrency: CZK,
 	                        priceInPriceLists: "basic",
@@ -490,7 +489,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(
+	                    getProduct(
 	                        code: "%s"
 	                        priceInCurrency: CZK,
 	                        priceInPriceLists: "basic"
@@ -522,7 +521,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(
+	                    getProduct(
 	                        code: "%s"
 	                        priceInCurrency: CZK,
 	                        priceInPriceLists: "basic"
@@ -550,7 +549,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(
+	                    getProduct(
 	                        code: "%s"
 	                        priceInCurrency: CZK,
 	                        priceInPriceLists: "basic"
@@ -584,7 +583,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
                             price(priceList: "basic", currency: CZK) {
@@ -614,7 +613,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s", locale: cs_CZ) {
+	                    getProduct(code: "%s", locale: cs_CZ) {
                             price(priceList: "basic", currency: CZK) {
                                 priceWithTax(formatted: true, withCurrency: true)
                             }
@@ -639,7 +638,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
                             price(priceList: "basic", currency: CZK, locale: cs_CZ) {
                                 priceWithTax(formatted: true, withCurrency: true)
                             }
@@ -667,7 +666,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s"){
+	                    getProduct(code: "%s"){
                             price(priceList: "basic", currency: CZK) {
                                 priceWithTax(formatted: true, withCurrency: true)
                             }
@@ -694,7 +693,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
                             prices {
@@ -724,7 +723,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
                             prices(priceLists: "basic", currency: CZK) {
@@ -770,7 +769,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
                             prices(priceLists: ["basic", "vip"], currency: CZK) {
                                 priceWithTax
                             }
@@ -809,7 +808,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s", locale: cs_CZ) {
+	                    getProduct(code: "%s", locale: cs_CZ) {
                             prices(priceLists: "basic", currency: CZK) {
                                 priceWithTax(formatted: true, withCurrency: true)
                             }
@@ -834,7 +833,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
                             prices(priceLists: "basic", currency: CZK, locale: cs_CZ) {
                                 priceWithTax(formatted: true, withCurrency: true)
                             }
@@ -862,7 +861,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
                             prices(priceLists: "basic", currency: CZK) {
                                 priceWithTax(formatted: true, withCurrency: true)
                             }
@@ -889,7 +888,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s", locale: en) {
+	                    getProduct(code: "%s", locale: en) {
 	                        primaryKey
 	                        type
                             associatedData {
@@ -920,7 +919,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
                             associatedData(locale: en) {
@@ -966,7 +965,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
                             parameter {
@@ -1041,7 +1040,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.document(
 				"""
 	                query {
-	                    get_product(code: "%s") {
+	                    getProduct(code: "%s") {
 	                        primaryKey
 	                        type
                             store {

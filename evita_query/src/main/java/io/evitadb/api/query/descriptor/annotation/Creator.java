@@ -32,23 +32,23 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Constraint creator definition that marks concrete query's (one that is annotated with {@link ConstraintDef})
+ * Constraint creator definition that marks concrete query's (one that is annotated with {@link ConstraintDefinition})
  * constructor as constructor for creating this query. Multiple constructors may be marked, however each must have
  * unique suffix and the one without suffix is considered default one. Also, combination of query name and suffix
  * must be unique across all constraints of same type and property type.
  * <p>
- * Such an annotated constructor must have all of its parameters annotated with {@link ConstraintClassifierParamDef},
- * {@link ConstraintValueParamDef} or {@link ConstraintChildrenParamDef}.
+ * Such an annotated constructor must have all of its parameters annotated with {@link Classifier},
+ * {@link Value} or {@link Child}.
  * <p>
  * This data is then processed by {@link ConstraintDescriptorProvider}.
  *
- * @see ConstraintDef
+ * @see ConstraintDefinition
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Target(ElementType.CONSTRUCTOR)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface ConstraintCreatorDef {
+public @interface Creator {
 
 	/**
 	 * If query has more creator constructors, each must have unique suffix across creators of that query.
@@ -61,7 +61,7 @@ public @interface ConstraintCreatorDef {
 
 	/**
 	 * Implicit classifier if query needs a classifier that cannot be passed as parameter via
-	 * {@link ConstraintClassifierParamDef}.
+	 * {@link Classifier}.
 	 * <p>
 	 * <b>Note:</b> both implicit classifier and classifier parameter cannot be specified at the same time. Also, only
 	 * one type of implicit classifier can be specified.
@@ -70,7 +70,7 @@ public @interface ConstraintCreatorDef {
 
 	/**
 	 * Implicit classifier if query needs a fixed classifier that cannot be passed as parameter via
-	 * {@link ConstraintClassifierParamDef} or resolved by system automatically.
+	 * {@link Classifier} or resolved by system automatically.
 	 * <p>
 	 * <b>Note:</b> both implicit classifier and classifier parameter cannot be specified at the same time. Also, only
 	 * 	one type of implicit classifier can be specified.

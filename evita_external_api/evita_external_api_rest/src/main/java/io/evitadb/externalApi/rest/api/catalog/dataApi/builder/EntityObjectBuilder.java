@@ -59,7 +59,7 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.List;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructReferenceObjectName;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
@@ -248,7 +248,7 @@ public class EntityObjectBuilder {
 	private static OpenApiProperty buildAttributeProperty(@Nonnull AttributeSchemaContract attributeSchema) {
 		final OpenApiSimpleType attributeType = DataTypesConverter.getOpenApiScalar(attributeSchema.getType(), !attributeSchema.isNullable());
 		return newProperty()
-			.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())
 			.deprecationNotice(attributeSchema.getDeprecationNotice())
 			.type(attributeType)
@@ -363,7 +363,7 @@ public class EntityObjectBuilder {
 			!associatedDataSchema.isNullable()
 		);
 		return newProperty()
-			.name(associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(associatedDataSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(associatedDataSchema.getDescription())
 			.deprecationNotice(associatedDataSchema.getDeprecationNotice())
 			.type(associatedDataType)
@@ -381,7 +381,7 @@ public class EntityObjectBuilder {
 				final OpenApiTypeReference referenceObject = buildReferenceObject(entitySchema, referenceSchema, localized);
 
 				final OpenApiProperty.Builder referencePropertyBuilder = newProperty()
-					.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+					.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 					.description(referenceSchema.getDescription())
 					.deprecationNotice(referenceSchema.getDeprecationNotice());
 
@@ -422,7 +422,7 @@ public class EntityObjectBuilder {
 		final OpenApiTypeReference referencedEntityObject = buildReferenceReferencedEntityObject(referenceSchema, localized);
 		return ReferenceDescriptor.REFERENCED_ENTITY
 			.to(propertyBuilderTransformer)
-			.type(nonNull(referencedEntityObject))
+			.type(referencedEntityObject)
 			.build();
 	}
 

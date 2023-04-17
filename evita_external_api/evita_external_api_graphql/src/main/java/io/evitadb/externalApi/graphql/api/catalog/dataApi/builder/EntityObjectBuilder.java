@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.DataFetcher;
 import graphql.schema.GraphQLFieldDefinition;
+import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
@@ -33,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -41,11 +43,14 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AttributesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceForSaleFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PricesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.ReferenceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
@@ -65,7 +70,7 @@ import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
@@ -81,6 +86,8 @@ public class EntityObjectBuilder {
 	private static final PriceBigDecimalFieldDecorator PRICE_FIELD_DECORATOR = new PriceBigDecimalFieldDecorator();
 
 	@Nonnull private final CatalogGraphQLSchemaBuildingContext buildingContext;
+	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
+	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
 	@Nonnull private final ObjectMapper cdoObjectMapper;
 	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
@@ -277,7 +284,7 @@ public class EntityObjectBuilder {
 	@Nonnull
 	private static BuiltFieldDescriptor buildAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
 		final GraphQLFieldDefinition.Builder attributeFieldBuilder = newFieldDefinition()
-			.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())
 			.deprecate(attributeSchema.getDeprecationNotice());
 		final DataFetcher<?> attributeFieldDataFetcher;
@@ -365,7 +372,7 @@ public class EntityObjectBuilder {
 		}
 
 		associatedDataFieldBuilder
-			.name(associatedDataSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(associatedDataSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(associatedDataSchema.getDescription())
 			.deprecate(associatedDataSchema.getDeprecationNotice());
 
@@ -383,10 +390,23 @@ public class EntityObjectBuilder {
 			.map(referenceSchema -> {
 				final GraphQLObjectType referenceObject = buildReferenceObject(collectionBuildingContext, referenceSchema);
 
+				final ReferenceDataLocator referenceDataLocator = new ReferenceDataLocator(
+					collectionBuildingContext.getSchema().getName(),
+					referenceSchema.getName()
+				);
+				final GraphQLInputType referenceFilter = filterConstraintSchemaBuilder.build(referenceDataLocator);
+				final GraphQLInputType referenceOrder = orderConstraintSchemaBuilder.build(referenceDataLocator);
+
 				final GraphQLFieldDefinition.Builder referenceFieldBuilder = newFieldDefinition()
-					.name(referenceSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+					.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 					.description(referenceSchema.getDescription())
-					.deprecate(referenceSchema.getDeprecationNotice());
+					.deprecate(referenceSchema.getDeprecationNotice())
+					.argument(ReferenceFieldHeaderDescriptor.FILTER_BY
+						.to(argumentBuilderTransformer)
+						.type(referenceFilter))
+					.argument(ReferenceFieldHeaderDescriptor.ORDER_BY
+						.to(argumentBuilderTransformer)
+						.type(referenceOrder));
 
 				switch (referenceSchema.getCardinality()) {
 					case ZERO_OR_ONE -> referenceFieldBuilder.type(referenceObject);
@@ -477,7 +497,7 @@ public class EntityObjectBuilder {
 
 		final GraphQLFieldDefinition referencedEntityField = ReferenceDescriptor.REFERENCED_ENTITY
 			.to(fieldBuilderTransformer)
-			.type(nonNull(referencedEntityObject))
+			.type(referencedEntityObject)
 			.build();
 
 		return new BuiltFieldDescriptor(

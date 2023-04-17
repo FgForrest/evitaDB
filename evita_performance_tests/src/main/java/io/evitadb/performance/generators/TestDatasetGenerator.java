@@ -51,7 +51,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContentAnd;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllAnd;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static java.util.Optional.of;
@@ -226,7 +226,7 @@ public interface TestDatasetGenerator {
 								Query.query(
 									collection(entityType),
 									require(
-										entityFetchAllContentAnd(
+										entityFetchAllAnd(
 											page(pageNumber++, 1000)
 										)
 									)

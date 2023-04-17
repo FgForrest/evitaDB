@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
-import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.CollectionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.EntityUnion;
@@ -88,9 +87,9 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 @RequiredArgsConstructor
 public class DataApiEndpointBuilder {
 
-	private static final String LOCALIZED_OPERATION_ID_SUFFIX = "localized";
-	private static final String GET_BY_ID_OPERATION_ID_SUFFIX = "byId";
-	private static final String DELETE_BY_QUERY_OPERATION_ID_SUFFIX = "byQuery";
+	private static final String LOCALIZED_OPERATION_ID_SUFFIX = "Localized";
+	private static final String GET_BY_ID_OPERATION_ID_SUFFIX = "ById";
+	private static final String DELETE_BY_QUERY_OPERATION_ID_SUFFIX = "ByQuery";
 
 	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
@@ -102,10 +101,7 @@ public class DataApiEndpointBuilder {
 	                                                        boolean withPkInPath) {
 		final String operationId;
 		if (withPkInPath) {
-			final String suffix = GET_BY_ID_OPERATION_ID_SUFFIX +
-				Optional.ofNullable(getLocalizedSuffix(localized))
-					.map(it -> CatalogRootDescriptor.OBJECT_TYPE_NAME_PART_DELIMITER + it)
-					.orElse("");
+			final String suffix = GET_BY_ID_OPERATION_ID_SUFFIX + Optional.ofNullable(getLocalizedSuffix(localized)).orElse("");
 			operationId = CatalogDataApiRootDescriptor.GET_ENTITY.operation(entitySchema, suffix);
 		} else {
 			operationId = CatalogDataApiRootDescriptor.GET_ENTITY.operation(entitySchema, getLocalizedSuffix(localized));
@@ -351,17 +347,19 @@ public class DataApiEndpointBuilder {
 		}
 
 		// build unique attribute filter arguments
-		parameters.addAll(entitySchema.getAttributes()
-			.values()
-			.stream()
-			.filter(AttributeSchemaContract::isUnique)
-			.map(as -> newQueryParameter()
-				.name(as.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
-				.description(as.getDescription())
-				.deprecationNotice(as.getDeprecationNotice())
-				.type(DataTypesConverter.getOpenApiScalar(as.getPlainType()))
-				.build())
-			.toList());
+		if (!withPkInPath) {
+			parameters.addAll(entitySchema.getAttributes()
+				.values()
+				.stream()
+				.filter(AttributeSchemaContract::isUnique)
+				.map(as -> newQueryParameter()
+					.name(as.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
+					.description(as.getDescription())
+					.deprecationNotice(as.getDeprecationNotice())
+					.type(DataTypesConverter.getOpenApiScalar(as.getPlainType()))
+					.build())
+				.toList());
+		}
 
 
 		//build fetch params

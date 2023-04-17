@@ -23,12 +23,12 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint;
 
+import graphql.schema.GraphQLInputType;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
@@ -37,21 +37,27 @@ import javax.annotation.Nonnull;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
  * Implementation of {@link GraphQLConstraintSchemaBuilder} for building filter query tree starting from {@link FilterBy}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class FilterBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
+public class FilterConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder {
 
-	public FilterBySchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                             @Nonnull String rootEntityType) {
+	public FilterConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx) {
 		super(
 			constraintSchemaBuildingCtx,
-			rootEntityType,
+			createHashMap(0), // currently, we don't support any filter constraint with additional children
 			Set.of(),
 			Set.of(FilterBy.class)
 		);
+	}
+
+	@Nonnull
+	public GraphQLInputType build(@Nonnull String rootEntityType) {
+		return build(new EntityDataLocator(rootEntityType));
 	}
 
 	@Nonnull
@@ -62,7 +68,7 @@ public class FilterBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),
@@ -77,14 +83,8 @@ public class FilterBySchemaBuilder extends GraphQLConstraintSchemaBuilder {
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(rootEntityType);
-	}
-
-	@Nonnull
-	@Override
 	protected String getContainerObjectTypeName() {
-		return "FilterContainer_";
+		return "FilterContainer";
 	}
 
 	@Nonnull

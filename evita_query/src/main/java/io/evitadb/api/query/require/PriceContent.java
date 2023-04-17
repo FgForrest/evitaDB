@@ -26,9 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -58,7 +58,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity prices into the returned entities.",
 	supportedIn = ConstraintDomain.ENTITY
@@ -79,13 +79,13 @@ public class PriceContent extends AbstractRequireConstraintLeaf implements Price
 		this(PriceContentMode.RESPECTING_FILTER, priceLists);
 	}
 
-	public PriceContent(@Nonnull @ConstraintValueParamDef PriceContentMode fetchMode) {
+	public PriceContent(@Nonnull @Value PriceContentMode fetchMode) {
 		super(fetchMode);
 	}
 
-	@ConstraintCreatorDef
-	public PriceContent(@Nonnull @ConstraintValueParamDef PriceContentMode contentMode,
-	                    @Nonnull @ConstraintValueParamDef String... priceLists) {
+	@Creator
+	public PriceContent(@Nonnull @Value PriceContentMode contentMode,
+	                    @Nonnull @Value String... priceLists) {
 		super(ArrayUtils.mergeArrays(new Serializable[] {contentMode}, priceLists));
 	}
 

@@ -233,7 +233,7 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 
 		// validate additional child is not of same type as container and validate that there are distinct children
 		for (int i = 0; i < newAdditionalChildren.length; i++) {
-			final Class<?> additionalChildType = newAdditionalChildren[i].getType();
+			final Class<?> additionalChildType = additionalChildren[i].getType();
 
 			Assert.isTrue(
 				!getType().isAssignableFrom(additionalChildType),

@@ -919,6 +919,50 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				.orElse(null);
 		}
 
+		@Nullable
+		public GraphQLTester graphQLTester(@Nonnull Function<EvitaServer, GraphQLTester> factory) {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::graphQLTester)
+				.map(it -> ofNullable(it.get())
+					.orElseGet(
+						() -> {
+							return ofNullable(evitaServerInstance())
+								.map(evitaServer -> {
+									final GraphQLTester newTester = factory.apply(evitaServer);
+									it.set(newTester);
+									return newTester;
+								})
+								.orElseThrow(() -> {
+									return new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + name + "`!");
+								});
+						}
+					)
+				)
+				.orElse(null);
+		}
+
+		@Nullable
+		public RestTester restTester(@Nonnull Function<EvitaServer, RestTester> factory) {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::restTester)
+				.map(it -> ofNullable(it.get())
+					.orElseGet(
+						() -> {
+							return ofNullable(evitaServerInstance())
+								.map(evitaServer -> {
+									final RestTester newTester = factory.apply(evitaServer);
+									it.set(newTester);
+									return newTester;
+								})
+								.orElseThrow(() -> {
+									return new ParameterResolutionException("REST web API was not opened for the dataset `" + name + "`!");
+								});
+						}
+					)
+				)
+				.orElse(null);
+		}
+
 		public void init(@Nonnull Supplier<DataSetState> stateCreator) {
 			final DataSetState previousState = this.dataSetInfoAtomicReference.compareAndExchange(
 				null,

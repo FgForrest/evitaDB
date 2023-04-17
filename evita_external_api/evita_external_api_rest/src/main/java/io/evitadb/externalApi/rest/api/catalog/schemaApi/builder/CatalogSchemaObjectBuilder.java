@@ -47,7 +47,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -120,7 +120,7 @@ public class CatalogSchemaObjectBuilder {
 	@Nonnull
 	private OpenApiProperty buildGlobalAttributeSchemaProperty(@Nonnull AttributeSchemaContract attributeSchema) {
 		return newProperty()
-			.name(attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(attributeSchema.getDescription())
 			.deprecationNotice(attributeSchema.getDeprecationNotice())
 			.type(nonNull(typeRefTo(GlobalAttributeSchemaDescriptor.THIS.name())))
@@ -149,7 +149,7 @@ public class CatalogSchemaObjectBuilder {
 	@Nonnull
 	private OpenApiProperty buildEntitySchemaProperty(@Nonnull EntitySchemaContract entitySchema) {
 		return newProperty()
-			.name(entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+			.name(entitySchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(entitySchema.getDescription())
 			.deprecationNotice(entitySchema.getDeprecationNotice())
 			.type(nonNull(typeRefTo(EntitySchemaDescriptor.THIS_SPECIFIC.name(entitySchema))))

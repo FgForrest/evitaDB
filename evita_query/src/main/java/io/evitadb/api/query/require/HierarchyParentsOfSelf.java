@@ -26,9 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,7 +60,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "parentsOfSelf",
 	shortDescription = "The constraint triggers computation of parent entities of the same type as returned entities into response."
 )
@@ -71,8 +71,8 @@ public class HierarchyParentsOfSelf extends AbstractRequireConstraintContainer i
 		super();
 	}
 
-	@ConstraintCreatorDef(silentImplicitClassifier = true)
-	public HierarchyParentsOfSelf(@Nullable @ConstraintChildrenParamDef EntityFetch entityRequirement) {
+	@Creator(silentImplicitClassifier = true)
+	public HierarchyParentsOfSelf(@Nullable @Child EntityFetch entityRequirement) {
 		super(entityRequirement);
 	}
 

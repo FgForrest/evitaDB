@@ -116,7 +116,7 @@ another object). Therefore, our idea was to basically combine those conditions w
 containing a data locator and condition:
 
 ```
-{attributeName}_{condition} -> code_equals
+{attributeName}{condition} -> codeEquals
 ```
 
 A value to this composite key would then be simply a comparable value (or nested child constraints) in some supported data
@@ -150,18 +150,19 @@ constraints will not need any classifier. Which led us to following 3 formats of
 
 ```
 {condition} -> and (only usable for generic constraints)
-{propertyType}_{condition} -> hierarchy_withinSelf (in this case the classifier of used hierarchy is implicitly defined by rest of a query)
-{propertyType}_{classifier}_{condition} -> attribute_code_equals (key with all metadata)
+{propertyType}{condition} -> hierarchyWithinSelf (in this case the classifier of used hierarchy is implicitly 
+defined by rest of a query)
+{propertyType}{classifier}{condition} -> attributeCodeEquals (key with all metadata)
 ```
 
 A complete single simple constraints would look like this:
 
 ```json
-attribute_code_equals: "iphone7s"
+attributeCodeEquals: "iphone7s"
 ```
 
 ```json
-entity_primaryKey_inSet: [10, 20]
+entityPrimaryKeyInSet: [10, 20]
 ```
 
 #### JSON limitations
@@ -197,9 +198,9 @@ type Query {
 input FilterConstraint1 {
     and: [FilterConstraint1!]
     or: [FilterConstraint1!]
-    attribute_code_equals: String
-    attribute_priority_equals: Int
-    hierarchy_category_within: NestedObject1
+    attributeCodeEquals: String
+    attributePriorityEquals: Int
+    hierarchyCategoryWithin: NestedObject1
     ...
 }
 
@@ -214,8 +215,8 @@ _startsWith_ constraints inside a _filterBy_ constraint container:
 
 ```json
 filterBy: {
-    attribute_code_equals: "iphone7s",
-    attribute_url_startsWith: "https://"
+    attributeCodeEquals: "iphone7s",
+    attributeUrlStartsWith: "https://"
 }
 ```
 
@@ -225,14 +226,14 @@ Other more complex example of _or_ constraint container with inner implicit _and
 filterBy: {
    or: [
       {
-         entity_primaryKey_inSet: [100, 200]
+         entityPrimaryKeyInSet: [100, 200]
       },
       {
-         attribute_code_startsWith: "ipho",
-         hierarchy_category_within: {
+         attributeCodeStartsWith: "ipho",
+         hierarchyCategoryWithin: {
             parentOf: 20
          },
-         price_between: ["100.0", "250.0"]
+         priceBetween: ["100.0", "250.0"]
       }
    ]
 }
@@ -244,8 +245,8 @@ scope):
 
 ```json
 filterBy: {
-    reference_brand_having: {
-       attribute_code_equals: "apple"
+    referenceBrandHaving: {
+       attributeCodeEquals: "apple"
     }
 }
 ```

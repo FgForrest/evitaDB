@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.schema.SelectedField;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DataInLocales;
@@ -34,8 +36,10 @@ import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AssociatedDataFieldHeaderDescriptor;
@@ -43,6 +47,11 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDesc
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceForSaleFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PricesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.ReferenceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
+import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -58,7 +67,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -70,11 +79,13 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 public class EntityFetchRequireBuilder {
 
     @Nullable
-    public static EntityFetch buildEntityRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
+    public static EntityFetch buildEntityRequirement(@Nonnull CatalogSchemaContract catalogSchema,
+                                                     @Nonnull SelectionSetWrapper selectionSetWrapper,
                                                      @Nullable Locale desiredLocale,
                                                      @Nullable EntitySchemaContract currentEntitySchema,
                                                      @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
         final List<EntityContentRequire> entityContentRequires = buildContentRequirements(
+            catalogSchema,
             selectionSetWrapper,
             desiredLocale,
             currentEntitySchema,
@@ -87,11 +98,13 @@ public class EntityFetchRequireBuilder {
     }
 
     @Nullable
-    public static EntityGroupFetch buildGroupEntityRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
+    public static EntityGroupFetch buildGroupEntityRequirement(@Nonnull CatalogSchemaContract catalogSchema,
+                                                               @Nonnull SelectionSetWrapper selectionSetWrapper,
                                                                @Nullable Locale desiredLocale,
                                                                @Nullable EntitySchemaContract currentEntitySchema,
                                                                @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
         final List<EntityContentRequire> entityContentRequires = buildContentRequirements(
+            catalogSchema,
             selectionSetWrapper,
             desiredLocale,
             currentEntitySchema,
@@ -104,7 +117,8 @@ public class EntityFetchRequireBuilder {
     }
 
     @Nullable
-    private static List<EntityContentRequire> buildContentRequirements(@Nonnull SelectionSetWrapper selectionSetWrapper,
+    private static List<EntityContentRequire> buildContentRequirements(@Nonnull CatalogSchemaContract catalogSchema,
+                                                                       @Nonnull SelectionSetWrapper selectionSetWrapper,
                                                                        @Nullable Locale desiredLocale,
                                                                        @Nullable EntitySchemaContract currentEntitySchema,
                                                                        @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
@@ -121,7 +135,7 @@ public class EntityFetchRequireBuilder {
         buildAttributeContentRequirement(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
         buildAssociatedDataContentRequirement(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
         buildPriceContentRequirement(selectionSetWrapper).ifPresent(entityContentRequires::add);
-        entityContentRequires.addAll(buildReferenceContentRequirement(selectionSetWrapper, desiredLocale, currentEntitySchema, entitySchemaFetcher));
+        entityContentRequires.addAll(buildReferenceContentRequirement(catalogSchema, selectionSetWrapper, desiredLocale, currentEntitySchema, entitySchemaFetcher));
         buildDataInLocalesRequirement(selectionSetWrapper, desiredLocale, currentEntitySchema).ifPresent(entityContentRequires::add);
 
         return entityContentRequires;
@@ -152,7 +166,7 @@ public class EntityFetchRequireBuilder {
         return currentEntitySchema.getReferences()
             .values()
             .stream()
-            .map(it -> it.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+            .map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
             .anyMatch(selectionSetWrapper::contains);
     }
 
@@ -166,7 +180,7 @@ public class EntityFetchRequireBuilder {
         final String[] neededAttributes = selectionSetWrapper.getFields(EntityDescriptor.ATTRIBUTES.name())
             .stream()
             .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-            .map(f -> currentEntitySchema.getAttributeByName(f.getName(), FIELD_NAME_NAMING_CONVENTION))
+            .map(f -> currentEntitySchema.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
             .filter(Optional::isPresent)
             .map(Optional::get)
             .map(AttributeSchemaContract::getName)
@@ -189,7 +203,7 @@ public class EntityFetchRequireBuilder {
         final String[] neededAssociatedData = selectionSetWrapper.getFields(EntityDescriptor.ASSOCIATED_DATA.name())
             .stream()
             .flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-            .map(f -> currentEntitySchema.getAssociatedDataByName(f.getName(), FIELD_NAME_NAMING_CONVENTION))
+            .map(f -> currentEntitySchema.getAssociatedDataByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
             .filter(Optional::isPresent)
             .map(Optional::get)
             .map(AssociatedDataSchemaContract::getName)
@@ -247,7 +261,8 @@ public class EntityFetchRequireBuilder {
 
 
     @Nonnull
-    private static List<ReferenceContent> buildReferenceContentRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
+    private static List<ReferenceContent> buildReferenceContentRequirement(@Nonnull CatalogSchemaContract catalogSchema,
+                                                                           @Nonnull SelectionSetWrapper selectionSetWrapper,
                                                                            @Nullable Locale desiredLocale,
                                                                            @Nonnull EntitySchemaContract currentEntitySchema,
                                                                            @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher) {
@@ -260,38 +275,116 @@ public class EntityFetchRequireBuilder {
             .stream()
             .map(it -> new FieldsForReferenceHolder(
                 it,
-                selectionSetWrapper.getFields(it.getNameVariant(FIELD_NAME_NAMING_CONVENTION))
+                selectionSetWrapper.getFields(it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
             ))
             .filter(it -> !it.fields().isEmpty())
             .map(it -> new RequirementForReferenceHolder(
                 it.referenceSchema(),
-                buildEntityRequirement(
-                    SelectionSetWrapper.from(
-                        it.fields()
-                            .stream()
-                            .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.REFERENCED_ENTITY.name()).stream())
-                            .map(SelectedField::getSelectionSet)
-                            .toList()
-                    ),
-                    desiredLocale,
-                    it.referenceSchema().isReferencedEntityTypeManaged() ? entitySchemaFetcher.apply(it.referenceSchema().getReferencedEntityType()) : null,
-                    entitySchemaFetcher
-                ),
-                buildGroupEntityRequirement(
-                    SelectionSetWrapper.from(
-                        it.fields()
-                            .stream()
-                            .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.GROUP_ENTITY.name()).stream())
-                            .map(SelectedField::getSelectionSet)
-                            .toList()
-                    ),
-                    desiredLocale,
-                    it.referenceSchema().isReferencedGroupTypeManaged() ? entitySchemaFetcher.apply(it.referenceSchema().getReferencedGroupType()) : null,
-                    entitySchemaFetcher
-                )
+                buildReferenceContentFilter(catalogSchema, currentEntitySchema, it).orElse(null),
+                buildReferenceContentOrder(catalogSchema, currentEntitySchema, it).orElse(null),
+                buildReferenceEntityRequirement(catalogSchema, desiredLocale, entitySchemaFetcher, it),
+                buildReferenceGroupRequirement(catalogSchema, desiredLocale, entitySchemaFetcher, it)
             ))
-            .map(it -> referenceContent(it.referenceSchema().getName(), it.entityRequirement(), it.groupRequirement()))
+            .map(it -> referenceContent(it.referenceSchema().getName(), it.filterBy(), it.orderBy(), it.entityRequirement(), it.groupRequirement()))
             .toList();
+    }
+
+    @Nonnull
+    private static Optional<FilterBy> buildReferenceContentFilter(@Nonnull CatalogSchemaContract catalogSchema,
+                                                                  @Nonnull EntitySchemaContract currentEntitySchema,
+                                                                  @Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
+        final List<SelectedField> fields = fieldsForReferenceHolder.fields();
+        final boolean someFieldHasFilter = fields.stream()
+            .anyMatch(it -> it.getArguments().containsKey(ReferenceFieldHeaderDescriptor.FILTER_BY.name()));
+        if (!someFieldHasFilter) {
+            return Optional.empty();
+        }
+        Assert.isTrue(
+            fields.size() <= 1,
+            () -> new GraphQLInvalidArgumentException("Reference filtering is currently supported only if there is only one reference of particular name requested.")
+        );
+
+        final FilterConstraintResolver resolver = new FilterConstraintResolver(
+            catalogSchema,
+            new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName())
+        );
+        return Optional.ofNullable(
+            (FilterBy) resolver.resolve(
+                ReferenceFieldHeaderDescriptor.FILTER_BY.name(),
+                fields.get(0).getArguments().get(ReferenceFieldHeaderDescriptor.FILTER_BY.name())
+            )
+        );
+    }
+
+    @Nonnull
+    private static Optional<OrderBy> buildReferenceContentOrder(@Nonnull CatalogSchemaContract catalogSchema,
+                                                                @Nonnull EntitySchemaContract currentEntitySchema,
+                                                                @Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
+        final List<SelectedField> fields = fieldsForReferenceHolder.fields();
+        final boolean someFieldHasFilter = fields.stream()
+            .anyMatch(it -> it.getArguments().containsKey(ReferenceFieldHeaderDescriptor.ORDER_BY.name()));
+        if (!someFieldHasFilter) {
+            return Optional.empty();
+        }
+        Assert.isTrue(
+            fields.size() <= 1,
+            () -> new GraphQLInvalidArgumentException("Reference ordering is currently supported only if there is only one reference of particular name requested.")
+        );
+
+        final OrderConstraintResolver resolver = new OrderConstraintResolver(
+            catalogSchema,
+            new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName())
+        );
+        return Optional.ofNullable(
+            (OrderBy) resolver.resolve(
+                ReferenceFieldHeaderDescriptor.ORDER_BY.name(),
+                fieldsForReferenceHolder.fields().get(0).getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name())
+            )
+        );
+    }
+
+    @Nullable
+    private static EntityFetch buildReferenceEntityRequirement(@Nonnull CatalogSchemaContract catalogSchema,
+                                                               @Nullable Locale desiredLocale,
+                                                               @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+                                                               @Nonnull FieldsForReferenceHolder fieldsForReference) {
+        final SelectionSetWrapper referencedEntitySelectionSet = SelectionSetWrapper.from(
+            fieldsForReference.fields()
+                .stream()
+                .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.REFERENCED_ENTITY.name()).stream())
+                .map(SelectedField::getSelectionSet)
+                .toList()
+        );
+
+        final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedEntityTypeManaged() ?
+            entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedEntityType()) :
+            null;
+
+        final EntityFetch referencedEntityRequirement = buildEntityRequirement(catalogSchema, referencedEntitySelectionSet, desiredLocale, referencedEntitySchema, entitySchemaFetcher);
+        if (referencedEntityRequirement == null && !referencedEntitySelectionSet.isEmpty()) {
+            return entityFetch(); // if referenced entity was requested we want at least its body everytime
+        }
+        return referencedEntityRequirement;
+    }
+
+    @Nullable
+    private static EntityGroupFetch buildReferenceGroupRequirement(@Nonnull CatalogSchemaContract catalogSchema,
+                                                                   @Nullable Locale desiredLocale,
+                                                                   @Nonnull Function<String, EntitySchemaContract> entitySchemaFetcher,
+                                                                   @Nonnull FieldsForReferenceHolder fieldsForReference) {
+        final SelectionSetWrapper referencedGroupSelectionSet = SelectionSetWrapper.from(
+            fieldsForReference.fields()
+                .stream()
+                .flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.GROUP_ENTITY.name()).stream())
+                .map(SelectedField::getSelectionSet)
+                .toList()
+        );
+
+        final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedGroupTypeManaged() ?
+            entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedGroupType()) :
+            null;
+
+        return buildGroupEntityRequirement(catalogSchema, referencedGroupSelectionSet, desiredLocale, referencedEntitySchema, entitySchemaFetcher);
     }
 
     @Nonnull
@@ -329,6 +422,8 @@ public class EntityFetchRequireBuilder {
 
     private record FieldsForReferenceHolder(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull List<SelectedField> fields) {}
     private record RequirementForReferenceHolder(@Nonnull ReferenceSchemaContract referenceSchema,
+                                                 @Nullable FilterBy filterBy,
+                                                 @Nullable OrderBy orderBy,
                                                  @Nullable EntityFetch entityRequirement,
                                                  @Nullable EntityGroupFetch groupRequirement) {}
 }

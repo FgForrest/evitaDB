@@ -50,9 +50,11 @@ public class CollectionDataApiRestBuildingContext {
 
 	private OpenApiSimpleType orderByObject;
 
-	private OpenApiSimpleType requiredForListObject;
-	private OpenApiSimpleType requiredForQueryObject;
-	private OpenApiSimpleType requiredForDeleteObject;
+	private OpenApiSimpleType requireForListObject;
+	private OpenApiSimpleType localizedRequireForListObject;
+	private OpenApiSimpleType requireForQueryObject;
+	private OpenApiSimpleType localizedRequireForQueryObject;
+	private OpenApiSimpleType requireForDeleteObject;
 
 	@Nonnull
 	public CatalogContract getCatalog() {
@@ -66,9 +68,6 @@ public class CollectionDataApiRestBuildingContext {
 		return !schema.getLocales().isEmpty();
 	}
 
-	/**
-	 * Set built filterBy object corresponding to this schema. Can be set only once before all other methods need it.
-	 */
 	public void setFilterByObject(@Nonnull OpenApiSimpleType filterByObject) {
 		Assert.isPremiseValid(
 			this.filterByObject == null,
@@ -83,9 +82,6 @@ public class CollectionDataApiRestBuildingContext {
 			.orElseThrow(() -> new OpenApiBuildingError("FilterBy for schema `" + schema.getName() + "` has not been initialized."));
 	}
 
-	/**
-	 * Set built filterBy object corresponding to this schema and localized entity object. Can be set only once before all other methods need it.
-	 */
 	public void setLocalizedFilterByObject(@Nonnull OpenApiSimpleType filterByLocalizedInputObject) {
 		Assert.isPremiseValid(
 			this.localizedFilterByObject == null,
@@ -94,9 +90,12 @@ public class CollectionDataApiRestBuildingContext {
 		this.localizedFilterByObject = filterByLocalizedInputObject;
 	}
 
-	/**
-	 * Set built orderBy object corresponding to this schema. Can be set only once before all other methods need it.
-	 */
+	@Nonnull
+	public OpenApiSimpleType getLocalizedFilterByObject() {
+		return Optional.ofNullable(localizedFilterByObject)
+			.orElseThrow(() -> new OpenApiBuildingError("Localized FilterBy for schema `" + schema.getName() + "` has not been initialized."));
+	}
+
 	public void setOrderByObject(@Nonnull OpenApiSimpleType orderByObject) {
 		Assert.isPremiseValid(
 			this.orderByObject == null,
@@ -111,45 +110,73 @@ public class CollectionDataApiRestBuildingContext {
 			.orElseThrow(() -> new OpenApiBuildingError("OrderBy for schema `" + schema.getName() + "` has not been initialized."));
 	}
 
-	public void setRequiredForListObject(@Nonnull OpenApiSimpleType requiredForListObject) {
+	public void setRequireForListObject(@Nonnull OpenApiSimpleType requireForListObject) {
 		Assert.isPremiseValid(
-			this.requiredForListObject == null,
-			() -> new OpenApiBuildingError("Required for list object for schema `" + schema.getName() + "` has been already initialized.")
+			this.requireForListObject == null,
+			() -> new OpenApiBuildingError("Require for list object for schema `" + schema.getName() + "` has been already initialized.")
 		);
-		this.requiredForListObject = requiredForListObject;
+		this.requireForListObject = requireForListObject;
 	}
 
 	@Nonnull
-	public OpenApiSimpleType getRequiredForListObject() {
-		return Optional.ofNullable(requiredForListObject)
-			.orElseThrow(() -> new OpenApiBuildingError("Required for list object for schema `" + schema.getName() + "` has not been initialized."));
+	public OpenApiSimpleType getRequireForListObject() {
+		return Optional.ofNullable(requireForListObject)
+			.orElseThrow(() -> new OpenApiBuildingError("Require for list object for schema `" + schema.getName() + "` has not been initialized."));
 	}
 
-	public void setRequiredForQueryObject(@Nonnull OpenApiSimpleType requiredForQueryObject) {
+	public void setLocalizedRequireForListObject(@Nonnull OpenApiSimpleType localizedRequireForListObject) {
 		Assert.isPremiseValid(
-			this.requiredForQueryObject == null,
-			() -> new OpenApiBuildingError("Required for query object for schema `" + schema.getName() + "` has been already initialized.")
+			this.localizedRequireForListObject == null,
+			() -> new OpenApiBuildingError("Require for list object for schema `" + schema.getName() + "` has been already initialized.")
 		);
-		this.requiredForQueryObject = requiredForQueryObject;
+		this.localizedRequireForListObject = localizedRequireForListObject;
 	}
 
 	@Nonnull
-	public OpenApiSimpleType getRequiredForQueryObject() {
-		return Optional.ofNullable(requiredForQueryObject)
-			.orElseThrow(() -> new OpenApiBuildingError("Required for query object for schema `" + schema.getName() + "` has not been initialized."));
+	public OpenApiSimpleType getLocalizedRequireForListObject() {
+		return Optional.ofNullable(localizedRequireForListObject)
+			.orElseThrow(() -> new OpenApiBuildingError("Localized Require for list object for schema `" + schema.getName() + "` has not been initialized."));
 	}
 
-	public void setRequiredForDeleteObject(@Nonnull OpenApiSimpleType requiredForDeleteObject) {
+	public void setRequireForQueryObject(@Nonnull OpenApiSimpleType requireForQueryObject) {
 		Assert.isPremiseValid(
-			this.requiredForDeleteObject == null,
-			() -> new OpenApiBuildingError("Required for query object for schema `" + schema.getName() + "` has been already initialized.")
+			this.requireForQueryObject == null,
+			() -> new OpenApiBuildingError("Require for query object for schema `" + schema.getName() + "` has been already initialized.")
 		);
-		this.requiredForDeleteObject = requiredForDeleteObject;
+		this.requireForQueryObject = requireForQueryObject;
 	}
 
 	@Nonnull
-	public OpenApiSimpleType getRequiredForDeleteObject() {
-		return Optional.ofNullable(requiredForDeleteObject)
-			.orElseThrow(() -> new OpenApiBuildingError("Required for query object for schema `" + schema.getName() + "` has not been initialized."));
+	public OpenApiSimpleType getRequireForQueryObject() {
+		return Optional.ofNullable(requireForQueryObject)
+			.orElseThrow(() -> new OpenApiBuildingError("Require for query object for schema `" + schema.getName() + "` has not been initialized."));
+	}
+
+	public void setLocalizedRequireForQueryObject(@Nonnull OpenApiSimpleType localizedRequireForQueryObject) {
+		Assert.isPremiseValid(
+			this.localizedRequireForQueryObject == null,
+			() -> new OpenApiBuildingError("Localized Require for query object for schema `" + schema.getName() + "` has been already initialized.")
+		);
+		this.localizedRequireForQueryObject = localizedRequireForQueryObject;
+	}
+
+	@Nonnull
+	public OpenApiSimpleType getLocalizedRequireForQueryObject() {
+		return Optional.ofNullable(localizedRequireForQueryObject)
+			.orElseThrow(() -> new OpenApiBuildingError("Localized Require for query object for schema `" + schema.getName() + "` has not been initialized."));
+	}
+
+	public void setRequireForDeleteObject(@Nonnull OpenApiSimpleType requireForDeleteObject) {
+		Assert.isPremiseValid(
+			this.requireForDeleteObject == null,
+			() -> new OpenApiBuildingError("Require for query object for schema `" + schema.getName() + "` has been already initialized.")
+		);
+		this.requireForDeleteObject = requireForDeleteObject;
+	}
+
+	@Nonnull
+	public OpenApiSimpleType getRequireForDeleteObject() {
+		return Optional.ofNullable(requireForDeleteObject)
+			.orElseThrow(() -> new OpenApiBuildingError("Require for query object for schema `" + schema.getName() + "` has not been initialized."));
 	}
 }

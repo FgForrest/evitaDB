@@ -27,10 +27,10 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -61,7 +61,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "property",
 	shortDescription = "The constraint sorts returned entities or references by attribute specified on its reference in natural order.",
 	supportedIn = { ConstraintDomain.ENTITY }
@@ -73,9 +73,9 @@ public class ReferenceProperty extends AbstractOrderConstraintContainer implemen
 		super(arguments, children);
 	}
 
-	@ConstraintCreatorDef
-	public ReferenceProperty(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                         @Nonnull @ConstraintChildrenParamDef OrderConstraint... children) {
+	@Creator
+	public ReferenceProperty(@Nonnull @Classifier String referenceName,
+	                         @Nonnull @Child OrderConstraint... children) {
 		super(referenceName, children);
 	}
 

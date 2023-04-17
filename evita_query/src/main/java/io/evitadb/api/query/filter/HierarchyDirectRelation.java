@@ -25,8 +25,8 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -140,7 +140,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "directRelation",
 	shortDescription = "The constraint limits hierarchy within parent constraint to take only directly related entities into an account.",
 	supportedIn = ConstraintDomain.HIERARCHY
@@ -155,7 +155,7 @@ public class HierarchyDirectRelation extends AbstractFilterConstraintLeaf implem
 		super(CONSTRAINT_NAME, arguments);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public HierarchyDirectRelation() {
 		super(CONSTRAINT_NAME);
 	}

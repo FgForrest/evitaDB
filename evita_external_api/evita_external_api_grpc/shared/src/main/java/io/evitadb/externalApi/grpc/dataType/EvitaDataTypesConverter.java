@@ -187,142 +187,96 @@ public class EvitaDataTypesConverter {
 
 		if (value instanceof String stringValue) {
 			builder.setStringValue(stringValue);
-			builder.setType(GrpcEvitaDataType.STRING);
 		} else if (value instanceof Character characterValue) {
 			builder.setStringValue(toGrpcCharacter(characterValue));
-			builder.setType(GrpcEvitaDataType.CHARACTER);
 		} else if (value instanceof Integer integerValue) {
 			builder.setIntegerValue(integerValue);
-			builder.setType(GrpcEvitaDataType.INTEGER);
 		} else if (value instanceof Short shortValue) {
 			builder.setIntegerValue(shortValue);
-			builder.setType(GrpcEvitaDataType.SHORT);
 		} else if (value instanceof Byte byteValue) {
 			builder.setIntegerValue(byteValue);
-			builder.setType(GrpcEvitaDataType.BYTE);
 		} else if (value instanceof Long longValue) {
 			builder.setLongValue(longValue);
-			builder.setType(GrpcEvitaDataType.LONG);
 		} else if (value instanceof Boolean booleanValue) {
 			builder.setBooleanValue(booleanValue);
-			builder.setType(GrpcEvitaDataType.BOOLEAN);
 		} else if (value instanceof BigDecimal bigDecimalValue) {
 			builder.setBigDecimalValue(toGrpcBigDecimal(bigDecimalValue));
-			builder.setType(GrpcEvitaDataType.BIG_DECIMAL);
 		} else if (value instanceof OffsetDateTime offsetDateTimeValue) {
 			builder.setOffsetDateTimeValue(toGrpcOffsetDateTime(offsetDateTimeValue));
-			builder.setType(GrpcEvitaDataType.OFFSET_DATE_TIME);
 		} else if (value instanceof LocalDateTime localDateTimeValue) {
 			builder.setOffsetDateTimeValue(toGrpcLocalDateTime(localDateTimeValue));
-			builder.setType(GrpcEvitaDataType.LOCAL_DATE_TIME);
 		} else if (value instanceof LocalDate localDateValue) {
 			builder.setOffsetDateTimeValue(toGrpcLocalDate(localDateValue));
-			builder.setType(GrpcEvitaDataType.LOCAL_DATE);
 		} else if (value instanceof LocalTime localeTimeValue) {
 			builder.setOffsetDateTimeValue(toGrpcLocalTime(localeTimeValue));
-			builder.setType(GrpcEvitaDataType.LOCAL_TIME);
 		} else if (value instanceof DateTimeRange dateTimeRangeValue) {
 			builder.setDateTimeRangeValue(toGrpcDateTimeRange(dateTimeRangeValue));
-			builder.setType(GrpcEvitaDataType.DATE_TIME_RANGE);
 		} else if (value instanceof BigDecimalNumberRange bigDecimalNumberRangeValue) {
 			builder.setBigDecimalNumberRangeValue(toGrpcBigDecimalNumberRange(bigDecimalNumberRangeValue));
-			builder.setType(GrpcEvitaDataType.BIG_DECIMAL_NUMBER_RANGE);
 		} else if (value instanceof LongNumberRange longNumberRangeValue) {
 			builder.setLongNumberRangeValue(toGrpcLongNumberRange(longNumberRangeValue));
-			builder.setType(GrpcEvitaDataType.LONG_NUMBER_RANGE);
 		} else if (value instanceof IntegerNumberRange integerNumberRangeValue) {
 			builder.setIntegerNumberRangeValue(toGrpcIntegerNumberRange(integerNumberRangeValue));
-			builder.setType(GrpcEvitaDataType.INTEGER_NUMBER_RANGE);
 		} else if (value instanceof ShortNumberRange shortNumberRangeValue) {
 			builder.setIntegerNumberRangeValue(toGrpcIntegerNumberRange(shortNumberRangeValue));
-			builder.setType(GrpcEvitaDataType.SHORT_NUMBER_RANGE);
 		} else if (value instanceof ByteNumberRange byteNumberRangeValue) {
 			builder.setIntegerNumberRangeValue(toGrpcIntegerNumberRange(byteNumberRangeValue));
-			builder.setType(GrpcEvitaDataType.BYTE_NUMBER_RANGE);
 		} else if (value instanceof Locale localeValue) {
 			builder.setLocaleValue(toGrpcLocale(localeValue));
-			builder.setType(GrpcEvitaDataType.LOCALE);
 		} else if (value instanceof Currency currencyValue) {
 			builder.setCurrencyValue(toGrpcCurrency(currencyValue));
-			builder.setType(GrpcEvitaDataType.CURRENCY);
 		} else if (value instanceof byte[] byteArrayValues) {
 			builder.setIntegerArrayValue(toGrpcByteArray(byteArrayValues));
-			builder.setType(GrpcEvitaDataType.BYTE_ARRAY);
 		} else if (value instanceof short[] shortArrayValues) {
 			builder.setIntegerArrayValue(toGrpcShortArray(shortArrayValues));
-			builder.setType(GrpcEvitaDataType.SHORT_ARRAY);
 		} else if (value instanceof int[] integerArrayValues) {
 			builder.setIntegerArrayValue(toGrpcIntegerArray(integerArrayValues));
-			builder.setType(GrpcEvitaDataType.INTEGER_ARRAY);
 		} else if (value instanceof long[] longArrayValues) {
 			builder.setLongArrayValue(toGrpcLongArray(longArrayValues));
-			builder.setType(GrpcEvitaDataType.LONG_ARRAY);
 		} else if (value instanceof boolean[] boolArrayValues) {
 			builder.setBooleanArrayValue(toGrpcBooleanArray(boolArrayValues));
-			builder.setType(GrpcEvitaDataType.BOOLEAN_ARRAY);
 		} else if (value instanceof char[] charArrayValues) {
 			builder.setStringArrayValue(toGrpcCharacterArray(charArrayValues));
-			builder.setType(GrpcEvitaDataType.CHARACTER_ARRAY);
 		} else if (value instanceof String[] stringArrayValues) {
 			builder.setStringArrayValue(toGrpcStringArray(stringArrayValues));
-			builder.setType(GrpcEvitaDataType.STRING_ARRAY);
 		} else if (value instanceof Character[] characterArrayValues) {
 			builder.setStringArrayValue(toGrpcCharacterArray(characterArrayValues));
-			builder.setType(GrpcEvitaDataType.CHARACTER_ARRAY);
 		} else if (value instanceof Integer[] integerArrayValues) {
 			builder.setIntegerArrayValue(toGrpcIntegerArray(integerArrayValues));
-			builder.setType(GrpcEvitaDataType.INTEGER_ARRAY);
 		} else if (value instanceof Short[] shortArrayValues) {
 			builder.setIntegerArrayValue(toGrpcShortArray(shortArrayValues));
-			builder.setType(GrpcEvitaDataType.SHORT_ARRAY);
 		} else if (value instanceof Byte[] byteArrayValues) {
 			builder.setIntegerArrayValue(toGrpcByteArray(byteArrayValues));
-			builder.setType(GrpcEvitaDataType.BYTE_ARRAY);
 		} else if (value instanceof Long[] longArrayValues) {
 			builder.setLongArrayValue(toGrpcLongArray(longArrayValues));
-			builder.setType(GrpcEvitaDataType.LONG_ARRAY);
 		} else if (value instanceof Boolean[] booleanArrayValues) {
 			builder.setBooleanArrayValue(toGrpcBooleanArray(booleanArrayValues));
-			builder.setType(GrpcEvitaDataType.BOOLEAN_ARRAY);
 		} else if (value instanceof BigDecimal[] bigDecimalArrayValues) {
 			builder.setBigDecimalArrayValue(toGrpcBigDecimalArray(bigDecimalArrayValues));
-			builder.setType(GrpcEvitaDataType.BIG_DECIMAL_ARRAY);
 		} else if (value instanceof OffsetDateTime[] offsetDateTimeArrayValues) {
 			builder.setOffsetDateTimeArrayValue(toGrpcOffsetDateTimeArray(offsetDateTimeArrayValues));
-			builder.setType(GrpcEvitaDataType.OFFSET_DATE_TIME_ARRAY);
 		} else if (value instanceof LocalDateTime[] localDateTimeArrayValues) {
 			builder.setOffsetDateTimeArrayValue(toGrpcLocalDateTimeArray(localDateTimeArrayValues));
-			builder.setType(GrpcEvitaDataType.LOCAL_DATE_TIME_ARRAY);
 		} else if (value instanceof LocalDate[] localDateArrayValues) {
 			builder.setOffsetDateTimeArrayValue(toGrpcLocalDateArray(localDateArrayValues));
-			builder.setType(GrpcEvitaDataType.LOCAL_DATE_ARRAY);
 		} else if (value instanceof LocalTime[] localeTimeArrayValues) {
 			builder.setOffsetDateTimeArrayValue(toGrpcLocalTimeArray(localeTimeArrayValues));
-			builder.setType(GrpcEvitaDataType.LOCAL_TIME_ARRAY);
 		} else if (value instanceof DateTimeRange[] dateTimeRangeArrayValues) {
 			builder.setDateTimeRangeArrayValue(toGrpcDateTimeRangeArray(dateTimeRangeArrayValues));
-			builder.setType(GrpcEvitaDataType.DATE_TIME_RANGE_ARRAY);
 		} else if (value instanceof BigDecimalNumberRange[] bigDecimalNumberRangeArrayValues) {
 			builder.setBigDecimalNumberRangeArrayValue(toGrpcBigDecimalNumberRangeArray(bigDecimalNumberRangeArrayValues));
-			builder.setType(GrpcEvitaDataType.BIG_DECIMAL_NUMBER_RANGE_ARRAY);
 		} else if (value instanceof LongNumberRange[] longNumberRangeArrayValues) {
 			builder.setLongNumberRangeArrayValue(toGrpcLongNumberRangeArray(longNumberRangeArrayValues));
-			builder.setType(GrpcEvitaDataType.LONG_NUMBER_RANGE_ARRAY);
 		} else if (value instanceof IntegerNumberRange[] integerNumberRangeArrayValues) {
 			builder.setIntegerNumberRangeArrayValue(toGrpcIntegerNumberRangeArray(integerNumberRangeArrayValues));
-			builder.setType(GrpcEvitaDataType.INTEGER_NUMBER_RANGE_ARRAY);
 		} else if (value instanceof ShortNumberRange[] shortNumberRangeArrayValues) {
 			builder.setIntegerNumberRangeArrayValue(toGrpcShortNumberRangeArray(shortNumberRangeArrayValues));
-			builder.setType(GrpcEvitaDataType.SHORT_NUMBER_RANGE_ARRAY);
 		} else if (value instanceof ByteNumberRange[] byteNumberRangeArrayValues) {
 			builder.setIntegerNumberRangeArrayValue(toGrpcByteNumberRangeArray(byteNumberRangeArrayValues));
-			builder.setType(GrpcEvitaDataType.BYTE_NUMBER_RANGE_ARRAY);
 		} else if (value instanceof Locale[] localeArrayValues) {
 			builder.setLocaleArrayValue(toGrpcLocaleArray(localeArrayValues));
-			builder.setType(GrpcEvitaDataType.LOCALE_ARRAY);
 		} else if (value instanceof Currency[] currencyArrayValues) {
 			builder.setCurrencyArrayValue(toGrpcCurrencyArray(currencyArrayValues));
-			builder.setType(GrpcEvitaDataType.CURRENCY_ARRAY);
 		} else {
 			throw new EvitaInvalidUsageException("Unsupported Evita data type in gRPC API '" + value.getClass().getName() + "'.");
 		}

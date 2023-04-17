@@ -31,6 +31,9 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -61,7 +64,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "excluding",
 	shortDescription = "The constraint narrows hierarchy within parent constraint to exclude specified hierarchy subtrees from search.",
 	supportedIn = ConstraintDomain.HIERARCHY
@@ -70,9 +73,9 @@ public class HierarchyExcluding extends AbstractFilterConstraintContainer implem
 	@Serial private static final long serialVersionUID = -6950287451642746676L;
 	private static final String CONSTRAINT_NAME = "excluding";
 
-	@ConstraintCreatorDef
+	@Creator
 	public HierarchyExcluding(@Nonnull @ConstraintChildrenParamDef FilterConstraint... filterConstraint) {
-		super(CONSTRAINT_NAME, NO_ARGS, filterConstraint);
+		super(CONSTRAINT_NAME, NO_ARGS, primaryKey);
 	}
 
 	/**

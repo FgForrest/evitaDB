@@ -35,6 +35,10 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -118,7 +122,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "hierarchyOfReference",
 	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response."
 )
@@ -204,17 +208,16 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public HierarchyOfReference(
-		@Nonnull @ConstraintClassifierParamDef String referenceName,
-		@Nonnull @ConstraintValueParamDef EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nonnull @ConstraintChildrenParamDef OrderBy orderBy,
-		@Nonnull @ConstraintChildrenParamDef HierarchyRequireConstraint... requirement
+		@Nonnull @Classifier String referenceName,
+		@Nonnull @Value EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nonnull @Child OrderBy orderBy,
+		@Nonnull @Child HierarchyRequireConstraint... requirement
 	) {
 		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement, orderBy);
 	}
 
-	/* TODO LHO - neměl by být @ConstraintCreatorDef na tomto konstruktoru? */
 	public HierarchyOfReference(
 		@Nonnull String[] referenceName,
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,

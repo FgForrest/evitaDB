@@ -42,7 +42,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class CatalogGraphQLCollectionsQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String COLLECTIONS_PATH = "data.collections";
 
 	@Test

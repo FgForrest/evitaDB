@@ -29,6 +29,7 @@ import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsPreflightHandler;
+import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.Rest.Endpoint;
 import io.evitadb.externalApi.rest.api.catalog.CatalogRestBuilder;
@@ -47,7 +48,6 @@ import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.util.Headers;
 import io.undertow.util.HttpString;
 import io.undertow.util.Methods;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -83,7 +83,7 @@ public class RestManager {
 	/**
 	 * REST specific endpoint router.
 	 */
-	@Getter private final RoutingHandler restRouter = Handlers.routing();
+	private final RoutingHandler restRouter = Handlers.routing();
 	@Nonnull private final Map<String, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
 	public RestManager(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
@@ -98,6 +98,11 @@ public class RestManager {
 		corsEndpoints.forEach((path, endpoint) -> restRouter.add("OPTIONS", path, endpoint.toHandler()));
 
 		log.info("Built REST API in " + StringUtils.formatPreciseNano(System.currentTimeMillis() - buildingStartTime));
+	}
+
+	@Nonnull
+	public HttpHandler getRestRouter() {
+		return new PathNormalizingHandler(restRouter);
 	}
 
 	/**

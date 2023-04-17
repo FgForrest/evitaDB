@@ -26,9 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.require.PriceType;
 
 import javax.annotation.Nonnull;
@@ -61,7 +61,7 @@ import java.math.BigDecimal;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "between",
 	shortDescription = "The constraint checks if entity has price for sale within the passed range of prices (both ends are inclusive).",
 	supportedIn = ConstraintDomain.ENTITY
@@ -73,9 +73,9 @@ public class PriceBetween extends AbstractFilterConstraintLeaf implements PriceC
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public PriceBetween(@Nullable @ConstraintValueParamDef BigDecimal from,
-	                    @Nullable @ConstraintValueParamDef BigDecimal to) {
+	@Creator
+	public PriceBetween(@Nullable @Value BigDecimal from,
+	                    @Nullable @Value BigDecimal to) {
 		super(from, to);
 	}
 

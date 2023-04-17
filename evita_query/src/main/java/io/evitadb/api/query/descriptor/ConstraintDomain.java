@@ -23,11 +23,11 @@
 
 package io.evitadb.api.query.descriptor;
 
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 /**
  * Domain is primarily used to be able to define which constraints are supported in particular domain.
- * To define those constraints one should use {@link ConstraintDef#supportedIn()} to specify in which domains particular
+ * To define those constraints one should use {@link ConstraintDefinition#supportedIn()} to specify in which domains particular
  * query is supported.
  *
  * @author Lukáš Hornych, FG Forrest a.s. 2022

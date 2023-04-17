@@ -25,6 +25,7 @@ package io.evitadb.test.extension;
 
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.extension.EvitaParameterResolver.DataSetInfo;
+import io.evitadb.test.extension.DbInstanceParameterResolver.DataSetInfo;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -43,6 +44,8 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.stream.Collectors;
 
+import static io.evitadb.test.extension.DbInstanceParameterResolver.DATA_SET_INFO;
+import static io.evitadb.test.extension.DbInstanceParameterResolver.STORAGE_PATH;
 import static io.evitadb.test.extension.EvitaParameterResolver.DATA_SET_INFO;
 import static io.evitadb.test.extension.EvitaParameterResolver.STORAGE_PATH;
 import static org.junit.jupiter.api.Assertions.fail;

@@ -46,7 +46,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
  * Handles serializing of {@link CatalogSchemaContract} into JSON structure
@@ -92,7 +92,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 		final ObjectNode attributeSchemasMap = objectJsonSerializer.objectNode();
 		if (!attributeSchemas.isEmpty()) {
 			attributeSchemas.forEach(attributeSchema -> attributeSchemasMap.set(
-				attributeSchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+				attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 				serializeAttributeSchema(attributeSchema)
 			));
 		}
@@ -135,7 +135,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 			entityTypes.stream()
 				.map(entitySchemaFetcher)
 				.forEach(entitySchema -> entitySchemasMap.set(
-					entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION),
+					entitySchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					entitySchemaJsonSerializer.serialize(
 						entitySchemaFetcher,
 						entitySchema

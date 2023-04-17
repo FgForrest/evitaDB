@@ -31,6 +31,9 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -56,7 +59,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "filterBy",
 	shortDescription = "The container encapsulating inner filter constraint into one main constraint that is required by the query."
 )
@@ -67,8 +70,8 @@ public class FilterBy extends AbstractFilterConstraintContainer implements Gener
 		super();
 	}
 
-	@ConstraintCreatorDef
-	public FilterBy(@Nonnull @ConstraintChildrenParamDef FilterConstraint children) {
+	@Creator
+	public FilterBy(@Nonnull @Child FilterConstraint children) {
 		super(children);
 	}
 
