@@ -663,7 +663,7 @@ class ConstraintProcessorTest {
 
 		@Nonnull
 		@Override
-		public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 			return null;
 		}
 

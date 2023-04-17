@@ -1,15 +1,49 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
 
-import org.antlr.v4.runtime.atn.*;
+import org.antlr.v4.runtime.NoViableAltException;
+import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.RuntimeMetaData;
+import org.antlr.v4.runtime.TokenStream;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.VocabularyImpl;
+import org.antlr.v4.runtime.atn.ATN;
+import org.antlr.v4.runtime.atn.ATNDeserializer;
+import org.antlr.v4.runtime.atn.ParserATNSimulator;
+import org.antlr.v4.runtime.atn.PredictionContextCache;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.misc.*;
-import org.antlr.v4.runtime.tree.*;
-import java.util.List;
-import java.util.Iterator;
+import org.antlr.v4.runtime.tree.ParseTreeListener;
+import org.antlr.v4.runtime.tree.ParseTreeVisitor;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
 import java.util.ArrayList;
+import java.util.List;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class EvitaQLParser extends Parser {
@@ -1253,12 +1287,12 @@ public class EvitaQLParser extends Parser {
 		}
 	}
 	public static class HierarchyExcludingConstraintContext extends FilterConstraintContext {
-		public ValueListArgsContext args;
+		public FilterConstraintListArgsContext args;
 		public EmptyArgsContext emptyArgs() {
 			return getRuleContext(EmptyArgsContext.class,0);
 		}
-		public ValueListArgsContext valueListArgs() {
-			return getRuleContext(ValueListArgsContext.class,0);
+		public FilterConstraintListArgsContext filterConstraintListArgs() {
+			return getRuleContext(FilterConstraintListArgsContext.class,0);
 		}
 		public HierarchyExcludingConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
 		@Override
@@ -1993,7 +2027,7 @@ public class EvitaQLParser extends Parser {
 				case 2:
 					{
 					setState(238);
-					((HierarchyExcludingConstraintContext)_localctx).args = valueListArgs();
+					((HierarchyExcludingConstraintContext)_localctx).args = filterConstraintListArgs();
 					}
 					break;
 				}
@@ -7340,7 +7374,7 @@ public class EvitaQLParser extends Parser {
 		"\7$\2\2\u00e5\u00f6\5P)\2\u00e6\u00e7\7%\2\2\u00e7\u00f6\5R*\2\u00e8\u00e9"+
 		"\7&\2\2\u00e9\u00f6\5T+\2\u00ea\u00eb\7\'\2\2\u00eb\u00f6\5&\24\2\u00ec"+
 		"\u00ed\7(\2\2\u00ed\u00f6\5&\24\2\u00ee\u00f1\7)\2\2\u00ef\u00f2\5&\24"+
-		"\2\u00f0\u00f2\5> \2\u00f1\u00ef\3\2\2\2\u00f1\u00f0\3\2\2\2\u00f2\u00f6"+
+		"\2\u00f0\u00f2\5(\25\2\u00f1\u00ef\3\2\2\2\u00f1\u00f0\3\2\2\2\u00f2\u00f6"+
 		"\3\2\2\2\u00f3\u00f4\7*\2\2\u00f4\u00f6\5*\26\2\u00f5\u0097\3\2\2\2\u00f5"+
 		"\u0099\3\2\2\2\u00f5\u009e\3\2\2\2\u00f5\u00a3\3\2\2\2\u00f5\u00a5\3\2"+
 		"\2\2\u00f5\u00aa\3\2\2\2\u00f5\u00ac\3\2\2\2\u00f5\u00ae\3\2\2\2\u00f5"+

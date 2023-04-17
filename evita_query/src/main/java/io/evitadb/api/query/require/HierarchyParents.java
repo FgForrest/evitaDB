@@ -26,7 +26,7 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -44,7 +44,7 @@ import static java.util.Optional.of;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "parents",
 	shortDescription = "The constraint triggers computing the hierarchy parent axis starting at currently requested hierarchy node in filter by constraint.",
 	supportedIn = ConstraintDomain.HIERARCHY

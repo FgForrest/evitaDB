@@ -23,21 +23,17 @@
 
 package io.evitadb.externalApi.graphql.api.testSuite;
 
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
-import io.evitadb.test.tester.GraphQLTester;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
-import java.util.List;
 
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 

@@ -26,14 +26,11 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -74,8 +71,8 @@ public class HierarchyExcluding extends AbstractFilterConstraintContainer implem
 	private static final String CONSTRAINT_NAME = "excluding";
 
 	@Creator
-	public HierarchyExcluding(@Nonnull @ConstraintChildrenParamDef FilterConstraint... filterConstraint) {
-		super(CONSTRAINT_NAME, NO_ARGS, primaryKey);
+	public HierarchyExcluding(@Nonnull @Child FilterConstraint... filterConstraint) {
+		super(CONSTRAINT_NAME, NO_ARGS, filterConstraint);
 	}
 
 	/**

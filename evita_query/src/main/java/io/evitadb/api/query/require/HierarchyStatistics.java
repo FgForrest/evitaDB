@@ -25,9 +25,9 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -43,7 +43,7 @@ import java.util.EnumSet;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "statistics",
 	shortDescription = "The constraint triggers computing the count of children for each returned hierarchy node.",
 	supportedIn = ConstraintDomain.HIERARCHY
@@ -66,10 +66,10 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public HierarchyStatistics(
-		@Nonnull @ConstraintValueParamDef StatisticsBase statisticsBase,
-		@Nonnull @ConstraintValueParamDef StatisticsType... statisticsType
+		@Nonnull @Value StatisticsBase statisticsBase,
+		@Nonnull @Value StatisticsType... statisticsType
 	) {
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix

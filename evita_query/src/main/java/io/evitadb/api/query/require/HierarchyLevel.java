@@ -25,9 +25,9 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
@@ -40,7 +40,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "level",
 	shortDescription = "The constraint limits the traversing in stop at container at specified level from root.",
 	supportedIn = ConstraintDomain.HIERARCHY
@@ -55,8 +55,8 @@ public class HierarchyLevel extends AbstractRequireConstraintLeaf implements Hie
 		super(CONSTRAINT_NAME, arguments);
 	}
 
-	@ConstraintCreatorDef(implicitClassifier = CONSTRAINT_NAME)
-	public HierarchyLevel(@ConstraintValueParamDef int level) {
+	@Creator(implicitClassifier = CONSTRAINT_NAME)
+	public HierarchyLevel(@Value int level) {
 		super(CONSTRAINT_NAME, level);
 		Assert.isTrue(level > 0, () -> new EvitaInvalidUsageException("Level must be greater than zero. Level 1 represents root node."));
 

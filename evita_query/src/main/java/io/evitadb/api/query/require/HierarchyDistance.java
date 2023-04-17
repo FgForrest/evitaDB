@@ -25,9 +25,9 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
@@ -40,7 +40,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "distance",
 	shortDescription = "The constraint limits the traversing in stop at container at specified distance (number of nodes in path).",
 	supportedIn = ConstraintDomain.HIERARCHY
@@ -55,8 +55,8 @@ public class HierarchyDistance extends AbstractRequireConstraintLeaf implements 
 		super(CONSTRAINT_NAME, arguments);
 	}
 
-	@ConstraintCreatorDef(implicitClassifier = CONSTRAINT_NAME)
-	public HierarchyDistance(@ConstraintValueParamDef int distance) {
+	@Creator(implicitClassifier = CONSTRAINT_NAME)
+	public HierarchyDistance(@Value int distance) {
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix
 		super(CONSTRAINT_NAME, distance);

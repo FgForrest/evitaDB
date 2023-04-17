@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -258,12 +257,32 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 								"referenceRelatedProductsHaving", mapOf(
 									"attributeOrderEquals", 1
 								)
-								.build()
 							)
 						)
-						.build()
+					)
 				)
 			)
 		);
+	}
+
+	private <K, V> Map<K, V> mapOf(K k1, V v1) {
+		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
+		map.put(k1, v1);
+		return map;
+	}
+
+	private <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2) {
+		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
+		map.put(k1, v1);
+		map.put(k2, v2);
+		return map;
+	}
+
+	private <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2, K k3, V v3) {
+		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
+		map.put(k1, v1);
+		map.put(k2, v2);
+		map.put(k3, v3);
+		return map;
 	}
 }

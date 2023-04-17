@@ -532,10 +532,11 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 					return new HierarchyExcluding();
 				}
 				return new HierarchyExcluding(
-					ctx.args.constraints
+					/* TODO LHO - this was changed from plain integers to filtering constraint */
+					/*ctx.args.constraints
 						.stream()
 						.map(fc -> fc.accept(this))
-						.toArray(FilterConstraint[]::new)
+						.toArray(FilterConstraint[]::new)*/
 				);
 			}
 		);
