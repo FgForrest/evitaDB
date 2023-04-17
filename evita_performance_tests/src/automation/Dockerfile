@@ -8,8 +8,7 @@ USER root
 
 RUN microdnf install -y wget
 
-RUN microdnf install 'dnf-command(config-manager)' && \
-    microdnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo && \
+RUN microdnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo && \
     microdnf install -y gh
 
 WORKDIR evita_performance_tests
