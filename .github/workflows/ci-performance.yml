@@ -40,8 +40,8 @@ jobs:
       run: |
         echo "Evita JAR name: $EVITA_JAR_NAME"
         echo "Build root: $BUILD_ROOT"
-        ls -la .
-        mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"    
+        ls -la evita_performance_tests/target/
+        mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/"    
         ls -la $BUILD_ROOT        
         $BUILD_ROOT/build.sh        
         echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
