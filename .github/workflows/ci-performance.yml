@@ -27,6 +27,15 @@ jobs:
     - name: Build with Maven       # run Maven without tests
       run:  mvn -T 1C -B package -V -Dmaven.test.skip=true --file pom.xml
 
+    - name: Install wget
+      run: sudo apt-get update && sudo apt-get install -y coreutils
+
+    - name: Install wget
+      run: sudo apt-get update && sudo apt-get install -y wget
+
+    - name: Install wget
+      run: sudo apt-get update && sudo apt-get install -y curl
+
     - name: Build the Docker performance test image    # now build the Docker image, login to DockerHub and push it, then clean everything
       env:
         BUILD_ROOT: evita_performance_tests/src/automation

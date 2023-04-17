@@ -4,9 +4,9 @@
 
 FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:latest
 
-RUN microdnf install -y coreutils
+USER root
+
 RUN microdnf install -y wget
-RUN microdnf install -y curl
 
 RUN rpm --import https://rpm.github.com/gpg.key && \
     curl -sL https://cli.github.com/packages/githubcli.repo | tee /etc/yum.repos.d/githubcli.repo && \
@@ -18,8 +18,8 @@ ENV data_folder="/data"
 ENV shared_gist="abc12461f21d1cc66a541417edcb6ba7"
 
 ## benchmark
-COPY target/benchmarks.jar /
-COPY src/automation/benchmark.sh /benchmark.sh
+COPY benchmarks.jar /benchmarks.jar
+COPY benchmark.sh /benchmark.sh
 
 ## create directories
 RUN set -ex \
@@ -27,7 +27,7 @@ RUN set -ex \
     && : ## end
 
 ## dbg
-RUN set -ex && pwd && ls -la . target/benchmarks.jar
+RUN set -ex && pwd && ls -la .
 
 ENTRYPOINT [ "/benchmark.sh" ]
 CMD []

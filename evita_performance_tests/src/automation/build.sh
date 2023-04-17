@@ -28,6 +28,4 @@ cd "$(dirname "$0")"
 echo "Tagging as: $CI_REGISTRY_USER/$RELEASE_IMAGE"
 docker build . \
     --pull \
-    -t "$CI_REGISTRY_USER/$RELEASE_IMAGE" \
-    \
-    --build-arg "EVITA_JAR_NAME=$EVITA_JAR_NAME"
+    -t "$CI_REGISTRY_USER/$RELEASE_IMAGE"
