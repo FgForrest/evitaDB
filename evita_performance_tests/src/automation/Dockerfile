@@ -12,6 +12,8 @@ RUN set -ex \
     && gh --version \
     && :
 
+RUN dnf install -y wget
+
 WORKDIR evita_performance_tests
 
 ENV data_folder="/data"
