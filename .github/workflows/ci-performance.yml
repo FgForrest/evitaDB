@@ -35,6 +35,7 @@ jobs:
         RELEASE_IMAGE: "evitadb:benchmark"
         CI_REGISTRY_USER: ${{vars.CI_REGISTRY_USER}}
         CI_REGISTRY_PASSWORD: ${{secrets.CI_REGISTRY_PASSWORD}}
+        PERFORMANCE_GIST_TOKEN: ${{secrets.PERFORMANCE_GIST_TOKEN}}
         EVITA_JAR_NAME: evita_performance_tests/target/benchmarks.jar
       run: |
         echo "Evita JAR name: $EVITA_JAR_NAME"
