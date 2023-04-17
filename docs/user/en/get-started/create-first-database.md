@@ -18,6 +18,7 @@ So the web API server is up and running and ready to communicate.
 
 ## Define a new catalog with a schema
 
+<LanguageSpecific to="java">
 Now you can use <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> to define a new 
 catalog and create predefined schemas for multiple collections: `brand`, `category` and `product`. Each collection 
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms 
@@ -113,6 +114,13 @@ When you delete a hierarchical entity, you can choose whether or not to delete i
 </SourceCodeTabs>
 
 For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
+
+</Language>
+<LanguageSpecific to="evitaql,graphql,rest,csharp">
+
+Creating new catalog in other APIs than Java is being prepared.
+
+</LanguageSpecific>
 
 ## What's next?
 
