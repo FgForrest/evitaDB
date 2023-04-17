@@ -11,6 +11,7 @@ RUN apt-get update && \
 RUN apt-get install -y wget
 RUN apt-get install -y gh
 RUN apt-get install -y unzip
+RUN apt-get install -y git
 
 WORKDIR evita_performance_tests
 
@@ -18,7 +19,7 @@ ENV data_folder="/data"
 ENV shared_gist="abc12461f21d1cc66a541417edcb6ba7"
 
 ## benchmark
-COPY benchmarks.jar /benchmarks.jar
+COPY benchmarks.jar /evita_performance_tests/benchmarks.jar
 COPY benchmark.sh /benchmark.sh
 
 ## create directories

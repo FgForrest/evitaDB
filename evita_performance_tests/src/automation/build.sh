@@ -26,4 +26,4 @@ set -ex
 cd "$(dirname "$0")"
 
 echo "Tagging as: $CI_REGISTRY_USER/$RELEASE_IMAGE"
-docker build . --pull -t "evita-db:benchmark"
+docker build . --pull -t "$CI_REGISTRY_USER/$RELEASE_IMAGE"

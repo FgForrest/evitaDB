@@ -38,7 +38,7 @@ function help {
 
 ## args
 EXTRA_JAVA_OPTS=""
-BENCHMARK_SELECTOR="${2:-.*}"
+BENCHMARK_SELECTOR="${2:-io.evitadb.performance.artificial.ArtificialEntitiesThroughputBenchmark.singleEntityRead}"
 SHARED_GIST='abc12461f21d1cc66a541417edcb6ba7'
 RESULT_JSON=latest-performance-results.json
 DO_CLUSTER_NODE_SLUG="mock"
@@ -60,6 +60,7 @@ echo
 
 wget https://evitadb.io/download/performance_test_datasets.zip
 unzip -d /evita-data performance_test_datasets.zip
+rm performance_test_datasets.zip
 
 [ -n "$CHILL_OUT_SEC" ] || CHILL_OUT_SEC=5
 echo "Let the cluster chill-out before benchmark: $CHILL_OUT_SEC sec"
@@ -78,6 +79,7 @@ java \
         -jvmArgs "$EXTRA_JAVA_OPTS $BENCHMARK_JAVA_OPTS -DdataFolder=/data -DevitaData=/evita-data/data"
 
 ## public gist
+echo "$PERFORMANCE_GIST_TOKEN" | gh auth login --with-token
 gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG)" --public $RESULT_JSON
 
 ## shared gist
