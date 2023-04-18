@@ -88,7 +88,6 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -498,7 +497,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	/**
 	 * Method returns all {@link EntityIndex} that contain subset of data that satisfy the passed filtering constraint.
 	 *
-	 * @param referenceHaving the filtering constraint to satisfy
 	 * @return entity indexes that contains parts of indexed data
 	 */
 	@Nonnull
@@ -508,7 +506,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 		final boolean referencesHierarchicalEntity = isReferencingHierarchicalEntity(referenceSchema);
-		final Bitmap referencedRecordIds = computeReferencedRecordIds(referenceSchema, new FilterBy(referenceHaving.getChildren()));
+		final Formula referencedRecordIdFormula = getReferencedRecordIdFormula(referenceSchema, new FilterBy(referenceHaving.getChildren()));
+		final Bitmap referencedRecordIds = referencedRecordIdFormula.compute();
 		final List<EntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
 			ofNullable(getReferencedEntityIndex(referenceName, referencesHierarchicalEntity, referencedRecordId))
@@ -526,7 +525,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * @return bitmap with referenced entity ids
 	 */
 	@Nonnull
-	public Bitmap computeReferencedRecordIds(
+	public Formula getReferencedRecordIdFormula(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy
 	) {
@@ -536,7 +535,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 
 		final EntityIndex entityIndex = getIndex(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName));
 		if (entityIndex == null) {
-			return EmptyBitmap.INSTANCE;
+			return EmptyFormula.INSTANCE;
 		}
 
 		final Formula resultFormula = executeInContext(
@@ -557,7 +556,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 				return getFormulaAndClear();
 			}
 		);
-		return resultFormula.compute();
+		return resultFormula;
 	}
 
 	/**

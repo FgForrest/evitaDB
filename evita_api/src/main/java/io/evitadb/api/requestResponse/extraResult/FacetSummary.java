@@ -43,6 +43,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -132,6 +133,24 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		FacetSummary that = (FacetSummary) o;
+
+		for (Entry<String, Map<Integer, FacetGroupStatistics>> referenceEntry : facetGroupStatistics.entrySet()) {
+			final Map<Integer, FacetGroupStatistics> statistics = referenceEntry.getValue();
+			final Map<Integer, FacetGroupStatistics> thatStatistics = that.facetGroupStatistics.get(referenceEntry.getKey());
+			if (thatStatistics == null || statistics.size() != thatStatistics.size()) {
+				return false;
+			} else {
+				final Iterator<Entry<Integer, FacetGroupStatistics>> it = statistics.entrySet().iterator();
+				final Iterator<Entry<Integer, FacetGroupStatistics>> thatIt = thatStatistics.entrySet().iterator();
+				while (it.hasNext()) {
+					final Entry<Integer, FacetGroupStatistics> entry = it.next();
+					final Entry<Integer, FacetGroupStatistics> thatEntry = thatIt.next();
+					if (!Objects.equals(entry.getKey(), thatEntry.getKey()) || !Objects.equals(entry.getValue(), thatEntry.getValue())) {
+						return false;
+					}
+				}
+			}
+		}
 		return facetGroupStatistics.equals(that.facetGroupStatistics);
 	}
 
@@ -154,19 +173,18 @@ public class FacetSummary implements EvitaResponseExtraResult {
 				.sorted(Entry.comparingByKey())
 				.flatMap(groupsByReferenceName ->
 					groupsByReferenceName.getValue()
-						.entrySet()
+						.values()
 						.stream()
-						.map(groupById ->
-							"\t" + ofNullable(groupRenderer.apply(groupById.getValue())).filter(it -> !it.isBlank()).orElse(groupsByReferenceName.getKey()) +
-								" [" + groupById.getValue().getCount() + "]:\n" +
-								groupById.getValue()
-									.getFacetStatistics()
-									.stream()
-									.map(facet -> "\t\t[" + (facet.isRequested() ? "X" : " ") + "] " +
-										ofNullable(facetRenderer.apply(facet)).filter(it -> !it.isBlank()).orElseGet(() -> String.valueOf(facet.getFacetEntity().getPrimaryKey())) +
-										" (" + facet.getCount() + ")" +
-										ofNullable(facet.getImpact()).map(RequestImpact::toString).map(it -> " " + it).orElse(""))
-									.collect(Collectors.joining("\n"))
+						.map(statistics -> "\t" + ofNullable(groupRenderer.apply(statistics)).filter(it -> !it.isBlank()).orElse(groupsByReferenceName.getKey()) +
+							" [" + statistics.getCount() + "]:\n" +
+							statistics
+								.getFacetStatistics()
+								.stream()
+								.map(facet -> "\t\t[" + (facet.isRequested() ? "X" : " ") + "] " +
+									ofNullable(facetRenderer.apply(facet)).filter(it -> !it.isBlank()).orElseGet(() -> String.valueOf(facet.getFacetEntity().getPrimaryKey())) +
+									" (" + facet.getCount() + ")" +
+									ofNullable(facet.getImpact()).map(RequestImpact::toString).map(it -> " " + it).orElse(""))
+								.collect(Collectors.joining("\n"))
 						)
 				)
 				.collect(Collectors.joining("\n"));
@@ -403,10 +421,24 @@ public class FacetSummary implements EvitaResponseExtraResult {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			final FacetGroupStatistics that = (FacetGroupStatistics) o;
-			return referenceName.equals(that.referenceName) &&
-				count == that.count &&
-				Objects.equals(groupEntity, that.getGroupEntity()) &&
-				facetStatistics.equals(that.facetStatistics);
+			if (!referenceName.equals(that.referenceName) ||
+				count != that.count ||
+				!Objects.equals(groupEntity, that.getGroupEntity()) ||
+				facetStatistics.size() != that.facetStatistics.size()) {
+				return false;
+			}
+
+			final Iterator<Entry<Integer, FacetStatistics>> it = facetStatistics.entrySet().iterator();
+			final Iterator<Entry<Integer, FacetStatistics>> thatIt = that.facetStatistics.entrySet().iterator();
+			while (it.hasNext()) {
+				final Entry<Integer, FacetStatistics> entry = it.next();
+				final Entry<Integer, FacetStatistics> thatEntry = thatIt.next();
+				if (!Objects.equals(entry.getKey(), thatEntry.getKey()) || !Objects.equals(entry.getValue(), thatEntry.getValue())) {
+					return false;
+				}
+			}
+
+			return true;
 		}
 	}
 

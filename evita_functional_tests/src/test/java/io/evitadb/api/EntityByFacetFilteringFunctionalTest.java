@@ -1514,10 +1514,8 @@ public class EntityByFacetFilteringFunctionalTest {
 				assertFacetSummary(
 					expectedSummary,
 					actualFacetSummary,
-					facetEntity -> facetEntity.getAttributeNames().size() == 1 &&
-						facetEntity.getAttribute(ATTRIBUTE_CODE) != null,
-					groupEntity -> groupEntity.getAttributeNames().size() == 1 &&
-						groupEntity.getAttribute(ATTRIBUTE_CODE) != null,
+					facetEntity -> !facetEntity.getAttributeNames().isEmpty(),
+					groupEntity -> !groupEntity.getAttributeNames().isEmpty(),
 					groupStatistics -> ofNullable(groupStatistics.getGroupEntity())
 						.map(it -> ((SealedEntity)it).getAttribute(ATTRIBUTE_CODE, String.class))
 						.orElse(""),

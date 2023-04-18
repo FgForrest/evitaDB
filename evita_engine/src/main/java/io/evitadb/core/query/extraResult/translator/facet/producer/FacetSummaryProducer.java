@@ -77,6 +77,7 @@ import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -234,6 +235,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						Collectors.mapping(
 							Function.identity(),
 							new FacetGroupStatisticsCollector(
+								queryContext,
 								// translates Facet#type to EntitySchema#reference#groupType
 								referenceName -> queryContext.getSchema().getReferenceOrThrowException(referenceName),
 								referenceName -> ofNullable(facetSummaryRequests.get(referenceName))
@@ -301,6 +303,10 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 */
 	@RequiredArgsConstructor
 	private static class FacetGroupStatisticsCollector implements Collector<FacetReferenceIndex, HashMap<Integer, EntityTypeGroupAccumulator>, Collection<FacetGroupStatistics>> {
+		/**
+		 * TODO JNO - document me
+		 */
+		private final QueryContext queryContext;
 		/**
 		 * Translates {@link FacetInSet#getReferenceName()} to {@link EntitySchema#getReference(String)}.
 		 */
@@ -408,30 +414,50 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 
 		@Override
 		public BiConsumer<HashMap<Integer, EntityTypeGroupAccumulator>, FacetReferenceIndex> accumulator() {
-			return (acc, facetEntityTypeIndex) -> facetEntityTypeIndex
-				.getFacetGroupIndexesAsStream()
-				.forEach(groupIx -> {
-					final String referenceName = facetEntityTypeIndex.getReferenceName();
-					// get or create separate accumulator for the group statistics
-					final EntityTypeGroupAccumulator groupAcc = acc.computeIfAbsent(
-						groupIx.getGroupId(),
-						gId -> new EntityTypeGroupAccumulator(
-							referenceSchemaLocator.apply(referenceName),
-							referenceRequestLocator.apply(referenceName),
-							gId,
-							countCalculator,
-							impactCalculator
-						)
-					);
-					// create fct that can resolve whether the facet is requested for this entity type
-					final IntFunction<Boolean> isRequestedResolver = facetId -> isRequested(referenceName, facetId);
-					// now go through all facets in the index and register their statistics
-					groupIx.getFacetIdIndexes()
-						.values()
-						.forEach(facetIx ->
-							groupAcc.addStatistics(facetIx, isRequestedResolver)
+			return (acc, facetEntityTypeIndex) -> {
+				final FacetSummaryRequest facetSummaryRequest = referenceRequestLocator.apply(
+					facetEntityTypeIndex.getReferenceName()
+				);
+				final ReferenceSchemaContract referenceSchema = referenceSchemaLocator.apply(
+					facetEntityTypeIndex.getReferenceName()
+				);
+
+				/* TODO JNO - Implement - this will be harder, we need to switch target entity name */
+				final IntPredicate groupPredicate = ofNullable(facetSummaryRequest.filterGroupBy())
+					.map(it -> (IntPredicate)epk -> true)
+					.orElseGet(() -> epk -> true);
+				final IntPredicate facetPredicate = ofNullable(facetSummaryRequest.filterBy())
+					.map(it -> (IntPredicate) new FilteringFormulaPredicate(queryContext, it, referenceSchema))
+					.orElseGet(() -> epk -> true);
+
+				facetEntityTypeIndex
+					.getFacetGroupIndexesAsStream()
+					.filter(groupIx -> ofNullable(groupIx.getGroupId()).map(groupPredicate::test).orElse(true))
+					.forEach(groupIx -> {
+						final String referenceName = facetEntityTypeIndex.getReferenceName();
+						// get or create separate accumulator for the group statistics
+						final EntityTypeGroupAccumulator groupAcc = acc.computeIfAbsent(
+							groupIx.getGroupId(),
+							gId -> new EntityTypeGroupAccumulator(
+								referenceSchema,
+								facetSummaryRequest,
+								gId,
+								countCalculator,
+								impactCalculator
+							)
 						);
-				});
+						// create fct that can resolve whether the facet is requested for this entity type
+						final IntFunction<Boolean> isRequestedResolver = facetId -> isRequested(referenceName, facetId);
+						// now go through all facets in the index and register their statistics
+						groupIx.getFacetIdIndexes()
+							.values()
+							.stream()
+							.filter(facetIx -> facetPredicate.test(facetIx.getFacetId()))
+							.forEach(facetIx ->
+								groupAcc.addStatistics(facetIx, isRequestedResolver)
+							);
+					});
+			};
 		}
 
 		@Override

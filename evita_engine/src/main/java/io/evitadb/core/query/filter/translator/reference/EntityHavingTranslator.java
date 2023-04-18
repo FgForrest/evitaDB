@@ -144,6 +144,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 						}
 					);
 					final Formula outputFormula;
+					// TODO JNO - the newly added part `entityIndex == referencedEntityCollection.getGlobalIndex()` is probably wrong
 					if (entityIndex instanceof ReferencedTypeEntityIndex || entityIndex == referencedEntityCollection.getGlobalIndex()) {
 						outputFormula = nestedQueryFormula;
 					} else {
