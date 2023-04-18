@@ -29,6 +29,7 @@ import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.order.Random;
 import io.evitadb.api.query.order.ReferenceProperty;
@@ -102,6 +103,15 @@ public interface QueryConstraints {
 	@Nullable
 	static FilterBy filterBy(@Nullable FilterConstraint constraint) {
 		return constraint == null ? null : new FilterBy(constraint);
+	}
+
+	/**
+	 * The container encapsulating filter constraint limiting the facet groups returned in facet summary.
+	 * TOBEDONE JNO - alter documentation
+	 */
+	@Nullable
+	static FilterGroupBy filterGroupBy(@Nullable FilterConstraint constraint) {
+		return constraint == null ? null : new FilterGroupBy(constraint);
 	}
 
 	/**
@@ -1418,6 +1428,21 @@ public interface QueryConstraints {
 			return null;
 		}
 		return new OrderBy(constraints);
+	}
+
+	/**
+	 * The container encapsulates order constraints that control the order of the facet groups in facet summary.
+	 * TOBEDONE JNO - document me
+	 *
+	 * @param constraints
+	 * @return
+	 */
+	@Nullable
+	static OrderGroupBy orderGroupBy(@Nullable OrderConstraint... constraints) {
+		if (constraints == null) {
+			return null;
+		}
+		return new OrderGroupBy(constraints);
 	}
 
 	/**
@@ -2920,115 +2945,133 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
-	 * quite complex but allows rendering entire facet listing to e-commerce users. It contains information about all
-	 * facets present in current hierarchy view along with count of requested entities that have those facets assigned.
-	 *
-	 * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
-	 * container query.
-	 *
-	 * When this requirement is used an additional object {@link FacetSummary} is stored to result.
-	 *
-	 * Optionally accepts single enum argument:
-	 *
-	 * - COUNT: only counts of facets will be computed
-	 * - IMPACT: counts and selection impact for non-selected facets will be computed
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * facetSummary()
-	 * facetSummary(COUNT) //same as previous row - default
-	 * facetSummary(IMPACT)
-	 * ```
+	 * TOBEDONE JNO: docs
 	 */
 	@Nonnull
-	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth) {
-		return statisticsDepth == null ? new FacetSummary(FacetStatisticsDepth.COUNTS) : new FacetSummary(statisticsDepth);
+	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequirements... requirements) {
+		return statisticsDepth == null ?
+			new FacetSummary(FacetStatisticsDepth.COUNTS, requirements) :
+			new FacetSummary(statisticsDepth, requirements);
 	}
 
 	// TOBEDONE JNO: docs
 	@Nonnull
-	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetch facetEntityRequirement) {
-		if (statisticsDepth == null) {
-			statisticsDepth = FacetStatisticsDepth.COUNTS;
-		}
-		if (facetEntityRequirement == null) {
-			return new FacetSummary(statisticsDepth);
-		}
-		return new FacetSummary(statisticsDepth, facetEntityRequirement);
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable EntityFetchRequirements... requirements
+	) {
+		return facetSummary(statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequirements... requirements
+	) {
+		return facetSummary(statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
 	}
 
 	// TOBEDONE JNO: docs
 	@Nonnull
-	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequirements... requirements
+	) {
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
 		}
-		if (groupEntityRequirement == null) {
-			return new FacetSummary(statisticsDepth);
+		if (ArrayUtils.isEmpty(requirements)) {
+			return new FacetSummary(
+				statisticsDepth,
+				facetFilterBy, facetGroupFilterBy,
+				facetOrderBy, facetGroupOrderBy
+			);
 		}
-		return new FacetSummary(statisticsDepth, groupEntityRequirement);
+		return new FacetSummary(
+			statisticsDepth,
+			facetFilterBy, facetGroupFilterBy,
+			facetOrderBy, facetGroupOrderBy,
+			requirements
+		);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nonnull
+	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable EntityFetchRequirements... requirements) {
+		return new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
+	}
+
+	/**
+	 * TOBEDONE JNO: docs
+	 */
+	@Nonnull
+	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequirements... requirements) {
+		return statisticsDepth == null ?
+			new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements) :
+			new FacetSummaryOfReference(referenceName, statisticsDepth, requirements);
 	}
 
 	// TOBEDONE JNO: docs
 	@Nonnull
-	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetch facetEntityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (statisticsDepth == null) {
-			statisticsDepth = FacetStatisticsDepth.COUNTS;
-		}
-		return new FacetSummary(statisticsDepth, facetEntityRequirement, groupEntityRequirement);
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nonnull String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable EntityFetchRequirements... requirements
+	) {
+		return facetSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
 	}
 
-	// TOBEDONE JNO: docs
-	@Nullable
-	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName) {
-		if (referenceName == null) {
-			return null;
-		}
-		return new FacetSummaryOfReference(referenceName);
+	@Nonnull
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nonnull String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequirements... requirements
+	) {
+		return facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
 	}
 
 	// TOBEDONE JNO: docs
 	@Nonnull
-	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth) {
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nonnull String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetchRequirements... requirements
+	) {
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
 		}
-		return new FacetSummaryOfReference(referenceName, statisticsDepth);
-	}
-
-	// TOBEDONE JNO: docs
-	@Nonnull
-	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetch facetEntityRequirement) {
-		if (statisticsDepth == null) {
-			statisticsDepth = FacetStatisticsDepth.COUNTS;
+		if (ArrayUtils.isEmpty(requirements)) {
+			return new FacetSummaryOfReference(
+				referenceName, statisticsDepth,
+				facetFilterBy, facetGroupFilterBy,
+				facetOrderBy, facetGroupOrderBy
+			);
 		}
-		if (facetEntityRequirement == null) {
-			return new FacetSummaryOfReference(referenceName, statisticsDepth);
-		}
-		return new FacetSummaryOfReference(referenceName, statisticsDepth, facetEntityRequirement);
-	}
-
-	// TOBEDONE JNO: docs
-	@Nonnull
-	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (statisticsDepth == null) {
-			statisticsDepth = FacetStatisticsDepth.COUNTS;
-		}
-		if (groupEntityRequirement == null) {
-			return new FacetSummaryOfReference(referenceName, statisticsDepth);
-		}
-		return new FacetSummaryOfReference(referenceName, statisticsDepth, groupEntityRequirement);
-	}
-
-	// TOBEDONE JNO: docs
-	@Nonnull
-	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetch facetEntityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (statisticsDepth == null) {
-			statisticsDepth = FacetStatisticsDepth.COUNTS;
-		}
-		return new FacetSummaryOfReference(referenceName, statisticsDepth, facetEntityRequirement, groupEntityRequirement);
+		return new FacetSummaryOfReference(
+			referenceName,
+			statisticsDepth,
+			facetFilterBy, facetGroupFilterBy,
+			facetOrderBy, facetGroupOrderBy,
+			requirements
+		);
 	}
 
 	/**
@@ -3079,7 +3122,7 @@ public interface QueryConstraints {
 	@Nonnull
 	static RequireConstraint[] entityFetchAllAnd(@Nonnull RequireConstraint... combineWith) {
 		if (ArrayUtils.isEmpty(combineWith)) {
-			return new RequireConstraint[] {entityFetchAll()};
+			return new RequireConstraint[]{entityFetchAll()};
 		} else {
 			return ArrayUtils.mergeArrays(
 				new RequireConstraint[]{

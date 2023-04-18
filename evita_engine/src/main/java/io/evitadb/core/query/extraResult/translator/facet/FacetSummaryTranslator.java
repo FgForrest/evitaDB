@@ -102,8 +102,12 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 
 		facetSummaryProducer.requireDefaultFacetSummary(
 			facetSummary.getFacetStatisticsDepth(),
-			facetSummary.getFacetEntityRequirement(),
-			facetSummary.getGroupEntityRequirement()
+			facetSummary.getFilterBy().orElse(null),
+			facetSummary.getFilterGroupBy().orElse(null),
+			facetSummary.getOrderBy().orElse(null),
+			facetSummary.getOrderGroupBy().orElse(null),
+			facetSummary.getFacetEntityRequirement().orElse(null),
+			facetSummary.getGroupEntityRequirement().orElse(null)
 		);
 		return facetSummaryProducer;
 	}

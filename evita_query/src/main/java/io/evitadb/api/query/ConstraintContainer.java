@@ -226,14 +226,14 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		if (Arrays.stream(additionalChildren).anyMatch(Objects::isNull)) {
 			newAdditionalChildren = Arrays.stream(additionalChildren)
 				.filter(Objects::nonNull)
-				.toArray(size -> (Constraint<?>[]) Array.newInstance(getType(), size));
+				.toArray(size -> new Constraint<?>[size]);
 		} else {
 			newAdditionalChildren = additionalChildren;
 		}
 
 		// validate additional child is not of same type as container and validate that there are distinct children
 		for (int i = 0; i < newAdditionalChildren.length; i++) {
-			final Class<?> additionalChildType = additionalChildren[i].getType();
+			final Class<?> additionalChildType = newAdditionalChildren[i].getType();
 
 			Assert.isTrue(
 				!getType().isAssignableFrom(additionalChildType),
@@ -241,11 +241,9 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 			);
 
 			for (int j = i + 1; j < newAdditionalChildren.length; j++) {
-				final Class<?> comparingAdditionalChildType = additionalChildren[j].getType();
-				if (additionalChildType.isAssignableFrom(comparingAdditionalChildType) ||
-					comparingAdditionalChildType.isAssignableFrom(additionalChildType)) {
+				if (newAdditionalChildren[i].getClass().equals(newAdditionalChildren[j].getClass())) {
 					throw new EvitaInvalidUsageException(
-						"There are multiple additional children of same type: " + additionalChildType + " and " + comparingAdditionalChildType
+						"There are multiple additional children of same type: " + additionalChildren[i].getClass() + " and " + additionalChildren[j].getClass()
 					);
 				}
 			}

@@ -30,13 +30,18 @@ import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.filter.UserFilter;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
@@ -70,38 +75,71 @@ import java.io.Serializable;
 public class FacetSummary extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 2377379601711709241L;
 
-	private FacetSummary(Serializable... arguments) {
-		super(arguments);
+	private FacetSummary(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(arguments, children, additionalChildren);
+		Assert.notNull(
+			getFacetStatisticsDepth(),
+			"Facet summary requires a facet statistics depth specification."
+		);
+		for (RequireConstraint child : children) {
+			Assert.isTrue(
+				child instanceof EntityFetch ||
+					child instanceof EntityGroupFetch,
+				"Facet summary accepts only `EntityFetch` and `EntityGroupFetch` constraints."
+			);
+		}
+		Assert.isTrue(
+			Arrays.stream(children).filter(EntityFetch.class::isInstance).count() <= 1,
+			"Facet summary accepts only one `EntityFetch` constraint."
+		);
+		Assert.isTrue(
+			Arrays.stream(children).filter(EntityGroupFetch.class::isInstance).count() <= 1,
+			"Facet summary accepts only one `EntityGroupFetch` constraint."
+		);
+		for (Constraint<?> child : additionalChildren) {
+			Assert.isTrue(
+				child instanceof FilterBy ||
+					child instanceof FilterGroupBy ||
+					child instanceof OrderBy ||
+					child instanceof OrderGroupBy,
+				"Facet summary accepts only `FilterBy`, `FilterGroupBy`, `OrderBy` and `OrderGroupBy` constraints."
+			);
+		}
 	}
 
 	public FacetSummary() {
-		super(new Serializable[] {FacetStatisticsDepth.COUNTS}, new EntityContentRequire[0]);
+		super(new Serializable[]{FacetStatisticsDepth.COUNTS}, new EntityContentRequire[0]);
 	}
 
 	public FacetSummary(@Nonnull FacetStatisticsDepth statisticsDepth) {
-		super(new Serializable[] {statisticsDepth});
+		super(new Serializable[]{statisticsDepth});
 	}
 
-	public FacetSummary(@Nonnull FacetStatisticsDepth statisticsDepth,
-	                    @Nonnull EntityFetch entityRequirement) {
-		super(new Serializable[] {statisticsDepth}, entityRequirement);
-	}
-
-	public FacetSummary(@Nonnull FacetStatisticsDepth statisticsDepth,
-	                    @Nonnull EntityGroupFetch groupRequirement) {
-		super(new Serializable[] {statisticsDepth}, groupRequirement);
-	}
-
-	public FacetSummary(@Nonnull FacetStatisticsDepth statisticsDepth,
-	                    @Nullable EntityFetch facetEntityRequirement,
-	                    @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new Serializable[] {statisticsDepth}, facetEntityRequirement, groupEntityRequirement);
+	public FacetSummary(
+		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nonnull EntityRequire... requirements) {
+		this(new Serializable[]{statisticsDepth}, requirements);
 	}
 
 	@Creator
-	public FacetSummary(@Nonnull @Value FacetStatisticsDepth statisticsDepth,
-	                    @Nonnull @Child(uniqueChildren = true) EntityRequire... requirements) {
-		super(new Serializable[] {statisticsDepth}, requirements);
+	public FacetSummary(
+		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
+		@Nonnull @Child FilterBy filterBy,
+		@Nonnull @Child FilterGroupBy filterGroupBy,
+		@Nonnull @Child OrderBy orderBy,
+		@Nonnull @Child OrderGroupBy orderGroupBy,
+		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
+	) {
+		super(
+			new Serializable[]{statisticsDepth},
+			requirements,
+			new Constraint<?>[]{
+				filterBy,
+				filterGroupBy,
+				orderBy,
+				orderGroupBy
+			}
+		);
 		Assert.isTrue(
 			requirements.length <= 2,
 			"Expected maximum number of 2 entity requirements. Found " + requirements.length + "."
@@ -126,39 +164,67 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	/**
 	 * Returns content requirements for facet entities.
 	 */
-	@Nullable
-	public EntityFetch getFacetEntityRequirement() {
-		final int childrenLength = getChildren().length;
-		if (childrenLength == 2) {
-			return (EntityFetch) getChildren()[0];
-		} else if (childrenLength == 1) {
-			if (getChildren()[0] instanceof final EntityFetch facetEntityRequirement) {
-				return facetEntityRequirement;
-			} else {
-				return null;
-			}
-		} else {
-			return null;
-		}
+	@Nonnull
+	public Optional<EntityFetch> getFacetEntityRequirement() {
+		return Arrays.stream(getChildren())
+			.filter(EntityFetch.class::isInstance)
+			.map(EntityFetch.class::cast)
+			.findFirst();
 	}
 
 	/**
 	 * Returns content requirements for group entities.
 	 */
-	@Nullable
-	public EntityGroupFetch getGroupEntityRequirement() {
-		final int childrenLength = getChildren().length;
-		if (childrenLength == 2) {
-			return (EntityGroupFetch) getChildren()[1];
-		} else if (childrenLength == 1) {
-			if (getChildren()[0] instanceof final EntityGroupFetch groupEntityRequirement) {
-				return groupEntityRequirement;
-			} else {
-				return null;
-			}
-		} else {
-			return null;
-		}
+	@Nonnull
+	public Optional<EntityGroupFetch> getGroupEntityRequirement() {
+		return Arrays.stream(getChildren())
+			.filter(EntityGroupFetch.class::isInstance)
+			.map(EntityGroupFetch.class::cast)
+			.findFirst();
+	}
+
+	/**
+	 * Returns filtering constraints for facets.
+	 */
+	@Nonnull
+	public Optional<FilterBy> getFilterBy() {
+		return Arrays.stream(getAdditionalChildren())
+			.filter(FilterBy.class::isInstance)
+			.map(FilterBy.class::cast)
+			.findFirst();
+	}
+
+	/**
+	 * Returns filtering constraints for facet groups.
+	 */
+	@Nonnull
+	public Optional<FilterGroupBy> getFilterGroupBy() {
+		return Arrays.stream(getAdditionalChildren())
+			.filter(FilterGroupBy.class::isInstance)
+			.map(FilterGroupBy.class::cast)
+			.findFirst();
+	}
+
+	/**
+	 * Returns ordering constraints for facets.
+	 */
+	@Nonnull
+	public Optional<OrderBy> getOrderBy() {
+		return Arrays.stream(getAdditionalChildren())
+			.filter(OrderBy.class::isInstance)
+			.map(OrderBy.class::cast)
+			.findFirst();
+	}
+
+	/**
+	 * Returns ordering constraints for facet groups.
+	 */
+	@Nonnull
+	public Optional<OrderGroupBy> getOrderGroupBy() {
+		return Arrays.stream(getAdditionalChildren())
+			.filter(OrderGroupBy.class::isInstance)
+			.map(OrderGroupBy.class::cast)
+			.findFirst();
 	}
 
 	@Override
@@ -169,7 +235,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	@Nonnull
 	@Override
 	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return new FacetSummary(getArguments(), children);
+		return new FacetSummary(getArguments(), children, additionalChildren);
 	}
 
 	@Nonnull
@@ -177,7 +243,8 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		return new FacetSummary(
 			newArguments,
-			getChildren()
+			getChildren(),
+			getAdditionalChildren()
 		);
 	}
 }
