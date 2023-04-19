@@ -26,11 +26,8 @@ package io.evitadb.index.hierarchy.predicate;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.exception.AttributeNotFilterableException;
-import io.evitadb.core.exception.AttributeNotFoundException;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
@@ -49,8 +46,6 @@ import java.util.Collections;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.evitadb.utils.Assert.isTrue;
-import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -79,6 +74,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		@Nonnull QueryContext queryContext,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull FilterBy filterBy,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nullable ReferenceSchemaContract referenceSchema
 		) {
 		this.filterBy = filterBy;
@@ -103,22 +99,9 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 				referenceSchema,
 				null,
 				null,
-				(entitySchema, attributeName) -> {
-					final EntitySchemaContract theSchema = ofNullable(entitySchema)
-						.orElseGet(entityIndex::getEntitySchema);
-					final AttributeSchemaContract attributeSchema = theSchema
-						.getAttribute(attributeName)
-						.orElse(null);
-					notNull(
-						attributeSchema,
-						() -> new AttributeNotFoundException(attributeName, theSchema)
-					);
-					isTrue(
-						attributeSchema.isFilterable() || attributeSchema.isUnique(),
-						() -> new AttributeNotFilterableException(attributeName, theSchema)
-					);
-					return attributeSchema;
-				},
+				ofNullable(referenceSchema)
+					.map(it -> attributeSchemaAccessor.withReferenceSchemaAccessor(it.getName()))
+					.orElse(attributeSchemaAccessor),
 				AttributesContract::getAttribute,
 				() -> {
 					filterBy.accept(theFilterByVisitor);

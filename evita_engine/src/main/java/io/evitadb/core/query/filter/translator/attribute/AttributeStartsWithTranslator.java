@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.attribute;
 import io.evitadb.api.query.filter.AttributeStartsWith;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -61,7 +62,7 @@ public class AttributeStartsWithTranslator implements FilteringConstraintTransla
 		final String textToSearch = attributeStartsWith.getTextToSearch();
 
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName);
+			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 			assertStringType(attributeDefinition);
 
 			final AttributeFormula filteringFormula = new AttributeFormula(

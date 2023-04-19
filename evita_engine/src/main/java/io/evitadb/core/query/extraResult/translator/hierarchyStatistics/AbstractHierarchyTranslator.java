@@ -23,9 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
-import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyDistance;
 import io.evitadb.api.query.require.HierarchyLevel;
@@ -36,13 +34,9 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.exception.AttributeNotFilterableException;
-import io.evitadb.core.exception.AttributeNotFoundException;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
@@ -53,10 +47,6 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.core.query.sort.DeferredSorter;
-import io.evitadb.core.query.sort.OrderByVisitor;
-import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
@@ -68,8 +58,6 @@ import java.util.Collections;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static io.evitadb.utils.Assert.isTrue;
-import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -117,6 +105,7 @@ public abstract class AbstractHierarchyTranslator {
 				context.queryContext(),
 				context.entityIndex(),
 				node.getFilterBy(),
+				context.attributeSchemaAccessor(),
 				context.referenceSchema()
 			);
 		} else {
@@ -132,8 +121,9 @@ public abstract class AbstractHierarchyTranslator {
 	protected Formula createFilterFormula(
 		@Nonnull QueryContext queryContext,
 		@Nonnull FilterBy filterBy,
-		@Nonnull EntityIndex entityIndex
-	) {
+		@Nonnull EntityIndex entityIndex,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
+		) {
 		try {
 			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
 				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
@@ -155,22 +145,7 @@ public abstract class AbstractHierarchyTranslator {
 				null,
 				null,
 				null,
-				(entitySchema, attributeName) -> {
-					final EntitySchemaContract theSchema = ofNullable(entitySchema)
-						.orElseGet(entityIndex::getEntitySchema);
-					final AttributeSchemaContract attributeSchema = theSchema
-						.getAttribute(attributeName)
-						.orElse(null);
-					notNull(
-						attributeSchema,
-						() -> new AttributeNotFoundException(attributeName, theSchema)
-					);
-					isTrue(
-						attributeSchema.isFilterable() || attributeSchema.isUnique(),
-						() -> new AttributeNotFilterableException(attributeName, theSchema)
-					);
-					return attributeSchema;
-				},
+				attributeSchemaAccessor,
 				AttributesContract::getAttribute,
 				() -> {
 					filterBy.accept(theFilterByVisitor);
@@ -191,70 +166,6 @@ public abstract class AbstractHierarchyTranslator {
 						}
 					}
 				)
-			);
-		} finally {
-			queryContext.popStep();
-		}
-	}
-
-	/**
-	 * Method creates the {@link Sorter} implementation that should be used for sorting {@link LevelInfo} inside
-	 * the {@link HierarchyStatistics} result object.
-	 */
-	@Nonnull
-	protected Sorter createSorter(
-		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
-		@Nonnull OrderBy orderBy,
-		@Nonnull EntityIndex entityIndex
-	) {
-		final QueryContext queryContext = extraResultPlanner.getQueryContext();
-		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
-				Arrays.stream(orderBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
-			queryContext.pushStep(
-				QueryPhase.PLANNING_SORT,
-				stepDescriptionSupplier
-			);
-			// crete a visitor
-			final OrderByVisitor orderByVisitor = new OrderByVisitor(
-				queryContext,
-				extraResultPlanner.getPrefetchRequirementCollector(),
-				extraResultPlanner.getFilteringFormula()
-			);
-			// now analyze the filter by in a nested context with exchanged primary entity index
-			return orderByVisitor.executeInContext(
-				entityIndex,
-				(attributeName) -> {
-					final AttributeSchemaContract attributeSchema = queryContext.getSchema()
-						.getAttribute(attributeName)
-						.orElse(null);
-					notNull(
-						attributeSchema,
-						() -> new AttributeNotFoundException(attributeName, queryContext.getSchema())
-					);
-					isTrue(
-						attributeSchema.isFilterable() || attributeSchema.isUnique(),
-						() -> new AttributeNotFilterableException(attributeName, queryContext.getSchema())
-					);
-				},
-				EntityAttributeExtractor.INSTANCE,
-				() -> {
-					for (OrderConstraint innerConstraint : orderBy.getChildren()) {
-						innerConstraint.accept(orderByVisitor);
-					}
-					// create a deferred sorter that will log the execution time to query telemetry
-					return new DeferredSorter(
-						orderByVisitor.getLastUsedSorter(),
-						sorter -> {
-							try {
-								queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
-								return sorter.get();
-							} finally {
-								queryContext.popStep();
-							}
-						}
-					);
-				}
 			);
 		} finally {
 			queryContext.popStep();

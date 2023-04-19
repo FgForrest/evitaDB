@@ -115,20 +115,21 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 		super(new Serializable[]{statisticsDepth});
 	}
 
-	public FacetSummary(
-		@Nonnull FacetStatisticsDepth statisticsDepth,
-		@Nonnull EntityRequire... requirements) {
-		this(new Serializable[]{statisticsDepth}, requirements);
-	}
-
 	@Creator
 	public FacetSummary(
 		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
-		@Nonnull @Child FilterBy filterBy,
-		@Nonnull @Child FilterGroupBy filterGroupBy,
-		@Nonnull @Child OrderBy orderBy,
-		@Nonnull @Child OrderGroupBy orderGroupBy,
-		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
+		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements) {
+		this(new Serializable[]{statisticsDepth}, requirements);
+	}
+
+	/* TODO LHO - this should be new @Creator */
+	public FacetSummary(
+		FacetStatisticsDepth statisticsDepth,
+		FilterBy filterBy,
+		FilterGroupBy filterGroupBy,
+		OrderBy orderBy,
+		OrderGroupBy orderGroupBy,
+		EntityRequire... requirements
 	) {
 		super(
 			new Serializable[]{statisticsDepth},

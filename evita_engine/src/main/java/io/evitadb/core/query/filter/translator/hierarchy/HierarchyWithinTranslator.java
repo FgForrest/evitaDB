@@ -124,7 +124,8 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 						queryContext,
 						hierarchyWithin.getExcludedChildrenFilter(),
 						filterByVisitor.getGlobalEntityIndex(),
-						referenceSchema
+						null,
+						filterByVisitor.getProcessingScope().getAttributeSchemaAccessor()
 					),
 					directRelation, excludingRoot, filterByVisitor.getGlobalEntityIndex(), queryContext
 				)
@@ -148,7 +149,9 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 					final HierarchyFilteringPredicate exclusionPredicate = ArrayUtils.isEmpty(excludedChildrenFormula) ?
 						null :
 						new FilteringFormulaHierarchyEntityPredicate(
-							queryContext, foreignEntityIndex, new FilterBy(excludedChildrenFormula), referenceSchema
+							queryContext, foreignEntityIndex, new FilterBy(excludedChildrenFormula),
+							filterByVisitor.getProcessingScope().withReferenceSchemaAccessor(referenceName),
+							referenceSchema
 						);
 					final Formula referencedIds = createFormulaFromHierarchyIndex(
 						parentId, exclusionPredicate, directRelation, excludingRoot, foreignEntityIndex, queryContext

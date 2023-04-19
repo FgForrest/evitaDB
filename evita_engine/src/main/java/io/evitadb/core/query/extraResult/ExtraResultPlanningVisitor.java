@@ -41,7 +41,10 @@ import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -67,7 +70,10 @@ import io.evitadb.core.query.extraResult.translator.parents.HierarchyParentsOfRe
 import io.evitadb.core.query.extraResult.translator.parents.HierarchyParentsOfSelfTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.sort.DeferredSorter;
+import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.ArrayUtils;
@@ -81,6 +87,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -144,6 +151,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Getter private final LinkedHashSet<ExtraResultProducer> extraResultProducers = new LinkedHashSet<>(16);
 	/**
+	 * Contains an accessor providing access to the attribute schemas.
+	 */
+	@Getter private final AttributeSchemaAccessor attributeSchemaAccessor;
+	/**
 	 * Performance optimization when multiple translators ask for the same (last) producer.
 	 */
 	private ExtraResultProducer lastReturnedProducer;
@@ -181,6 +192,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		this.prefetchRequirementCollector = prefetchRequirementCollector;
 		this.filteringFormula = filteringFormula;
 		this.sorter = sorter;
+		this.attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
 	}
 
 	/**
@@ -310,6 +322,55 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 		}
 		return filteringFormulaWithoutHierarchyAndUserFilter;
+	}
+
+	/**
+	 * Method creates the {@link Sorter} implementation that should be used for sorting {@link LevelInfo} inside
+	 * the {@link io.evitadb.api.requestResponse.extraResult.HierarchyStatistics} result object.
+	 */
+	@Nonnull
+	public Sorter createSorter(
+		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
+		@Nonnull EntityIndex entityIndex,
+		@Nonnull Supplier<String> stepDescriptionSupplier
+	) {
+		try {
+			queryContext.pushStep(
+				QueryPhase.PLANNING_SORT,
+				stepDescriptionSupplier
+			);
+			// crete a visitor
+			final OrderByVisitor orderByVisitor = new OrderByVisitor(
+				queryContext,
+				prefetchRequirementCollector,
+				filteringFormula
+			);
+			// now analyze the filter by in a nested context with exchanged primary entity index
+			return orderByVisitor.executeInContext(
+				entityIndex,
+				new AttributeSchemaAccessor(queryContext),
+				EntityAttributeExtractor.INSTANCE,
+				() -> {
+					for (OrderConstraint innerConstraint : orderBy.getChildren()) {
+						innerConstraint.accept(orderByVisitor);
+					}
+					// create a deferred sorter that will log the execution time to query telemetry
+					return new DeferredSorter(
+						orderByVisitor.getLastUsedSorter(),
+						sorter -> {
+							try {
+								queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
+								return sorter.get();
+							} finally {
+								queryContext.popStep();
+							}
+						}
+					);
+				}
+			);
+		} finally {
+			queryContext.popStep();
+		}
 	}
 
 	/**

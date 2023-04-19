@@ -75,6 +75,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 			context.queryContext(),
 			context.entityIndex(),
 			parentId,
+			context.attributeSchemaAccessor(),
 			context.referenceSchema()
 		);
 		final Bitmap parentId = parentIdPredicate.getFilteringFormula().compute();

@@ -1417,7 +1417,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									stopAt(node(filterBy(entityHaving(attributeEqualsFalse(ATTRIBUTE_SHORTCUT))))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1486,7 +1486,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
-									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									stopAt(node(filterBy(entityHaving(attributeEqualsFalse(ATTRIBUTE_SHORTCUT))))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1562,7 +1562,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								children(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									stopAt(node(filterBy(entityHaving(attributeEqualsFalse(ATTRIBUTE_SHORTCUT))))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1640,7 +1640,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								siblings(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									stopAt(node(filterBy(entityHaving(attributeEqualsFalse(ATTRIBUTE_SHORTCUT))))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)

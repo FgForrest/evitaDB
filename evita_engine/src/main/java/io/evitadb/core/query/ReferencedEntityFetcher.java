@@ -54,7 +54,6 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.EntityCollection;
@@ -458,21 +457,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 	) {
-		// prepare the lambda allowing to reach attribute schema of particular name
-		final BiFunction<EntitySchemaContract, String, AttributeSchemaContract> referenceAttributeSchemaFetcher =
-			(theEntitySchema, attributeName) -> FilterByVisitor.getReferenceAttributeSchema(
-				attributeName, ofNullable(theEntitySchema).orElseGet(filterByVisitor::getSchema), referenceSchema
-			);
-
 		// compute the result formula in the initialized context
+		final String referenceName = referenceSchema.getName();
 		final Formula filterFormula = filterByVisitor.executeInContext(
 			Collections.singletonList(index),
 			ReferenceContent.ALL_REFERENCES,
 			referenceSchema,
 			nestedQueryFormulaEnricher,
 			entityNestedQueryComparator,
-			referenceAttributeSchemaFetcher,
-			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceSchema.getName())
+			filterByVisitor.getProcessingScope().withReferenceSchemaAccessor(referenceName),
+			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
 				.stream()
 				.map(it -> it.getAttributeValue(attributeName, locale)),
 			() -> {

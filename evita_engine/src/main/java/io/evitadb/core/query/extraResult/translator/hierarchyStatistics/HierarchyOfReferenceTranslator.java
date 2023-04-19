@@ -92,13 +92,19 @@ public class HierarchyOfReferenceTranslator
 			final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(referenceName);
 			final EntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(entityType);
 			final Sorter sorter = hierarchyOfReference.getOrderBy()
-				.map(it -> createSorter(extraResultPlanner, it, globalIndex))
+				.map(
+					it -> extraResultPlanner.createSorter(
+						it, globalIndex,
+						() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
+					)
+				)
 				.orElse(null);
 
 			// the request is more complex
 			hierarchyStatisticsProducer.interpret(
 				entitySchema,
 				referenceSchema,
+				extraResultPlanner.getAttributeSchemaAccessor().withReferenceSchemaAccessor(referenceName),
 				hierarchyWithin,
 				globalIndex,
 				null,
@@ -112,7 +118,8 @@ public class HierarchyOfReferenceTranslator
 								extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(referenceSchema);
 							return createFilterFormula(
 								extraResultPlanner.getQueryContext(),
-								filter, hierarchyIndex
+								filter, hierarchyIndex,
+								extraResultPlanner.getAttributeSchemaAccessor()
 							);
 						})
 						.orElse(EmptyFormula.INSTANCE),

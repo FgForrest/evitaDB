@@ -1469,7 +1469,7 @@ public class EntityByFacetFilteringFunctionalTest {
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
 							filterBy(entityHaving(attributeLessThanEquals(ATTRIBUTE_CODE, "K"))),
-							orderBy(entityProperty(attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC)))
+							orderBy(attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC))
 						)
 					)
 				);

@@ -38,6 +38,7 @@ import io.evitadb.api.query.filter.IndexUsingConstraint;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -76,12 +77,14 @@ import static java.util.Optional.ofNullable;
  */
 public class IndexSelectionVisitor implements ConstraintVisitor {
 	private final QueryContext queryContext;
+	private final AttributeSchemaAccessor attributeSchemaAccessor;
 	@Getter private final List<TargetIndexes> targetIndexes = new LinkedList<>();
 	@Getter private boolean targetIndexQueriedByOtherConstraints;
 	private FilterByVisitor filterByVisitor;
 
 	public IndexSelectionVisitor(@Nonnull QueryContext queryContext) {
 		this.queryContext = queryContext;
+		this.attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
 		final Optional<EntityIndex> entityIndex = ofNullable(queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL)));
 		if (entityIndex.isPresent()) {
 			final EntityIndex eix = entityIndex.get();
@@ -156,7 +159,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 									queryContext,
 									hierarchyWithinRoot.getExcludedChildrenFilter(),
 									targetHierarchyIndex,
-									referencedSchema
+									referencedSchema,
+									attributeSchemaAccessor
 								),
 								hierarchyWithinRoot.isDirectRelation(),
 								targetHierarchyIndex
@@ -171,7 +175,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 									queryContext,
 									hierarchyWithin.getExcludedChildrenFilter(),
 									targetHierarchyIndex,
-									referencedSchema
+									referencedSchema,
+									attributeSchemaAccessor
 								),
 								hierarchyWithin.isDirectRelation(),
 								hierarchyWithin.isExcludingRoot(),

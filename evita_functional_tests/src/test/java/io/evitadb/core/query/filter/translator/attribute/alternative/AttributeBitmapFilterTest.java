@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.attribute.alternative;
 
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -33,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.core.EvitaSession;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
 import io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeContainsTranslator;
@@ -54,6 +56,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -63,7 +66,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -77,13 +79,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AttributeBitmapFilterTest {
 	public static final String NUMBER_RANGE = "numberRange";
 	private static final int SEED = 40;
+	private AttributeSchemaAccessor attributeSchemaAccessor;
+	private CatalogSchema catalogSchema;
 	private EntitySchemaContract entitySchema;
 	private Map<Integer, Entity> entities;
 
 	@BeforeEach
 	void setUp() {
 		final DataGenerator dataGenerator = new DataGenerator();
-		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), entityType -> null);
+		this.catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), entityType -> null);
+
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(mockSession.getCatalogSchema()).thenReturn(new CatalogSchemaDecorator(catalogSchema));
 		entities = dataGenerator.generateEntities(
@@ -104,7 +109,8 @@ class AttributeBitmapFilterTest {
 					EntityBuilder::toInstance
 				)
 			);
-		entitySchema = entities.values().iterator().next().getSchema();
+		this.entitySchema = entities.values().iterator().next().getSchema();
+		this.attributeSchemaAccessor = new AttributeSchemaAccessor(catalogSchema, entitySchema);
 	}
 
 	@Test
@@ -112,25 +118,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_PRIORITY,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeBetweenTranslator.getComparablePredicate(25000L, 30000L)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, 25000, 30000)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, 25000, 30000)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -146,23 +142,16 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			NUMBER_RANGE,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeBetweenTranslator.getNumberRangePredicate(40, 50)
 		);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeBetween(NUMBER_RANGE, 40, 50)
-					),
-					require(
-						filter.getEntityRequire()
-					)
+			createTestFilterByVisitor(
+				filterBy(
+					attributeBetween(NUMBER_RANGE, 40, 50)
 				),
-				entities
+				filter
 			)
 		);
 
@@ -181,25 +170,17 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeBetweenTranslator.getDateTimePredicate(from, to)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeBetween(DataGenerator.ATTRIBUTE_VALIDITY, from, to)
-					),
-					require(
-						filter.getEntityRequire()
-					)
+			createTestFilterByVisitor(
+				filterBy(
+					attributeBetween(DataGenerator.ATTRIBUTE_VALIDITY, from, to)
 				),
-				entities
-			)
+				filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -215,24 +196,14 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			NUMBER_RANGE,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeInRangeTranslator.getNumberRangePredicate(45)
 		);
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeInRange(NUMBER_RANGE, 45)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeInRange(NUMBER_RANGE, 45)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -249,25 +220,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			DataGenerator.ATTRIBUTE_VALIDITY,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, attributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeInRangeTranslator.getDateTimeRangePredicate(theMoment)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeInRange(DataGenerator.ATTRIBUTE_VALIDITY, theMoment)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeInRange(DataGenerator.ATTRIBUTE_VALIDITY, theMoment)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -285,25 +246,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeContainsTranslator.getPredicate(textToSearch)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeContains(attributeName, textToSearch)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeContains(attributeName, textToSearch)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -321,25 +272,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeEndsWithTranslator.getPredicate(textToSearch)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeEndsWith(attributeName, textToSearch)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeEndsWith(attributeName, textToSearch)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -357,25 +298,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeStartsWithTranslator.getPredicate(textToSearch)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeStartsWith(attributeName, textToSearch)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeStartsWith(attributeName, textToSearch)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -393,25 +324,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeGreaterThanEqualsTranslator.getPredicate(theNumber)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeGreaterThanEquals(attributeName, theNumber)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeGreaterThanEquals(attributeName, theNumber)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -429,25 +350,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeGreaterThanTranslator.getPredicate(theNumber)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeGreaterThan(attributeName, theNumber)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeGreaterThan(attributeName, theNumber)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -465,25 +376,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeLessThanTranslator.getPredicate(theNumber)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeLessThan(attributeName, theNumber)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeLessThan(attributeName, theNumber)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -501,25 +402,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> AttributeLessThanEqualsTranslator.getPredicate(theNumber)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeLessThanEquals(attributeName, theNumber)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeLessThanEquals(attributeName, theNumber)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -536,25 +427,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeIsNull(attributeName)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeIsNull(attributeName)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -570,25 +451,15 @@ class AttributeBitmapFilterTest {
 		final AttributeBitmapFilter filter = new AttributeBitmapFilter(
 			attributeName,
 			AttributeContent.ALL_ATTRIBUTES,
-			(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+			(entitySchema, theAttributeName, attributeTraits) -> attributeSchemaAccessor.getAttributeSchema(entitySchema, theAttributeName, attributeTraits),
 			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
 			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent)
 		);
 
 		final Bitmap result = filter.filter(
-			new TestFilterByVisitor(
-				entitySchema,
-				Query.query(
-					collection(Entities.PRODUCT),
-					filterBy(
-						attributeIsNotNull(attributeName)
-					),
-					require(
-						filter.getEntityRequire()
-					)
-				),
-				entities
-			)
+			createTestFilterByVisitor(filterBy(
+				attributeIsNotNull(attributeName)
+			), filter)
 		);
 
 		assertFalse(result.isEmpty());
@@ -596,6 +467,22 @@ class AttributeBitmapFilterTest {
 			final BigDecimal attribute = entities.get(ePK).getAttribute(attributeName);
 			assertNotNull(attribute);
 		}
+	}
+
+	@Nonnull
+	private TestFilterByVisitor createTestFilterByVisitor(FilterBy filterBy, AttributeBitmapFilter filter) {
+		return new TestFilterByVisitor(
+			catalogSchema,
+			entitySchema,
+			Query.query(
+				collection(Entities.PRODUCT),
+				filterBy,
+				require(
+					filter.getEntityRequire()
+				)
+			),
+			entities
+		);
 	}
 
 }

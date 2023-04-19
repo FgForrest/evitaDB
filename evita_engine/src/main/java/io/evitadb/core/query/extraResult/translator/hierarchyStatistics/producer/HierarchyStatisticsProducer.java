@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -132,6 +133,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	 *
 	 * @param entitySchema                           target hierarchy entity {@link EntitySchema}
 	 * @param referenceSchema                        relates to reference schema {@link ReferenceSchema} that target the hierarchy entity
+	 * @param attributeSchemaAccessor                object that provides access to the attribute schemas from the entity schema
 	 * @param hierarchyWithin                        limits the statistics to certain subtree of the hierarchy
 	 * @param targetIndex                            owner entityIndex for hierarchy index
 	 * @param directlyQueriedEntitiesFormulaProducer represents function that produces bitmap of queried entity ids connected
@@ -144,6 +146,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	public void interpret(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nullable HierarchyFilterConstraint hierarchyWithin,
 		@Nonnull EntityIndex targetIndex,
 		@Nullable PrefetchRequirementCollector prefetchRequirementCollector,
@@ -159,6 +162,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 				new HierarchyProducerContext(
 					queryContext,
 					entitySchema, referenceSchema,
+					attributeSchemaAccessor,
 					hierarchyWithin,
 					targetIndex,
 					prefetchRequirementCollector,

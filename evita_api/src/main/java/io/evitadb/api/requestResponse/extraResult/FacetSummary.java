@@ -51,7 +51,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -75,14 +75,14 @@ public class FacetSummary implements EvitaResponseExtraResult {
 	private final Map<String, Map<Integer, FacetGroupStatistics>> facetGroupStatistics;
 
 	public FacetSummary(@Nonnull Collection<FacetGroupStatistics> facetGroupStatistics) {
-		this.facetGroupStatistics = createHashMap(facetGroupStatistics.size());
+		this.facetGroupStatistics = createLinkedHashMap(facetGroupStatistics.size());
 		for (FacetGroupStatistics stat : facetGroupStatistics) {
 			final Integer groupId = ofNullable(stat.getGroupEntity())
 				.map(EntityClassifier::getPrimaryKey)
 				.orElse(null);
 			final Map<Integer, FacetGroupStatistics> groupById = this.facetGroupStatistics.computeIfAbsent(
 				stat.getReferenceName(),
-				s -> createHashMap(facetGroupStatistics.size())
+				s -> createLinkedHashMap(facetGroupStatistics.size())
 			);
 			Assert.isPremiseValid(
 				!groupById.containsKey(groupId),

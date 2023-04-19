@@ -116,23 +116,24 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		super(new Serializable[]{referenceName, FacetStatisticsDepth.COUNTS});
 	}
 
-	public FacetSummaryOfReference(
-		@Nonnull String referenceName,
-		@Nonnull FacetStatisticsDepth statisticsDepth,
-		@Nonnull EntityRequire... requirements
-	) {
-		this(new Serializable[]{referenceName, statisticsDepth}, requirements);
-	}
-
 	@Creator
 	public FacetSummaryOfReference(
 		@Nonnull @Classifier String referenceName,
 		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
-		@Nonnull @Child FilterBy filterBy,
-		@Nonnull @Child FilterGroupBy filterGroupBy,
-		@Nonnull @Child OrderBy orderBy,
-		@Nonnull @Child OrderGroupBy orderGroupBy,
 		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
+	) {
+		this(new Serializable[]{referenceName, statisticsDepth}, requirements);
+	}
+
+	/* TODO LHO - this should be new @Creator */
+	public FacetSummaryOfReference(
+		@Nonnull String referenceName,
+		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nonnull FilterBy filterBy,
+		@Nonnull FilterGroupBy filterGroupBy,
+		@Nonnull OrderBy orderBy,
+		@Nonnull OrderGroupBy orderGroupBy,
+		@Nonnull EntityRequire... requirements
 	) {
 		super(
 			new Serializable[]{referenceName, Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)},
