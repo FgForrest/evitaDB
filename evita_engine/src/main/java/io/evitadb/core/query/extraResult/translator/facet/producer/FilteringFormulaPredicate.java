@@ -28,7 +28,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
@@ -41,17 +40,11 @@ import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import static java.util.Optional.empty;
-import static java.util.Optional.of;
-import static java.util.Optional.ofNullable;
 
 /**
  * TODO JNO alter documentation
@@ -76,7 +69,7 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		@Nonnull QueryContext queryContext,
 		@Nonnull FilterBy filterBy,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nullable ReferenceSchemaContract referenceSchema
+		@Nonnull ReferenceSchemaContract referenceSchema
 		) {
 		this.filterBy = filterBy;
 		try {
@@ -93,21 +86,18 @@ public class FilteringFormulaPredicate implements IntPredicate {
 				TargetIndexes.EMPTY,
 				false
 			);
-			final Optional<EntitySchemaContract> targetSchema = referenceSchema.isReferencedEntityTypeManaged() ?
-				of(queryContext.getSchema(referenceSchema.getReferencedEntityType())) : empty();
 
 			// now analyze the filter by in a nested context with exchanged primary entity index
+			final String referencedEntityType = referenceSchema.getReferencedEntityType();
 			final Formula theFormula = theFilterByVisitor.executeInContext(
 				Collections.singletonList(
-					theFilterByVisitor.getReferencedEntityTypeIndex(queryContext.getSchema(), referenceSchema)
+					queryContext.getGlobalEntityIndex(referencedEntityType)
 				),
 				null,
 				referenceSchema,
 				null,
 				null,
-				ofNullable(referenceSchema)
-					.map(it -> attributeSchemaAccessor.withReferenceSchemaAccessor(it.getName()))
-					.orElse(attributeSchemaAccessor),
+				new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(referencedEntityType)),
 				AttributesContract::getAttribute,
 				() -> {
 					filterBy.accept(theFilterByVisitor);

@@ -536,7 +536,9 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 									return Arrays.stream(sortedEntities).mapToObj(theFacetStatistics::get);
 								})
 								.orElseGet(
-									() -> theFacetStatistics.values().stream()
+									() -> theFacetStatistics.values()
+										.stream()
+										.sorted(Comparator.comparingInt(FacetAccumulator::getFacetId))
 								);
 
 							final Map<Integer, FacetStatistics> facetStatistics = facetStream

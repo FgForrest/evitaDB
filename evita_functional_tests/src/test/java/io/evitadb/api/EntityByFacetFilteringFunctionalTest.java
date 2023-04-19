@@ -430,13 +430,14 @@ public class EntityByFacetFilteringFunctionalTest {
 				.limit(12)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
+			final List<EntityReference> storedParameterGroups = dataGenerator.generateEntities(
 					dataGenerator.getSampleParameterGroupSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(15)
-				.forEach(session::upsertEntity);
+				.map(session::upsertEntity)
+				.toList();
 
 			final List<EntityReference> storedParameters = dataGenerator.generateEntities(
 					dataGenerator.getSampleParameterSchema(session),
@@ -470,7 +471,7 @@ public class EntityByFacetFilteringFunctionalTest {
 				tuple(
 					"originalProductEntities",
 					storedProducts.stream()
-						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent()).orElse(null))
+						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent(), dataInLocales()).orElse(null))
 						.collect(toList())
 				),
 				tuple(
@@ -479,7 +480,17 @@ public class EntityByFacetFilteringFunctionalTest {
 						.collect(
 							toMap(
 								EntityReference::getPrimaryKey,
-								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent()).orElse(null)
+								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent(), dataInLocales()).orElse(null)
+							)
+						)
+				),
+				tuple(
+					"parameterGroupIndex",
+					storedParameterGroups.stream()
+						.collect(
+							toMap(
+								EntityReference::getPrimaryKey,
+								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent(), dataInLocales()).orElse(null)
 							)
 						)
 				),
@@ -1448,15 +1459,18 @@ public class EntityByFacetFilteringFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should return facet summary for entire set with filtered and ordered facets by entity property")
+	@DisplayName("Should return facet summary for entire set with filtered and ordered facets")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSetWithFilteredAndOrderedFacetsByEntityProperty(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> parameterIndex, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSetWithFilteredAndOrderedFacets(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> parameterIndex, Map<Integer, Integer> parameterGroupMapping) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final Query query = query(
 					collection(Entities.PRODUCT),
+					filterBy(
+						entityLocaleEquals(CZECH_LOCALE)
+					),
 					require(
 						page(1, Integer.MAX_VALUE),
 						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
@@ -1468,8 +1482,8 @@ public class EntityByFacetFilteringFunctionalTest {
 						facetSummaryOfReference(
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
-							filterBy(entityHaving(attributeLessThanEquals(ATTRIBUTE_CODE, "K"))),
-							orderBy(attributeNatural(ATTRIBUTE_CODE, OrderDirection.DESC))
+							filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+							orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 						)
 					)
 				);
@@ -1480,11 +1494,12 @@ public class EntityByFacetFilteringFunctionalTest {
 					session,
 					productSchema,
 					originalProductEntities,
-					null,
+					entity -> entity.getLocales().contains(CZECH_LOCALE),
 					reference -> {
 						if (Entities.PARAMETER.equals(reference.getReferenceName())) {
 							final SealedEntity parameter = parameterIndex.get(reference.getReferencedPrimaryKey());
-							return parameter.getAttribute(ATTRIBUTE_CODE, String.class).compareTo("K") < 0;
+							return parameter.getAttribute(ATTRIBUTE_CODE, String.class).compareTo("K") < 0 &&
+								parameter.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class) != null;
 						} else {
 							return true;
 						}
@@ -1495,14 +1510,89 @@ public class EntityByFacetFilteringFunctionalTest {
 								final SealedEntity parameter1 = parameterIndex.get(o1.getFacetEntity().getPrimaryKey());
 								final SealedEntity parameter2 = parameterIndex.get(o2.getFacetEntity().getPrimaryKey());
 								// reversed order
-								return parameter2.getAttribute(ATTRIBUTE_CODE, String.class)
-									.compareTo(parameter1.getAttribute(ATTRIBUTE_CODE, String.class));
+								return parameter2.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class)
+									.compareTo(parameter1.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class));
 							};
 						} else {
 							return Comparator.comparingInt(o -> o.getFacetEntity().getPrimaryKey());
 						}
 					},
 					null,
+					query,
+					null,
+					referenceName -> FacetStatisticsDepth.COUNTS,
+					referenceName -> entityFetch(attributeContent(ATTRIBUTE_CODE)),
+					referenceName -> entityGroupFetch(attributeContent(ATTRIBUTE_CODE)),
+					parameterGroupMapping
+				);
+
+				assertFacetSummary(
+					expectedSummary,
+					actualFacetSummary,
+					facetEntity -> !facetEntity.getAttributeNames().isEmpty(),
+					groupEntity -> !groupEntity.getAttributeNames().isEmpty(),
+					groupStatistics -> ofNullable(groupStatistics.getGroupEntity())
+						.map(it -> ((SealedEntity)it).getAttribute(ATTRIBUTE_CODE, String.class))
+						.orElse(""),
+					facetStatistics -> ((SealedEntity)facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE, String.class)
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return facet summary for entire set with filtered and ordered facet groups")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnFacetSummaryForEntireSetWithFilteredAndOrderedFacetGroups(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> parameterGroupIndex, Map<Integer, Integer> parameterGroupMapping) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Query query = query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						entityLocaleEquals(CZECH_LOCALE)
+					),
+					require(
+						page(1, Integer.MAX_VALUE),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+						facetSummary(
+							FacetStatisticsDepth.COUNTS,
+							entityFetch(entityFetchAllContent()),
+							entityGroupFetch(entityFetchAllContent())
+						),
+						facetSummaryOfReference(
+							Entities.PARAMETER,
+							FacetStatisticsDepth.COUNTS,
+							filterGroupBy(entityHaving(attributeLessThanEquals(ATTRIBUTE_CODE, "K"))),
+							orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+						)
+					)
+				);
+				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
+				final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
+
+				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
+					session,
+					productSchema,
+					originalProductEntities,
+					entity -> entity.getLocales().contains(CZECH_LOCALE),
+					null,
+					null,
+					referenceName -> {
+						if (Entities.PARAMETER.equals(referenceName)) {
+							return (o1, o2) -> {
+								final SealedEntity parameter1 = parameterGroupIndex.get(o1.getGroupEntity().getPrimaryKey());
+								final SealedEntity parameter2 = parameterGroupIndex.get(o2.getGroupEntity().getPrimaryKey());
+								// reversed order
+								return parameter2.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class)
+									.compareTo(parameter1.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class));
+							};
+						} else {
+							return Comparator.comparingInt(o -> o.getGroupEntity().getPrimaryKey());
+						}
+					},
 					query,
 					null,
 					referenceName -> FacetStatisticsDepth.COUNTS,

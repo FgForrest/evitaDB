@@ -175,7 +175,9 @@ public class FacetSummary implements EvitaResponseExtraResult {
 					groupsByReferenceName.getValue()
 						.values()
 						.stream()
-						.map(statistics -> "\t" + ofNullable(groupRenderer.apply(statistics)).filter(it -> !it.isBlank()).orElse(groupsByReferenceName.getKey()) +
+						.map(statistics -> "\t" + groupsByReferenceName.getKey() + ": " +
+							ofNullable(groupRenderer.apply(statistics)).filter(it -> !it.isBlank())
+								.orElseGet(() -> ofNullable(statistics.getGroupEntity()).map(EntityClassifier::getPrimaryKey).map(Object::toString).orElse("")) +
 							" [" + statistics.getCount() + "]:\n" +
 							statistics
 								.getFacetStatistics()
