@@ -141,8 +141,12 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		/* TODO JNO - Implement - this will be harder, we need to switch target entity name */
-		return epk -> true;
+		return new FilteringFormulaPredicate(
+			extraResultPlanner.getQueryContext(),
+			new FilterBy(filterGroupBy.getChildren()),
+			referenceSchema,
+			referenceSchema.getReferencedGroupType()
+		);
 	}
 
 	@Nullable
@@ -154,8 +158,8 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		return new FilteringFormulaPredicate(
 			extraResultPlanner.getQueryContext(),
 			filterBy,
-			extraResultPlanner.getAttributeSchemaAccessor(),
-			referenceSchema
+			referenceSchema,
+			referenceSchema.getReferencedEntityType()
 		);
 	}
 

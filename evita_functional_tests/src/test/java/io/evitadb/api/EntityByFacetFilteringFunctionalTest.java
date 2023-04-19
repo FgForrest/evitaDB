@@ -1565,7 +1565,8 @@ public class EntityByFacetFilteringFunctionalTest {
 						facetSummaryOfReference(
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
-							filterGroupBy(entityHaving(attributeLessThanEquals(ATTRIBUTE_CODE, "K"))),
+							/* TODO JNO - když tady bylo entityHaving, tak to nezařvalo, ale ani se to neaplikovalo! */
+							filterGroupBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
 							orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 						)
 					)
@@ -1578,7 +1579,17 @@ public class EntityByFacetFilteringFunctionalTest {
 					productSchema,
 					originalProductEntities,
 					entity -> entity.getLocales().contains(CZECH_LOCALE),
-					null,
+					reference -> {
+						if (reference.getReferenceKey().referenceName().equals(Entities.PARAMETER)) {
+							return reference.getGroup()
+								.map(groupRef -> parameterGroupIndex.get(groupRef.getPrimaryKey()))
+								.map(group -> group.getAttribute(ATTRIBUTE_CODE, String.class).compareTo("K") < 0 &&
+									group.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class) != null)
+								.orElse(false);
+						} else {
+							return true;
+						}
+					},
 					null,
 					referenceName -> {
 						if (Entities.PARAMETER.equals(referenceName)) {

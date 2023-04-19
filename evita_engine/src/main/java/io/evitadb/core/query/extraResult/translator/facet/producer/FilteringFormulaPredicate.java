@@ -68,9 +68,9 @@ public class FilteringFormulaPredicate implements IntPredicate {
 	public FilteringFormulaPredicate(
 		@Nonnull QueryContext queryContext,
 		@Nonnull FilterBy filterBy,
-		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nonnull ReferenceSchemaContract referenceSchema
-		) {
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String entityType
+	) {
 		this.filterBy = filterBy;
 		try {
 			final Supplier<String> stepDescriptionSupplier = () -> "Facet summary of `" + referenceSchema.getName() + "`: " +
@@ -88,16 +88,15 @@ public class FilteringFormulaPredicate implements IntPredicate {
 			);
 
 			// now analyze the filter by in a nested context with exchanged primary entity index
-			final String referencedEntityType = referenceSchema.getReferencedEntityType();
 			final Formula theFormula = theFilterByVisitor.executeInContext(
 				Collections.singletonList(
-					queryContext.getGlobalEntityIndex(referencedEntityType)
+					queryContext.getGlobalEntityIndex(entityType)
 				),
 				null,
 				referenceSchema,
 				null,
 				null,
-				new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(referencedEntityType)),
+				new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
 				AttributesContract::getAttribute,
 				() -> {
 					filterBy.accept(theFilterByVisitor);

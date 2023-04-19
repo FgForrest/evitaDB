@@ -67,6 +67,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -134,7 +135,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 * The {@link ReferenceSchema#getName()} is used as a key of this map.
 	 */
 	@Nonnull
-	private final Map<String, FacetSummaryRequest> facetSummaryRequests = new HashMap<>(16);
+	private final Map<String, FacetSummaryRequest> facetSummaryRequests = createLinkedHashMap(16);
 	/**
 	 * Contains a default settings for facet summary construction and entity fetching.
 	 */
@@ -197,6 +198,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		this.facetSummaryRequests.put(
 			referenceSchema.getName(),
 			new FacetSummaryRequest(
+				this.facetSummaryRequests.size() + 1,
 				referenceSchema,
 				facetPredicate, groupPredicate,
 				facetSorter, groupSorter,
@@ -217,6 +219,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 			queryContext, filterFormula, filterFormulaWithoutUserFilter
 		);
 		// fabrication is a little transformation hell
+		final AtomicInteger counter = new AtomicInteger();
 		return new FacetSummary(
 			facetIndexes
 				.stream()
@@ -246,6 +249,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 											.map(it -> it.combineWith(defaultRequest.groupEntityRequirement()))
 											.orElse(defaultRequest.groupEntityRequirement());
 										return new FacetSummaryRequest(
+											referenceRequest.order(),
 											referenceRequest.referenceSchema(),
 											ofNullable(referenceRequest.facetPredicate()).orElseGet(() -> defaultRequest.facetPredicate().apply(referenceRequest.referenceSchema())),
 											ofNullable(referenceRequest.groupPredicate()).orElseGet(() -> defaultRequest.groupPredicate().apply(referenceRequest.referenceSchema())),
@@ -259,6 +263,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 										);
 									})
 									.orElseGet(() -> new FacetSummaryRequest(
+										this.facetSummaryRequests.size() + counter.incrementAndGet(),
 										referenceSchema,
 										defaultRequest.facetPredicate().apply(referenceSchema),
 										defaultRequest.groupPredicate().apply(referenceSchema),
@@ -310,7 +315,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 * Collector translates data from {@link FacetReferenceIndex} to {@link FacetGroupStatistics}.
 	 */
 	@RequiredArgsConstructor
-	private static class FacetGroupStatisticsCollector implements Collector<FacetReferenceIndex, HashMap<Integer, EntityTypeGroupAccumulator>, Collection<FacetGroupStatistics>> {
+	private static class FacetGroupStatisticsCollector implements Collector<FacetReferenceIndex, LinkedHashMap<Integer, GroupAccumulator>, Collection<FacetGroupStatistics>> {
 		/**
 		 * TODO JNO - document me
 		 */
@@ -339,20 +344,20 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 
 		/**
 		 * Method returns an index of fetched {@link EntityClassifier facet groups} indexed by their primary key
-		 * for passed {@link EntityTypeGroupAccumulator} entry.
+		 * for passed {@link GroupAccumulator} entry.
 		 */
 		@Nonnull
-		private static Map<Integer, EntityClassifier> fetchGroups(@Nonnull Entry<String, List<EntityTypeGroupAccumulator>> entry) {
+		private static Map<Integer, EntityClassifier> fetchGroups(@Nonnull Entry<String, List<GroupAccumulator>> entry) {
 			final int[] groupIds = entry.getValue()
 				.stream()
-				.map(EntityTypeGroupAccumulator::getGroupId)
+				.map(GroupAccumulator::getGroupId)
 				.filter(Objects::nonNull)
 				.mapToInt(it -> it)
 				.toArray();
 			if (ArrayUtils.isEmpty(groupIds)) {
 				return Collections.emptyMap();
 			} else {
-				final EntityTypeGroupAccumulator groupAcc = entry.getValue()
+				final GroupAccumulator groupAcc = entry.getValue()
 					.stream()
 					.findFirst()
 					.orElseThrow(() -> new EvitaInternalError(ERROR_SANITY_CHECK));
@@ -372,13 +377,13 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 
 		/**
 		 * Method returns an index of fetched {@link EntityClassifier facets} indexed by their primary key
-		 * for passed {@link EntityTypeGroupAccumulator} entry.
+		 * for passed {@link GroupAccumulator} entry.
 		 */
 		@Nonnull
-		private static Map<Integer, EntityClassifier> fetchFacetEntities(@Nonnull Entry<String, List<EntityTypeGroupAccumulator>> entry) {
+		private static Map<Integer, EntityClassifier> fetchFacetEntities(@Nonnull Entry<String, List<GroupAccumulator>> entry) {
 			final int[] facetIds = entry.getValue()
 				.stream()
-				.map(EntityTypeGroupAccumulator::getFacetStatistics)
+				.map(GroupAccumulator::getFacetStatistics)
 				.map(Map::values)
 				.flatMap(Collection::stream)
 				.mapToInt(FacetAccumulator::getFacetId)
@@ -388,7 +393,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 			if (ArrayUtils.isEmpty(facetIds)) {
 				return Collections.emptyMap();
 			} else {
-				final EntityTypeGroupAccumulator groupAcc = entry.getValue()
+				final GroupAccumulator groupAcc = entry.getValue()
 					.stream()
 					.findFirst()
 					.orElseThrow(() -> new EvitaInternalError(ERROR_SANITY_CHECK));
@@ -416,12 +421,12 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		}
 
 		@Override
-		public Supplier<HashMap<Integer, EntityTypeGroupAccumulator>> supplier() {
-			return HashMap::new;
+		public Supplier<LinkedHashMap<Integer, GroupAccumulator>> supplier() {
+			return LinkedHashMap::new;
 		}
 
 		@Override
-		public BiConsumer<HashMap<Integer, EntityTypeGroupAccumulator>, FacetReferenceIndex> accumulator() {
+		public BiConsumer<LinkedHashMap<Integer, GroupAccumulator>, FacetReferenceIndex> accumulator() {
 			return (acc, facetEntityTypeIndex) -> {
 				final ReferenceSchemaContract referenceSchema = referenceSchemaLocator.apply(
 					facetEntityTypeIndex.getReferenceName()
@@ -439,9 +444,9 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 					.forEach(groupIx -> {
 						final String referenceName = facetEntityTypeIndex.getReferenceName();
 						// get or create separate accumulator for the group statistics
-						final EntityTypeGroupAccumulator groupAcc = acc.computeIfAbsent(
+						final GroupAccumulator groupAcc = acc.computeIfAbsent(
 							groupIx.getGroupId(),
-							gId -> new EntityTypeGroupAccumulator(
+							gId -> new GroupAccumulator(
 								referenceSchema,
 								facetSummaryRequest,
 								gId,
@@ -468,16 +473,16 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		}
 
 		@Override
-		public BinaryOperator<HashMap<Integer, EntityTypeGroupAccumulator>> combiner() {
+		public BinaryOperator<LinkedHashMap<Integer, GroupAccumulator>> combiner() {
 			return (left, right) -> {
-				// combine two HashMap<Integer, EntityTypeGroupAccumulator> together, right one is fully merged into left
-				right.forEach((key, value) -> left.merge(key, value, EntityTypeGroupAccumulator::combine));
+				// combine two HashMap<Integer, GroupAccumulator> together, right one is fully merged into left
+				right.forEach((key, value) -> left.merge(key, value, GroupAccumulator::combine));
 				return left;
 			};
 		}
 
 		@Override
-		public Function<HashMap<Integer, EntityTypeGroupAccumulator>, Collection<FacetGroupStatistics>> finisher() {
+		public Function<LinkedHashMap<Integer, GroupAccumulator>, Collection<FacetGroupStatistics>> finisher() {
 			return entityAcc -> {
 				final Map<String, Map<Integer, EntityClassifier>> groupEntities = entityAcc
 					.values()
@@ -510,9 +515,81 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						)
 					);
 
-				return entityAcc
+				/* TODO JNO - tohle rozsekat do metod */
+				final Map<String, Bitmap> groupIdIndex = entityAcc.values()
+					.stream()
+					.filter(it -> it.getGroupId() != null)
+					.collect(
+						Collectors.groupingBy(
+							it -> it.getReferenceSchema().getName(),
+							Collectors.mapping(GroupAccumulator::getGroupId, new Collector<Integer, Bitmap, Bitmap>() {
+								@Override
+								public Supplier<Bitmap> supplier() {
+									return BaseBitmap::new;
+								}
+
+								@Override
+								public BiConsumer<Bitmap, Integer> accumulator() {
+									return Bitmap::add;
+								}
+
+								@Override
+								public BinaryOperator<Bitmap> combiner() {
+									return (bitmap, bitmap2) -> {
+										bitmap.addAll(bitmap2);
+										return bitmap;
+									};
+								}
+
+								@Override
+								public Function<Bitmap, Bitmap> finisher() {
+									return Function.identity();
+								}
+
+								@Override
+								public Set<Characteristics> characteristics() {
+									return EnumSet.of(Characteristics.IDENTITY_FINISH);
+								}
+							})
+						)
+					);
+
+				final Map<String, int[]> sortedGroupIds = new HashMap<>(groupIdIndex.size());
+				final Stream<GroupAccumulator> groupStream = entityAcc
 					.values()
 					.stream()
+					.sorted((o1, o2) -> {
+						if (o1.getReferenceSchema() != o2.getReferenceSchema()) {
+							return Integer.compare(o1.getFacetSummaryRequest().order(), o2.getFacetSummaryRequest().order());
+						} else if (o1.getFacetSummaryRequest().groupSorter() != null) {
+							final Sorter sorter = o1.getFacetSummaryRequest().groupSorter();
+							// create sorted array using the sorter
+							final String referenceName = o1.getFacetSummaryRequest().referenceSchema().getName();
+							final int[] sortedEntities = sortedGroupIds.computeIfAbsent(
+								referenceName,
+								theReferenceName -> {
+									final ConstantFormula unsortedIds = new ConstantFormula(groupIdIndex.get(theReferenceName));
+									return sorter.sortAndSlice(
+										queryContext, unsortedIds, 0, unsortedIds.compute().size()
+									);
+								}
+							);
+							return Integer.compare(
+								ArrayUtils.indexOf(o1.getGroupId(), sortedEntities),
+								ArrayUtils.indexOf(o2.getGroupId(), sortedEntities)
+							);
+						} else {
+							if (o1.getGroupId() == null) {
+								return 1;
+							} else if (o2.getGroupId() == null) {
+								return -1;
+							} else {
+								return Integer.compare(o1.getGroupId(), o2.getGroupId());
+							}
+						}
+					});
+				
+				return groupStream
 					.map(groupAcc -> {
 						final Map<Integer, FacetAccumulator> theFacetStatistics = groupAcc.getFacetStatistics();
 						if (theFacetStatistics.isEmpty()) {
@@ -606,7 +683,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 * This mutable accumulator contains statistics for all facets of same `entityType` and `groupId`.
 	 */
 	@Data
-	private static class EntityTypeGroupAccumulator {
+	private static class GroupAccumulator {
 		/**
 		 * Contains {@link ReferenceSchema} related to {@link FacetInSet#getReferenceName()}.
 		 */
@@ -632,7 +709,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		 */
 		private final Map<Integer, FacetAccumulator> facetStatistics = createLinkedHashMap(32);
 
-		public EntityTypeGroupAccumulator(
+		public GroupAccumulator(
 			@Nonnull ReferenceSchemaContract referenceSchema,
 			@Nonnull FacetSummaryRequest facetSummaryRequest,
 			@Nullable Integer groupId,
@@ -676,10 +753,10 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		}
 
 		/**
-		 * Combines two EntityTypeGroupAccumulator together. It adds everything from the `otherAccumulator` to self
+		 * Combines two GroupAccumulator together. It adds everything from the `otherAccumulator` to self
 		 * instance and returns self.
 		 */
-		public EntityTypeGroupAccumulator combine(EntityTypeGroupAccumulator otherAccumulator) {
+		public GroupAccumulator combine(GroupAccumulator otherAccumulator) {
 			Assert.isPremiseValid(referenceSchema.equals(otherAccumulator.referenceSchema), ERROR_SANITY_CHECK);
 			Assert.isPremiseValid(Objects.equals(groupId, otherAccumulator.groupId), ERROR_SANITY_CHECK);
 			otherAccumulator.getFacetStatistics()
@@ -805,6 +882,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 * @param facetStatisticsDepth Contains {@link io.evitadb.api.query.require.FacetSummary#getFacetStatisticsDepth()} information.
 	 */
 	private record FacetSummaryRequest(
+		int order,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable IntPredicate facetPredicate,
 		@Nullable IntPredicate groupPredicate,
