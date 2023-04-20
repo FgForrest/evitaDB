@@ -101,7 +101,7 @@ public interface QueryConstraints {
 	 * ```
 	 */
 	@Nullable
-	static FilterBy filterBy(@Nullable FilterConstraint constraint) {
+	static FilterBy filterBy(@Nullable FilterConstraint... constraint) {
 		return constraint == null ? null : new FilterBy(constraint);
 	}
 
@@ -199,7 +199,7 @@ public interface QueryConstraints {
 	 * ```
 	 */
 	@Nullable
-	static ReferenceHaving referenceHaving(@Nonnull String referenceName, @Nullable FilterConstraint constraint) {
+	static ReferenceHaving referenceHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
 		return constraint == null ? null : new ReferenceHaving(referenceName, constraint);
 	}
 

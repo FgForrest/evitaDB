@@ -23,6 +23,7 @@
 
 package io.evitadb.index.hierarchy.predicate;
 
+import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -41,12 +42,8 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * The predicate evaluates the nested query filter function to get the {@link Bitmap} of all hierarchy entity primary
@@ -65,22 +62,112 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 */
 	@Getter @Nonnull private final Formula filteringFormula;
 
+	/**
+	 * This constructor should be used from filtering translators that need to take the attributes on references
+	 * into an account.
+	 *
+	 * @param queryContext    current query context
+	 * @param filterBy        the filtering that targets reference attributes but may also contain {@link EntityHaving}
+	 *                        constraint (but only when reference schema is not null and the entity targets different entity hierarchy)
+	 * @param referenceSchema the optional reference schema if the entity targets itself hierarchy tree
+	 */
+	public FilteringFormulaHierarchyEntityPredicate(
+		@Nonnull QueryContext queryContext,
+		@Nonnull FilterBy filterBy,
+		@Nullable ReferenceSchemaContract referenceSchema
+	) {
+		this.filterBy = filterBy;
+		try {
+			final Supplier<String> stepDescriptionSupplier =
+				() -> referenceSchema == null ?
+					"Hierarchy statistics of `" + queryContext.getSchema().getName() + "` : " + filterBy
+					: "Hierarchy statistics of `" + referenceSchema.getName() + "` (`" + referenceSchema.getReferencedEntityType() + "`): " + filterBy;
+			queryContext.pushStep(
+				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
+				stepDescriptionSupplier
+			);
+			// create a visitor
+			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
+				queryContext,
+				Collections.emptyList(),
+				TargetIndexes.EMPTY,
+				false
+			);
+			final Formula theFormula;
+			if (referenceSchema == null) {
+				theFormula = queryContext.analyse(
+					theFilterByVisitor.executeInContext(
+						Collections.singletonList(queryContext.getGlobalEntityIndex()),
+						null,
+						queryContext.getSchema(),
+						null,
+						null,
+						null,
+						new AttributeSchemaAccessor(queryContext),
+						AttributesContract::getAttribute,
+						() -> {
+							filterBy.accept(theFilterByVisitor);
+							// get the result and clear the visitor internal structures
+							return theFilterByVisitor.getFormulaAndClear();
+						}
+					)
+				);
+			} else {
+				theFormula = theFilterByVisitor.getReferencedRecordIdFormula(
+					referenceSchema, filterBy
+				);
+			}
+			// create a deferred formula that will log the execution time to query telemetry
+			this.filteringFormula = new DeferredFormula(
+				new FormulaWrapper(
+					theFormula,
+					formula -> {
+						try {
+							queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+							return formula.compute();
+						} finally {
+							queryContext.popStep();
+						}
+					}
+				)
+			);
+		} finally {
+			queryContext.popStep();
+		}
+	}
+
+	/**
+	 * This constructor could be used when the filtered set is already known.
+	 *
+	 * @param filterBy         the original filtering constraint that led to the formula
+	 * @param filteringFormula the formula containing valid entity primary keys that should be matched by this predicate
+	 */
 	public FilteringFormulaHierarchyEntityPredicate(@Nonnull FilterBy filterBy, @Nonnull Formula filteringFormula) {
 		this.filterBy = filterBy;
 		this.filteringFormula = filteringFormula;
 	}
 
+	/**
+	 * This constructor is expected to be used from HierarchyRequirements that should never use reference attributes
+	 * but always target referenced hierarchy entity attributes.
+	 *
+	 * @param queryContext    current query context
+	 * @param entityIndex     the global index of with the data of the target entity
+	 * @param filterBy        the filtering that targets referenced entity attributes
+	 * @param referenceSchema the optional reference schema if the entity targets itself hierarchy tree
+	 */
 	public FilteringFormulaHierarchyEntityPredicate(
 		@Nonnull QueryContext queryContext,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull FilterBy filterBy,
-		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
 		this.filterBy = filterBy;
 		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
-				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
+			final Supplier<String> stepDescriptionSupplier =
+				() -> referenceSchema == null ?
+					"Hierarchy statistics of `" + queryContext.getSchema().getName() + "` : " + filterBy
+					: "Hierarchy statistics of `" + referenceSchema.getName() + "` (`" + referenceSchema.getReferencedEntityType() + "`): " + filterBy;
 			queryContext.pushStep(
 				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
 				stepDescriptionSupplier
@@ -98,12 +185,14 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					Collections.singletonList(entityIndex),
 					null,
 					entityIndex.getEntitySchema(),
-					referenceSchema,
 					null,
 					null,
-					ofNullable(referenceSchema)
-						.map(it -> attributeSchemaAccessor.withReferenceSchemaAccessor(it.getName()))
-						.orElse(attributeSchemaAccessor),
+					null,
+					new AttributeSchemaAccessor(
+						queryContext.getCatalogSchema(),
+						entityIndex.getEntitySchema(),
+						null
+					),
 					AttributesContract::getAttribute,
 					() -> {
 						filterBy.accept(theFilterByVisitor);

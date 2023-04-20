@@ -99,7 +99,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
 			final String referenceName = referenceSchema.getName();
 			referencedEntityFormulas.add(
-				filterByVisitor.executeInContext(
+				filterByVisitor.executeInContextAndIsolatedFormulaStack(
 					Collections.singletonList(referencedEntityIndex),
 					ReferenceContent.ALL_REFERENCES,
 					entitySchema,

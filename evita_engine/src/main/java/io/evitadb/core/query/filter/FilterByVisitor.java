@@ -622,6 +622,41 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
 	 */
 	@SafeVarargs
+	public final <T> T executeInContextAndIsolatedFormulaStack(
+		@Nonnull List<EntityIndex> targetIndexes,
+		@Nullable EntityContentRequire requirements,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
+		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+		@Nonnull Supplier<T> lambda,
+		@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
+	) {
+		try {
+			this.stack.push(new LinkedList<>());
+			return executeInContext(
+				targetIndexes,
+				requirements,
+				entitySchema,
+				referenceSchema,
+				nestedQueryFormulaEnricher,
+				entityNestedQueryComparator,
+				attributeSchemaAccessor,
+				attributeValueAccessor,
+				lambda,
+				suppressedConstraints
+			);
+		} finally {
+			stack.pop();
+		}
+	}
+
+	/**
+	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
+	 */
+	@SafeVarargs
 	public final <T> T executeInContext(
 		@Nonnull List<EntityIndex> targetIndexes,
 		@Nullable EntityContentRequire requirements,

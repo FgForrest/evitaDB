@@ -61,6 +61,7 @@ import java.util.Optional;
 
 import static io.evitadb.core.query.filter.translator.hierarchy.AbstractHierarchyTranslator.createAndStoreExclusionPredicate;
 import static io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator.createFormulaFromHierarchyIndex;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -157,10 +158,10 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							() -> HierarchyWithinRootTranslator.createFormulaFromHierarchyIndex(
 								createAndStoreExclusionPredicate(
 									queryContext,
-									hierarchyWithinRoot.getExcludedChildrenFilter(),
-									targetHierarchyIndex,
-									referencedSchema,
-									attributeSchemaAccessor
+									of(new FilterBy(hierarchyWithinRoot.getExcludedChildrenFilter()))
+										.filter(ConstraintContainer::isApplicable)
+										.orElse(null),
+									referencedSchema
 								),
 								hierarchyWithinRoot.isDirectRelation(),
 								targetHierarchyIndex
@@ -173,10 +174,10 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 								hierarchyWithin.getParentId(),
 								createAndStoreExclusionPredicate(
 									queryContext,
-									hierarchyWithin.getExcludedChildrenFilter(),
-									targetHierarchyIndex,
-									referencedSchema,
-									attributeSchemaAccessor
+									of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
+										.filter(ConstraintContainer::isApplicable)
+										.orElse(null),
+									referencedSchema
 								),
 								hierarchyWithin.isDirectRelation(),
 								hierarchyWithin.isExcludingRoot(),

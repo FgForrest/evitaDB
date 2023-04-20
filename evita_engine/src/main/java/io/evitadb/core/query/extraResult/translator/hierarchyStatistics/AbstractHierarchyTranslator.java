@@ -105,7 +105,6 @@ public abstract class AbstractHierarchyTranslator {
 				context.queryContext(),
 				context.entityIndex(),
 				node.getFilterBy(),
-				context.attributeSchemaAccessor(),
 				context.referenceSchema()
 			);
 		} else {

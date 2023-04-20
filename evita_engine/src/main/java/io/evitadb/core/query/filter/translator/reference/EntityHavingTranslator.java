@@ -157,19 +157,24 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 								.orElse(EmptyBitmap.INSTANCE)
 						);
 					}
-					final QueryContext queryContext = filterByVisitor.getQueryContext();
-					return new DeferredFormula(
-						new FormulaWrapper(
-							outputFormula,
-							formula -> {
-								try {
-									queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
-									return formula.compute();
-								} finally {
-									queryContext.popStep();
-								}
-							}
-						)
+					return filterByVisitor.computeOnlyOnce(
+						entityHaving,
+						() -> {
+							final QueryContext queryContext = filterByVisitor.getQueryContext();
+							return new DeferredFormula(
+								new FormulaWrapper(
+									outputFormula,
+									formula -> {
+										try {
+											queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
+											return formula.compute();
+										} finally {
+											queryContext.popStep();
+										}
+									}
+								)
+							);
+						}
 					);
 				}
 			);
