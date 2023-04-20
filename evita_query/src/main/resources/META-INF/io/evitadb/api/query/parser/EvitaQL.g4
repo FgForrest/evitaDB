@@ -106,10 +106,12 @@ requireConstraint
     | 'referenceContent'                args = singleRefWithFilterReferenceContentArgs          # singleRefWithFilterReferenceContentConstraint
     | 'referenceContent'                args = singleRefWithOrderReferenceContentArgs           # singleRefWithOrderReferenceContentConstraint
     | 'referenceContent'                args = singleRefWithFilterAndOrderReferenceContentArgs  # singleRefWithFilterAndOrderReferenceContentConstraint
+    | 'hierarchyContent'                (emptyArgs | args = allRefsHierarchyContentArgs)        # allRefsHierarchyContentConstraint
+    | 'hierarchyContent'                args = multipleRefsHierarchyContentArgs                 # multipleRefsHierarchyContentConstraint
+    | 'hierarchyContent'                args = singleRefHierarchyContentArgs                    # singleRefHierarchyContentConstraint
+    | 'hierarchyContent'                args = singleRefWithFilterHierarchyContentArgs          # singleRefWithFilterHierarchyContentConstraint
     | 'priceType'                       args = valueArgs                                        # priceTypeConstraint
     | 'dataInLocales'                   (emptyArgs | args = valueListArgs)                      # dataInLocalesConstraint
-    | 'hierarchyParentsOfSelf'          (emptyArgs | args = requireConstraintArgs)              # hierarchyParentsOfSelfConstraint
-    | 'hierarchyParentsOfReference'     args = classifierListWithOptionalRequireConstraintArgs  # hierarchyParentsOfReferenceConstraint
     | 'facetSummary'                    (emptyArgs | args = facetSummaryArgs)                   # facetSummaryConstraint
     | 'facetSummaryOfReference'         args = facetSummaryOfReferenceArgs                      # facetSummaryOfReferenceConstraint
     | 'facetGroupsConjunction'          args = classifierWithValueListArgs                      # facetGroupsConjunctionConstraint
@@ -213,6 +215,26 @@ multipleRefsReferenceContentArgs :                  ARGS_OPENING (
                                                     ) ARGS_CLOSING ;
 
 allRefsReferenceContentArgs :                       ARGS_OPENING (
+                                                        (requirement = requireConstraint) |
+                                                        (facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
+                                                    ) ARGS_CLOSING ;
+                                                    
+singleRefHierarchyContentArgs :                     ARGS_OPENING (
+                                                        (classifier = classifierToken (ARGS_DELIMITER requirement = requireConstraint)?) |
+                                                        (classifier = classifierToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
+                                                    ) ARGS_CLOSING ;
+
+singleRefWithFilterHierarchyContentArgs :           ARGS_OPENING (
+                                                        (classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint (ARGS_DELIMITER requirement = requireConstraint)?) |
+                                                        (classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
+                                                    ) ARGS_CLOSING ;
+
+multipleRefsHierarchyContentArgs :                  ARGS_OPENING (
+                                                        (classifiers = variadicClassifierTokens (ARGS_DELIMITER requirement = requireConstraint)?) |
+                                                        (classifiers = variadicClassifierTokens ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
+                                                    ) ARGS_CLOSING ;
+
+allRefsHierarchyContentArgs :                       ARGS_OPENING (
                                                         (requirement = requireConstraint) |
                                                         (facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
                                                     ) ARGS_CLOSING ;

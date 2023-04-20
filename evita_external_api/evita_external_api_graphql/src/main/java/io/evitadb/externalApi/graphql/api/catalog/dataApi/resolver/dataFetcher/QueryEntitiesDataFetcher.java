@@ -55,10 +55,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
@@ -284,7 +280,6 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		requireConstraints.addAll(buildAttributeHistogramRequires(extraResultsSelectionSet));
 		requireConstraints.add(buildPriceHistogramRequire(extraResultsSelectionSet));
 		requireConstraints.addAll(buildFacetSummaryRequire(extraResultsSelectionSet, filterBy));
-		requireConstraints.addAll(buildHierarchyParentsRequires(extraResultsSelectionSet, filterBy));
 		requireConstraints.addAll(buildHierarchyStatisticsRequires(extraResultsSelectionSet, filterBy));
 		requireConstraints.add(buildQueryTelemetryRequire(extraResultsSelectionSet));
 
@@ -495,76 +490,6 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	}
 
 	@Nonnull
-	private List<RequireConstraint> buildHierarchyParentsRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
-	                                                              @Nullable FilterBy filterBy) {
-		final List<SelectedField> parentsFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY_PARENTS.name());
-		if (parentsFields.isEmpty()) {
-			return List.of();
-		}
-
-		final Map<String, List<DataFetchingFieldSelectionSet>> parentsContentFields = createHashMap(parentsFields.size());
-		parentsFields.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-			.forEach(f -> {
-				final String referenceName = f.getName();
-				final String originalReferenceName;
-				if (referenceName.equals(HierarchyStatisticsDescriptor.SELF.name())) {
-					originalReferenceName = HierarchyStatisticsDescriptor.SELF.name();
-				} else {
-					final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, PROPERTY_NAME_NAMING_CONVENTION)
-						.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
-					originalReferenceName = reference.getName();
-				}
-
-				final List<DataFetchingFieldSelectionSet> fields = parentsContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
-				fields.addAll(
-					f.getSelectionSet()
-						.getFields(ParentsOfEntityDescriptor.PARENT_ENTITIES.name())
-						.stream()
-						.map(SelectedField::getSelectionSet)
-						.toList()
-				);
-				fields.addAll(
-					f.getSelectionSet()
-						.getFields(ParentsOfEntityDescriptor.REFERENCES.name())
-						.stream()
-						.flatMap(f2 -> f2.getSelectionSet().getFields(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name()).stream())
-						.map(SelectedField::getSelectionSet)
-						.toList()
-				);
-			});
-
-		// construct actual requires from gathered data
-		final List<RequireConstraint> requestedParents = new ArrayList<>(parentsContentFields.size());
-		parentsContentFields.forEach((referenceName, contentFields) -> {
-			if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
-				requestedParents.add(hierarchyParentsOfSelf(
-					EntityFetchRequireBuilder.buildEntityRequirement(
-						catalogSchema,
-						SelectionSetWrapper.from(contentFields),
-						extractDesiredLocale(filterBy),
-						entitySchema,
-						entitySchemaFetcher
-					)
-				));
-			} else {
-				requestedParents.add(hierarchyParentsOfReference(
-					referenceName,
-					EntityFetchRequireBuilder.buildEntityRequirement(
-						catalogSchema,
-						SelectionSetWrapper.from(contentFields),
-						extractDesiredLocale(filterBy),
-						referencedEntitySchemas.get(referenceName),
-						entitySchemaFetcher
-					)
-				));
-			}
-		});
-
-		return requestedParents;
-	}
-
-	@Nonnull
 	private List<RequireConstraint> buildHierarchyStatisticsRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
 	                                                                 @Nullable FilterBy filterBy) {
 		final List<SelectedField> hierarchyStatisticsFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY_STATISTICS.name());
@@ -578,8 +503,10 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			.forEach(f -> {
 				final String referenceName = f.getName();
 				final String originalReferenceName;
-				if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
-					originalReferenceName = HierarchyParentsDescriptor.SELF.name();
+
+				/* TODO LHO - CHECK self constraint */
+				if (referenceName.equals("self")) {
+					originalReferenceName = "self";
 				} else {
 					final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, PROPERTY_NAME_NAMING_CONVENTION)
 						.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
@@ -599,7 +526,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		// construct actual requires from gathered data
 		final List<RequireConstraint> requestedHierarchyStatistics = new ArrayList<>(hierarchyStatisticsContentFields.size());
 		hierarchyStatisticsContentFields.forEach((referenceName, contentFields) -> {
-			if (referenceName.equals(HierarchyParentsDescriptor.SELF.name())) {
+			/* TODO LHO - CHECK self constraint */
+			if (referenceName.equals("self")) {
 				requestedHierarchyStatistics.add(
 					hierarchyOfSelf(
 						/* TODO LHO - now the requirements are placed inside computers */

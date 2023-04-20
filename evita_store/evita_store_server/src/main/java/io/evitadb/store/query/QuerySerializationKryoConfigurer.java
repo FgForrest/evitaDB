@@ -117,8 +117,6 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(FacetSummaryOfReference.class, new FacetSummaryOfReferenceSerializer(), index++);
 		kryo.register(HierarchyOfSelf.class, new HierarchyOfSelfSerializer(), index++);
 		kryo.register(Page.class, new PageSerializer(), index++);
-		kryo.register(HierarchyParentsOfSelf.class, new HierarchyParentsOfSelfSerializer(), index++);
-		kryo.register(HierarchyParentsOfReference.class, new HierarchyParentsOfReferenceSerializer(), index++);
 		kryo.register(HierarchyOfSelf.class, new HierarchyOfSelfSerializer(), index++);
 		kryo.register(HierarchyOfReference.class, new HierarchyOfReferenceSerializer(), index++);
 		kryo.register(HierarchyChildren.class, new HierarchyChildrenSerializer(), index++);
@@ -135,6 +133,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(PriceHistogram.class, new PriceHistogramSerializer(), index++);
 		kryo.register(io.evitadb.api.requestResponse.data.structure.Prices.class, new PriceContentSerializer(), index++);
 		kryo.register(ReferenceContent.class, new ReferenceContentSerializer(), index++);
+		kryo.register(HierarchyContent.class, new HierarchyContentSerializer(), index++);
 		kryo.register(Require.class, new RequireSerializer(), index++);
 		kryo.register(Strip.class, new StripSerializer(), index++);
 		kryo.register(PriceType.class, new PriceTypeSerializer(), index++);

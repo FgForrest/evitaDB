@@ -363,37 +363,6 @@ public interface RestRandomQueryGenerator {
 	}
 
 	/**
-	 * Creates randomized query requiring {@link io.evitadb.api.requestResponse.extraResult.Parents} computation for passed entity
-	 * schema based on passed set.
-	 */
-	default RestQuery generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities, int maxProductId) {
-		final Integer[] requestedPks = new Integer[20];
-		int firstPk = random.nextInt(maxProductId / 2);
-		for (int i = 0; i < requestedPks.length; i++) {
-			requestedPks[i] = firstPk;
-			firstPk += random.nextInt(maxProductId / 40);
-		}
-
-		return new RestQuery(
-			null,
-			schema.getName(),
-			new RestConstraint(
-				EntityPrimaryKeyInSet.class,
-				(Object[]) requestedPks
-			),
-			null,
-			ArrayUtils.mergeArrays(
-				new RestConstraint[] {
-					new RestConstraint(Page.class, Map.of("number", 1, "size", 20)),
-				},
-				Arrays.stream(getRandomItems(random, referencedHierarchyEntities).toArray(String[]::new))
-					.map(it -> new RestConstraint(it, HierarchyParentsOfReference.class, true))
-					.toArray(RestConstraint[]::new)
-			)
-		);
-	}
-
-	/**
 	 * Creates randomized query requiring {@link io.evitadb.api.requestResponse.extraResult.HierarchyStatistics} computation for
 	 * passed entity schema based on passed set.
 	 */

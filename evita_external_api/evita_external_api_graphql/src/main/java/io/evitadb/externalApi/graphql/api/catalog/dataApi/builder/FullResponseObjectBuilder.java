@@ -43,9 +43,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
@@ -58,13 +55,11 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDe
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.RecordPageDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.RecordStripDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.SingleParentsOfReferenceDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramsDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.ExtraResultsDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.FacetGroupStatisticsDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.FacetSummaryDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.HierarchyParentsDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.HierarchyStatisticsDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.PriceHistogramDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.QueryTelemetryDataFetcher;
@@ -455,17 +450,7 @@ public class FullResponseObjectBuilder {
 			return List.of();
 		}
 
-		final List<BuiltFieldDescriptor> hierarchyExtraResultFields = new ArrayList<>(2);
-
-		final GraphQLObjectType parentsObject = buildParentsObject(entitySchema, referenceSchemas);
-		final GraphQLFieldDefinition parentsField = ExtraResultsDescriptor.HIERARCHY_PARENTS
-			.to(fieldBuilderTransformer)
-			.type(parentsObject)
-			.build();
-		hierarchyExtraResultFields.add(new BuiltFieldDescriptor(
-			parentsField,
-			new HierarchyParentsDataFetcher(entitySchema.getReferences().values())
-		));
+		final List<BuiltFieldDescriptor> hierarchyExtraResultFields = new ArrayList<>(1);
 
 		final GraphQLObjectType hierarchyStatisticsObject = buildHierarchyStatisticsObject(entitySchema, referenceSchemas);
 		final GraphQLFieldDefinition hierarchyStatisticsField = ExtraResultsDescriptor.HIERARCHY_STATISTICS
@@ -478,160 +463,6 @@ public class FullResponseObjectBuilder {
 		));
 
 		return hierarchyExtraResultFields;
-	}
-
-	@Nonnull
-	private GraphQLObjectType buildParentsObject(@Nonnull EntitySchemaContract entitySchema,
-	                                             @Nonnull List<ReferenceSchemaContract> referenceSchemas) {
-		final String objectName = HierarchyParentsDescriptor.THIS.name(entitySchema);
-
-		final GraphQLObjectType.Builder parentsObjectBuilder = HierarchyParentsDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(objectName);
-
-		if (entitySchema.isWithHierarchy()) {
-			buildingContext.registerFieldToObject(
-				objectName,
-				parentsObjectBuilder,
-				buildSelfParentsOfEntityField(entitySchema)
-			);
-		}
-		referenceSchemas.forEach(referenceSchema ->
-			buildingContext.registerFieldToObject(
-				objectName,
-				parentsObjectBuilder,
-				buildParentsOfEntityField(entitySchema, referenceSchema)
-			)
-		);
-
-		return parentsObjectBuilder.build();
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildSelfParentsOfEntityField(@Nonnull EntitySchemaContract entitySchema) {
-		final GraphQLObjectType parentsOfEntityObject = buildSelfParentsOfEntityObject(entitySchema);
-
-		final GraphQLFieldDefinition parentsField = HierarchyParentsDescriptor.SELF
-			.to(fieldBuilderTransformer)
-			.type(list(nonNull(parentsOfEntityObject)))
-			.build();
-
-		return new BuiltFieldDescriptor(parentsField, null);
-	}
-
-	@Nonnull
-	private GraphQLObjectType buildSelfParentsOfEntityObject(@Nonnull EntitySchemaContract entitySchema) {
-		final String objectName = ParentsOfEntityDescriptor.THIS.name(entitySchema, entitySchema);
-
-		final GraphQLObjectType.Builder parentsOfEntityObjectBuilder = ParentsOfEntityDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(objectName);
-
-		buildingContext.registerFieldToObject(
-			objectName,
-			parentsOfEntityObjectBuilder,
-			buildSelfParentsOfEntityParentEntitiesField(entitySchema)
-		);
-
-		return parentsOfEntityObjectBuilder.build();
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildSelfParentsOfEntityParentEntitiesField(@Nonnull EntitySchemaContract entitySchema) {
-		final GraphQLFieldDefinition parentEntitiesField = ParentsOfEntityDescriptor.PARENT_ENTITIES
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema))))))
-			.build();
-
-		return new BuiltFieldDescriptor(
-			parentEntitiesField,
-			new SingleParentsOfReferenceDataFetcher()
-		);
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityField(@Nonnull EntitySchemaContract entitySchema,
-	                                                       @Nonnull ReferenceSchemaContract referenceSchema) {
-		final GraphQLObjectType parentsOfEntityObject = buildParentsOfEntityObject(entitySchema, referenceSchema);
-
-		final GraphQLFieldDefinition singleParentsField = newFieldDefinition()
-			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.type(list(nonNull(parentsOfEntityObject)))
-			.build();
-
-		return new BuiltFieldDescriptor(singleParentsField, null);
-	}
-
-	@Nonnull
-	private GraphQLObjectType buildParentsOfEntityObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                     @Nonnull ReferenceSchemaContract referenceSchema) {
-		final String objectName = ParentsOfEntityDescriptor.THIS.name(entitySchema, referenceSchema);
-
-		final GraphQLObjectType.Builder parentsOfEntityObjectBuilder = ParentsOfEntityDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(objectName);
-
-		buildingContext.registerFieldToObject(
-			objectName,
-			parentsOfEntityObjectBuilder,
-			buildParentsOfEntityParentEntitiesField(referenceSchema)
-		);
-
-		buildingContext.registerFieldToObject(
-			objectName,
-			parentsOfEntityObjectBuilder,
-			buildParentsOfEntityReferencesField(entitySchema, referenceSchema)
-		);
-
-		return parentsOfEntityObjectBuilder.build();
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityReferencesField(@Nonnull EntitySchemaContract entitySchema,
-	                                                                 @Nonnull ReferenceSchemaContract referenceSchema) {
-		final GraphQLObjectType object = buildParentsOfEntityReferencesObject(entitySchema, referenceSchema);
-
-		final GraphQLFieldDefinition referencesField = ParentsOfEntityDescriptor.REFERENCES
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(object))))
-			.build();
-
-		return new BuiltFieldDescriptor(referencesField, null);
-	}
-
-	@Nonnull
-	private GraphQLObjectType buildParentsOfEntityReferencesObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                               @Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = buildingContext
-			.getSchema()
-			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
-
-		return ParentsOfReferenceDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(ParentsOfReferenceDescriptor.THIS.name(entitySchema, referenceSchema))
-			.field(ParentsOfReferenceDescriptor.PARENT_ENTITIES
-				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(typeRef(referencedEntityObjectName))))))
-			.build();
-	}
-
-	@Nonnull
-	private BuiltFieldDescriptor buildParentsOfEntityParentEntitiesField(@Nonnull ReferenceSchemaContract referenceSchema) {
-		final EntitySchemaContract referencedEntitySchema = buildingContext
-			.getSchema()
-			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
-
-		final GraphQLFieldDefinition parentEntitiesField = ParentsOfEntityDescriptor.PARENT_ENTITIES
-			.to(fieldBuilderTransformer)
-			.type(nonNull(list(nonNull(typeRef(referencedEntityObjectName)))))
-			.build();
-
-		return new BuiltFieldDescriptor(
-			parentEntitiesField,
-			new SingleParentsOfReferenceDataFetcher()
-		);
 	}
 
 	@Nonnull

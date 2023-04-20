@@ -25,21 +25,15 @@ package io.evitadb.externalApi.grpc.builders.query;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaEntityResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
-import io.evitadb.test.Entities;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
@@ -63,17 +57,8 @@ class GrpcExtraResultsBuilderTest {
 				entityFetch(
 					dataInLocales(Locale.US)
 				),
-				hierarchyParentsOfSelf(),
 				attributeHistogram(20, type)
 			)
-		);
-		final HierarchyParents integerHierarchyParents = new HierarchyParents(
-			new ParentsByReference(Map.of(1, Map.of(1, new EntityClassifier[]{
-				new EntityReference(Entities.CATEGORY, 1),
-				new EntityReference(Entities.CATEGORY, 2),
-				new EntityReference(Entities.CATEGORY, 3)
-			}))),
-			Collections.emptyMap()
 		);
 		final Histogram histogram = new Histogram(
 			new Bucket[]{
@@ -85,11 +70,10 @@ class GrpcExtraResultsBuilderTest {
 			},
 			BigDecimal.valueOf(10)
 		);
-		final EvitaEntityResponse response = new EvitaEntityResponse(query, new PaginatedList<>(0, 0, 0), integerHierarchyParents, new AttributeHistogram(Map.of(type, histogram)));
+		final EvitaEntityResponse response = new EvitaEntityResponse(query, new PaginatedList<>(0, 0, 0), new AttributeHistogram(Map.of(type, histogram)));
 		final GrpcExtraResults extraResults = GrpcExtraResultsBuilder.buildExtraResults(response);
 
 		assertFalse(extraResults.hasPriceHistogram());
-		assertTrue(extraResults.getSelfHierarchyParents().getHierarchyParentsByReferenceCount() > 0);
 		assertTrue(extraResults.getAttributeHistogramCount() > 0);
 		assertTrue(extraResults.getHierarchyStatisticsMap().isEmpty());
 		assertTrue(extraResults.getFacetGroupStatisticsList().isEmpty());

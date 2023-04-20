@@ -2636,169 +2636,165 @@ public interface QueryConstraints {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement);
 	}
 
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and target the entity type that is
-	 * requested in the query. Constraint may have also inner require constraints that define how rich returned information
-	 * should be (by default only primary keys are returned, but full entities might be returned as well).
-	 *
-	 * When this require query is used an additional object is stored to result index. This data structure contains
-	 * information about referenced entity paths for each entity in the response.
-	 *
-	 * Example for returning parents of the same type as was queried (e.g. parent categories of filtered category):
-	 *
-	 * ```
-	 * parents()
-	 * ```
-	 *
-	 * Additional data structure by default returns only primary keys of those entities, but it can also provide full parent
-	 * entities when this form of query is used:
-	 *
-	 * ```
-	 * parents()
-	 * parents(entityBody())
-	 * ```
-	 */
 	@Nonnull
-	static HierarchyParentsOfSelf hierarchyParentsOfSelf() {
-		return new HierarchyParentsOfSelf();
-	}
-
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and target the entity type that is
-	 * requested in the query. Constraint may have also inner require constraints that define how rich returned information
-	 * should be (by default only primary keys are returned, but full entities might be returned as well).
-	 *
-	 * When this require query is used an additional object is stored to result index. This data structure contains
-	 * information about referenced entity paths for each entity in the response.
-	 *
-	 * Example for returning parents of the same type as was queried (e.g. parent categories of filtered category):
-	 *
-	 * ```
-	 * parents()
-	 * ```
-	 *
-	 * Additional data structure by default returns only primary keys of those entities, but it can also provide full parent
-	 * entities when this form of query is used:
-	 *
-	 * ```
-	 * parents()
-	 * parents(entityBody())
-	 * ```
-	 */
-	@Nonnull
-	static HierarchyParentsOfSelf hierarchyParentsOfSelf(@Nullable EntityFetch entityRequirement) {
-		if (entityRequirement == null) {
-			return new HierarchyParentsOfSelf();
+	static HierarchyContent hierarchyContent(@Nullable String... hierarchydEntityType) {
+		if (hierarchydEntityType == null) {
+			return new HierarchyContent();
 		}
-		return new HierarchyParentsOfSelf(entityRequirement);
+		return new HierarchyContent(hierarchydEntityType);
 	}
 
-	/**
-	 * This `parentsOfReference` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and can have zero, one or more
-	 * {@link String} arguments that specifies type of
-	 * hierarchical entity that this entity relates to. If argument is omitted, entity type of queried entity is used.
-	 * Constraint may have also inner require constraints that define how rich returned information should be (by default only
-	 * primary keys are returned, but full entities might be returned as well).
-	 *
-	 * When this require query is used an additional object is stored to result index. This data structure contains
-	 * information about referenced entity paths for each entity in the response.
-	 *
-	 * Example for returning parents of the category when entity type `product` is queried:
-	 *
-	 * ```
-	 * parentsOfReference("category")
-	 * parentsOfReference("category","brand")
-	 * ```
-	 *
-	 * Additional data structure by default returns only primary keys of those entities, but it can also provide full parent
-	 * entities when this form of query is used:
-	 *
-	 * ```
-	 * parentsOfReference("category", entityBody())
-	 * parentsOfReference("category", "brand", entityBody())
-	 * ```
-	 */
-	@Nullable
-	static HierarchyParentsOfReference hierarchyParentsOfReference(@Nullable String referenceName) {
-		return referenceName == null ? null : new HierarchyParentsOfReference(referenceName);
-	}
-
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and can zero, one or more
-	 * {@link String} arguments that specifies type of hierarchical entity that this entity relates to.
-	 * If argument is omitted, entity type of queried entity is used.
-	 *
-	 * When this require query is used an additional object is stored to result index. This DTO contains information about
-	 * referenced entity paths for each entity in the response.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * parents()
-	 * parents("category")
-	 * parents("category", "brand")
-	 * ```
-	 */
-	@Nullable
-	static HierarchyParentsOfReference hierarchyParentsOfReference(@Nullable String... referenceName) {
-		if (referenceName == null) {
-			return null;
-		}
-		return new HierarchyParentsOfReference(referenceName);
-	}
-
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and can zero, one or more
-	 * {@link String} arguments that specifies type of hierarchical entity that this entity relates to.
-	 * If argument is omitted, entity type of queried entity is used.
-	 *
-	 * When this require query is used an additional object is stored to result index. This DTO contains information about
-	 * referenced entity paths for each entity in the response.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * parents()
-	 * parents("category")
-	 * parents("category", "brand", entityBody())
-	 * ```
-	 */
+	// TOBEDONE JNO: add docs after docs revision
 	@Nonnull
-	static HierarchyParentsOfReference hierarchyParentsOfReference(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement) {
-		return entityRequirement == null ? new HierarchyParentsOfReference(referenceName) : new HierarchyParentsOfReference(referenceName, entityRequirement);
-	}
-
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and can zero, one or more
-	 * {@link String} arguments that specifies type of hierarchical entity that this entity relates to.
-	 * If argument is omitted, entity type of queried entity is used.
-	 *
-	 * When this require query is used an additional object is stored to result index. This DTO contains information about
-	 * referenced entity paths for each entity in the response.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * parents()
-	 * parents("category")
-	 * parents("category", "brand", entityBody())
-	 * ```
-	 */
-	@Nullable
-	static HierarchyParentsOfReference hierarchyParentsOfReference(@Nullable String[] referenceName, @Nullable EntityFetch entityRequirement) {
-		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
-			return null;
+	static HierarchyContent hierarchyContent(@Nullable String hierarchydEntityType, @Nullable EntityFetch entityRequirement) {
+		if (hierarchydEntityType == null && entityRequirement == null) {
+			return new HierarchyContent();
+		}
+		if (hierarchydEntityType == null) {
+			return new HierarchyContent(entityRequirement);
 		}
 		if (entityRequirement == null) {
-			return new HierarchyParentsOfReference(referenceName);
+			return new HierarchyContent(hierarchydEntityType);
 		}
-		return new HierarchyParentsOfReference(referenceName, entityRequirement);
+		return new HierarchyContent(hierarchydEntityType, entityRequirement);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable String hierarchydEntityType, @Nullable EntityGroupFetch groupEntityRequirement) {
+		if (hierarchydEntityType == null && groupEntityRequirement == null) {
+			return new HierarchyContent();
+		}
+		if (hierarchydEntityType == null) {
+			return new HierarchyContent(groupEntityRequirement);
+		}
+		if (groupEntityRequirement == null) {
+			return new HierarchyContent(hierarchydEntityType);
+		}
+		return new HierarchyContent(hierarchydEntityType, groupEntityRequirement);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable String hierarchydEntityType, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		if (hierarchydEntityType == null) {
+			return new HierarchyContent(entityRequirement, groupEntityRequirement);
+		}
+		return new HierarchyContent(hierarchydEntityType, entityRequirement, groupEntityRequirement);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable String[] hierarchydEntityTypes, @Nullable EntityFetch entityRequirement) {
+		if (hierarchydEntityTypes == null && entityRequirement == null) {
+			return new HierarchyContent();
+		}
+		if (hierarchydEntityTypes == null) {
+			return new HierarchyContent(entityRequirement);
+		}
+		if (entityRequirement == null) {
+			return new HierarchyContent(hierarchydEntityTypes);
+		}
+		return new HierarchyContent(
+			hierarchydEntityTypes,
+			entityRequirement
+		);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable String[] hierarchydEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement) {
+		if (hierarchydEntityTypes == null && groupEntityRequirement == null) {
+			return new HierarchyContent();
+		}
+		if (hierarchydEntityTypes == null) {
+			return new HierarchyContent(groupEntityRequirement);
+		}
+		if (groupEntityRequirement == null) {
+			return new HierarchyContent(hierarchydEntityTypes);
+		}
+		return new HierarchyContent(
+			hierarchydEntityTypes,
+			groupEntityRequirement
+		);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable String[] hierarchydEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		if (hierarchydEntityTypes != null) {
+			return new HierarchyContent(hierarchydEntityTypes, entityRequirement, groupEntityRequirement);
+		} else {
+			return new HierarchyContent(entityRequirement, groupEntityRequirement);
+		}
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nonnull String hierarchyName, @Nullable FilterBy filterBy) {
+		if (filterBy == null) {
+			return new HierarchyContent(hierarchyName);
+		}
+		return new HierarchyContent(hierarchyName, filterBy);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nonnull String hierarchyName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
+		if (filterBy == null) {
+			return hierarchyContent(hierarchyName, entityRequirement);
+		}
+		if (entityRequirement == null) {
+			return new HierarchyContent(hierarchyName, filterBy);
+		}
+		return new HierarchyContent(
+			hierarchyName,
+			filterBy,
+			entityRequirement
+		);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nonnull String hierarchyName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		if (filterBy == null) {
+			return hierarchyContent(hierarchyName, groupEntityRequirement);
+		}
+		if (groupEntityRequirement == null) {
+			return new HierarchyContent(hierarchyName, filterBy);
+		}
+		return new HierarchyContent(
+			hierarchyName,
+			filterBy,
+			groupEntityRequirement
+		);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nonnull String hierarchyName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		if (filterBy == null) {
+			return new HierarchyContent(hierarchyName, entityRequirement, groupEntityRequirement);
+		}
+		return new HierarchyContent(hierarchyName, filterBy, entityRequirement, groupEntityRequirement);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityRequirement) {
+		return hierarchyContent((String) null, entityRequirement);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable EntityGroupFetch groupEntityRequirement) {
+		return hierarchyContent((String) null, groupEntityRequirement);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return new HierarchyContent(entityRequirement, groupEntityRequirement);
 	}
 
 	/**

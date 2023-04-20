@@ -138,6 +138,7 @@ class RegisteredConstraintProvider {
 		PriceType.class,
 		// references
 		ReferenceContent.class,
+		HierarchyContent.class,
 		// hierarchy
 //		HierarchyChildren.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
 		HierarchyDistance.class,
@@ -148,8 +149,6 @@ class RegisteredConstraintProvider {
 		HierarchyOfReference.class,
 		HierarchyOfSelf.class,
 //		HierarchyParents.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
-		HierarchyParentsOfSelf.class,
-		HierarchyParentsOfReference.class,
 //		HierarchySiblings.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
 		HierarchyStatistics.class,
 		HierarchyStopAt.class,

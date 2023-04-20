@@ -65,7 +65,7 @@ public interface HierarchicalPlacementDescriptor {
 			referred by multiple child entities. Hierarchy is always composed of entities of same type.
 			Each entity must be part of at most single hierarchy (tree).
 			Hierarchy can limit returned entities by using filtering constraints `hierarchy_{hierarchy name}_within`. It's also used for
-			computation of extra data - such as `hierarchyParentsOfSelf` or `hierarchyStatisticsOfSelf`.
+			computation of extra data - such as `hierarchyParents` or `hierarchyStatisticsOfSelf`.
 			""")
 		.staticFields(List.of(PARENT_PRIMARY_KEY, ORDER_AMONG_SIBLINGS))
 		.build();

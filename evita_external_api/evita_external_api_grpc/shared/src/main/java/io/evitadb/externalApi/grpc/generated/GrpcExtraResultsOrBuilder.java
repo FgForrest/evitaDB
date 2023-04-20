@@ -128,75 +128,26 @@ public interface GrpcExtraResultsOrBuilder extends
       int index);
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference selfHierarchyParents = 5;</code>
-   * @return Whether the selfHierarchyParents field is set.
-   */
-  boolean hasSelfHierarchyParents();
-  /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference selfHierarchyParents = 5;</code>
-   * @return The selfHierarchyParents.
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference getSelfHierarchyParents();
-  /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference selfHierarchyParents = 5;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReferenceOrBuilder getSelfHierarchyParentsOrBuilder();
-
-  /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference&gt; hierarchyParents = 6;</code>
-   */
-  int getHierarchyParentsCount();
-  /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference&gt; hierarchyParents = 6;</code>
-   */
-  boolean containsHierarchyParents(
-      java.lang.String key);
-  /**
-   * Use {@link #getHierarchyParentsMap()} instead.
-   */
-  @java.lang.Deprecated
-  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference>
-  getHierarchyParents();
-  /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference&gt; hierarchyParents = 6;</code>
-   */
-  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference>
-  getHierarchyParentsMap();
-  /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference&gt; hierarchyParents = 6;</code>
-   */
-
-  io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference getHierarchyParentsOrDefault(
-      java.lang.String key,
-      io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference defaultValue);
-  /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference&gt; hierarchyParents = 6;</code>
-   */
-
-  io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsByReference getHierarchyParentsOrThrow(
-      java.lang.String key);
-
-  /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchyStatistics = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchyStatistics = 5;</code>
    * @return Whether the selfHierarchyStatistics field is set.
    */
   boolean hasSelfHierarchyStatistics();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchyStatistics = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchyStatistics = 5;</code>
    * @return The selfHierarchyStatistics.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getSelfHierarchyStatistics();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchyStatistics = 7;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchyStatistics = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLevelInfosOrBuilder getSelfHierarchyStatisticsOrBuilder();
 
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 8;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
    */
   int getHierarchyStatisticsCount();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 8;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
    */
   boolean containsHierarchyStatistics(
       java.lang.String key);
@@ -207,36 +158,36 @@ public interface GrpcExtraResultsOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
   getHierarchyStatistics();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 8;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
   getHierarchyStatisticsMap();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 8;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyStatisticsOrDefault(
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcLevelInfos defaultValue);
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 8;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyStatisticsOrThrow(
       java.lang.String key);
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
    * @return Whether the queryTelemetry field is set.
    */
   boolean hasQueryTelemetry();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
    * @return The queryTelemetry.
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry getQueryTelemetry();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 7;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder getQueryTelemetryOrBuilder();
 }

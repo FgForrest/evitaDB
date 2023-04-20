@@ -1,3 +1,26 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
@@ -502,6 +525,34 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
+	@Override public T visitAllRefsHierarchyContentConstraint(EvitaQLParser.AllRefsHierarchyContentConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitMultipleRefsHierarchyContentConstraint(EvitaQLParser.MultipleRefsHierarchyContentConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitSingleRefHierarchyContentConstraint(EvitaQLParser.SingleRefHierarchyContentConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitSingleRefWithFilterHierarchyContentConstraint(EvitaQLParser.SingleRefWithFilterHierarchyContentConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
 	@Override public T visitPriceTypeConstraint(EvitaQLParser.PriceTypeConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
@@ -510,20 +561,6 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitDataInLocalesConstraint(EvitaQLParser.DataInLocalesConstraintContext ctx) { return visitChildren(ctx); }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation returns the result of calling
-	 * {@link #visitChildren} on {@code ctx}.</p>
-	 */
-	@Override public T visitHierarchyParentsOfSelfConstraint(EvitaQLParser.HierarchyParentsOfSelfConstraintContext ctx) { return visitChildren(ctx); }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation returns the result of calling
-	 * {@link #visitChildren} on {@code ctx}.</p>
-	 */
-	@Override public T visitHierarchyParentsOfReferenceConstraint(EvitaQLParser.HierarchyParentsOfReferenceConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -853,6 +890,34 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitAllRefsReferenceContentArgs(EvitaQLParser.AllRefsReferenceContentArgsContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitSingleRefHierarchyContentArgs(EvitaQLParser.SingleRefHierarchyContentArgsContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitSingleRefWithFilterHierarchyContentArgs(EvitaQLParser.SingleRefWithFilterHierarchyContentArgsContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitMultipleRefsHierarchyContentArgs(EvitaQLParser.MultipleRefsHierarchyContentArgsContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitAllRefsHierarchyContentArgs(EvitaQLParser.AllRefsHierarchyContentArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *

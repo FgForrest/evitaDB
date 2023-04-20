@@ -102,11 +102,6 @@ public class GrpcArtificialEntitiesThroughputBenchmark extends GrpcArtificialEnt
 	}
 
 	@Override
-	public void parentsComputation(GrpcArtificialHierarchyBenchmarkState benchmarkState, GrpcArtificialParentsComputationState state, Blackhole blackhole) {
-		super.parentsComputation(benchmarkState, state, blackhole);
-	}
-
-	@Override
 	public void hierarchyStatisticsComputation(GrpcArtificialHierarchyBenchmarkState benchmarkState, GrpcArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(benchmarkState, state, blackhole);
 	}

@@ -504,35 +504,6 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyParentsOfSelfConstraint(@Nonnull EvitaQLParser.HierarchyParentsOfSelfConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				if (ctx.args == null) {
-					return new HierarchyParentsOfSelf();
-				}
-				return new HierarchyParentsOfSelf(visitInnerEntityFetch(ctx.args.requirement));
-			}
-		);
-	}
-
-	@Override
-	public RequireConstraint visitHierarchyParentsOfReferenceConstraint(@Nonnull EvitaQLParser.HierarchyParentsOfReferenceConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> {
-				final String[] classifiers = ctx.args.classifiers
-					.accept(classifierTokenVisitor)
-					.asClassifierArray();
-				if (ctx.args.requirement == null) {
-					return new HierarchyParentsOfReference(classifiers);
-				}
-				return new HierarchyParentsOfReference(classifiers, visitInnerEntityFetch(ctx.args.requirement));
-			}
-		);
-	}
-
-	@Override
 	public RequireConstraint visitFacetSummaryConstraint(@Nonnull EvitaQLParser.FacetSummaryConstraintContext ctx) {
 		return parse(
 			ctx,

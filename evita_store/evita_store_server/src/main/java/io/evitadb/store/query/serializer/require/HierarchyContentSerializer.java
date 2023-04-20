@@ -27,37 +27,48 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.HierarchyParentsOfReference;
+import io.evitadb.api.query.require.HierarchyContent;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link HierarchyParentsOfReference} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link HierarchyContent} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class HierarchyParentsOfReferenceSerializer extends Serializer<HierarchyParentsOfReference> {
+public class HierarchyContentSerializer extends Serializer<HierarchyContent> {
 
 	@Override
-	public void write(Kryo kryo, Output output, HierarchyParentsOfReference object) {
-		final String[] entityTypes = object.getReferenceNames();
-		output.writeVarInt(entityTypes.length, true);
-		for (String entityType : entityTypes) {
-			output.writeString(entityType);
+	public void write(Kryo kryo, Output output, HierarchyContent object) {
+		final String[] hierarchydEntityType = object.getReferencedEntityTypes();
+		output.writeVarInt(hierarchydEntityType.length, true);
+		for (String refEntityType : hierarchydEntityType) {
+			output.writeString(refEntityType);
 		}
 
 		kryo.writeClassAndObject(output, object.getEntityRequirement());
+
+		kryo.writeClassAndObject(output, object.getFilterBy());
 	}
 
 	@Override
-	public HierarchyParentsOfReference read(Kryo kryo, Input input, Class<? extends HierarchyParentsOfReference> type) {
-		final int entityTypeCount = input.readVarInt(true);
-		final String[] entityTypes = new String[entityTypeCount];
-		for (int i = 0; i < entityTypeCount; i++) {
-			entityTypes[i] = input.readString();
+	public HierarchyContent read(Kryo kryo, Input input, Class<? extends HierarchyContent> type) {
+		final int hierarchydEntityTypeCount = input.readVarInt(true);
+		final String[] hierarchydEntityTypes = new String[hierarchydEntityTypeCount];
+		for (int i = 0; i < hierarchydEntityTypeCount; i++) {
+			hierarchydEntityTypes[i] = input.readString();
 		}
-		return new HierarchyParentsOfReference(entityTypes, (EntityFetch) kryo.readClassAndObject(input));
+
+		final EntityFetch entityFetch = (EntityFetch) kryo.readClassAndObject(input);
+
+		final FilterBy filter = (FilterBy) kryo.readClassAndObject(input);
+
+		if (filter == null) {
+			return new HierarchyContent(hierarchydEntityTypes, entityFetch);
+		}
+		return new HierarchyContent(hierarchydEntityTypes[0], filter, entityFetch);
 	}
 
 }

@@ -24,8 +24,8 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.HierarchyOfSelf;
-import io.evitadb.api.query.require.HierarchyParentsOfSelf;
 import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -41,7 +41,7 @@ import static java.util.Optional.ofNullable;
  * referred by multiple child entities. Hierarchy is always composed of entities of same type.
  * Each entity must be part of at most single hierarchy (tree).
  * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
- * computation of extra data - such as {@link HierarchyParentsOfSelf}. It can also invert type of returned entities in case requirement
+ * computation of extra data - such as {@link HierarchyContent}. It can also invert type of returned entities in case requirement
  * {@link HierarchyOfSelf} is used.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

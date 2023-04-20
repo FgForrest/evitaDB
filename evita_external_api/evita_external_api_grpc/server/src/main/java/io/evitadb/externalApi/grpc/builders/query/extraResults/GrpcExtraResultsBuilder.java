@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -69,8 +68,6 @@ public class GrpcExtraResultsBuilder {
 				extraResults.setPriceHistogram(GrpcHistogramBuilder.buildPriceHistogram(erHistogram));
 			} else if (extraResult instanceof FacetSummary erFacetSummary) {
 				GrpcFacetSummaryBuilder.buildFacetSummary(extraResults, erFacetSummary);
-			} else if (extraResult instanceof HierarchyParents erHierarchyParents) {
-				GrpcHierarchyParentsBuilder.buildParents(extraResults, erHierarchyParents);
 			} else if (extraResult instanceof HierarchyStatistics erHierarchyStatistics) {
 				GrpcHierarchyStatisticsBuilder.buildHierarchyStatistics(extraResults, erHierarchyStatistics);
 			} else if (extraResult instanceof QueryTelemetry erQueryTelemetry) {

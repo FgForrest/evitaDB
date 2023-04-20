@@ -116,11 +116,6 @@ public class KeramikaSoukupLatencyBenchmark extends KeramikaSoukupBenchmark {
 	}
 
 	@Override
-	public void parentsComputation(KeramikaSoukupParentsComputationState state, Blackhole blackhole) {
-		super.parentsComputation(state, blackhole);
-	}
-
-	@Override
 	public void hierarchyStatisticsComputation(KeramikaSoukupHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(state, blackhole);
 	}

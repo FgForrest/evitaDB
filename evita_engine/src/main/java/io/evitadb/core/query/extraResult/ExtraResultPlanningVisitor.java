@@ -66,8 +66,7 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.Hierarch
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchySiblingsTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.AttributeHistogramTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.PriceHistogramTranslator;
-import io.evitadb.core.query.extraResult.translator.parents.HierarchyParentsOfReferenceTranslator;
-import io.evitadb.core.query.extraResult.translator.parents.HierarchyParentsOfSelfTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.HierarchyContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.DeferredSorter;
@@ -109,8 +108,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(Require.class, new RequireTranslator());
 		TRANSLATORS.put(FacetSummary.class, new FacetSummaryTranslator());
 		TRANSLATORS.put(FacetSummaryOfReference.class, new FacetSummaryOfReferenceTranslator());
-		TRANSLATORS.put(HierarchyParentsOfSelf.class, new HierarchyParentsOfSelfTranslator());
-		TRANSLATORS.put(HierarchyParentsOfReference.class, new HierarchyParentsOfReferenceTranslator());
 		TRANSLATORS.put(AttributeHistogram.class, new AttributeHistogramTranslator());
 		TRANSLATORS.put(PriceHistogram.class, new PriceHistogramTranslator());
 		TRANSLATORS.put(HierarchyOfSelf.class, new HierarchyOfSelfTranslator());
@@ -120,6 +117,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(HierarchyParents.class, new HierarchyParentsTranslator());
 		TRANSLATORS.put(HierarchyChildren.class, new HierarchyChildrenTranslator());
 		TRANSLATORS.put(HierarchySiblings.class, new HierarchySiblingsTranslator());
+		TRANSLATORS.put(HierarchyContent.class, new HierarchyContentTranslator());
 		TRANSLATORS.put(ReferenceContent.class, new ReferenceContentTranslator());
 	}
 

@@ -1,3 +1,26 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
@@ -846,6 +869,54 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterAllRefsHierarchyContentConstraint(EvitaQLParser.AllRefsHierarchyContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAllRefsHierarchyContentConstraint(EvitaQLParser.AllRefsHierarchyContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterMultipleRefsHierarchyContentConstraint(EvitaQLParser.MultipleRefsHierarchyContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitMultipleRefsHierarchyContentConstraint(EvitaQLParser.MultipleRefsHierarchyContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSingleRefHierarchyContentConstraint(EvitaQLParser.SingleRefHierarchyContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSingleRefHierarchyContentConstraint(EvitaQLParser.SingleRefHierarchyContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSingleRefWithFilterHierarchyContentConstraint(EvitaQLParser.SingleRefWithFilterHierarchyContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSingleRefWithFilterHierarchyContentConstraint(EvitaQLParser.SingleRefWithFilterHierarchyContentConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterPriceTypeConstraint(EvitaQLParser.PriceTypeConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -865,30 +936,6 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitDataInLocalesConstraint(EvitaQLParser.DataInLocalesConstraintContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterHierarchyParentsOfSelfConstraint(EvitaQLParser.HierarchyParentsOfSelfConstraintContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitHierarchyParentsOfSelfConstraint(EvitaQLParser.HierarchyParentsOfSelfConstraintContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterHierarchyParentsOfReferenceConstraint(EvitaQLParser.HierarchyParentsOfReferenceConstraintContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitHierarchyParentsOfReferenceConstraint(EvitaQLParser.HierarchyParentsOfReferenceConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1453,6 +1500,54 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitAllRefsReferenceContentArgs(EvitaQLParser.AllRefsReferenceContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSingleRefHierarchyContentArgs(EvitaQLParser.SingleRefHierarchyContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSingleRefHierarchyContentArgs(EvitaQLParser.SingleRefHierarchyContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterSingleRefWithFilterHierarchyContentArgs(EvitaQLParser.SingleRefWithFilterHierarchyContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitSingleRefWithFilterHierarchyContentArgs(EvitaQLParser.SingleRefWithFilterHierarchyContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterMultipleRefsHierarchyContentArgs(EvitaQLParser.MultipleRefsHierarchyContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitMultipleRefsHierarchyContentArgs(EvitaQLParser.MultipleRefsHierarchyContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAllRefsHierarchyContentArgs(EvitaQLParser.AllRefsHierarchyContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAllRefsHierarchyContentArgs(EvitaQLParser.AllRefsHierarchyContentArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

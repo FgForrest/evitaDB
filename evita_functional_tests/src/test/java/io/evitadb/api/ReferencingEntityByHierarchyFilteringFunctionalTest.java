@@ -30,13 +30,10 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -80,9 +77,7 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
@@ -644,157 +639,6 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					},
 					result.getRecordData()
 				);
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return category parents for returned products when only primary keys are returned")
-	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
-	void shouldReturnCategoryParentsForReturnedProductsWhenOnlyPrimaryKeysAreReturned(Evita evita, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 94)),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							hierarchyParentsOfReference(Entities.CATEGORY)
-						)
-					),
-					EntityReference.class
-				);
-
-				assertFalse(result.getRecordData().isEmpty());
-
-				final HierarchyParents hierarchyParents = result.getExtraResult(HierarchyParents.class);
-				assertNotNull(hierarchyParents, "No parents DTO was returned!");
-				final ParentsByReference categoryParents = hierarchyParents.ofType(Entities.CATEGORY);
-
-				final Map<Integer, SealedEntity> originalProductIndex = originalProductEntities.stream()
-					.collect(
-						Collectors.toMap(
-							EntityContract::getPrimaryKey,
-							Function.identity()
-						)
-					);
-
-				for (EntityReference entity : result.getRecordData()) {
-					final SealedEntity originalEntity = originalProductIndex.get(entity.getPrimaryKey());
-					final Collection<ReferenceContract> references = originalEntity.getReferences(Entities.CATEGORY);
-					assertFalse(references.isEmpty());
-					references.forEach(relatedCategory -> {
-						final int referencedCategoryId = relatedCategory.getReferenceKey().primaryKey();
-						final Integer[] relatedParentIds = Arrays.stream(categoryParents.getParentsFor(entity.getPrimaryKey(), referencedCategoryId))
-							.map(it -> it.getPrimaryKey())
-							.toArray(Integer[]::new);
-						assertArrayEquals(
-							getParentIds(categoryHierarchy, referencedCategoryId),
-							relatedParentIds
-						);
-					});
-				}
-
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return category parents for returned products")
-	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
-	void shouldReturnCategoryParentsForReturnedProducts(Evita evita, Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<SealedEntity> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 94)),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							entityFetch(
-								referenceContent(Entities.CATEGORY)
-							),
-							hierarchyParentsOfReference(Entities.CATEGORY)
-						)
-					),
-					SealedEntity.class
-				);
-
-				assertFalse(result.getRecordData().isEmpty());
-
-				final HierarchyParents hierarchyParents = result.getExtraResult(HierarchyParents.class);
-				assertNotNull(hierarchyParents, "No parents DTO was returned!");
-				final ParentsByReference categoryParents = hierarchyParents.ofType(Entities.CATEGORY);
-
-				for (SealedEntity entity : result.getRecordData()) {
-					final Collection<ReferenceContract> references = entity.getReferences(Entities.CATEGORY);
-					assertFalse(references.isEmpty());
-					references.forEach(relatedCategory -> {
-						final int referencedCategoryId = relatedCategory.getReferenceKey().primaryKey();
-						final Integer[] relatedParentIds = Arrays.stream(categoryParents.getParentsFor(entity.getPrimaryKey(), referencedCategoryId))
-							.map(it -> it.getPrimaryKey())
-							.toArray(Integer[]::new);
-						final Integer[] parentIds = getParentIds(categoryHierarchy, referencedCategoryId);
-						assertArrayEquals(parentIds, relatedParentIds);
-					});
-				}
-
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return category parent bodies for returned products")
-	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
-	void shouldReturnCategoryParentBodiesForReturnedProducts(Evita evita, Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<SealedEntity> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 94)),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							entityFetch(
-								referenceContent(Entities.CATEGORY)
-							),
-							hierarchyParentsOfReference(Entities.CATEGORY, entityFetch())
-						)
-					),
-					SealedEntity.class
-				);
-
-				assertFalse(result.getRecordData().isEmpty());
-
-				final HierarchyParents hierarchyParents = result.getExtraResult(HierarchyParents.class);
-				assertNotNull(hierarchyParents, "No parents DTO was returned!");
-				final ParentsByReference categoryParents = hierarchyParents.ofType(Entities.CATEGORY);
-
-				// all results should start with same parents when we query by hierarchy
-				for (SealedEntity entity : result.getRecordData()) {
-					final Collection<ReferenceContract> references = entity.getReferences(Entities.CATEGORY);
-					assertFalse(references.isEmpty());
-					references.forEach(relatedCategory -> {
-						final int referencedCategoryId = relatedCategory.getReferenceKey().primaryKey();
-						final EntityClassifier[] relatedParents = categoryParents.getParentsFor(entity.getPrimaryKey(), referencedCategoryId);
-						final Integer[] relatedParentIds = Arrays.stream(relatedParents).map(EntityClassifier::getPrimaryKey).toArray(Integer[]::new);
-						assertArrayEquals(
-							getParentIds(categoryHierarchy, referencedCategoryId),
-							relatedParentIds
-						);
-					});
-				}
-
 				return null;
 			}
 		);

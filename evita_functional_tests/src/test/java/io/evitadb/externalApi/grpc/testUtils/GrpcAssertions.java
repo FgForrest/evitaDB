@@ -39,7 +39,6 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -329,39 +328,6 @@ public class GrpcAssertions {
 			final LevelInfo expectedGrandChild = expectedChild.childrenStatistics().get(i);
 			final GrpcLevelInfo actualChildrenStatisticsList = actualChild.getChildrenStatistics(i);
 			assertInnerStatistics(expectedGrandChild, actualChildrenStatisticsList);
-		}
-	}
-
-	public static <T extends Serializable> void assertParents(@Nullable ParentsByReference expectedParents, @Nullable GrpcHierarchyParentsByReference actualParents) {
-		assertNotNull(expectedParents);
-		assertNotNull(actualParents);
-
-		for (Entry<Integer, Map<Integer, EntityClassifier[]>> parentEntitiesEntry : expectedParents.getParents().entrySet()) {
-			final GrpcHierarchyParentEntities parentEntities = actualParents.getHierarchyParentsByReferenceMap().get(parentEntitiesEntry.getKey());
-			assertNotNull(parentEntities);
-			for (Entry<Integer, EntityClassifier[]> parentEntity : parentEntitiesEntry.getValue().entrySet()) {
-				final GrpcHierarchyParentEntity actualEntity = parentEntities.getHierarchyParentEntitiesMap().get(parentEntity.getKey());
-				assertNotNull(actualEntity);
-				for (int i = 0; i < parentEntity.getValue().length; i++) {
-					final EntityClassifier expectedParent = parentEntity.getValue()[i];
-					assertNotNull(expectedParent);
-					if (expectedParent instanceof SealedEntity sealedEntity) {
-						final GrpcSealedEntity actualParent = actualEntity.getEntitiesList().get(i);
-						assertEquals(sealedEntity.getPrimaryKey(), actualParent.getPrimaryKey());
-						assertEquals(sealedEntity.getType(), actualParent.getEntityType());
-						assertEquals(sealedEntity.getAssociatedDataNames().size(), getAssociatedDataCount(actualParent));
-						assertEquals(sealedEntity.getAttributeNames().size(), getAttributeCount(actualParent.getLocalizedAttributesMap(), actualParent.getGlobalAttributesMap()));
-						assertEquals(sealedEntity.getReferences().size(), actualParent.getReferencesCount());
-						assertEquals(sealedEntity.getPrices().size(), actualParent.getPricesCount());
-					} else if (expectedParent instanceof EntityReference entityReference) {
-						final GrpcEntityReference actualParent = actualEntity.getEntityReferencesList().get(i);
-						assertEquals(entityReference.getPrimaryKey(), actualParent.getPrimaryKey());
-						assertEquals(entityReference.getType(), actualParent.getEntityType());
-					} else {
-						fail("Unsupported entity type");
-					}
-				}
-			}
 		}
 	}
 
