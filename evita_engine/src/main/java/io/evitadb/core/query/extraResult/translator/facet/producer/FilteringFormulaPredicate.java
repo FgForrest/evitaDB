@@ -81,20 +81,22 @@ public class FilteringFormulaPredicate implements IntPredicate {
 
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			final GlobalEntityIndex entityIndex = queryContext.getGlobalEntityIndex(entityType);
-			final Formula theFormula = theFilterByVisitor.executeInContext(
-				Collections.singletonList(entityIndex),
-				null,
-				entityIndex.getEntitySchema(),
-				null,
-				null,
-				null,
-				new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
-				AttributesContract::getAttribute,
-				() -> {
-					filterBy.accept(theFilterByVisitor);
-					// get the result and clear the visitor internal structures
-					return theFilterByVisitor.getFormulaAndClear();
-				}
+			final Formula theFormula = queryContext.analyse(
+				theFilterByVisitor.executeInContext(
+					Collections.singletonList(entityIndex),
+					null,
+					entityIndex.getEntitySchema(),
+					null,
+					null,
+					null,
+					new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
+					AttributesContract::getAttribute,
+					() -> {
+						filterBy.accept(theFilterByVisitor);
+						// get the result and clear the visitor internal structures
+						return theFilterByVisitor.getFormulaAndClear();
+					}
+				)
 			);
 			// create a deferred formula that will log the execution time to query telemetry
 			this.filteringFormula = new DeferredFormula(

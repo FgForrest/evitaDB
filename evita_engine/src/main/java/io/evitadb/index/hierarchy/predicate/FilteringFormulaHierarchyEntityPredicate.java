@@ -76,7 +76,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		@Nonnull FilterBy filterBy,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nullable ReferenceSchemaContract referenceSchema
-		) {
+	) {
 		this.filterBy = filterBy;
 		try {
 			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
@@ -93,22 +93,24 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 				false
 			);
 			// now analyze the filter by in a nested context with exchanged primary entity index
-			final Formula theFormula = theFilterByVisitor.executeInContext(
-				Collections.singletonList(entityIndex),
-				null,
-				entityIndex.getEntitySchema(),
-				referenceSchema,
-				null,
-				null,
-				ofNullable(referenceSchema)
-					.map(it -> attributeSchemaAccessor.withReferenceSchemaAccessor(it.getName()))
-					.orElse(attributeSchemaAccessor),
-				AttributesContract::getAttribute,
-				() -> {
-					filterBy.accept(theFilterByVisitor);
-					// get the result and clear the visitor internal structures
-					return theFilterByVisitor.getFormulaAndClear();
-				}
+			final Formula theFormula = queryContext.analyse(
+				theFilterByVisitor.executeInContext(
+					Collections.singletonList(entityIndex),
+					null,
+					entityIndex.getEntitySchema(),
+					referenceSchema,
+					null,
+					null,
+					ofNullable(referenceSchema)
+						.map(it -> attributeSchemaAccessor.withReferenceSchemaAccessor(it.getName()))
+						.orElse(attributeSchemaAccessor),
+					AttributesContract::getAttribute,
+					() -> {
+						filterBy.accept(theFilterByVisitor);
+						// get the result and clear the visitor internal structures
+						return theFilterByVisitor.getFormulaAndClear();
+					}
+				)
 			);
 			// create a deferred formula that will log the execution time to query telemetry
 			this.filteringFormula = new DeferredFormula(

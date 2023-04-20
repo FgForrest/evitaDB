@@ -111,8 +111,6 @@ import static java.util.Optional.ofNullable;
  * Visitor represents the "planning" phase for the filtering resolution. The planning should be as light-weight as
  * possible.
  *
- * TODO JNO - Projít použití a integrovat cache
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class FilterByVisitor implements ConstraintVisitor {

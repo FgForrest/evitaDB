@@ -74,7 +74,7 @@ public abstract class AbstractHierarchyTranslator {
 	@Nonnull
 	protected static HierarchyStatisticsProducer getHierarchyStatisticsProducer(
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
-		) {
+	) {
 		return ofNullable(extraResultPlanner.findExistingProducer(HierarchyStatisticsProducer.class))
 			.orElseGet(
 				() -> new HierarchyStatisticsProducer(
@@ -114,66 +114,6 @@ public abstract class AbstractHierarchyTranslator {
 	}
 
 	/**
-	 * Method creates formula that is responsible for computing the queried entity count for
-	 * {@link HierarchyStatisticsProducer}.
-	 */
-	@Nonnull
-	protected Formula createFilterFormula(
-		@Nonnull QueryContext queryContext,
-		@Nonnull FilterBy filterBy,
-		@Nonnull EntityIndex entityIndex,
-		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
-		) {
-		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
-				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
-			queryContext.pushStep(
-				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
-				stepDescriptionSupplier
-			);
-			// crete a visitor
-			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
-				queryContext,
-				Collections.emptyList(),
-				TargetIndexes.EMPTY,
-				false
-			);
-			// now analyze the filter by in a nested context with exchanged primary entity index
-			final Formula theFormula = theFilterByVisitor.executeInContext(
-				Collections.singletonList(entityIndex),
-				null,
-				entityIndex.getEntitySchema(),
-				null,
-				null,
-				null,
-				attributeSchemaAccessor,
-				AttributesContract::getAttribute,
-				() -> {
-					filterBy.accept(theFilterByVisitor);
-					// get the result and clear the visitor internal structures
-					return theFilterByVisitor.getFormulaAndClear();
-				}
-			);
-			// create a deferred formula that will log the execution time to query telemetry
-			return new DeferredFormula(
-				new FormulaWrapper(
-					theFormula,
-					formula -> {
-						try {
-							queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-							return formula.compute();
-						} finally {
-							queryContext.popStep();
-						}
-					}
-				)
-			);
-		} finally {
-			queryContext.popStep();
-		}
-	}
-
-	/**
 	 * Method creates an implementation of {@link HierarchyEntityFetcher} that fabricates the proper instance of
 	 * {@link EntityClassifier} according to the {@link EntityFetch} requirement. It fabricates either:
 	 *
@@ -193,6 +133,68 @@ public abstract class AbstractHierarchyTranslator {
 			ofNullable(context.prefetchRequirementCollector())
 				.ifPresent(it -> it.addRequirementToPrefetch(entityFetch.getRequirements()));
 			return entityPk -> context.queryContext().fetchEntity(hierarchicalEntityType, entityPk, entityFetch).orElse(null);
+		}
+	}
+
+	/**
+	 * Method creates formula that is responsible for computing the queried entity count for
+	 * {@link HierarchyStatisticsProducer}.
+	 */
+	@Nonnull
+	protected Formula createFilterFormula(
+		@Nonnull QueryContext queryContext,
+		@Nonnull FilterBy filterBy,
+		@Nonnull EntityIndex entityIndex,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
+	) {
+		try {
+			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + entityIndex.getEntitySchema().getName() + "`: " +
+				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
+			queryContext.pushStep(
+				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
+				stepDescriptionSupplier
+			);
+			// crete a visitor
+			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
+				queryContext,
+				Collections.emptyList(),
+				TargetIndexes.EMPTY,
+				false
+			);
+			// now analyze the filter by in a nested context with exchanged primary entity index
+			final Formula theFormula = queryContext.analyse(
+				theFilterByVisitor.executeInContext(
+					Collections.singletonList(entityIndex),
+					null,
+					entityIndex.getEntitySchema(),
+					null,
+					null,
+					null,
+					attributeSchemaAccessor,
+					AttributesContract::getAttribute,
+					() -> {
+						filterBy.accept(theFilterByVisitor);
+						// get the result and clear the visitor internal structures
+						return theFilterByVisitor.getFormulaAndClear();
+					}
+				)
+			);
+			// create a deferred formula that will log the execution time to query telemetry
+			return new DeferredFormula(
+				new FormulaWrapper(
+					theFormula,
+					formula -> {
+						try {
+							queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+							return formula.compute();
+						} finally {
+							queryContext.popStep();
+						}
+					}
+				)
+			);
+		} finally {
+			queryContext.popStep();
 		}
 	}
 
