@@ -147,36 +147,31 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 	/**
 	 * Builds API schema equivalent to constraint tree starting with {@link #getDefaultRootConstraintContainerDescriptor()}
-	 * as virtual root constraint.
+	 * as root in specified context.
 	 *
 	 * @param rootDataLocator defines data context for the root constraint container, ultimately defining which constraints
 	 *                        will be available from root
 	 */
 	@Nonnull
 	public SIMPLE_TYPE build(@Nonnull DataLocator rootDataLocator) {
-		// find root container
 		final ConstraintDescriptor rootDescriptor = getDefaultRootConstraintContainerDescriptor();
-
-		// build root container which will serve as root for all other constraints
-		return build(
-			rootDataLocator,
-			rootDescriptor.creator()
-				.childParameter()
-				.orElseThrow(() -> createSchemaBuildingError("Root descriptor is missing direct child parameter."))
-		);
+		return build(rootDataLocator, rootDescriptor);
 	}
 
 	/**
-	 * Builds API schema equivalent to constraint tree starting with {@link #getDefaultRootConstraintContainerDescriptor()}
-	 * as virtual root constraint.
+	 * Builds API schema equivalent to constraint tree starting with the specified constraint as root in specified context.
 	 *
 	 * @param rootDataLocator defines data context for the root constraint container, ultimately defining which constraints
 	 *                        will be available from root
+	 * @param constraintDescriptor root constraint to build the tree from
 	 */
 	@Nonnull
-	public SIMPLE_TYPE build(@Nonnull DataLocator rootDataLocator, @Nonnull ChildParameterDescriptor childParameter) {
-		// build root container which will serve as root for all other constraints
-		return obtainContainer(new ConstraintBuildContext(rootDataLocator), childParameter);
+	public SIMPLE_TYPE build(@Nonnull DataLocator rootDataLocator, @Nonnull ConstraintDescriptor constraintDescriptor) {
+		return buildConstraintValue(
+			new ConstraintBuildContext(rootDataLocator),
+			constraintDescriptor,
+			null
+		);
 	}
 
 
@@ -819,17 +814,13 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		// Because we don't have direct access to descriptor of additional child constraint, we assume that additional
 		// child parameter has some generic constraint with single creator with single child parameter only
 		//noinspection unchecked
-		final ConstraintDescriptor additionalChildConstraintDescriptor = ConstraintDescriptorProvider.getConstraints(
+		final ConstraintDescriptor additionalChildConstraintDescriptor = ConstraintDescriptorProvider.getConstraint(
 			(Class<? extends Constraint<?>>) additionalChildParameter.type()
-		)
-			.iterator()
-			.next();
+		);
 
 		return additionalBuilder.get().build(
 			resolveChildDataLocator(buildContext, additionalChildParameter.domain()),
-			additionalChildConstraintDescriptor.creator()
-				.childParameter()
-				.orElseThrow(() -> createSchemaBuildingError("Constraint `" + additionalChildConstraintDescriptor.fullName() + "` doesn't have child parameter to use as additional child."))
+			additionalChildConstraintDescriptor
 		);
 	}
 

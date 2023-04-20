@@ -93,18 +93,7 @@ public class OrderConstraintResolver extends RestConstraintResolver<OrderConstra
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new OpenApiBuildingError("Could not find `orderBy` order query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new OpenApiBuildingError(
-				"There multiple variants of `orderBy` order query, cannot decide which to choose."
-			)
-		);
-		return descriptors.iterator().next();
+		return ConstraintDescriptorProvider.getConstraint(OrderBy.class);
 	}
 
 	@Override

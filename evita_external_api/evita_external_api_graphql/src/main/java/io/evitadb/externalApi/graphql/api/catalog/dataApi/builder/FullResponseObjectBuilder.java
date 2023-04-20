@@ -30,6 +30,7 @@ import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.PropertyDataFetcher;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
+import io.evitadb.api.query.require.HierarchyStatistics;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -691,14 +692,10 @@ public class FullResponseObjectBuilder {
 		final GraphQLObjectType selfParentInfoObject = buildSelfParentInfoObject(entitySchema);
 
 		// todo lho just a prototype
-		final GraphQLInputType stopAt = new RequireConstraintSchemaBuilder(constraintContext, new AtomicReference<>(filterConstraintSchemaBuilder)).build(
+		final RequireConstraintSchemaBuilder requireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(constraintContext, new AtomicReference<>(filterConstraintSchemaBuilder));
+		final GraphQLInputType stopAt = requireConstraintSchemaBuilder.build(
 			new HierarchyDataLocator(entitySchema.getName(), null),
-			ConstraintDescriptorProvider.getConstraints(HierarchyStopAt.class)
-				.iterator()
-				.next()
-				.creator()
-				.childParameter()
-				.orElseThrow()
+			ConstraintDescriptorProvider.getConstraint(HierarchyStopAt.class)
 		);
 
 		return HierarchyOfSelfDescriptor.THIS
@@ -800,12 +797,7 @@ public class FullResponseObjectBuilder {
 		// todo lho just a prototype
 		final GraphQLInputType stopAt = new RequireConstraintSchemaBuilder(constraintContext, new AtomicReference<>(filterConstraintSchemaBuilder)).build(
 			new HierarchyDataLocator(entitySchema.getName(), referenceSchema.getName()),
-			ConstraintDescriptorProvider.getConstraints(HierarchyStopAt.class)
-				.iterator()
-				.next()
-				.creator()
-				.childParameter()
-				.orElseThrow()
+			ConstraintDescriptorProvider.getConstraint(HierarchyStopAt.class)
 		);
 
 		return HierarchyOfSelfDescriptor.THIS

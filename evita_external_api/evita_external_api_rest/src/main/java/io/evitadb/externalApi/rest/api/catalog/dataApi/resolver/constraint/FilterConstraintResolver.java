@@ -61,19 +61,7 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 			restHandlingContext,
 			createHashMap(0) // currently, we don't support any filter constraint with additional children
 		);
-
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(And.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new RestQueryResolvingInternalError("Could not find `and` filter constraint for wrapper container.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new RestQueryResolvingInternalError(
-				"There multiple variants of `and` filter constraint, cannot decide which to choose for wrapper container."
-			)
-		);
-		wrapperContainer = descriptors.iterator().next();
+		wrapperContainer = ConstraintDescriptorProvider.getConstraint(And.class);
 	}
 
 	@Nullable
@@ -99,15 +87,6 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new OpenApiBuildingError("Could not find `filterBy` filter query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new OpenApiBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
-		);
-		return descriptors.iterator().next();
+		return ConstraintDescriptorProvider.getConstraint(FilterBy.class);
 	}
 }

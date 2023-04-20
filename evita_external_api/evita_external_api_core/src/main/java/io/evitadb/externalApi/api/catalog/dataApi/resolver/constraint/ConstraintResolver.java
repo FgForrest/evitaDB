@@ -693,11 +693,9 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		// because we don't have direct access to descriptor of additional child constraint, we assume that additional
 		// child parameter has some generic constraint with single creator with single direct child parameter only
 		//noinspection unchecked
-		final ConstraintDescriptor additionalChildRootDescriptor = ConstraintDescriptorProvider.getConstraints(
+		final ConstraintDescriptor additionalChildRootDescriptor = ConstraintDescriptorProvider.getConstraint(
 			(Class<? extends Constraint<?>>) parameterDescriptor.type()
-		)
-			.iterator()
-			.next();
+		);
 		final String additionalChildRootKey = keyBuilder.build(additionalChildRootDescriptor, null);
 
 		return resolver.get().resolve(new ConstraintResolveContext(resolveContext.dataLocator()), additionalChildRootKey, argument);

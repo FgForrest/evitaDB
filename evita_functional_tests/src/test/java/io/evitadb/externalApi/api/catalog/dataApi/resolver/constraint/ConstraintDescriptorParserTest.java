@@ -102,7 +102,7 @@ public class ConstraintDescriptorParserTest {
 				ConstraintPropertyType.ATTRIBUTE,
 				"code",
 				"equals",
-				ConstraintDescriptorProvider.getConstraints(AttributeEquals.class).iterator().next(),
+				ConstraintDescriptorProvider.getConstraint(AttributeEquals.class),
 				new EntityDataLocator(Entities.PRODUCT)
 			)
 		);
@@ -118,7 +118,7 @@ public class ConstraintDescriptorParserTest {
 				ConstraintPropertyType.ENTITY,
 				null,
 				"having",
-				ConstraintDescriptorProvider.getConstraints(EntityHaving.class).iterator().next(),
+				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				new EntityDataLocator(Entities.CATEGORY)
 			)
 		);
