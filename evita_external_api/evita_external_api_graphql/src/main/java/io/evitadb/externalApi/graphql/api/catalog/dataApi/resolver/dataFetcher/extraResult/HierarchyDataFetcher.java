@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 
 import javax.annotation.Nonnull;
 import java.util.AbstractMap.SimpleEntry;
@@ -45,11 +46,12 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Extracts {@link Hierarchy} from {@link EvitaResponse}s extra results
- * requested by {@link HierarchyOfSelf} or {@link HierarchyOfReference}.
+ * requested by {@link HierarchyOfSelf} or {@link HierarchyOfReference} into map with key of correct field names
+ * representing references.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class HierarchyDataFetcher implements DataFetcher<DataFetcherResult<Map<String, List<LevelInfo>>>> {
+public class HierarchyDataFetcher implements DataFetcher<DataFetcherResult<Map<String,Map<String, List<LevelInfo>>>>> {
 
 	@Nonnull
 	private final Map<String, String> referenceNameToFieldName;
@@ -62,28 +64,25 @@ public class HierarchyDataFetcher implements DataFetcher<DataFetcherResult<Map<S
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<Map<String, List<LevelInfo>>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public DataFetcherResult<Map<String, Map<String, List<LevelInfo>>>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = environment.getSource();
 		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
 		if (hierarchy == null) {
-			return DataFetcherResult.<Map<String, List<LevelInfo>>>newResult().build();
+			return DataFetcherResult.<Map<String, Map<String, List<LevelInfo>>>>newResult().build();
 		}
 
-		final Map<String, List<LevelInfo>> statisticsDto = createHashMap(hierarchy.getStatistics().size() + 1);
-		/*
-		TODO LHO - handle new structure
-		statisticsDto.put(
-			HierarchyStatisticsDescriptor.SELF.name(),
-			hierarchyStatistics.getSelfStatistics()
+		final Map<String, Map<String, List<LevelInfo>>> hierarchyDto = createHashMap(hierarchy.getStatistics().size() + 1);
+		hierarchyDto.put(
+			HierarchyDescriptor.SELF.name(),
+			hierarchy.getSelfStatistics()
 		);
-		hierarchyStatistics.getStatistics().forEach((key, value) -> statisticsDto.put(
+		hierarchy.getStatistics().forEach((key, value) -> hierarchyDto.put(
 			referenceNameToFieldName.get(key),
 			value
 		));
-		 */
 
-		return DataFetcherResult.<Map<String, List<LevelInfo>>>newResult()
-			.data(statisticsDto)
+		return DataFetcherResult.<Map<String, Map<String, List<LevelInfo>>>>newResult()
+			.data(hierarchyDto)
 			.build();
 	}
 

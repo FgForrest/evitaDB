@@ -499,10 +499,10 @@ public class FullResponseObjectBuilder {
 			new HierarchyParentsDataFetcher(entitySchema.getReferences().values())
 		));
 
-		final GraphQLObjectType hierarchyStatisticsObject = buildHierarchyObject(entitySchema, referenceSchemas);
+		final GraphQLObjectType hierarchyObject = buildHierarchyObject(entitySchema, referenceSchemas);
 		final GraphQLFieldDefinition hierarchyField = ExtraResultsDescriptor.HIERARCHY
 			.to(fieldBuilderTransformer)
-			.type(hierarchyStatisticsObject)
+			.type(hierarchyObject)
 			.build();
 		hierarchyExtraResultFields.add(new BuiltFieldDescriptor(
 			hierarchyField,
@@ -718,6 +718,7 @@ public class FullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.name(objectName)
 			// todo lho dont know about resolvers, maybe we will need `registerFieldToObject` to properly transform tree to flat list
+			// todo lho somehow extract data by alises, data are there but default resolver will fetch it by field name
 			.field(HierarchyOfSelfDescriptor.FROM_ROOT
 				.to(fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(selfLevelInfoObject))))
