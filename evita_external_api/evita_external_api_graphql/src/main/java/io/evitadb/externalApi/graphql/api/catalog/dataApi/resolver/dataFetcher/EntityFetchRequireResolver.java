@@ -69,7 +69,7 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
- * Builds {@link EntityFetch} based on which entity fields client specified.
+ * Resolves {@link EntityFetch} based on which entity fields client specified.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -336,9 +336,9 @@ public class EntityFetchRequireResolver {
 				.toList()
 		);
 
-		final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedEntityTypeManaged() ?
-			entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedEntityType()) :
-			null;
+		final EntitySchemaContract referencedEntitySchema = fieldsForReference.referenceSchema().isReferencedEntityTypeManaged()
+			? entitySchemaFetcher.apply(fieldsForReference.referenceSchema().getReferencedEntityType())
+			: null;
 
 		final Optional<EntityFetch> referencedEntityRequirement = resolveEntityFetch(referencedEntitySelectionSet, desiredLocale, referencedEntitySchema);
 

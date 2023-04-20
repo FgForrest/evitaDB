@@ -35,7 +35,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.ParentInfoDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchyFromNodeHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchyFromRootHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchyRequireHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
@@ -52,18 +51,20 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.function.Function;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * TODO lho docs
+ * Resolves list of {@link HierarchyRequireConstraint}s based on which extra result fields client specified.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
 public class HierarchyRequireResolver {
 
+	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
@@ -81,7 +82,21 @@ public class HierarchyRequireResolver {
 		hierarchyFields.stream()
 			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
 			.forEach(referenceField -> {
-				final HierarchyDataLocator hierarchyDataLocator = resolveHierarchyDataLocator(currentEntitySchema, referenceField);
+				final String fieldName = referenceField.getName();
+
+				final HierarchyDataLocator hierarchyDataLocator;
+				final EntitySchemaContract hierarchyEntitySchema;
+				if (fieldName.equals(HierarchyDescriptor.SELF.name())) {
+					hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName());
+					hierarchyEntitySchema = currentEntitySchema;
+				} else {
+					final ReferenceSchemaContract reference = currentEntitySchema.getReferenceByName(fieldName, PROPERTY_NAME_NAMING_CONVENTION)
+						.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + fieldName + "` in `" + currentEntitySchema.getName() + "`."));
+					hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName(), reference.getName());
+					hierarchyEntitySchema = reference.isReferencedEntityTypeManaged()
+						? entitySchemaFetcher.apply(reference.getReferencedEntityType())
+						: null;
+				}
 
 				referenceField.getSelectionSet()
 					.getFields("*")
@@ -90,7 +105,7 @@ public class HierarchyRequireResolver {
 							specificHierarchyField,
 							hierarchyDataLocator,
 							desiredLocale,
-							currentEntitySchema
+							hierarchyEntitySchema
 						);
 						requestedHierarchies.merge(
 							hierarchyRequire.getKey(),
@@ -103,20 +118,6 @@ public class HierarchyRequireResolver {
 			});
 
 		return new ArrayList<>(requestedHierarchies.values());
-	}
-
-	@Nonnull
-	private HierarchyDataLocator resolveHierarchyDataLocator(@Nullable EntitySchemaContract currentEntitySchema,
-	                                                         @Nonnull SelectedField referenceField) {
-		final String referenceName = referenceField.getName();
-
-		if (referenceName.equals(HierarchyDescriptor.SELF.name())) {
-			return new HierarchyDataLocator(currentEntitySchema.getName());
-		} else {
-			final ReferenceSchemaContract reference = currentEntitySchema.getReferenceByName(referenceName, PROPERTY_NAME_NAMING_CONVENTION)
-				.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + currentEntitySchema.getName() + "`."));
-			return new HierarchyDataLocator(currentEntitySchema.getName(), reference.getName());
-		}
 	}
 
 	@Nonnull
@@ -137,6 +138,10 @@ public class HierarchyRequireResolver {
 			hierarchyRequire = new HierarchyFromRoot(outputName, entityFetch, stopAt, statistics);
 		} else if (HierarchyOfDescriptor.FROM_NODE.name().equals(hierarchyType)) {
 			final HierarchyNode node = resolveChildHierarchyRequireFromArgument(field, hierarchyDataLocator, HierarchyFromNodeHeaderDescriptor.NODE);
+			Assert.isPremiseValid(
+				node != null,
+				() -> new GraphQLQueryResolvingInternalError("Missing `" + HierarchyFromNodeHeaderDescriptor.NODE.name() + "` argument.")
+			);
 			hierarchyRequire = new HierarchyFromNode(outputName, node, entityFetch, stopAt, statistics);
 		} else if (HierarchyOfDescriptor.CHILDREN.name().equals(hierarchyType)) {
 			hierarchyRequire = new HierarchyChildren(outputName, entityFetch, stopAt, statistics);

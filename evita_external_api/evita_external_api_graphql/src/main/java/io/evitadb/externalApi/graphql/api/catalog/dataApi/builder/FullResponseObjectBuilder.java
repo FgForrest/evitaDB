@@ -870,7 +870,7 @@ public class FullResponseObjectBuilder {
 				.type(nonNull(list(nonNull(levelInfoObject))))
 				.argument(HierarchyFromNodeHeaderDescriptor.NODE
 					.to(argumentBuilderTransformer)
-					.type(nodeConstraint))
+					.type(nonNull(nodeConstraint)))
 				.argument(HierarchyFromNodeHeaderDescriptor.STOP_AT
 					.to(argumentBuilderTransformer)
 					.type(stopAtConstraint))
