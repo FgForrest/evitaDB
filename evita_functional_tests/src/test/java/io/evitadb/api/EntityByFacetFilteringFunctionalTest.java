@@ -1565,7 +1565,6 @@ public class EntityByFacetFilteringFunctionalTest {
 						facetSummaryOfReference(
 							Entities.PARAMETER,
 							FacetStatisticsDepth.COUNTS,
-							/* TODO JNO - když tady bylo entityHaving, tak to nezařvalo, ale ani se to neaplikovalo! */
 							filterGroupBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
 							orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 						)

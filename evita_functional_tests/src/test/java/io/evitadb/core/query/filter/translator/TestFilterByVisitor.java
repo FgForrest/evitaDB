@@ -70,7 +70,7 @@ public class TestFilterByVisitor extends FilterByVisitor {
 			new ProcessingScope(
 				Collections.emptyList(),
 				AttributeContent.ALL_ATTRIBUTES,
-				null, null,
+				entitySchema, null, null,
 				new AttributeSchemaAccessor(catalogSchema, entitySchema),
 				(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale))
 			),

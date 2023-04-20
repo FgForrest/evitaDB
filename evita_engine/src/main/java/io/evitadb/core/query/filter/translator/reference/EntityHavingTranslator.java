@@ -100,7 +100,8 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 		final ReferenceSchemaContract referenceSchema = filterByVisitor.getReferenceSchema()
 			.orElseThrow(() -> new EvitaInvalidUsageException(
 					"Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
-						"parent constraint that allows to resolve the target entity type."
+						"parent constraint that allows to resolve the entity `" +
+						filterByVisitor.getProcessingScope().getEntitySchema().getName() + "` referenced entity type."
 				)
 			);
 		Assert.isTrue(

@@ -50,6 +50,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.bitmap.collection.BitmapCollector;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetIndex;
@@ -317,7 +318,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	@RequiredArgsConstructor
 	private static class FacetGroupStatisticsCollector implements Collector<FacetReferenceIndex, LinkedHashMap<Integer, GroupAccumulator>, Collection<FacetGroupStatistics>> {
 		/**
-		 * TODO JNO - document me
+		 * The query context used for querying the entities.
 		 */
 		private final QueryContext queryContext;
 		/**
@@ -412,6 +413,91 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		}
 
 		/**
+		 * Returns group entity object from the `groupEntitiesIndex` in case the referenced group is managed.
+		 */
+		@Nullable
+		private static EntityClassifier getGroupEntity(
+			@Nonnull GroupAccumulator groupAcc,
+			@Nonnull ReferenceSchemaContract referenceSchema,
+			@Nonnull Map<Integer, EntityClassifier> groupEntitiesIndex
+		) {
+			if (groupAcc.getGroupId() == null) {
+				return null;
+			} else if (referenceSchema.isReferencedGroupTypeManaged()) {
+				return ofNullable(groupEntitiesIndex.get(groupAcc.getGroupId()))
+					.orElseGet(() -> new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupAcc.getGroupId()));
+			} else {
+				return new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupAcc.getGroupId());
+			}
+		}
+
+		/**
+		 * Method collects all group ids in the {@link Bitmap} containers and returns them indexed by
+		 * {@link ReferenceSchemaContract#getName()}.
+		 */
+		@Nonnull
+		private static Map<String, Bitmap> getGroupIdsByReferenceName(@Nonnull Map<Integer, GroupAccumulator> entityAcc) {
+			return entityAcc.values()
+				.stream()
+				.filter(it -> it.getGroupId() != null)
+				.collect(
+					Collectors.groupingBy(
+						it -> it.getReferenceSchema().getName(),
+						Collectors.mapping(GroupAccumulator::getGroupId, BitmapCollector.INSTANCE)
+					)
+				);
+		}
+
+		/**
+		 * Method fetches facet entity bodies if requested (otherwise simple {@link EntityReference} is used) and
+		 * indexes them by their {@link EntityClassifier#getPrimaryKey()} in the maps that are then returned in
+		 * index where the key is  {@link ReferenceSchemaContract#getName()}.
+		 */
+		@Nonnull
+		private static Map<String, Map<Integer, EntityClassifier>> getFacetEntitiesIndexedByReferenceName(
+			@Nonnull Collection<GroupAccumulator> entityAcc
+		) {
+			return entityAcc
+				.stream()
+				.collect(
+					Collectors.groupingBy(it -> it.getReferenceSchema().getName())
+				)
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						FacetGroupStatisticsCollector::fetchFacetEntities
+					)
+				);
+		}
+
+		/**
+		 * Method fetches facet group entity bodies if requested (otherwise simple {@link EntityReference} is used) and
+		 * indexes them by their {@link EntityClassifier#getPrimaryKey()} in the maps that are then returned in
+		 * index where the key is  {@link ReferenceSchemaContract#getName()}.
+		 */
+		@Nonnull
+		private static Map<String, Map<Integer, EntityClassifier>> getGroupEntitiesIndexedByReferenceName(
+			@Nonnull Collection<GroupAccumulator> accumulators
+		) {
+			return accumulators
+				.stream()
+				.filter(it -> it.getGroupId() != null)
+				.collect(
+					Collectors.groupingBy(it -> it.getReferenceSchema().getName())
+				)
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						Entry::getKey,
+						FacetGroupStatisticsCollector::fetchGroups
+					)
+				);
+		}
+
+		/**
 		 * Returns TRUE if facet with `facetId` of specified `referenceName` was requested by the user.
 		 */
 		public boolean isRequested(@Nonnull String referenceName, int facetId) {
@@ -484,111 +570,16 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		@Override
 		public Function<LinkedHashMap<Integer, GroupAccumulator>, Collection<FacetGroupStatistics>> finisher() {
 			return entityAcc -> {
-				final Map<String, Map<Integer, EntityClassifier>> groupEntities = entityAcc
-					.values()
-					.stream()
-					.filter(it -> it.getGroupId() != null)
-					.collect(
-						Collectors.groupingBy(it -> it.getReferenceSchema().getName())
-					)
-					.entrySet()
-					.stream()
-					.collect(
-						Collectors.toMap(
-							Entry::getKey,
-							FacetGroupStatisticsCollector::fetchGroups
-						)
-					);
-
-				final Map<String, Map<Integer, EntityClassifier>> facetEntities = entityAcc
-					.values()
-					.stream()
-					.collect(
-						Collectors.groupingBy(it -> it.getReferenceSchema().getName())
-					)
-					.entrySet()
-					.stream()
-					.collect(
-						Collectors.toMap(
-							Entry::getKey,
-							FacetGroupStatisticsCollector::fetchFacetEntities
-						)
-					);
-
-				/* TODO JNO - tohle rozsekat do metod */
-				final Map<String, Bitmap> groupIdIndex = entityAcc.values()
-					.stream()
-					.filter(it -> it.getGroupId() != null)
-					.collect(
-						Collectors.groupingBy(
-							it -> it.getReferenceSchema().getName(),
-							Collectors.mapping(GroupAccumulator::getGroupId, new Collector<Integer, Bitmap, Bitmap>() {
-								@Override
-								public Supplier<Bitmap> supplier() {
-									return BaseBitmap::new;
-								}
-
-								@Override
-								public BiConsumer<Bitmap, Integer> accumulator() {
-									return Bitmap::add;
-								}
-
-								@Override
-								public BinaryOperator<Bitmap> combiner() {
-									return (bitmap, bitmap2) -> {
-										bitmap.addAll(bitmap2);
-										return bitmap;
-									};
-								}
-
-								@Override
-								public Function<Bitmap, Bitmap> finisher() {
-									return Function.identity();
-								}
-
-								@Override
-								public Set<Characteristics> characteristics() {
-									return EnumSet.of(Characteristics.IDENTITY_FINISH);
-								}
-							})
-						)
-					);
+				final Map<String, Map<Integer, EntityClassifier>> groupEntities = getGroupEntitiesIndexedByReferenceName(entityAcc.values());
+				final Map<String, Map<Integer, EntityClassifier>> facetEntities = getFacetEntitiesIndexedByReferenceName(entityAcc.values());
+				final Map<String, Bitmap> groupIdIndex = getGroupIdsByReferenceName(entityAcc);
 
 				final Map<String, int[]> sortedGroupIds = new HashMap<>(groupIdIndex.size());
 				final Stream<GroupAccumulator> groupStream = entityAcc
 					.values()
 					.stream()
-					.sorted((o1, o2) -> {
-						if (o1.getReferenceSchema() != o2.getReferenceSchema()) {
-							return Integer.compare(o1.getFacetSummaryRequest().order(), o2.getFacetSummaryRequest().order());
-						} else if (o1.getFacetSummaryRequest().groupSorter() != null) {
-							final Sorter sorter = o1.getFacetSummaryRequest().groupSorter();
-							// create sorted array using the sorter
-							final String referenceName = o1.getFacetSummaryRequest().referenceSchema().getName();
-							final int[] sortedEntities = sortedGroupIds.computeIfAbsent(
-								referenceName,
-								theReferenceName -> {
-									final ConstantFormula unsortedIds = new ConstantFormula(groupIdIndex.get(theReferenceName));
-									return sorter.sortAndSlice(
-										queryContext, unsortedIds, 0, unsortedIds.compute().size()
-									);
-								}
-							);
-							return Integer.compare(
-								ArrayUtils.indexOf(o1.getGroupId(), sortedEntities),
-								ArrayUtils.indexOf(o2.getGroupId(), sortedEntities)
-							);
-						} else {
-							if (o1.getGroupId() == null) {
-								return 1;
-							} else if (o2.getGroupId() == null) {
-								return -1;
-							} else {
-								return Integer.compare(o1.getGroupId(), o2.getGroupId());
-							}
-						}
-					});
-				
+					.sorted((o1, o2) -> compareFacetGroupSummaries(groupIdIndex, sortedGroupIds, o1, o2));
+
 				return groupStream
 					.map(groupAcc -> {
 						final Map<Integer, FacetAccumulator> theFacetStatistics = groupAcc.getFacetStatistics();
@@ -600,18 +591,10 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 							final Map<Integer, EntityClassifier> facetEntitiesIndex = Objects.requireNonNull(facetEntities.get(referenceSchema.getName()));
 
 							final Stream<FacetAccumulator> facetStream = ofNullable(groupAcc.getFacetSummaryRequest().facetSorter())
-								.map(sorter -> {
-									// if the sorter is defined, sort them
-									final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-									// collect all entity primary keys
-									theFacetStatistics.keySet().forEach(writer::add);
-									// create sorted array using the sorter
-									final ConstantFormula unsortedIds = new ConstantFormula(new BaseBitmap(writer.get()));
-									final int[] sortedEntities = sorter.sortAndSlice(
-										queryContext, unsortedIds, 0, unsortedIds.compute().size()
-									);
-									return Arrays.stream(sortedEntities).mapToObj(theFacetStatistics::get);
-								})
+								.map(
+									sorter -> Arrays.stream(getSortedFacets(theFacetStatistics, sorter))
+										.mapToObj(theFacetStatistics::get)
+								)
 								.orElseGet(
 									() -> theFacetStatistics.values()
 										.stream()
@@ -622,10 +605,11 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 								.filter(Objects::nonNull)
 								// exclude those that has no results after base formula application
 								.filter(FacetAccumulator::hasAnyResults)
-								.map(it -> {
-									final EntityClassifier entity = facetEntitiesIndex.get(it.getFacetId());
-									return ofNullable(entity).map(it::toFacetStatistics).orElse(null);
-								})
+								.map(
+									it -> ofNullable(facetEntitiesIndex.get(it.getFacetId()))
+										.map(it::toFacetStatistics)
+										.orElse(null)
+								)
 								.filter(Objects::nonNull)
 								.collect(
 									Collectors.toMap(
@@ -634,21 +618,13 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 										(o, o2) -> {
 											throw new IllegalStateException("Unexpectedly found two facets in stream!");
 										},
+										// we need to maintain the order in map
 										LinkedHashMap::new
 									)
 								);
 							// create facet group statistics
 							final Map<Integer, EntityClassifier> groupEntitiesIndex = groupEntities.get(referenceSchema.getName());
-							final EntityClassifier groupEntity;
-
-							if (groupAcc.getGroupId() == null) {
-								groupEntity = null;
-							} else if (referenceSchema.isReferencedGroupTypeManaged()) {
-								groupEntity = ofNullable(groupEntitiesIndex.get(groupAcc.getGroupId()))
-									.orElseGet(() -> new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupAcc.getGroupId()));
-							} else {
-								groupEntity = new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupAcc.getGroupId());
-							}
+							final EntityClassifier groupEntity = getGroupEntity(groupAcc, referenceSchema, groupEntitiesIndex);
 
 							// compute overall count for group
 							final Formula entityMatchingAnyOfGroupFacetFormula = countCalculator.createGroupCountFormula(
@@ -677,6 +653,52 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		public Set<Characteristics> characteristics() {
 			return Set.of(Characteristics.UNORDERED);
 		}
+
+		@Nonnull
+		private int[] getSortedFacets(Map<Integer, FacetAccumulator> theFacetStatistics, Sorter sorter) {
+			// if the sorter is defined, sort them
+			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			// collect all entity primary keys
+			theFacetStatistics.keySet().forEach(writer::add);
+			// create sorted array using the sorter
+			final ConstantFormula unsortedIds = new ConstantFormula(new BaseBitmap(writer.get()));
+			final int[] sortedEntities = sorter.sortAndSlice(
+				queryContext, unsortedIds, 0, unsortedIds.compute().size()
+			);
+			return sortedEntities;
+		}
+
+		private int compareFacetGroupSummaries(Map<String, Bitmap> groupIdIndex, Map<String, int[]> sortedGroupIds, GroupAccumulator o1, GroupAccumulator o2) {
+			if (o1.getReferenceSchema() != o2.getReferenceSchema()) {
+				return Integer.compare(o1.getFacetSummaryRequest().order(), o2.getFacetSummaryRequest().order());
+			} else if (o1.getFacetSummaryRequest().groupSorter() != null) {
+				final Sorter sorter = o1.getFacetSummaryRequest().groupSorter();
+				// create sorted array using the sorter
+				final String referenceName = o1.getFacetSummaryRequest().referenceSchema().getName();
+				final int[] sortedEntities = sortedGroupIds.computeIfAbsent(
+					referenceName,
+					theReferenceName -> {
+						final ConstantFormula unsortedIds = new ConstantFormula(groupIdIndex.get(theReferenceName));
+						return sorter.sortAndSlice(
+							queryContext, unsortedIds, 0, unsortedIds.compute().size()
+						);
+					}
+				);
+				return Integer.compare(
+					ArrayUtils.indexOf(o1.getGroupId(), sortedEntities),
+					ArrayUtils.indexOf(o2.getGroupId(), sortedEntities)
+				);
+			} else {
+				if (o1.getGroupId() == null) {
+					return 1;
+				} else if (o2.getGroupId() == null) {
+					return -1;
+				} else {
+					return Integer.compare(o1.getGroupId(), o2.getGroupId());
+				}
+			}
+		}
+
 	}
 
 	/**

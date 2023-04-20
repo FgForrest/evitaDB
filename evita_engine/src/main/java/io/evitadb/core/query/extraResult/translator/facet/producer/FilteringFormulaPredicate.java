@@ -23,12 +23,9 @@
 
 package io.evitadb.core.query.extraResult.translator.facet.producer;
 
-import io.evitadb.api.query.ConstraintContainer;
-import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -36,19 +33,16 @@ import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
- * TODO JNO alter documentation
- *
  * The predicate evaluates the nested query filter function to get the {@link Bitmap} of all hierarchy entity primary
  * keys that match the passed filtering constraint. It uses the result bitmap to resolve to decide output of the
  * predicate test method - for each key matching the computed result returns true, otherwise false.
@@ -59,22 +53,20 @@ public class FilteringFormulaPredicate implements IntPredicate {
 	/**
 	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
 	 */
-	@Getter @Nonnull private final ConstraintContainer<FilterConstraint> filterBy;
+	@Getter @Nonnull private final FilterBy filterBy;
 	/**
-	 * Formula computes id of all hierarchical entities that match input filter by constraint.
+	 * Formula computes id of all entities that match input filter by constraint.
 	 */
 	@Getter @Nonnull private final Formula filteringFormula;
 
 	public FilteringFormulaPredicate(
 		@Nonnull QueryContext queryContext,
 		@Nonnull FilterBy filterBy,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull String entityType
+		@Nonnull String entityType,
+		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		this.filterBy = filterBy;
 		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Facet summary of `" + referenceSchema.getName() + "`: " +
-				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
 			queryContext.pushStep(
 				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
 				stepDescriptionSupplier
@@ -88,12 +80,12 @@ public class FilteringFormulaPredicate implements IntPredicate {
 			);
 
 			// now analyze the filter by in a nested context with exchanged primary entity index
+			final GlobalEntityIndex entityIndex = queryContext.getGlobalEntityIndex(entityType);
 			final Formula theFormula = theFilterByVisitor.executeInContext(
-				Collections.singletonList(
-					queryContext.getGlobalEntityIndex(entityType)
-				),
+				Collections.singletonList(entityIndex),
 				null,
-				referenceSchema,
+				entityIndex.getEntitySchema(),
+				null,
 				null,
 				null,
 				new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),

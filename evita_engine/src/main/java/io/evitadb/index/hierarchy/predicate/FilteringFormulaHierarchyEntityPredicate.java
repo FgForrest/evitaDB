@@ -85,7 +85,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
 				stepDescriptionSupplier
 			);
-			// crete a visitor
+			// create a visitor
 			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
 				queryContext,
 				Collections.emptyList(),
@@ -96,6 +96,7 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			final Formula theFormula = theFilterByVisitor.executeInContext(
 				Collections.singletonList(entityIndex),
 				null,
+				entityIndex.getEntitySchema(),
 				referenceSchema,
 				null,
 				null,

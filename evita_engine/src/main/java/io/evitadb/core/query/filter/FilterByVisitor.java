@@ -223,6 +223,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			new ProcessingScope(
 				indexSetToUse.getIndexes(),
 				AttributeContent.ALL_ATTRIBUTES,
+				queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null,
 				null, null,
 				new AttributeSchemaAccessor(queryContext),
 				(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale))
@@ -439,7 +440,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	/**
 	 * Returns extension of {@link ProcessingScope} that is set for current context.
 	 *
-	 * @see #executeInContext(List, EntityContentRequire, ReferenceSchemaContract, Function, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
+	 * @see #executeInContext(List, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, Function, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
 	 */
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
@@ -500,6 +501,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		final Formula resultFormula = executeInContext(
 			Collections.singletonList(entityIndex),
 			ReferenceContent.ALL_REFERENCES,
+			entityIndex.getEntitySchema(),
 			referenceSchema,
 			null, null,
 			getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),
@@ -625,6 +627,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	public final <T> T executeInContext(
 		@Nonnull List<EntityIndex> targetIndexes,
 		@Nullable EntityContentRequire requirements,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
@@ -638,6 +641,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 				new ProcessingScope(
 					targetIndexes,
 					requirements,
+					entitySchema,
 					referenceSchema,
 					nestedQueryFormulaEnricher,
 					entityNestedQueryComparator,
@@ -866,6 +870,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nullable
 		private final EntityContentRequire requirements;
 		/**
+		 * Currently targeted entity schema.
+		 */
+		@Getter
+		@Nonnull
+		private final EntitySchemaContract entitySchema;
+		/**
 		 * Currently targeted reference schema.
 		 */
 		@Getter
@@ -905,6 +915,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		public ProcessingScope(
 			@Nonnull List<? extends Index<?>> targetIndexes,
 			@Nullable EntityContentRequire requirements,
+			@Nonnull EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
 			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 			@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
@@ -914,6 +925,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			this(
 				targetIndexes,
 				requirements,
+				entitySchema,
 				referenceSchema,
 				null,
 				entityNestedQueryComparator,
@@ -927,6 +939,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		public ProcessingScope(
 			@Nonnull List<? extends Index<?>> targetIndexes,
 			@Nullable EntityContentRequire requirements,
+			@Nonnull EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
 			@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
 			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
@@ -943,6 +956,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 				this.suppressedConstraints = Collections.emptySet();
 			}
 			this.requirements = requirements;
+			this.entitySchema = entitySchema;
 			this.referenceSchema = referenceSchema;
 			this.nestedQueryFormulaEnricher = nestedQueryFormulaEnricher == null ? Function.identity() : nestedQueryFormulaEnricher;
 			this.entityNestedQueryComparator = entityNestedQueryComparator;

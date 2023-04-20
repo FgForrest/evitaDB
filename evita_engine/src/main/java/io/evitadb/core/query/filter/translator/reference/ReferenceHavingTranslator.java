@@ -79,7 +79,9 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		} else {
 			return filterByVisitor.computeOnlyOnce(
 				referenceHaving,
-				() -> applySearchOnIndexes(referenceHaving, filterByVisitor, referenceSchema, referencedEntityIndexes)
+				() -> applySearchOnIndexes(
+					referenceHaving, filterByVisitor, entitySchema, referenceSchema, referencedEntityIndexes
+				)
 			);
 		}
 	}
@@ -88,6 +90,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 	private static Formula applySearchOnIndexes(
 		@Nonnull ReferenceHaving filterConstraint,
 		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull List<EntityIndex> referencedEntityIndexes
 	) {
@@ -99,6 +102,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 				filterByVisitor.executeInContext(
 					Collections.singletonList(referencedEntityIndex),
 					ReferenceContent.ALL_REFERENCES,
+					entitySchema,
 					referenceSchema,
 					processingScope.getNestedQueryFormulaEnricher(),
 					processingScope.getEntityNestedQueryComparator(),

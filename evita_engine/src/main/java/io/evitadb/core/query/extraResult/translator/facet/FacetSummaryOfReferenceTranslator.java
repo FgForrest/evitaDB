@@ -144,8 +144,8 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		return new FilteringFormulaPredicate(
 			extraResultPlanner.getQueryContext(),
 			new FilterBy(filterGroupBy.getChildren()),
-			referenceSchema,
-			referenceSchema.getReferencedGroupType()
+			referenceSchema.getReferencedGroupType(),
+			() -> "Facet summary of `" + referenceSchema.getName() + "` group filter: " + filterGroupBy
 		);
 	}
 
@@ -158,8 +158,8 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		return new FilteringFormulaPredicate(
 			extraResultPlanner.getQueryContext(),
 			filterBy,
-			referenceSchema,
-			referenceSchema.getReferencedEntityType()
+			referenceSchema.getReferencedEntityType(),
+			() -> "Facet summary of `" + referenceSchema.getName() + "` facet filter: " + filterBy
 		);
 	}
 
@@ -177,7 +177,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		return extraResultPlanner.createSorter(
 			orderBy,
 			extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedEntityType()),
-			() -> "Facet summary `" + referenceSchema.getName() + "` ordering: " + orderBy
+			() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
 		);
 	}
 

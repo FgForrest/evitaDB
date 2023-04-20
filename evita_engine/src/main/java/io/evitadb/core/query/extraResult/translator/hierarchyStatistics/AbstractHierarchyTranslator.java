@@ -142,6 +142,7 @@ public abstract class AbstractHierarchyTranslator {
 			final Formula theFormula = theFilterByVisitor.executeInContext(
 				Collections.singletonList(entityIndex),
 				null,
+				entityIndex.getEntitySchema(),
 				null,
 				null,
 				null,

@@ -62,6 +62,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
@@ -459,13 +460,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	) {
 		// compute the result formula in the initialized context
 		final String referenceName = referenceSchema.getName();
+		final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
 		final Formula filterFormula = filterByVisitor.executeInContext(
 			Collections.singletonList(index),
 			ReferenceContent.ALL_REFERENCES,
+			processingScope.getEntitySchema(),
 			referenceSchema,
 			nestedQueryFormulaEnricher,
 			entityNestedQueryComparator,
-			filterByVisitor.getProcessingScope().withReferenceSchemaAccessor(referenceName),
+			processingScope.withReferenceSchemaAccessor(referenceName),
 			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
 				.stream()
 				.map(it -> it.getAttributeValue(attributeName, locale)),
