@@ -29,7 +29,7 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.PropertyDataFetcher;
-import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
+import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStatistics;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
@@ -48,14 +48,14 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.HierarchyOfReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.HierarchyOfSelfDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.ParentInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -63,6 +63,11 @@ import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBu
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchyChildrenHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchyFromNodeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchyFromRootHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchyParentsHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchySiblingsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.BucketsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.QueryTelemetryFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
@@ -83,7 +88,6 @@ import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectT
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -107,7 +111,6 @@ import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class FullResponseObjectBuilder {
 
 	private static final ObjectMapper QUERY_TELEMETRY_OBJECT_MAPPER = new ObjectMapper();
@@ -116,8 +119,23 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
-	@Nonnull private final GraphQLConstraintSchemaBuildingContext constraintContext;
-	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder hierarchyRequireConstraintSchemaBuilder;
+
+	public FullResponseObjectBuilder(@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
+	                                 @Nonnull PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer,
+	                                 @Nonnull ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer,
+	                                 @Nonnull PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer,
+	                                 @Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingContext,
+	                                 @Nonnull FilterConstraintSchemaBuilder filterConstraintSchemaBuilder) {
+		this.buildingContext = buildingContext;
+		this.argumentBuilderTransformer = argumentBuilderTransformer;
+		this.objectBuilderTransformer = objectBuilderTransformer;
+		this.fieldBuilderTransformer = fieldBuilderTransformer;
+		this.hierarchyRequireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(
+			constraintSchemaBuildingContext,
+			new AtomicReference<>(filterConstraintSchemaBuilder)
+		);
+	}
 
 	public void buildCommonTypes() {
 		buildingContext.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
@@ -688,15 +706,13 @@ public class FullResponseObjectBuilder {
 	private GraphQLObjectType buildHierarchyOfSelfObject(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = HierarchyOfSelfDescriptor.THIS.name(entitySchema, entitySchema);
 
-		final GraphQLObjectType selfLevelInfoObject = buildSelfLevelInfoObject(entitySchema);
-		final GraphQLObjectType selfParentInfoObject = buildSelfParentInfoObject(entitySchema);
+		final HierarchyDataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
+		final GraphQLInputType nodeConstraint = hierarchyRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyNode.class);
+		final GraphQLInputType stopAtConstraint = hierarchyRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStopAt.class);
+		final GraphQLInputType statisticsConstraint = hierarchyRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStatistics.class);
 
-		// todo lho just a prototype
-		final RequireConstraintSchemaBuilder requireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(constraintContext, new AtomicReference<>(filterConstraintSchemaBuilder));
-		final GraphQLInputType stopAt = requireConstraintSchemaBuilder.build(
-			new HierarchyDataLocator(entitySchema.getName(), null),
-			ConstraintDescriptorProvider.getConstraint(HierarchyStopAt.class)
-		);
+		final GraphQLObjectType selfLevelInfoObject = buildSelfLevelInfoObject(entitySchema);
+		final GraphQLObjectType selfParentInfoObject = buildSelfParentInfoObject(entitySchema, stopAtConstraint, statisticsConstraint);
 
 		return HierarchyOfSelfDescriptor.THIS
 			.to(objectBuilderTransformer)
@@ -705,19 +721,51 @@ public class FullResponseObjectBuilder {
 			.field(HierarchyOfSelfDescriptor.FROM_ROOT
 				.to(fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(selfLevelInfoObject))))
-				.argument(a -> a.name("stopAt").type(stopAt)))
+				.argument(HierarchyFromRootHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyFromRootHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.field(HierarchyOfSelfDescriptor.FROM_NODE
 				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(selfLevelInfoObject)))))
+				.type(nonNull(list(nonNull(selfLevelInfoObject))))
+				.argument(HierarchyFromNodeHeaderDescriptor.NODE
+					.to(argumentBuilderTransformer)
+					.type(nodeConstraint))
+				.argument(HierarchyFromNodeHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyFromNodeHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.field(HierarchyOfSelfDescriptor.CHILDREN
 				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(selfLevelInfoObject)))))
+				.type(nonNull(list(nonNull(selfLevelInfoObject))))
+				.argument(HierarchyChildrenHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyChildrenHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.field(HierarchyOfSelfDescriptor.PARENTS
 				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(selfParentInfoObject)))))
+				.type(nonNull(list(nonNull(selfParentInfoObject))))
+				.argument(HierarchyParentsHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyParentsHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.field(HierarchyOfSelfDescriptor.SIBLINGS
 				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(selfLevelInfoObject)))))
+				.type(nonNull(list(nonNull(selfLevelInfoObject))))
+				.argument(HierarchySiblingsHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchySiblingsHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.build();
 	}
 
@@ -754,15 +802,17 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildSelfParentInfoObject(@Nonnull EntitySchemaContract entitySchema) {
+	private GraphQLObjectType buildSelfParentInfoObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                    @Nonnull GraphQLInputType stopAtConstraint,
+	                                                    @Nonnull GraphQLInputType statisticsConstraint) {
 		final String objectName = ParentInfoDescriptor.THIS.name(entitySchema, entitySchema);
 
-		final GraphQLObjectType.Builder selfParentInfoObjectBuilder = ParentInfoDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(objectName)
-			.field(ParentInfoDescriptor.SIBLINGS
-				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(typeRef(LevelInfoDescriptor.THIS.name(entitySchema, entitySchema)))))));
+		final GraphQLObjectType.Builder selfParentInfoObjectBuilder = buildParentInfoObject(
+			objectName,
+			LevelInfoDescriptor.THIS.name(entitySchema, entitySchema),
+			stopAtConstraint,
+			statisticsConstraint
+		);
 
 		buildingContext.registerFieldToObject(
 			objectName,
@@ -791,35 +841,69 @@ public class FullResponseObjectBuilder {
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
 		final String objectName = HierarchyOfReferenceDescriptor.THIS.name(entitySchema, referenceSchema);
 
-		final GraphQLObjectType levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema);
-		final GraphQLObjectType parentInfoObject = buildParentInfoObject(entitySchema, referenceSchema);
-
-		// todo lho just a prototype
-		final GraphQLInputType stopAt = new RequireConstraintSchemaBuilder(constraintContext, new AtomicReference<>(filterConstraintSchemaBuilder)).build(
-			new HierarchyDataLocator(entitySchema.getName(), referenceSchema.getName()),
-			ConstraintDescriptorProvider.getConstraint(HierarchyStopAt.class)
+		final HierarchyDataLocator referenceHierarchyConstraintDataLocator = new HierarchyDataLocator(
+			entitySchema.getName(),
+			referenceSchema.getName()
 		);
+		final GraphQLInputType nodeConstraint = hierarchyRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyNode.class);
+		final GraphQLInputType stopAtConstraint = hierarchyRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyStopAt.class);
+		final GraphQLInputType statisticsConstraint = hierarchyRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyStatistics.class);
 
-		return HierarchyOfSelfDescriptor.THIS
+		final GraphQLObjectType levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema);
+		final GraphQLObjectType parentInfoObject = buildParentInfoOfReferenceObject(entitySchema, referenceSchema, stopAtConstraint, statisticsConstraint);
+
+		return HierarchyOfReferenceDescriptor.THIS
 			.to(objectBuilderTransformer)
 			.name(objectName)
 			// todo lho dont know about resolvers, maybe we will need `registerFieldToObject` to properly transform tree to flat list
 			.field(HierarchyOfReferenceDescriptor.FROM_ROOT
 				.to(fieldBuilderTransformer)
 				.type(nonNull(list(nonNull(levelInfoObject))))
-				.argument(a -> a.name("stopAt").type(stopAt)))
+				.argument(HierarchyFromRootHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyFromRootHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.field(HierarchyOfReferenceDescriptor.FROM_NODE
 				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(levelInfoObject)))))
+				.type(nonNull(list(nonNull(levelInfoObject))))
+				.argument(HierarchyFromNodeHeaderDescriptor.NODE
+					.to(argumentBuilderTransformer)
+					.type(nodeConstraint))
+				.argument(HierarchyFromNodeHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyFromNodeHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.field(HierarchyOfReferenceDescriptor.CHILDREN
 				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(levelInfoObject)))))
+				.type(nonNull(list(nonNull(levelInfoObject))))
+				.argument(HierarchyChildrenHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyChildrenHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.field(HierarchyOfReferenceDescriptor.PARENTS
 				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(parentInfoObject)))))
+				.type(nonNull(list(nonNull(parentInfoObject))))
+				.argument(HierarchyParentsHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchyParentsHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.field(HierarchyOfReferenceDescriptor.SIBLINGS
 				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(levelInfoObject)))))
+				.type(nonNull(list(nonNull(levelInfoObject))))
+				.argument(HierarchySiblingsHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchySiblingsHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)))
 			.build();
 	}
 
@@ -860,17 +944,18 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private GraphQLObjectType buildParentInfoObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                @Nonnull ReferenceSchemaContract referenceSchema) {
+	private GraphQLObjectType buildParentInfoOfReferenceObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                           @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                           @Nonnull GraphQLInputType stopAtConstraint,
+	                                                           @Nonnull GraphQLInputType statisticsConstraint) {
 		final String objectName = ParentInfoDescriptor.THIS.name(entitySchema, referenceSchema);
 
-		final GraphQLObjectType.Builder parentInfoObjectBuilder = ParentInfoDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(objectName)
-			.field(ParentInfoDescriptor.SIBLINGS
-				.to(fieldBuilderTransformer)
-				// todo lho dont i need custom data fetcher for flattening?
-				.type(nonNull(list(nonNull(typeRef(LevelInfoDescriptor.THIS.name(entitySchema, referenceSchema)))))));
+		final GraphQLObjectType.Builder parentInfoObjectBuilder = buildParentInfoObject(
+			objectName,
+			LevelInfoDescriptor.THIS.name(entitySchema, referenceSchema),
+			stopAtConstraint,
+			statisticsConstraint
+		);
 
 		buildingContext.registerFieldToObject(
 			objectName,
@@ -879,6 +964,25 @@ public class FullResponseObjectBuilder {
 		);
 
 		return parentInfoObjectBuilder.build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType.Builder buildParentInfoObject(@Nonnull String objectName,
+	                                                        @Nonnull String levelInfoObjectName,
+	                                                        @Nonnull GraphQLInputType stopAtConstraint,
+	                                                        @Nonnull GraphQLInputType statisticsConstraint) {
+		return ParentInfoDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(objectName)
+			.field(ParentInfoDescriptor.SIBLINGS
+				.to(fieldBuilderTransformer)
+				.type(nonNull(list(nonNull(typeRef(levelInfoObjectName)))))
+				.argument(HierarchySiblingsHeaderDescriptor.STOP_AT
+					.to(argumentBuilderTransformer)
+					.type(stopAtConstraint))
+				.argument(HierarchySiblingsHeaderDescriptor.STATISTICS
+					.to(argumentBuilderTransformer)
+					.type(statisticsConstraint)));
 	}
 
 	@Nonnull

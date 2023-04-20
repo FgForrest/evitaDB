@@ -33,14 +33,11 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Set;
-
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link RequireConstraint} usually with {@link io.evitadb.api.query.require.Require}
@@ -53,10 +50,13 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class RequireConstraintResolver extends GraphQLConstraintResolver<RequireConstraint> {
 
-	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
+	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
+	                                 @Nonnull AtomicReference<FilterConstraintResolver> filterConstraintResolver) {
 		super(
 			catalogSchema,
-			createHashMap(0) // currently, in GraphQL API we don't support any require constraint with additional children
+			Map.of(
+				ConstraintType.FILTER, filterConstraintResolver
+			)
 		);
 	}
 

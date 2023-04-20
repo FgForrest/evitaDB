@@ -163,6 +163,18 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 *
 	 * @param rootDataLocator defines data context for the root constraint container, ultimately defining which constraints
 	 *                        will be available from root
+	 * @param constraintClass root constraint to build the tree from (must have only single variant, otherwise use {@link #build(DataLocator, ConstraintDescriptor)})
+	 */
+	@Nonnull
+	public SIMPLE_TYPE build(@Nonnull DataLocator rootDataLocator, @Nonnull Class<? extends Constraint<?>> constraintClass) {
+		return build(rootDataLocator, ConstraintDescriptorProvider.getConstraint(constraintClass));
+	}
+
+	/**
+	 * Builds API schema equivalent to constraint tree starting with the specified constraint as root in specified context.
+	 *
+	 * @param rootDataLocator defines data context for the root constraint container, ultimately defining which constraints
+	 *                        will be available from root
 	 * @param constraintDescriptor root constraint to build the tree from
 	 */
 	@Nonnull
@@ -543,10 +555,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 					hierarchyConstraintsWithSilentImplicitClassifier,
 					constraintDescriptor -> buildFieldFromConstraintDescriptor(
 						buildContext.toBuilder()
-							.dataLocator(new HierarchyDataLocator(
-								buildContext.dataLocator().entityType(),
-								null
-							))
+							.dataLocator(new HierarchyDataLocator(buildContext.dataLocator().entityType()))
 							.build(),
 						constraintDescriptor,
 						null,

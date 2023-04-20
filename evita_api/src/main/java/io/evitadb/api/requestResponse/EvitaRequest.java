@@ -161,7 +161,7 @@ public class EvitaRequest {
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull String entityType,
-		@Nonnull EntityFetchRequirements requirements) {
+		@Nonnull EntityFetchRequire requirements) {
 
 		this.requiresEntity = true;
 		this.entityRequirement = new EntityFetch(requirements.getRequirements());
@@ -768,7 +768,7 @@ public class EvitaRequest {
 	 * requirements.
 	 */
 	@Nonnull
-	public EvitaRequest deriveCopyWith(@Nonnull String entityType, @Nonnull EntityFetchRequirements requirements) {
+	public EvitaRequest deriveCopyWith(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
 		return new EvitaRequest(
 			this,
 			entityType, requirements

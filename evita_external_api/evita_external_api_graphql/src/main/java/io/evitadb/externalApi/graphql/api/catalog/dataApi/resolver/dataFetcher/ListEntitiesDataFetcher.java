@@ -36,6 +36,7 @@ import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
@@ -57,7 +58,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -74,37 +74,25 @@ import static io.evitadb.api.query.QueryConstraints.strip;
 public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<List<EntityClassifier>>> {
 
     /**
-     * Resolves {@link FilterBy} from client argument.
-     */
-    private final FilterConstraintResolver filterByResolver;
-    /**
-     * Resolves {@link OrderBy} from client argument.
-     */
-    private final OrderConstraintResolver orderByResolver;
-
-    /**
-     * Schema of catalog in which the collection is placed.
-     */
-    @Nonnull
-    private final CatalogSchemaContract catalogSchema;
-    /**
      * Entity type of collection to which this fetcher is mapped to.
      */
-    @Nonnull
-    private final EntitySchemaContract entitySchema;
-    /**
-     * Function to fetch specific entity schema based on its name.
-     */
-    @Nonnull
-    private final Function<String, EntitySchemaContract> entitySchemaFetcher;
+    @Nonnull private final EntitySchemaContract entitySchema;
+
+    @Nonnull private final FilterConstraintResolver filterConstraintResolver;
+    @Nonnull private final OrderConstraintResolver orderConstraintResolver;
+    @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
     public ListEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
                                    @Nonnull EntitySchemaContract entitySchema) {
-        this.catalogSchema = catalogSchema;
         this.entitySchema = entitySchema;
-        this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
-        this.filterByResolver = new FilterConstraintResolver(catalogSchema);
-        this.orderByResolver = new OrderConstraintResolver(catalogSchema);
+
+        this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
+        this.orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+        this.entityFetchRequireResolver = new EntityFetchRequireResolver(
+            catalogSchema::getEntitySchemaOrThrowException,
+            filterConstraintResolver,
+            orderConstraintResolver
+        );
     }
 
     @Nonnull
@@ -139,7 +127,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         if (arguments.filterBy() == null) {
             return null;
         }
-        return (FilterBy) filterByResolver.resolve(
+        return (FilterBy) filterConstraintResolver.resolve(
             entitySchema.getName(),
             ListEntitiesQueryHeaderDescriptor.FILTER_BY.name(),
             arguments.filterBy()
@@ -151,7 +139,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         if (arguments.orderBy() == null) {
             return null;
         }
-        return (OrderBy) orderByResolver.resolve(
+        return (OrderBy) orderConstraintResolver.resolve(
             entitySchema.getName(),
             ListEntitiesQueryHeaderDescriptor.ORDER_BY.name(),
             arguments.orderBy()
@@ -165,15 +153,13 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
 
         final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
-        requireConstraints.add(
-            EntityFetchRequireBuilder.buildEntityRequirement(
-                catalogSchema,
-                SelectionSetWrapper.from(environment.getSelectionSet()),
-                extractDesiredLocale(filterBy),
-                entitySchema,
-                entitySchemaFetcher
-            )
+        final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+            SelectionSetWrapper.from(environment.getSelectionSet()),
+            extractDesiredLocale(filterBy),
+            entitySchema
         );
+        entityFetch.ifPresent(requireConstraints::add);
+
         if (arguments.limit() != null) {
             requireConstraints.add(strip(0, arguments.limit()));
         }

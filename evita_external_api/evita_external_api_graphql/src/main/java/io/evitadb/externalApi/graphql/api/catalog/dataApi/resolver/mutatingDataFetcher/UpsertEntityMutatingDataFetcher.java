@@ -38,7 +38,9 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityFetchRequireBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
@@ -50,6 +52,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -61,28 +64,25 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
 
-	private final GraphQLEntityUpsertMutationConverter entityUpsertMutationResolver;
 
 	/**
-	 * Schema of catalog in which the collection is placed.
+	 * Schema of collection to which this fetcher is mapped to.
 	 */
-	@Nonnull
-	private final CatalogSchemaContract catalogSchema;
-	@Nonnull
-	private EntitySchemaContract entitySchema;
-	/**
-	 * Function to fetch specific entity schema based on its name.
-	 */
-	@Nonnull
-	private final Function<String, EntitySchemaContract> entitySchemaFetcher;
+	@Nonnull private EntitySchemaContract entitySchema;
+
+	@Nonnull private final GraphQLEntityUpsertMutationConverter entityUpsertMutationResolver;
+	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
 	public UpsertEntityMutatingDataFetcher(@Nonnull ObjectMapper objectMapper,
 										   @Nonnull CatalogSchemaContract catalogSchema,
 	                                       @Nonnull EntitySchemaContract entitySchema) {
-		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
-		this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
 		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationConverter(objectMapper, entitySchema);
+		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
+			catalogSchema::getEntitySchemaOrThrowException,
+			new FilterConstraintResolver(catalogSchema),
+			new OrderConstraintResolver(catalogSchema)
+		);
 	}
 
 	@Nonnull
@@ -105,14 +105,14 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 
 	@Nonnull
 	private EntityContentRequire[] buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment) {
-		final EntityFetch entityFetch = EntityFetchRequireBuilder.buildEntityRequirement(
-			catalogSchema,
+		final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
 			SelectionSetWrapper.from(environment.getSelectionSet()),
 			null,
-			entitySchema,
-			entitySchemaFetcher
+			entitySchema
 		);
-		return entityFetch == null ? new EntityContentRequire[0] : entityFetch.getRequirements();
+		return entityFetch
+			.map(EntityFetch::getRequirements)
+			.orElse(new EntityContentRequire[0]);
 	}
 
 	/**

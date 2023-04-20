@@ -25,7 +25,7 @@ package io.evitadb.core.query.algebra.prefetch;
 
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityFetchRequirements;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.core.query.QueryContext;
@@ -99,7 +99,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	 *
 	 * Recomputed on 1. mil operations ({@link io.evitadb.spike.FormulaCostMeasurement}) it's cost of 148.
 	 */
-	private static long estimatePrefetchCost(int prefetchedEntityCount, EntityFetchRequirements requirements) {
+	private static long estimatePrefetchCost(int prefetchedEntityCount, EntityFetchRequire requirements) {
 		return prefetchedEntityCount * requirements.getRequirements().length * 148L;
 	}
 
@@ -287,7 +287,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		}
 
 		/**
-		 * Method allows to add a requirement that will be used by {@link QueryContext#prefetchEntities(Bitmap, EntityFetchRequirements)}
+		 * Method allows to add a requirement that will be used by {@link QueryContext#prefetchEntities(Bitmap, EntityFetchRequire)}
 		 * to fetch wide enough scope of the entity so that all filtering/sorting logic would have all data present
 		 * for its evaluation.
 		 */
@@ -307,7 +307,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		 */
 		@Nullable
 		public Runnable createPrefetchLambdaIfNeededOrWorthwhile(@Nonnull QueryContext queryContext) {
-			EntityFetchRequirements requirements = null;
+			EntityFetchRequire requirements = null;
 			Bitmap entitiesToPrefetch = null;
 			// are we forced to prefetch entities from catalog index?
 			if (!entityReferences.isEmpty()) {
@@ -334,7 +334,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 
 			if (entitiesToPrefetch != null && requirements != null) {
 				final Bitmap finalEntitiesToPrefetch = entitiesToPrefetch;
-				final EntityFetchRequirements finalRequirements = requirements;
+				final EntityFetchRequire finalRequirements = requirements;
 				return () -> queryContext.prefetchEntities(
 					finalEntitiesToPrefetch,
 					finalRequirements
@@ -376,7 +376,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		/**
 		 * Returns set of requirements to fetch entities with.
 		 */
-		protected EntityFetchRequirements getRequirements() {
+		protected EntityFetchRequire getRequirements() {
 			return new EntityFetch(
 				requirements.values().toArray(new EntityContentRequire[0])
 			);

@@ -31,8 +31,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.api.query.QueryConstraints.facetGroupsConjunction;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -48,7 +50,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		resolver = new RequireConstraintResolver(catalogSchema);
+		resolver = new RequireConstraintResolver(catalogSchema, new AtomicReference<>(new FilterConstraintResolver(catalogSchema)));
 	}
 
 	@Test
@@ -59,6 +61,30 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 				Entities.PRODUCT,
 				"facetBrandGroupsConjunction",
 				List.of(1, 2)
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveRequireConstraintWithAdditionalChildConstraint() {
+		assertEquals(
+			stopAt(
+				node(
+					filterBy(
+						and(
+							entityPrimaryKeyInSet(1)
+						)
+					)
+				)
+			),
+			resolver.resolve(
+				Entities.PRODUCT,
+				"hierarchyStopAt",
+				map()
+					.e("hierarchyNode", map()
+						.e("filterBy", map()
+							.e("entityPrimaryKeyInSet", List.of(1))))
+					.build()
 			)
 		);
 	}

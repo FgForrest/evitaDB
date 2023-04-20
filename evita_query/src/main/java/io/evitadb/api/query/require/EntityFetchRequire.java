@@ -34,7 +34,7 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EntityFetchRequirements extends RequireConstraint, EntityRequire, SeparateEntityContentRequireContainer {
+public interface EntityFetchRequire extends RequireConstraint, EntityRequire, SeparateEntityContentRequireContainer {
 	/**
 	 * Returns requirement constraints for the loaded entities.
 	 */

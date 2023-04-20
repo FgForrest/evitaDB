@@ -23,46 +23,73 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
+import io.evitadb.api.query.require.HierarchyChildren;
+import io.evitadb.api.query.require.HierarchyFromNode;
+import io.evitadb.api.query.require.HierarchyFromRoot;
+import io.evitadb.api.query.require.HierarchyParents;
+import io.evitadb.api.query.require.HierarchyRequireConstraint;
+import io.evitadb.api.query.require.HierarchySiblings;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
-
 /**
- * TODO lho docs
+ * Descriptor for header arguments of fields representing both {@link io.evitadb.api.query.require.HierarchyOfSelf}
+ * and {@link io.evitadb.api.query.require.HierarchyOfReference}.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface HierarchyHeaderDescriptor {
 
-	interface FromRootHeaderDescriptor {
+	/**
+	 * Descriptor of header arguments common for all {@link HierarchyRequireConstraint}s.
+	 */
+	interface HierarchyRequireHeaderDescriptor {
 
 		PropertyDescriptor STOP_AT = PropertyDescriptor.builder()
 			.name("stopAt")
+			// TOBEDONE JNO: stopAt constraint docs
+			.description("""
+                WIP
+				""")
+			// type is expected to be a `stopAt` constraint
+			.build();
+		PropertyDescriptor STATISTICS = PropertyDescriptor.builder()
+			.name("statistics")
+			// TOBEDONE JNO: statistics constraint docs
+			.description("""
+                WIP
+				""")
+			// type is expected to be a `statistics` constraint
 			.build();
 	}
 
-	interface StopAtDescriptor {
+	/**
+	 * Descriptor of header arguments for {@link HierarchyFromRoot}.
+	 */
+	interface HierarchyFromRootHeaderDescriptor extends HierarchyRequireHeaderDescriptor {}
+	/**
+	 * Descriptor of header arguments for {@link HierarchyFromNode}.
+	 */
+	interface HierarchyFromNodeHeaderDescriptor extends HierarchyRequireHeaderDescriptor {
 
-		PropertyDescriptor LEVEL = PropertyDescriptor.builder()
-			.name("level")
-			.description("""
-                Limits the traversing at specified level from relative root.
-				""")
-			.type(nullable(Integer.class))
-			.build();
-		PropertyDescriptor DISTANCE = PropertyDescriptor.builder()
-			.name("distance")
-			.description("""
-                Limits the traversing at specified distance (number of nodes in path).
-				""")
-			.type(nullable(Integer.class))
-			.build();
 		PropertyDescriptor NODE = PropertyDescriptor.builder()
 			.name("node")
+			// TOBEDONE JNO: node constraint docs
 			.description("""
-                Limits the traversing at specified level from relative root.
+                WIP
 				""")
-			.type(nullable(Integer.class))
+			// type is expected to be a `node` constraint
 			.build();
 	}
+	/**
+	 * Descriptor of header arguments for {@link HierarchyChildren}.
+	 */
+	interface HierarchyChildrenHeaderDescriptor extends HierarchyRequireHeaderDescriptor {}
+	/**
+	 * Descriptor of header arguments for {@link HierarchyParents}.
+	 */
+	interface HierarchyParentsHeaderDescriptor extends HierarchyRequireHeaderDescriptor {}
+	/**
+	 * Descriptor of header arguments for {@link HierarchySiblings}.
+	 */
+	interface HierarchySiblingsHeaderDescriptor extends HierarchyRequireHeaderDescriptor {}
 }

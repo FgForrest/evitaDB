@@ -455,7 +455,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", null),
+				new HierarchyDataLocator("category"),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -480,7 +480,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", null),
+				new HierarchyDataLocator("category"),
 				List.of(
 					new ValueParameterDescriptor("id", Integer.class, true, false)
 				),
@@ -696,7 +696,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", null),
+				new HierarchyDataLocator("category"),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
@@ -723,7 +723,7 @@ class WrapperObjectKeyTest {
 		assertNotEquals(
 			new WrapperObjectKey(
 				ConstraintType.FILTER,
-				new HierarchyDataLocator("product", null),
+				new HierarchyDataLocator("category"),
 				List.of(
 					new ValueParameterDescriptor("name", String.class, true, false)
 				),
