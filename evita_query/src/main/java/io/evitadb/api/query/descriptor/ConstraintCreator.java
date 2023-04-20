@@ -32,6 +32,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -229,6 +230,7 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	 * @param name name of original parameter
 	 * @param type data type of original parameter
 	 * @param required children cannot be null
+	 * @param domain specifies domain for child constraints
 	 * @param uniqueChildren if each child constraint can be passed only once in this list parameter.
 	 * @param allowedChildTypes set of allowed child constraints. Constraint not specified in this set will be forbidden.
 	 * @param forbiddenChildTypes set of forbidden child constraints. All constraints are allowed except of these.
@@ -236,10 +238,10 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	public record ChildParameterDescriptor(@Nonnull String name,
 	                                       @Nonnull Class<?> type,
 	                                       boolean required,
+	                                       @Nonnull ConstraintDomain domain,
 	                                       boolean uniqueChildren,
 	                                       @Nonnull Set<Class<? extends Constraint<?>>> allowedChildTypes,
-	                                       @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) implements ParameterDescriptor {
-	}
+	                                       @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) implements ParameterDescriptor {}
 
 	/**
 	 * Describes single constraint constructor parameter which holds single or multiple additional child constraints (of different type
@@ -249,10 +251,11 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	 * @param name name of original parameter
 	 * @param type data type of original parameter
 	 * @param required children cannot be null
+	 * @param domain specifies domain for additional child constraints
 	 */
 	public record AdditionalChildParameterDescriptor(@Nonnull ConstraintType constraintType,
 	                                                 @Nonnull String name,
 	                                                 @Nonnull Class<?> type,
-	                                                 boolean required) implements ParameterDescriptor {
-	}
+	                                                 boolean required,
+	                                                 @Nonnull ConstraintDomain domain) implements ParameterDescriptor {}
 }

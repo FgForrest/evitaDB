@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -52,7 +53,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		resolver = new FilterConstraintResolver(catalogSchema, "PRODUCT");
+		resolver = new FilterConstraintResolver(catalogSchema);
 	}
 
 	@Test
@@ -60,6 +61,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertEquals(
 			attributeEquals("CODE", "123"),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"attributeCodeEquals",
 				"123"
 			)
@@ -68,9 +70,9 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueFilterConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("attributeCodeEquals", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attributeCodeEquals", List.of()));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attributeCodeEquals", Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", null));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", List.of()));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", Map.of()));
 	}
 
 	@Test
@@ -85,6 +87,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				)
 			),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"and",
 				List.of(
 					Map.of("attributeCodeEquals", "123"),
@@ -96,9 +99,9 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveChildFilterConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("and", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("and", "abc"));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("and", Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "and", null));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "and", "abc"));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "and", Map.of()));
 	}
 
 	@Test
@@ -110,6 +113,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				directRelation()
 			),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"hierarchyCategoryWithin",
 				Map.of(
 					"ofParent", 1,
@@ -126,6 +130,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				1
 			),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"hierarchyCategoryWithin",
 				Map.of(
 					"ofParent", 1
@@ -143,6 +148,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				2
 			),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"attributeAgeBetween",
 				List.of(1, 2)
 			)
@@ -155,6 +161,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				2
 			),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"attributeAgeBetween",
 				Arrays.asList(null, 2)
 			)
@@ -167,6 +174,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				null
 			),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"attributeAgeBetween",
 				Arrays.asList(1, null)
 			)
@@ -178,6 +186,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> resolver.resolve(
+				Entities.PRODUCT,
 				"attributeAgeBetween",
 				null
 			)
@@ -186,6 +195,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertThrows(
 			EvitaInvalidUsageException.class,
 			() -> resolver.resolve(
+				Entities.PRODUCT,
 				"attributeAgeBetween",
 				List.of(1)
 			)
@@ -194,6 +204,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertThrows(
 			EvitaInternalError.class,
 			() -> resolver.resolve(
+				Entities.PRODUCT,
 				"attributeAgeBetween",
 				mapOf(
 					"from", 1,
@@ -237,6 +248,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 			),
 			QueryPurifierVisitor.purify(
 				resolver.resolve(
+					Entities.PRODUCT,
 					"filterBy",
 					mapOf(
 						"attributeCodeEquals", "123",

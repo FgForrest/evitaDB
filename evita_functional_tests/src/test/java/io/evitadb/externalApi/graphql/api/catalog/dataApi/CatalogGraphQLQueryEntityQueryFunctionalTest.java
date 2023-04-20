@@ -31,10 +31,10 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
@@ -54,8 +54,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.test.Entities;
@@ -2983,7 +2983,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    }
 		                    extraResults {
 		                        __typename
-		                        hierarchyStatistics {
+		                        hierarchy {
 		                            __typename
 		                            category {
 		                                __typename
@@ -3022,11 +3022,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + "." + TYPENAME_FIELD,
-				equalTo(HierarchyStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name() + "." + TYPENAME_FIELD,
+				equalTo(HierarchyDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name() + ".category",
 				equalTo(expectedBody)
 			);
 	}
@@ -3082,7 +3082,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    }
 		                    extraResults {
 		                        __typename
-		                        hierarchyStatistics {
+		                        hierarchy {
 		                            __typename
 		                            self {
 		                                __typename
@@ -3121,11 +3121,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Category")))
 			)
 			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + "." + TYPENAME_FIELD,
-				equalTo(HierarchyStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Category")))
+				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name() + "." + TYPENAME_FIELD,
+				equalTo(HierarchyDescriptor.THIS.name(createEmptyEntitySchema("Category")))
 			)
 			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".self",
+				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name() + ".self",
 				equalTo(expectedBody)
 			);
 	}
@@ -3149,7 +3149,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                        }
 		                    }
 		                    extraResults {
-		                        hierarchyStatistics {
+		                        hierarchy {
 		                            self {
 		                                cardinality
 		                            }
@@ -3200,7 +3200,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = response.getExtraResult(HierarchyStatistics.class)
+		final var expectedBody = response.getExtraResult(Hierarchy.class)
 			.getStatistics(Entities.CATEGORY)
 			.entrySet()
 			.stream()
@@ -3225,7 +3225,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                        }
 		                    }
 		                    extraResults {
-		                        hierarchyStatistics {
+		                        hierarchy {
 		                            category {
 		                                entity {
 	                                        attributes {
@@ -3244,7 +3244,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category." + HierarchyStatisticsLevelInfoDescriptor.ENTITY.name() + "." + EntityDescriptor.ATTRIBUTES.name() + "." + ATTRIBUTE_NAME,
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name() + ".category." + LevelInfoDescriptor.ENTITY.name() + "." + EntityDescriptor.ATTRIBUTES.name() + "." + ATTRIBUTE_NAME,
 				equalTo(expectedBody)
 			);
 	}
@@ -3580,8 +3580,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Nonnull
 	private List<Map<String, Object>> createHierarchyStatisticsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyStatistics hierarchyStatistics = response.getExtraResult(HierarchyStatistics.class);
-		final Map<String, List<LevelInfo>> categoryStatistics = hierarchyStatistics.getStatistics(Entities.CATEGORY);
+		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+		final Map<String, List<LevelInfo>> categoryStatistics = hierarchy.getStatistics(Entities.CATEGORY);
 
 		final var levelInfoDtos = new LinkedList<Map<String, Object>>();
 
@@ -3593,9 +3593,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.forEach(levelInfo1 ->
 				levelInfoDtos.add(
 					map()
-						.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
-						.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo1.queriedEntityCount())
-						.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo1.entity())
+						.e(TYPENAME_FIELD, LevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
+//						.e(LevelInfoDescriptor.CARDINALITY.name(), levelInfo1.queriedEntityCount())
+						.e(LevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo1.entity())
 							.map(parentEntity -> map()
 								.e(TYPENAME_FIELD, "Category")
 								.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
@@ -3604,22 +3604,22 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									.build())
 								.build())
 							.get())
-						.e(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS.name(), levelInfo1.childrenStatistics()
-							.stream()
-							.map(levelInfo2 -> map()
-								.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
-								.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo2.queriedEntityCount())
-								.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo2.entity())
-									.map(parentEntity -> map()
-										.e(TYPENAME_FIELD, "Category")
-										.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-										.e(EntityDescriptor.ATTRIBUTES.name(), map()
-											.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-											.build())
-										.build())
-									.get())
-								.build())
-							.toList())
+//						.e(LevelInfoDescriptor.CHILDREN_STATISTICS.name(), levelInfo1.children()
+//							.stream()
+//							.map(levelInfo2 -> map()
+//								.e(TYPENAME_FIELD, LevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
+//								.e(LevelInfoDescriptor.CARDINALITY.name(), levelInfo2.queriedEntityCount())
+//								.e(LevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo2.entity())
+//									.map(parentEntity -> map()
+//										.e(TYPENAME_FIELD, "Category")
+//										.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
+//										.e(EntityDescriptor.ATTRIBUTES.name(), map()
+//											.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
+//											.build())
+//										.build())
+//									.get())
+//								.build())
+//							.toList())
 						.build()
 				)
 			);
@@ -3629,8 +3629,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Nonnull
 	private List<Map<String, Object>> createSelfHierarchyStatisticsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyStatistics hierarchyStatistics = response.getExtraResult(HierarchyStatistics.class);
-		final Map<String, List<LevelInfo>> categoryStatistics = hierarchyStatistics.getSelfStatistics();
+		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+		final Map<String, List<LevelInfo>> categoryStatistics = hierarchy.getSelfStatistics();
 
 		final var levelInfoDtos = new LinkedList<Map<String, Object>>();
 
@@ -3642,9 +3642,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.forEach(levelInfo1 ->
 			levelInfoDtos.add(
 				map()
-					.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Category"), createEmptyEntitySchema("Category")))
-					.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo1.queriedEntityCount())
-					.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo1.entity())
+					.e(TYPENAME_FIELD, LevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Category"), createEmptyEntitySchema("Category")))
+//					.e(LevelInfoDescriptor.CARDINALITY.name(), levelInfo1.queriedEntityCount())
+					.e(LevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo1.entity())
 						.map(parentEntity -> map()
 							.e(TYPENAME_FIELD, "Category")
 							.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
@@ -3653,22 +3653,22 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.build())
 							.build())
 						.get())
-					.e(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS.name(), levelInfo1.childrenStatistics()
-						.stream()
-						.map(levelInfo2 -> map()
-							.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Category"), createEmptyEntitySchema("Category")))
-							.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo2.queriedEntityCount())
-							.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo2.entity())
-								.map(parentEntity -> map()
-									.e(TYPENAME_FIELD, "Category")
-									.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-										.build())
-									.build())
-								.get())
-							.build())
-						.toList())
+//					.e(LevelInfoDescriptor.CHILDREN_STATISTICS.name(), levelInfo1.children()
+//						.stream()
+//						.map(levelInfo2 -> map()
+//							.e(TYPENAME_FIELD, LevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Category"), createEmptyEntitySchema("Category")))
+//							.e(LevelInfoDescriptor.CARDINALITY.name(), levelInfo2.queriedEntityCount())
+//							.e(LevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo2.entity())
+//								.map(parentEntity -> map()
+//									.e(TYPENAME_FIELD, "Category")
+//									.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
+//									.e(EntityDescriptor.ATTRIBUTES.name(), map()
+//										.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
+//										.build())
+//									.build())
+//								.get())
+//							.build())
+//						.toList())
 					.build()
 			)
 		);

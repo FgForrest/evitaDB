@@ -38,6 +38,7 @@ import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -65,6 +66,15 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 		);
 	}
 
+	@Nullable
+	public RequireConstraint resolve(@Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new GenericDataLocator(restHandlingContext.getEntityType()),
+			key,
+			value
+		);
+	}
+
 	@Override
 	protected Class<RequireConstraint> getConstraintClass() {
 		return RequireConstraint.class;
@@ -84,13 +94,7 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new GenericDataLocator(restHandlingContext.getEntityType());
-	}
-
-	@Nonnull
-	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),

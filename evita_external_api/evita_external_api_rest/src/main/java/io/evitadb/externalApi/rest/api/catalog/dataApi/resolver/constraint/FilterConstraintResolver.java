@@ -29,7 +29,6 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
@@ -39,6 +38,7 @@ import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -53,9 +53,8 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class FilterConstraintResolver extends RestConstraintResolver<FilterConstraint> {
-	@Getter
-	@Nonnull
-	private final ConstraintDescriptor wrapperContainer;
+
+	@Getter @Nonnull private final ConstraintDescriptor wrapperContainer;
 
 	public FilterConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
 		super(
@@ -77,6 +76,15 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 		wrapperContainer = descriptors.iterator().next();
 	}
 
+	@Nullable
+	public FilterConstraint resolve(@Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new EntityDataLocator(restHandlingContext.getEntityType()),
+			key,
+			value
+		);
+	}
+
 	@Override
 	protected Class<FilterConstraint> getConstraintClass() {
 		return FilterConstraint.class;
@@ -90,13 +98,7 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(restHandlingContext.getEntityType());
-	}
-
-	@Nonnull
-	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),

@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
@@ -38,6 +37,7 @@ import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -53,15 +53,19 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class RequireConstraintResolver extends GraphQLConstraintResolver<RequireConstraint> {
 
-	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String rootEntityType) {
-		this(catalogSchema, new GenericDataLocator(rootEntityType));
-	}
-
-	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull DataLocator rootDataLocator) {
+	public RequireConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
 		super(
 			catalogSchema,
-			createHashMap(0), // currently, in GraphQL API we don't support any require constraint with additional children
-			rootDataLocator
+			createHashMap(0) // currently, in GraphQL API we don't support any require constraint with additional children
+		);
+	}
+
+	@Nullable
+	public RequireConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new GenericDataLocator(rootEntityType),
+			key,
+			value
 		);
 	}
 
@@ -84,7 +88,7 @@ public class RequireConstraintResolver extends GraphQLConstraintResolver<Require
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),

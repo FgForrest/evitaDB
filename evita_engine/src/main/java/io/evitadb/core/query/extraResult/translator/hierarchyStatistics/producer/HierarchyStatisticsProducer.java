@@ -31,8 +31,8 @@ import io.evitadb.api.query.require.HierarchyOfReference;
 import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -66,7 +66,7 @@ import java.util.stream.Collectors;
 import static java.util.Optional.ofNullable;
 
 /**
- * {@link HierarchyStatisticsProducer} creates {@link HierarchyStatistics} DTO instance and does the heavy lifting to
+ * {@link HierarchyStatisticsProducer} creates {@link Hierarchy} DTO instance and does the heavy lifting to
  * compute all information necessary. The producer aggregates {@link AbstractHierarchyStatisticsComputer} for each
  * {@link HierarchyOfSelf} requirement and combines them into the single result.
  *
@@ -111,7 +111,7 @@ public class HierarchyStatisticsProducer implements ExtraResultProducer {
 	@Override
 
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
-		return new HierarchyStatistics(
+		return new Hierarchy(
 			ofNullable(selfHierarchyRequest)
 				.map(it -> it.createStatistics(language))
 				.orElse(null),

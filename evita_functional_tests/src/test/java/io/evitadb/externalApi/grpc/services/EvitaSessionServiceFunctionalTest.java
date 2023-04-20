@@ -46,8 +46,8 @@ import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -441,7 +441,7 @@ class EvitaSessionServiceFunctionalTest {
 				),
 				require(
 					page(?, ?),
-					hierarchyStatisticsOfSelf()
+					hierarchyOfSelf()
 				)
 			)
 			""";
@@ -1370,6 +1370,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of entity references with applied within hierarchy filter with computed hierarchy statistics and parents trees consisting of entity primary keys")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithHierarchyStatisticsAndParentsOfIntegers(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -1388,7 +1389,7 @@ class EvitaSessionServiceFunctionalTest {
 				),
 				require(
 					page(?, ?),
-					hierarchyStatisticsOfSelf(),
+					hierarchyOfSelf(),
 					hierarchyParentsOfSelf()
 				)
 			)
@@ -1411,12 +1412,12 @@ class EvitaSessionServiceFunctionalTest {
 
 		final EvitaResponse<EntityReference> referenceResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, EntityReference.class);
 
-		final HierarchyStatistics hierarchyStatisticsOfSelf = referenceResponse.getExtraResult(HierarchyStatistics.class);
+		final Hierarchy hierarchyOfSelf = referenceResponse.getExtraResult(Hierarchy.class);
 		final HierarchyParents hierarchyParentsOfSelf = referenceResponse.getExtraResult(HierarchyParents.class);
 
-		if (hierarchyStatisticsOfSelf != null) {
+		if (hierarchyOfSelf != null) {
 			GrpcAssertions.assertStatistics(
-				hierarchyStatisticsOfSelf.getSelfStatistics(),
+				hierarchyOfSelf.getSelfStatistics(),
 				response.get().getExtraResults().getSelfHierarchyStatistics()
 			);
 		}
@@ -1455,7 +1456,7 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					entityFetch(),
-					hierarchyStatisticsOfSelf(entityFetch(attributeContent())),
+					hierarchyOfSelf(entityFetch(attributeContent())),
 					hierarchyParentsOfSelf(entityFetch(attributeContent()))
 				)
 			)
@@ -1479,7 +1480,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
 
 		assertStatistics(
-			Objects.requireNonNull(entityResponse.getExtraResult(HierarchyStatistics.class)).getSelfStatistics(),
+			Objects.requireNonNull(entityResponse.getExtraResult(Hierarchy.class)).getSelfStatistics(),
 			response.get().getExtraResults().getSelfHierarchyStatistics()
 		);
 

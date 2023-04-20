@@ -40,7 +40,9 @@ import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -69,6 +71,16 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 			constraintSchemaBuildingCtx,
 			createHashMap(0), // currently, in GraphQL API we don't support any require constraint with additional children
 			ALLOWED_CONSTRAINTS,
+			Set.of()
+		);
+	}
+
+	public RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
+	                                      @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
+		super(
+			constraintSchemaBuildingCtx,
+			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
+			Set.of(),
 			Set.of()
 		);
 	}

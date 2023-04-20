@@ -66,7 +66,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		);
 	}
 
-	@Creator(silentImplicitClassifier = true)
+	@Creator
 	public HierarchyStatistics(
 		@Nonnull @Value StatisticsBase statisticsBase,
 		@Nonnull @Value StatisticsType... statisticsType

@@ -38,8 +38,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkAggregateDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import lombok.AccessLevel;
@@ -163,19 +163,19 @@ public class DataApiNamesConstructor {
 
 	@Nonnull
 	public static String constructHierarchyStatisticsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
-		return HierarchyStatisticsDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
+		return HierarchyDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
 	}
 
 	@Nonnull
 	public static String constructSelfLevelInfoObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
-		return HierarchyStatisticsLevelInfoDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, entitySchema);
+		return LevelInfoDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, entitySchema);
 	}
 
 	@Nonnull
 	public static String constructLevelInfoObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                  boolean localized) {
-		return HierarchyStatisticsLevelInfoDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
+		return LevelInfoDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nullable

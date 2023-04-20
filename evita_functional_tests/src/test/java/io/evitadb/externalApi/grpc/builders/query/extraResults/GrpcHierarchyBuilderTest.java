@@ -25,8 +25,8 @@ package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.externalApi.grpc.generated.GrpcLevelInfos;
 import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import io.evitadb.test.Entities;
@@ -43,12 +43,12 @@ import java.util.Map.Entry;
  *
  * @author Tomáš Pozler, 2022
  */
-class GrpcHierarchyStatisticsBuilderTest {
+class GrpcHierarchyBuilderTest {
 
 	@Test
 	void buildHierarchyStatistics() {
 		final String[] types = new String[]{"test1", "test2", "test3"};
-		final HierarchyStatistics integerHierarchyStatistics = new HierarchyStatistics(
+		final Hierarchy integerHierarchy = new Hierarchy(
 			null,
 			Map.of(
 				types[0],
@@ -93,7 +93,7 @@ class GrpcHierarchyStatisticsBuilderTest {
 				)
 			)
 		);
-		final HierarchyStatistics entityHierarchyStatistics = new HierarchyStatistics(
+		final Hierarchy entityHierarchy = new Hierarchy(
 			null,
 			Map.of(
 				types[0],
@@ -137,8 +137,8 @@ class GrpcHierarchyStatisticsBuilderTest {
 			)
 		);
 
-		final Map<String, GrpcLevelInfos> integerGrpcLevelInfos = new HashMap<>(integerHierarchyStatistics.getStatistics().size());
-		for (Entry<String, Map<String, List<LevelInfo>>> entry : integerHierarchyStatistics.getStatistics().entrySet()) {
+		final Map<String, GrpcLevelInfos> integerGrpcLevelInfos = new HashMap<>(integerHierarchy.getStatistics().size());
+		for (Entry<String, Map<String, List<LevelInfo>>> entry : integerHierarchy.getStatistics().entrySet()) {
 			// TODO LHO - alter structure
 			integerGrpcLevelInfos.put(
 				entry.getKey(),
@@ -146,10 +146,10 @@ class GrpcHierarchyStatisticsBuilderTest {
 			);
 		}
 
-		GrpcAssertions.assertStatistics(integerHierarchyStatistics, integerGrpcLevelInfos, types[2]);
+		GrpcAssertions.assertStatistics(integerHierarchy, integerGrpcLevelInfos, types[2]);
 
-		final Map<String, GrpcLevelInfos> entityGrpcLevelInfos = new HashMap<>(entityHierarchyStatistics.getStatistics().size());
-		for (Entry<String, Map<String, List<LevelInfo>>> entry : entityHierarchyStatistics.getStatistics().entrySet()) {
+		final Map<String, GrpcLevelInfos> entityGrpcLevelInfos = new HashMap<>(entityHierarchy.getStatistics().size());
+		for (Entry<String, Map<String, List<LevelInfo>>> entry : entityHierarchy.getStatistics().entrySet()) {
 			// TODO LHO - alter structure
 			entityGrpcLevelInfos.put(
 				entry.getKey(),
@@ -157,6 +157,6 @@ class GrpcHierarchyStatisticsBuilderTest {
 			);
 		}
 
-		GrpcAssertions.assertStatistics(entityHierarchyStatistics, entityGrpcLevelInfos, types[2]);
+		GrpcAssertions.assertStatistics(entityHierarchy, entityGrpcLevelInfos, types[2]);
 	}
 }

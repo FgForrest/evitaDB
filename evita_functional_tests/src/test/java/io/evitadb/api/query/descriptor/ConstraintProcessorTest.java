@@ -138,6 +138,7 @@ class ConstraintProcessorTest {
 						"children",
 						FilterConstraint[].class,
 						true,
+						ConstraintDomain.DEFAULT,
 						false,
 						Set.of(),
 						Set.of()
@@ -203,6 +204,7 @@ class ConstraintProcessorTest {
 						"with",
 						HierarchySpecificationFilterConstraint[].class,
 						true,
+						ConstraintDomain.DEFAULT,
 						true,
 						Set.of(),
 						Set.of()
@@ -237,6 +239,7 @@ class ConstraintProcessorTest {
 						"with",
 						HierarchySpecificationFilterConstraint[].class,
 						true,
+						ConstraintDomain.DEFAULT,
 						true,
 						Set.of(),
 						Set.of()

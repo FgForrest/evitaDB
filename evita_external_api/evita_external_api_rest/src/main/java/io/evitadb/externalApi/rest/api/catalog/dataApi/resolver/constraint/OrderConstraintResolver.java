@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
@@ -31,6 +32,7 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
@@ -38,6 +40,7 @@ import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -61,6 +64,15 @@ public class OrderConstraintResolver extends RestConstraintResolver<OrderConstra
 		);
 	}
 
+	@Nullable
+	public OrderConstraint resolve(@Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new EntityDataLocator(restHandlingContext.getEntityType()),
+			key,
+			value
+		);
+	}
+
 	@Override
 	protected Class<OrderConstraint> getConstraintClass() {
 		return OrderConstraint.class;
@@ -80,13 +92,7 @@ public class OrderConstraintResolver extends RestConstraintResolver<OrderConstra
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(restHandlingContext.getEntityType());
-	}
-
-	@Nonnull
-	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
 		Assert.isPremiseValid(
 			!descriptors.isEmpty(),

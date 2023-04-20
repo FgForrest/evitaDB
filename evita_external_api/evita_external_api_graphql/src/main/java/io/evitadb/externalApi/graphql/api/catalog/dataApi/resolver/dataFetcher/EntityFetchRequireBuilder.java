@@ -304,12 +304,10 @@ public class EntityFetchRequireBuilder {
             () -> new GraphQLInvalidArgumentException("Reference filtering is currently supported only if there is only one reference of particular name requested.")
         );
 
-        final FilterConstraintResolver resolver = new FilterConstraintResolver(
-            catalogSchema,
-            new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName())
-        );
+        final FilterConstraintResolver resolver = new FilterConstraintResolver(catalogSchema);
         return Optional.ofNullable(
             (FilterBy) resolver.resolve(
+                new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
                 ReferenceFieldHeaderDescriptor.FILTER_BY.name(),
                 fields.get(0).getArguments().get(ReferenceFieldHeaderDescriptor.FILTER_BY.name())
             )
@@ -331,12 +329,10 @@ public class EntityFetchRequireBuilder {
             () -> new GraphQLInvalidArgumentException("Reference ordering is currently supported only if there is only one reference of particular name requested.")
         );
 
-        final OrderConstraintResolver resolver = new OrderConstraintResolver(
-            catalogSchema,
-            new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName())
-        );
+        final OrderConstraintResolver resolver = new OrderConstraintResolver(catalogSchema);
         return Optional.ofNullable(
             (OrderBy) resolver.resolve(
+                new ReferenceDataLocator(currentEntitySchema.getName(), fieldsForReferenceHolder.referenceSchema().getName()),
                 ReferenceFieldHeaderDescriptor.ORDER_BY.name(),
                 fieldsForReferenceHolder.fields().get(0).getArguments().get(ReferenceFieldHeaderDescriptor.ORDER_BY.name())
             )

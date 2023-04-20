@@ -19,7 +19,7 @@ To be able to describe quite complex constraints, some terms have been defined:
 - *property type* (represented by `io.evitadb.api.query.descriptor.ConstraintPropertyType`)
     - defines on which properties of targeted data (entity, reference, ...) a constraint can operate
 - *domain* (represented by `io.evitadb.api.query.descriptor.ConstraintDomain`)
-    - defines set of allowed/supported constraints
+    - defines set of allowed/supported constraints and overall data
     - a domain can be `entity`, `reference` or `hierarchy reference`
 - *base name*
     - describes a main condition or operation of a constraint for distinguishing it from other constraints
@@ -176,6 +176,13 @@ enclosing JSON object automatically. Also, the container must have *creator* con
 must be the `io.evitadb.api.query.descriptor.annotation.Child`.
 Lastly, the additional child parameter cannot be an array, because the referenced container can have its own array child parameter,
 which would clash.
+
+Both child parameters support overriding *domain* for its children. By default, the domain for children is passed from the
+parent constraint which has its domain resolved from the *property type*. However, sometimes we need completely different
+context for children (e.g. we want nested `filterBy` container inside hierarchy constraint to support filtering on referenced hierarchical entity),
+then we can use the `domain` parameter on either `io.evitadb.api.query.descriptor.annotation.Child` or 
+`io.evitadb.api.query.descriptor.annotation.AdditionalChild` annotation. Unfortunately, not all combinations of
+parent domain and overridden domain are possible, check JavaDoc of the `domain` parameter for more info. 
 
 More complex set of *creator*s combining options described above may look like this:
 ```java

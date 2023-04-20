@@ -105,7 +105,7 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor
 @ThreadSafe
-public class HierarchyStatistics implements EvitaResponseExtraResult {
+public class Hierarchy implements EvitaResponseExtraResult {
 	@Serial private static final long serialVersionUID = -5337743162562869243L;
 
 	/**
@@ -179,7 +179,7 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	public boolean equals(Object o) {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
-		final HierarchyStatistics that = (HierarchyStatistics) o;
+		final Hierarchy that = (Hierarchy) o;
 
 		if (selfStatistics == null && that.selfStatistics != null && !that.selfStatistics.isEmpty()) {
 			return false;
@@ -269,7 +269,7 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 			.append(levelInfo)
 			.append(System.lineSeparator());
 
-		for (LevelInfo child : levelInfo.childrenStatistics()) {
+		for (LevelInfo child : levelInfo.children()) {
 			appendLevelInfoTreeString(treeBuilder, child, currentLevel + 1);
 		}
 	}
@@ -287,14 +287,14 @@ public class HierarchyStatistics implements EvitaResponseExtraResult {
 	 *                           The count will respect {@link EmptyHierarchicalEntityBehaviour} settings and will not
 	 *                           count empty children in case {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY} is
 	 *                           used for computation.
-	 * @param childrenStatistics Contains statistics of the entities that are subordinate (children) of this {@link #entity}.
+	 * @param children           Contains hierarchy info of the entities that are subordinate (children) of this {@link #entity}.
 	 */
 
 	public record LevelInfo(
 		@Nonnull EntityClassifier entity,
 		@Nullable Integer queriedEntityCount,
 		@Nullable Integer childrenCount,
-		@Nonnull List<LevelInfo> childrenStatistics
+		@Nonnull List<LevelInfo> children
 	) {
 
 		public LevelInfo(LevelInfo levelInfo, List<LevelInfo> children) {

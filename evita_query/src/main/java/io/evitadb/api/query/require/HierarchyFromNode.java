@@ -71,7 +71,7 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 		);
 	}
 
-	@Creator(silentImplicitClassifier = true)
+	@Creator
 	public HierarchyFromNode(@Nonnull @Value String outputName,
 	                         @Nonnull @Child HierarchyNode node,
 	                         @Nullable @Child EntityFetch entityFetch,

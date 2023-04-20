@@ -36,8 +36,8 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -199,7 +199,7 @@ public abstract class AbstractHierarchyTranslator {
 
 	/**
 	 * Method creates the {@link Sorter} implementation that should be used for sorting {@link LevelInfo} inside
-	 * the {@link HierarchyStatistics} result object.
+	 * the {@link Hierarchy} result object.
 	 */
 	@Nonnull
 	protected Sorter createSorter(

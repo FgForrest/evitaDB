@@ -103,8 +103,8 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         this.catalogSchema = catalogSchema;
         this.entitySchema = entitySchema;
         this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
-        this.filterByResolver = new FilterConstraintResolver(catalogSchema, entitySchema.getName());
-        this.orderByResolver = new OrderConstraintResolver(catalogSchema, entitySchema.getName());
+        this.filterByResolver = new FilterConstraintResolver(catalogSchema);
+        this.orderByResolver = new OrderConstraintResolver(catalogSchema);
     }
 
     @Nonnull
@@ -139,7 +139,11 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         if (arguments.filterBy() == null) {
             return null;
         }
-        return (FilterBy) filterByResolver.resolve(ListEntitiesQueryHeaderDescriptor.FILTER_BY.name(), arguments.filterBy());
+        return (FilterBy) filterByResolver.resolve(
+            entitySchema.getName(),
+            ListEntitiesQueryHeaderDescriptor.FILTER_BY.name(),
+            arguments.filterBy()
+        );
     }
 
     @Nullable
@@ -147,7 +151,11 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         if (arguments.orderBy() == null) {
             return null;
         }
-        return (OrderBy) orderByResolver.resolve(ListEntitiesQueryHeaderDescriptor.ORDER_BY.name(), arguments.orderBy());
+        return (OrderBy) orderByResolver.resolve(
+            entitySchema.getName(),
+            ListEntitiesQueryHeaderDescriptor.ORDER_BY.name(),
+            arguments.orderBy()
+        );
     }
 
     @Nonnull

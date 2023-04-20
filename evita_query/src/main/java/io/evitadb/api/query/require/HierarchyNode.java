@@ -53,8 +53,8 @@ public class HierarchyNode extends AbstractRequireConstraintContainer implements
 	@Serial private static final long serialVersionUID = -7033476265993356981L;
 	private static final String CONSTRAINT_NAME = "node";
 
-	@Creator(silentImplicitClassifier = true)
-	public HierarchyNode(@Nonnull @AdditionalChild FilterBy filterBy) {
+	@Creator
+	public HierarchyNode(@Nonnull @AdditionalChild(domain = ConstraintDomain.HIERARCHY_TARGET) FilterBy filterBy) {
 		super(CONSTRAINT_NAME, new Serializable[0], new RequireConstraint[0], filterBy);
 	}
 

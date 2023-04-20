@@ -71,7 +71,7 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 		);
 	}
 
-	@Creator(silentImplicitClassifier = true)
+	@Creator
 	public HierarchyFromRoot(@Nonnull @Value String outputName,
 	                         @Nullable @Child EntityFetch entityFetch,
 	                         @Nonnull @Child(uniqueChildren = true) HierarchyOutputRequireConstraint... requirements) {

@@ -87,6 +87,7 @@ class ConstraintDescriptorTest {
 					"children",
 					FilterConstraint[].class,
 					true,
+					ConstraintDomain.DEFAULT,
 					false,
 					Set.of(),
 					Set.of()

@@ -21,26 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.constraint;
+package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
-import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import lombok.Builder;
 
 import javax.annotation.Nonnull;
 
 /**
- * Specifies how to get original data to generate constraints from. Currently, used to find correct attribute and reference
- * schemas in any position in query tree. It is basically an "implementation" of the {@link ConstraintDomain} to actually locate data
- * in that domain.
+ * Local context for constraint resolving. It is passed down the constraint tree. Each node can create new
+ * context for its children if received context from parent is not relevant
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @param dataLocator specifies how to get schemas for resolving data
+ *
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface DataLocator {
-	/**
-	 * Domain in which we need to build constraints, only constraint that are supported in this domain should be considered.
-	 */
-	@Nonnull
-	ConstraintDomain targetDomain();
-
-	@Nonnull
-	String entityType();
+@Builder(toBuilder = true)
+record ConstraintResolveContext(@Nonnull DataLocator dataLocator) {
 }
