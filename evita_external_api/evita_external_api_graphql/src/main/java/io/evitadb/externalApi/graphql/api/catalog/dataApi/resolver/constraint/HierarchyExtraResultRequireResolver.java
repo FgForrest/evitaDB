@@ -21,10 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.SelectedField;
-import io.evitadb.api.query.require.*;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.HierarchyNode;
+import io.evitadb.api.query.require.HierarchyOfReference;
+import io.evitadb.api.query.require.HierarchyOfSelf;
+import io.evitadb.api.query.require.HierarchyRequireConstraint;
+import io.evitadb.api.query.require.HierarchySiblings;
+import io.evitadb.api.query.require.HierarchyStatistics;
+import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
@@ -34,9 +42,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.ParentInfoDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchyFromNodeHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.HierarchyHeaderDescriptor.HierarchyRequireHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyFromNodeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyRequireHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -45,88 +53,122 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.AbstractMap.SimpleEntry;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
+ * Custom constraint resolver which resolves additional constraints from output fields defined by client, rather
+ * than using main query.
  * Resolves list of {@link HierarchyRequireConstraint}s based on which extra result fields client specified.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class HierarchyRequireResolver {
+public class HierarchyExtraResultRequireResolver {
 
 	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
 	@Nonnull
-	public List<HierarchyRequireConstraint> resolveHierarchyRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
-	                                                                 @Nullable Locale desiredLocale,
-	                                                                 @Nullable EntitySchemaContract currentEntitySchema) {
+	public Collection<RequireConstraint> resolveHierarchyExtraResultRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
+	                                                                                              @Nullable Locale desiredLocale,
+	                                                                                              @Nullable EntitySchemaContract currentEntitySchema) {
 		final List<SelectedField> hierarchyFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY.name());
 		if (hierarchyFields.isEmpty()) {
 			return List.of();
 		}
 
-		// key is an output name
-		final Map<String, HierarchyRequireConstraint> requestedHierarchies = createHashMap(20);
-		hierarchyFields.stream()
+		return hierarchyFields.stream()
 			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-			.forEach(referenceField -> {
-				final String fieldName = referenceField.getName();
-
-				final HierarchyDataLocator hierarchyDataLocator;
-				final EntitySchemaContract hierarchyEntitySchema;
-				if (fieldName.equals(HierarchyDescriptor.SELF.name())) {
-					hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName());
-					hierarchyEntitySchema = currentEntitySchema;
+			.map(referenceField -> {
+				if (HierarchyDescriptor.SELF.name().equals(referenceField.getName())) {
+					return resolveHierarchyOfSelf(referenceField, desiredLocale, currentEntitySchema);
 				} else {
-					final ReferenceSchemaContract reference = currentEntitySchema.getReferenceByName(fieldName, PROPERTY_NAME_NAMING_CONVENTION)
-						.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + fieldName + "` in `" + currentEntitySchema.getName() + "`."));
-					hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName(), reference.getName());
-					hierarchyEntitySchema = reference.isReferencedEntityTypeManaged()
-						? entitySchemaFetcher.apply(reference.getReferencedEntityType())
-						: null;
+					return resolveHierarchyOfReference(referenceField, desiredLocale, currentEntitySchema);
 				}
-
-				referenceField.getSelectionSet()
-					.getFields("*")
-					.forEach(specificHierarchyField -> {
-						final Entry<String, HierarchyRequireConstraint> hierarchyRequire = resolveHierarchyRequire(
-							specificHierarchyField,
-							hierarchyDataLocator,
-							desiredLocale,
-							hierarchyEntitySchema
-						);
-						requestedHierarchies.merge(
-							hierarchyRequire.getKey(),
-							hierarchyRequire.getValue(),
-							(c, c2) -> {
-								throw new GraphQLInvalidResponseUsageException("Duplicate hierarchy output name `" + hierarchyRequire.getKey() + "`.");
-							}
-						);
-					});
-			});
-
-		return new ArrayList<>(requestedHierarchies.values());
+			})
+			.collect(Collectors.toMap(Entry::getKey, Entry::getValue, (c, c2) -> {
+				throw new GraphQLInvalidResponseUsageException("Duplicate hierarchies for single reference.");
+			}))
+			.values();
 	}
 
 	@Nonnull
-	private Map.Entry<String, HierarchyRequireConstraint> resolveHierarchyRequire(@Nonnull SelectedField field,
-	                                                                              @Nonnull HierarchyDataLocator hierarchyDataLocator,
-	                                                                              @Nullable Locale desiredLocale,
-	                                                                              @Nullable EntitySchemaContract currentEntitySchema) {
-		// todo lho try to implement full path before name to allow hierarchies across duplicate hierarchy fields
-		final String outputName = field.getAlias() != null ? field.getAlias() : field.getName();
+	private Entry<String, RequireConstraint> resolveHierarchyOfSelf(@Nonnull SelectedField field,
+	                                                                @Nullable Locale desiredLocale,
+	                                                                @Nullable EntitySchemaContract currentEntitySchema) {
+		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
+			field,
+			new HierarchyDataLocator(currentEntitySchema.getName()),
+			desiredLocale,
+			currentEntitySchema
+		);
+
+		final HierarchyOfSelf hierarchyOfSelf = hierarchyOfSelf(hierarchyRequires);
+		return new SimpleEntry<>(HierarchyDescriptor.SELF.name(), hierarchyOfSelf);
+	}
+
+	@Nonnull
+	private Entry<String, RequireConstraint> resolveHierarchyOfReference(@Nonnull SelectedField field,
+	                                                                     @Nullable Locale desiredLocale,
+	                                                                     @Nullable EntitySchemaContract currentEntitySchema) {
+		final ReferenceSchemaContract reference = currentEntitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
+			.orElseThrow(() ->
+				new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + currentEntitySchema.getName() + "`."));
+
+		final String referenceName = reference.getName();
+		final HierarchyDataLocator hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName(), referenceName);
+		final EntitySchemaContract hierarchyEntitySchema = reference.isReferencedEntityTypeManaged()
+			? entitySchemaFetcher.apply(reference.getReferencedEntityType())
+			: null;
+
+		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
+			field,
+			hierarchyDataLocator,
+			desiredLocale,
+			hierarchyEntitySchema
+		);
+
+		final HierarchyOfReference hierarchyOfReference = hierarchyOfReference(referenceName, hierarchyRequires);
+		return new SimpleEntry<>(referenceName, hierarchyOfReference);
+	}
+
+	@Nonnull
+	private HierarchyRequireConstraint[] resolveHierarchyRequirements(@Nonnull SelectedField field,
+	                                                                  @Nonnull HierarchyDataLocator hierarchyDataLocator,
+	                                                                  @Nullable Locale desiredLocale,
+	                                                                  @Nonnull EntitySchemaContract hierarchyEntitySchema) {
+		return field.getSelectionSet()
+			.getFields("*")
+			.stream()
+			.map(specificHierarchyField -> resolveHierarchyRequire(
+				specificHierarchyField,
+				hierarchyDataLocator,
+				desiredLocale,
+				hierarchyEntitySchema
+			))
+			.collect(Collectors.toMap(Entry::getKey, Entry::getValue, (c, c2) -> {
+				throw new GraphQLInvalidResponseUsageException("Duplicate hierarchy output name `" + c.getOutputName() + "`.");
+			}))
+			.values()
+			.toArray(HierarchyRequireConstraint[]::new);
+	}
+
+	@Nonnull
+	private Entry<String, HierarchyRequireConstraint> resolveHierarchyRequire(@Nonnull SelectedField field,
+	                                                                          @Nonnull HierarchyDataLocator hierarchyDataLocator,
+	                                                                          @Nullable Locale desiredLocale,
+	                                                                          @Nullable EntitySchemaContract currentEntitySchema) {
+		final String outputName = HierarchyRequireOutputNameResolver.resolve(field);
 
 		final String hierarchyType = field.getName();
 		final HierarchyStopAt stopAt = resolveChildHierarchyRequireFromArgument(field, hierarchyDataLocator, HierarchyRequireHeaderDescriptor.STOP_AT);
@@ -135,21 +177,21 @@ public class HierarchyRequireResolver {
 
 		final HierarchyRequireConstraint hierarchyRequire;
 		if (HierarchyOfDescriptor.FROM_ROOT.name().equals(hierarchyType)) {
-			hierarchyRequire = new HierarchyFromRoot(outputName, entityFetch, stopAt, statistics);
+			hierarchyRequire = fromRoot(outputName, entityFetch, stopAt, statistics);
 		} else if (HierarchyOfDescriptor.FROM_NODE.name().equals(hierarchyType)) {
 			final HierarchyNode node = resolveChildHierarchyRequireFromArgument(field, hierarchyDataLocator, HierarchyFromNodeHeaderDescriptor.NODE);
 			Assert.isPremiseValid(
 				node != null,
 				() -> new GraphQLQueryResolvingInternalError("Missing `" + HierarchyFromNodeHeaderDescriptor.NODE.name() + "` argument.")
 			);
-			hierarchyRequire = new HierarchyFromNode(outputName, node, entityFetch, stopAt, statistics);
+			hierarchyRequire = fromNode(outputName, node, entityFetch, stopAt, statistics);
 		} else if (HierarchyOfDescriptor.CHILDREN.name().equals(hierarchyType)) {
-			hierarchyRequire = new HierarchyChildren(outputName, entityFetch, stopAt, statistics);
+			hierarchyRequire = children(outputName, entityFetch, stopAt, statistics);
 		} else if (HierarchyOfDescriptor.PARENTS.name().equals(hierarchyType)) {
 			final HierarchySiblings siblings = resolveSiblingsOfParents(field, hierarchyDataLocator, desiredLocale, currentEntitySchema);
-			hierarchyRequire = new HierarchyParents(outputName, entityFetch, siblings, stopAt, statistics);
+			hierarchyRequire = parents(outputName, entityFetch, siblings, stopAt, statistics);
 		} else if (HierarchyOfDescriptor.SIBLINGS.name().equals(hierarchyType)) {
-			hierarchyRequire = new HierarchySiblings(outputName, entityFetch, stopAt, statistics);
+			hierarchyRequire = siblings(outputName, entityFetch, stopAt, statistics);
 		} else {
 			throw new GraphQLQueryResolvingInternalError("Unsupported hierarchy type `" + hierarchyType + "`.");
 		}

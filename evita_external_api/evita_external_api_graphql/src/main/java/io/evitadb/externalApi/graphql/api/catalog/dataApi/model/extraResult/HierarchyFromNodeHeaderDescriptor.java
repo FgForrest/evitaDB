@@ -21,25 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.require;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 
-import io.evitadb.api.query.HierarchyConstraint;
-import io.evitadb.api.query.RequireConstraint;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import io.evitadb.api.query.require.HierarchyFromNode;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
- * This interface marks all filtering constraints that can be used to further specify hierarchy statistics and that can
- * be used within {@link HierarchyOfSelf} or {@link HierarchyOfReference} containers.
+ * Descriptor of header arguments for {@link HierarchyFromNode}.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface HierarchyRequireConstraint extends RequireConstraint, ExtraResultRequireConstraint, HierarchyConstraint<RequireConstraint> {
+public interface HierarchyFromNodeHeaderDescriptor extends HierarchyRequireHeaderDescriptor {
 
-	/**
-	 * Returns the key the computed extra result should be registered to.
-	 */
-	@Nullable
-	String getOutputName();
+	PropertyDescriptor NODE = PropertyDescriptor.builder()
+		.name("node")
+		// TOBEDONE JNO: node constraint docs
+		.description("""
+			WIP
+						""")
+		// type is expected to be a `node` constraint
+		.build();
 }

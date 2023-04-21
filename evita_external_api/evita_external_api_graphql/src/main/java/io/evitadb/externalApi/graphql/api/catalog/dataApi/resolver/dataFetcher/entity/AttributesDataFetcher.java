@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
 import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
@@ -29,7 +29,8 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AttributesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.RequiredArgsConstructor;
 

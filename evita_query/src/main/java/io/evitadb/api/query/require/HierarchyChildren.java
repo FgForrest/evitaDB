@@ -98,6 +98,7 @@ public class HierarchyChildren extends AbstractRequireConstraintContainer implem
 	 * Returns the key the computed extra result should be registered to.
 	 */
 	@Nonnull
+	@Override
 	public String getOutputName() {
 		return (String) getArguments()[0];
 	}

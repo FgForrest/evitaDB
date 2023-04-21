@@ -21,36 +21,34 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import graphql.execution.DataFetcherResult;
-import graphql.schema.DataFetcher;
-import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import graphql.TypeResolutionEnvironment;
+import graphql.schema.GraphQLObjectType;
+import graphql.schema.TypeResolver;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
+import java.util.Optional;
 
 /**
- * Fetches referenced entity from parent {@link ReferenceContract}.
+ * Resolve specific entity DTO for entity interface based on fetched original entity object.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ReferencedEntityDataFetcher implements DataFetcher<DataFetcherResult<SealedEntity>> {
+public class EntityDtoTypeResolver implements TypeResolver {
+
+	private final Map<String, GraphQLObjectType> entityTypeToEntityDtoMapping;
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<SealedEntity> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EntityQueryContext context = environment.getLocalContext();
-
-		final ReferenceContract reference = environment.getSource();
-		final SealedEntity referencedEntity = reference.getReferencedEntity().orElse(null);
-
-		return DataFetcherResult.<SealedEntity>newResult()
-			.data(referencedEntity)
-			.localContext(context)
-			.build();
+	public GraphQLObjectType getType(@Nonnull TypeResolutionEnvironment env) {
+		final EntityClassifier entity = env.getObject();
+		return Optional.ofNullable(entityTypeToEntityDtoMapping.get(entity.getType()))
+			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing entity dto for entity type `" + entity.getType() + "`."));
 	}
 }

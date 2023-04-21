@@ -64,10 +64,13 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.HierarchyExtraResultRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -109,7 +112,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
-	@Nonnull private final HierarchyRequireResolver hierarchyRequireResolver;
+	@Nonnull private final HierarchyExtraResultRequireResolver hierarchyExtraResultRequireResolver;
 
 	@Nullable
 	private static Locale extractDesiredLocale(@Nullable FilterBy filterBy) {
@@ -143,7 +146,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			filterConstraintResolver,
 			orderConstraintResolver
 		);
-		this.hierarchyRequireResolver = new HierarchyRequireResolver(
+		this.hierarchyExtraResultRequireResolver = new HierarchyExtraResultRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
 			entityFetchRequireResolver,
 			requireConstraintResolver
@@ -276,7 +279,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		requireConstraints.add(buildPriceHistogramRequire(extraResultsSelectionSet));
 		requireConstraints.addAll(buildFacetSummaryRequire(extraResultsSelectionSet, desiredLocale));
 		requireConstraints.addAll(buildHierarchyParentsRequires(extraResultsSelectionSet, desiredLocale));
-		requireConstraints.addAll(hierarchyRequireResolver.resolveHierarchyRequires(extraResultsSelectionSet, desiredLocale, entitySchema));
+		requireConstraints.addAll(hierarchyExtraResultRequireResolver.resolveHierarchyExtraResultRequires(extraResultsSelectionSet, desiredLocale, entitySchema));
 		requireConstraints.add(buildQueryTelemetryRequire(extraResultsSelectionSet));
 
 		return require(

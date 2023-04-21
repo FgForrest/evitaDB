@@ -21,25 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.require;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity;
 
-import io.evitadb.api.query.HierarchyConstraint;
-import io.evitadb.api.query.RequireConstraint;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
- * This interface marks all filtering constraints that can be used to further specify hierarchy statistics and that can
- * be used within {@link HierarchyOfSelf} or {@link HierarchyOfReference} containers.
+ * Descriptor for header parameters of {@link EntityDescriptor#ASSOCIATED_DATA}
+ * field.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface HierarchyRequireConstraint extends RequireConstraint, ExtraResultRequireConstraint, HierarchyConstraint<RequireConstraint> {
+public interface AssociatedDataFieldHeaderDescriptor {
 
-	/**
-	 * Returns the key the computed extra result should be registered to.
-	 */
-	@Nullable
-	String getOutputName();
+	PropertyDescriptor LOCALE = PropertyDescriptor.builder()
+		.name("locale")
+		.description("""
+			Parameter specifying desired locale of individual associated data values.
+			If not specified, desired entity locale is used instead.
+			""")
+		// type is expected to be a locale enum
+		.build();
 }

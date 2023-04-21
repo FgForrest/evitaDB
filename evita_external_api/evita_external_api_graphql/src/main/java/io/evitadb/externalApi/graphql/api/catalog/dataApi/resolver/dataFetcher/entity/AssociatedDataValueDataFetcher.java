@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import lombok.RequiredArgsConstructor;
 

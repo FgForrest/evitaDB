@@ -21,25 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.require;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
-import io.evitadb.api.query.HierarchyConstraint;
-import io.evitadb.api.query.RequireConstraint;
+import graphql.schema.SelectedField;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * This interface marks all filtering constraints that can be used to further specify hierarchy statistics and that can
- * be used within {@link HierarchyOfSelf} or {@link HierarchyOfReference} containers.
+ * TODO lho docs
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Lukáš Hornych, 2023
  */
-public interface HierarchyRequireConstraint extends RequireConstraint, ExtraResultRequireConstraint, HierarchyConstraint<RequireConstraint> {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class HierarchyRequireOutputNameResolver {
 
-	/**
-	 * Returns the key the computed extra result should be registered to.
-	 */
-	@Nullable
-	String getOutputName();
+	@Nonnull
+	public static String resolve(@Nonnull SelectedField field) {
+		// todo lho try to implement full path before name to allow hierarchies across duplicate hierarchy fields
+		if (field.getAlias() == null) {
+			// default output name
+			return field.getName();
+		}
+		return field.getAlias();
+	}
 }

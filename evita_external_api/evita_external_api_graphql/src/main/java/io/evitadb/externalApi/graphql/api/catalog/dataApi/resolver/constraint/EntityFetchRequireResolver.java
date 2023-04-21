@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.filter.FilterBy;
@@ -41,14 +41,13 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AssociatedDataFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.AttributesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PriceForSaleFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.PricesFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.EntityHeaderDescriptor.ReferenceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -69,6 +68,8 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
+ * Custom constraint resolver which resolves additional constraints from output fields defined by client, rather
+ * than using main query.
  * Resolves {@link EntityFetch} based on which entity fields client specified.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022

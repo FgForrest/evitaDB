@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
+package io.evitadb.externalApi.graphql.api.resolver;
 
 import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;

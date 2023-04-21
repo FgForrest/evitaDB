@@ -21,25 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.require;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 
-import io.evitadb.api.query.HierarchyConstraint;
-import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * This interface marks all filtering constraints that can be used to further specify hierarchy statistics and that can
- * be used within {@link HierarchyOfSelf} or {@link HierarchyOfReference} containers.
+ * TODO lho docs
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Lukáš Hornych, 2023
  */
-public interface HierarchyRequireConstraint extends RequireConstraint, ExtraResultRequireConstraint, HierarchyConstraint<RequireConstraint> {
+public interface HierarchyOfReferenceHeaderDescriptor extends HierarchyHeaderDescriptor {
 
-	/**
-	 * Returns the key the computed extra result should be registered to.
-	 */
-	@Nullable
-	String getOutputName();
+	PropertyDescriptor EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR = PropertyDescriptor.builder()
+		.name("emptyHierarchicalEntityBehaviour")
+		// TOBEDONE JNO: hierarchyOfReference emptyHierarchicalEntityBehaviour parameter docs
+		.description("""
+			WIP
+			""")
+		.type(nonNull(EmptyHierarchicalEntityBehaviour.class))
+		.build();
 }

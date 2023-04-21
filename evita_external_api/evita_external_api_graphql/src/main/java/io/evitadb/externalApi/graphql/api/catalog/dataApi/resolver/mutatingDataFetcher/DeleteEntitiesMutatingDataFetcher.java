@@ -42,9 +42,9 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityFetchRequireResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

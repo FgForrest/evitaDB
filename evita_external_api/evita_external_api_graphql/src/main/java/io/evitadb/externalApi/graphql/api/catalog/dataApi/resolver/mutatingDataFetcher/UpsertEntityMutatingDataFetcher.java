@@ -40,9 +40,9 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityFetchRequireResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +53,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * Mutating data fetcher that firstly applies entity mutations to selected entity and then returns updated entity to client.
