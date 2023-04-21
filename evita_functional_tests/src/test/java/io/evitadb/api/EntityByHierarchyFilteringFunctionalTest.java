@@ -26,6 +26,7 @@ package io.evitadb.api;
 import com.github.javafaker.Faker;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -63,6 +64,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -589,6 +591,58 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						);
 					}
 				}
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return cardinalities for categories when filter constraint is eliminated")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCardinalitiesForCategoriesWhenFilterConstraintIsEliminated(Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(hierarchyWithinSelf(1)),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							hierarchyOfSelf(
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent(), dataInLocales(CZECH_LOCALE))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
+				final Hierarchy expectedStatistics = computeExpectedStatistics(
+					categoryHierarchy, originalCategoryEntities,
+					languagePredicate,
+					languagePredicate,
+					categoryCardinalities -> {
+						return new HierarchyStatisticsTuple(
+							"megaMenu",
+							computeChildren(
+								session, null, categoryHierarchy, categoryCardinalities,
+								false,
+								false, false,
+								null
+							)
+						);
+					}
+				);
+
+				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);
+				assertNotNull(statistics);
+				assertEquals(expectedStatistics, statistics);
 
 				return null;
 			}
@@ -2528,6 +2582,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 	private static class Cardinalities implements CardinalityProvider {
 		private final Map<Integer, Integer> itemCardinality = new HashMap<>(32);
 		private final Map<Integer, Integer> childrenItemCount = new HashMap<>(32);
+		private final EmptyHierarchicalEntityBehaviour emptyBehaviour = REMOVE_EMPTY;
 
 		public void record(int categoryId) {
 			itemCardinality.put(categoryId, 0);
@@ -2544,17 +2599,17 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		}
 
 		public boolean isValid(int categoryId) {
-			return itemCardinality.containsKey(categoryId);
+			return emptyBehaviour == LEAVE_EMPTY || itemCardinality.containsKey(categoryId);
 		}
 
 		@Override
 		public int getCardinality(int categoryId) {
-			return itemCardinality.get(categoryId);
+			return ofNullable(itemCardinality.get(categoryId)).orElse(0);
 		}
 
 		@Override
 		public int getChildrenCount(int categoryId) {
-			return childrenItemCount.get(categoryId);
+			return ofNullable(childrenItemCount.get(categoryId)).orElse(0);
 		}
 
 	}

@@ -110,10 +110,14 @@ public class HierarchyOfReferenceTranslator
 							final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 								extraResultPlanner.getFilterByWithoutHierarchyFilter(referenceSchema) :
 								extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(referenceSchema);
-							return createFilterFormula(
-								extraResultPlanner.getQueryContext(),
-								filter, hierarchyIndex
-							);
+							if (filter == null || !filter.isApplicable()) {
+								return hierarchyIndex.getAllPrimaryKeysFormula();
+							} else {
+								return createFilterFormula(
+									extraResultPlanner.getQueryContext(),
+									filter, hierarchyIndex
+								);
+							}
 						})
 						.orElse(EmptyFormula.INSTANCE),
 				null,
