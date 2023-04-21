@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
+import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
@@ -71,8 +72,8 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 	@Test
 	void shouldNotResolveValueFilterConstraint() {
 		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", List.of()));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", Map.of()));
+		assertThrows(UnsupportedDataTypeException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", List.of()));
+		assertThrows(UnsupportedDataTypeException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeEquals", Map.of()));
 	}
 
 	@Test
