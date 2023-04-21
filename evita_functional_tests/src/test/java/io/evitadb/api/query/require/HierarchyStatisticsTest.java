@@ -44,7 +44,6 @@ class HierarchyStatisticsTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new HierarchyStatistics(null).isApplicable());
 		assertTrue(new HierarchyStatistics(StatisticsBase.COMPLETE_FILTER).isApplicable());
 	}
 

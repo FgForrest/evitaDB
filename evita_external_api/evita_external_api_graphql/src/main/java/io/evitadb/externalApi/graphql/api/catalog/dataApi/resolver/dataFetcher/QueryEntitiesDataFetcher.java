@@ -149,6 +149,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		this.hierarchyExtraResultRequireResolver = new HierarchyExtraResultRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
 			entityFetchRequireResolver,
+			orderConstraintResolver,
 			requireConstraintResolver
 		);
 	}

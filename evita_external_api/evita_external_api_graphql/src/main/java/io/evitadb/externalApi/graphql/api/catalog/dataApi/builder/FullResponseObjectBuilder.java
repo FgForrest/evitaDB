@@ -811,27 +811,25 @@ public class FullResponseObjectBuilder {
 	                                                            @Nonnull ReferenceSchemaContract referenceSchema) {
 		final GraphQLObjectType hierarchyOfReferenceObject = buildHierarchyOfReferenceObject(entitySchema, referenceSchema);
 
-		// todo lho revise in #14
-		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(
-			new ReferenceDataLocator(
-				entitySchema.getName(),
-				referenceSchema.getName()
-			)
-		);
-
-		final GraphQLFieldDefinition hierarchyOfReferenceField = HierarchyDescriptor.REFERENCE
+		final GraphQLFieldDefinition.Builder hierarchyOfReferenceFieldBuilder = HierarchyDescriptor.REFERENCE
 			.to(fieldBuilderTransformer)
 			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			.description(HierarchyDescriptor.REFERENCE.description(referenceSchema.getReferencedEntityType()))
 			.type(nonNull(hierarchyOfReferenceObject))
-			.argument(HierarchyOfReferenceHeaderDescriptor.ORDER_BY
-				.to(argumentBuilderTransformer)
-				.type(orderByConstraint))
 			.argument(HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR
-				.to(argumentBuilderTransformer))
-			.build();
+				.to(argumentBuilderTransformer));
 
-		return new BuiltFieldDescriptor(hierarchyOfReferenceField, null);
+		// todo lho revise in #14
+		if (referenceSchema.isReferencedEntityTypeManaged()) {
+			final EntitySchemaContract referencedEntitySchema = buildingContext.getSchema()
+				.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
+			final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(new EntityDataLocator(referencedEntitySchema.getName()));
+			hierarchyOfReferenceFieldBuilder.argument(HierarchyOfReferenceHeaderDescriptor.ORDER_BY
+				.to(argumentBuilderTransformer)
+				.type(orderByConstraint));
+		}
+
+		return new BuiltFieldDescriptor(hierarchyOfReferenceFieldBuilder.build(), null);
 	}
 
 	@Nonnull

@@ -26,6 +26,8 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyOfReference;
@@ -36,6 +38,7 @@ import io.evitadb.api.query.require.HierarchyStatistics;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
@@ -43,6 +46,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyFromNodeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyOfReferenceHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyOfSelfHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor.HierarchyParentsSiblingsSpecification;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyRequireHeaderDescriptor;
@@ -60,7 +65,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -80,12 +84,13 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
+	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
 	@Nonnull
 	public Collection<RequireConstraint> resolveHierarchyExtraResultRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
-	                                                                                              @Nullable Locale desiredLocale,
-	                                                                                              @Nullable EntitySchemaContract currentEntitySchema) {
+	                                                                         @Nullable Locale desiredLocale,
+	                                                                         @Nullable EntitySchemaContract currentEntitySchema) {
 		final List<SelectedField> hierarchyFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY.name());
 		if (hierarchyFields.isEmpty()) {
 			return List.of();
@@ -110,14 +115,20 @@ public class HierarchyExtraResultRequireResolver {
 	private Entry<String, RequireConstraint> resolveHierarchyOfSelf(@Nonnull SelectedField field,
 	                                                                @Nullable Locale desiredLocale,
 	                                                                @Nullable EntitySchemaContract currentEntitySchema) {
+		final HierarchyDataLocator hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName());
+
+		final OrderBy orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfSelfHeaderDescriptor.ORDER_BY.name()))
+			.map(it -> orderConstraintResolver.resolve(hierarchyDataLocator, HierarchyOfSelfHeaderDescriptor.ORDER_BY.name(), it))
+			.orElse(null);
+
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
-			new HierarchyDataLocator(currentEntitySchema.getName()),
+			hierarchyDataLocator,
 			desiredLocale,
 			currentEntitySchema
 		);
 
-		final HierarchyOfSelf hierarchyOfSelf = hierarchyOfSelf(hierarchyRequires);
+		final HierarchyOfSelf hierarchyOfSelf = hierarchyOfSelf(orderBy, hierarchyRequires);
 		return new SimpleEntry<>(HierarchyDescriptor.SELF.name(), hierarchyOfSelf);
 	}
 
@@ -125,15 +136,30 @@ public class HierarchyExtraResultRequireResolver {
 	private Entry<String, RequireConstraint> resolveHierarchyOfReference(@Nonnull SelectedField field,
 	                                                                     @Nullable Locale desiredLocale,
 	                                                                     @Nullable EntitySchemaContract currentEntitySchema) {
-		final ReferenceSchemaContract reference = currentEntitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
+		final ReferenceSchemaContract referenceSchema = currentEntitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
 			.orElseThrow(() ->
 				new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + currentEntitySchema.getName() + "`."));
 
-		final String referenceName = reference.getName();
+		final String referenceName = referenceSchema.getName();
 		final HierarchyDataLocator hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName(), referenceName);
-		final EntitySchemaContract hierarchyEntitySchema = reference.isReferencedEntityTypeManaged()
-			? entitySchemaFetcher.apply(reference.getReferencedEntityType())
+		final EntitySchemaContract hierarchyEntitySchema = referenceSchema.isReferencedEntityTypeManaged()
+			? entitySchemaFetcher.apply(referenceSchema.getReferencedEntityType())
 			: null;
+
+		final EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = (EmptyHierarchicalEntityBehaviour) field.getArguments()
+			.get(HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR.name());
+		final OrderBy orderBy;
+		if (referenceSchema.isReferencedEntityTypeManaged()) {
+			orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfReferenceHeaderDescriptor.ORDER_BY.name()))
+				.map(it -> orderConstraintResolver.resolve(
+					new EntityDataLocator(hierarchyEntitySchema.getName()),
+					HierarchyOfReferenceHeaderDescriptor.ORDER_BY.name(),
+					it
+				))
+				.orElse(null);
+		} else {
+			orderBy = null;
+		}
 
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
@@ -142,7 +168,12 @@ public class HierarchyExtraResultRequireResolver {
 			hierarchyEntitySchema
 		);
 
-		final HierarchyOfReference hierarchyOfReference = hierarchyOfReference(referenceName, hierarchyRequires);
+		final HierarchyOfReference hierarchyOfReference = hierarchyOfReference(
+			referenceName,
+			emptyHierarchicalEntityBehaviour,
+			orderBy,
+			hierarchyRequires
+		);
 		return new SimpleEntry<>(referenceName, hierarchyOfReference);
 	}
 

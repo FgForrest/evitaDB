@@ -143,6 +143,18 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	}
 
 	/**
+	 * Method returns the cardinality statistics for the top most level of queried hierarchical entities.
+	 * Level is either the root level if {@link HierarchyWithinRoot} query or no hierarchical filtering query
+	 * was used at all. Or it's the level requested by {@link HierarchyWithin} query.
+	 */
+	@Nonnull
+	public List<LevelInfo> getSelfStatistics(@Nonnull String outputName) {
+		return ofNullable(selfStatistics)
+			.map(it -> it.get(outputName))
+			.orElse(Collections.emptyList());
+	}
+
+	/**
 	 * Method returns the cardinality statistics for the top most level of referenced hierarchical entities.
 	 * Level is either the root level if {@link HierarchyWithinRoot} query or no hierarchical filtering query
 	 * was used at all. Or it's the level requested by {@link HierarchyWithin} query.

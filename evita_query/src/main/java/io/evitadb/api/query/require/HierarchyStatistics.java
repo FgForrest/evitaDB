@@ -62,7 +62,10 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		// unnecessary to duplicate the hierarchy prefix
 		super(
 			"statistics",
-			new Serializable[]{statisticsBase}
+			statisticsBase == null
+				? StatisticsBase.WITHOUT_USER_FILTER
+				: statisticsBase,
+			StatisticsType.CHILDREN_COUNT
 		);
 	}
 
