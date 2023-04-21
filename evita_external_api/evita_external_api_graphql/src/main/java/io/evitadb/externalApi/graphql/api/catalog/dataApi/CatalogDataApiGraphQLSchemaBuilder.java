@@ -123,7 +123,9 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			buildingContext,
 			argumentBuilderTransformer,
 			objectBuilderTransformer,
+			inputObjectBuilderTransformer,
 			fieldBuilderTransformer,
+			inputFieldBuilderTransformer,
 			constraintContext,
 			filterConstraintSchemaBuilder,
 			orderConstraintSchemaBuilder

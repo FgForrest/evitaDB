@@ -25,12 +25,14 @@ package io.evitadb.api.query.descriptor;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -103,6 +105,10 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 			constructor().trySetAccessible();
 			return (Constraint<?>) constructor().newInstance(args);
 		} catch (Exception e) {
+			if (e instanceof final InvocationTargetException invocationTargetException &&
+				invocationTargetException.getTargetException() instanceof final EvitaInvalidUsageException invalidUsageException) {
+				throw invalidUsageException;
+			}
 			throw new EvitaInternalError(
 				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + constructor.getDeclaringClass().getName() + "`: " + e.getMessage(),
 				"Could not recreate constraint `" + parsedName + "`.",

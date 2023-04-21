@@ -43,9 +43,9 @@ public interface HierarchyHeaderDescriptor {
 
 	PropertyDescriptor ORDER_BY = PropertyDescriptor.builder()
 		.name("orderBy")
-		// TOBEDONE JNO: hierarchyOfSelf/hierarchyOfReference orderBy parameter docs
+		// TOBEDONE JNO: hierarchyOfSelf/hierarchyOfReference orderBy parameter proper docs
 		.description("""
-            WIP
+            Orders individual hierarchy nodes
 			""")
 		// type is expected to be a `orderBy` constraint
 		.build();

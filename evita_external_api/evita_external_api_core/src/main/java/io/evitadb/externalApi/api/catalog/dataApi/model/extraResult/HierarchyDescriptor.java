@@ -206,26 +206,4 @@ public interface HierarchyDescriptor {
 			.staticFields(List.of(PARENT_ID, QUERIED_ENTITY_COUNT, CHILDREN_COUNT, HAS_CHILDREN))
 			.build();
 	}
-
-	/**
-	 * Extension of {@link LevelInfoDescriptor} to allow merging of parents and siblings into one structure.
-	 *
-	 * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Fields in this
-	 * descriptor are supposed to be dynamically registered to target generated DTO.
-	 */
-	interface ParentInfoDescriptor extends LevelInfoDescriptor {
-
-		PropertyDescriptor SIBLINGS = PropertyDescriptor.builder()
-			.name("siblings")
-			// TOBEDONE JNO: siblings in parents docs
-			.description("""
-                Direct siblings of this hierarchical entity.
-				""")
-			// type is expected to be a list of `LevelInfo` objects
-			.build();
-
-		ObjectDescriptor THIS = ObjectDescriptor.extend(LevelInfoDescriptor.THIS)
-			.name("*ParentInfo")
-			.build();
-	}
 }

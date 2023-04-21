@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import graphql.schema.SelectedField;
+import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyNode;
@@ -40,9 +41,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResults
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.HierarchyOfDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.ParentInfoDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyFromNodeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor.HierarchyParentsSiblingsSpecification;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyRequireHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
@@ -56,7 +58,9 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -188,7 +192,7 @@ public class HierarchyExtraResultRequireResolver {
 		} else if (HierarchyOfDescriptor.CHILDREN.name().equals(hierarchyType)) {
 			hierarchyRequire = children(outputName, entityFetch, stopAt, statistics);
 		} else if (HierarchyOfDescriptor.PARENTS.name().equals(hierarchyType)) {
-			final HierarchySiblings siblings = resolveSiblingsOfParents(field, hierarchyDataLocator, desiredLocale, currentEntitySchema);
+			final HierarchySiblings siblings = resolveSiblingsOfParents(field, hierarchyDataLocator);
 			hierarchyRequire = parents(outputName, entityFetch, siblings, stopAt, statistics);
 		} else if (HierarchyOfDescriptor.SIBLINGS.name().equals(hierarchyType)) {
 			hierarchyRequire = siblings(outputName, entityFetch, stopAt, statistics);
@@ -200,9 +204,9 @@ public class HierarchyExtraResultRequireResolver {
 	}
 
 	@Nullable
-	private <T extends HierarchyRequireConstraint> T resolveChildHierarchyRequireFromArgument(@Nonnull SelectedField field,
-	                                                                                          @Nonnull HierarchyDataLocator hierarchyDataLocator,
-	                                                                                          @Nonnull PropertyDescriptor argumentDescriptor) {
+	private <T extends HierarchyConstraint<RequireConstraint>> T resolveChildHierarchyRequireFromArgument(@Nonnull SelectedField field,
+	                                                                                                      @Nonnull HierarchyDataLocator hierarchyDataLocator,
+	                                                                                                      @Nonnull PropertyDescriptor argumentDescriptor) {
 		//noinspection unchecked
 		return (T) Optional.ofNullable(field.getArguments().get(argumentDescriptor.name()))
 			.map(it -> requireConstraintResolver.resolve(hierarchyDataLocator, argumentDescriptor.name(), it))
@@ -229,26 +233,22 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nullable
 	private HierarchySiblings resolveSiblingsOfParents(@Nonnull SelectedField field,
-	                                                   @Nonnull HierarchyDataLocator hierarchyDataLocator,
-	                                                   @Nullable Locale desiredLocale,
-	                                                   @Nullable EntitySchemaContract currentEntitySchema) {
-		final List<SelectedField> siblingsFields = field.getSelectionSet().getFields(ParentInfoDescriptor.SIBLINGS.name());
+	                                                   @Nonnull HierarchyDataLocator hierarchyDataLocator) {
 
-		if (siblingsFields.isEmpty()) {
+		//noinspection unchecked
+		final Map<String, Object> siblingsSpecification = (Map<String, Object>) field.getArguments()
+			.get(HierarchyParentsHeaderDescriptor.SIBLINGS.name());
+		if (siblingsSpecification == null) {
 			return null;
-		} else {
-			Assert.isTrue(
-				siblingsFields.size() == 1,
-				() -> new GraphQLInvalidResponseUsageException("Only single siblings are support in parents.")
-			);
-
-			final Entry<String, HierarchyRequireConstraint> siblings = resolveHierarchyRequire(
-				siblingsFields.get(0),
-				hierarchyDataLocator,
-				desiredLocale,
-				currentEntitySchema
-			);
-			return (HierarchySiblings) siblings.getValue();
 		}
+
+		final HierarchyStopAt stopAt = Optional.ofNullable(siblingsSpecification.get(HierarchyParentsSiblingsSpecification.STOP_AT.name()))
+			.map(it -> (HierarchyStopAt) requireConstraintResolver.resolve(hierarchyDataLocator, HierarchyParentsSiblingsSpecification.STOP_AT.name(), it))
+			.orElse(null);
+		final HierarchyStatistics statistics = Optional.ofNullable(siblingsSpecification.get(HierarchyParentsSiblingsSpecification.STATISTICS.name()))
+			.map(it -> (HierarchyStatistics) requireConstraintResolver.resolve(hierarchyDataLocator, HierarchyParentsSiblingsSpecification.STATISTICS.name(), it))
+			.orElse(null);
+
+		return new HierarchySiblings(null, stopAt, statistics);
 	}
 }

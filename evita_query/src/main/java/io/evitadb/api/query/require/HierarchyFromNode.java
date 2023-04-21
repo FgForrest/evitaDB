@@ -60,7 +60,8 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children, additionalChildren);
 		for (RequireConstraint requireConstraint : children) {
 			Assert.isTrue(
-				requireConstraint instanceof HierarchyOutputRequireConstraint ||
+				requireConstraint instanceof HierarchyNode ||
+					requireConstraint instanceof HierarchyOutputRequireConstraint ||
 					requireConstraint instanceof EntityFetch,
 				"Constraint HierarchyFromNode accepts only HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 			);

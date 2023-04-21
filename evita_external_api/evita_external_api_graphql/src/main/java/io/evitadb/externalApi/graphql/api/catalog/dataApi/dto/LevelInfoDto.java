@@ -21,40 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.dto;
 
-import graphql.language.Field;
-import graphql.schema.SelectedField;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * TODO lho docs
  *
  * @author Lukáš Hornych, 2023
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class HierarchyRequireOutputNameResolver {
-
-	@Nonnull
-	public static String resolve(@Nonnull SelectedField field) {
-		// todo lho try to implement full path before name to allow hierarchies across duplicate hierarchy fields
-		if (field.getAlias() == null) {
-			// default output name
-			return field.getName();
-		}
-		return field.getAlias();
-	}
-
-	@Nonnull
-	public static String resolve(@Nonnull Field field) {
-		// todo lho try to implement full path before name to allow hierarchies across duplicate hierarchy fields
-		if (field.getAlias() == null) {
-			// default output name
-			return field.getName();
-		}
-		return field.getAlias();
-	}
+public record LevelInfoDto(@Nullable Integer parentId,
+                           @Nonnull EntityClassifier entity,
+                           @Nullable Integer queriedEntityCount,
+                           @Nullable Integer childrenCount,
+                           boolean hasChildren) {
 }

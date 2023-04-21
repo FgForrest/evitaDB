@@ -34,19 +34,21 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 public interface HierarchyRequireHeaderDescriptor {
 
 	PropertyDescriptor STOP_AT = PropertyDescriptor.builder()
-		.name("stopAt")
+		// todo lho change to "stopAt" after we support it
+		.name("hierarchyStopAt")
 		// TOBEDONE JNO: stopAt constraint docs
 		.description("""
-			WIP
-						""")
+			Defines node at which the hierarchy will stop expanding.
+			""")
 		// type is expected to be a `stopAt` constraint
 		.build();
 	PropertyDescriptor STATISTICS = PropertyDescriptor.builder()
-		.name("statistics")
+		// todo lho change to "statistics" after we support it
+		.name("hierarchyStatistics")
 		// TOBEDONE JNO: statistics constraint docs
 		.description("""
-			WIP
-						""")
+			Triggers computing the count of children for each returned hierarchy node.
+			""")
 		// type is expected to be a `statistics` constraint
 		.build();
 }

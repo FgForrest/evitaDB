@@ -34,11 +34,12 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 public interface HierarchyFromNodeHeaderDescriptor extends HierarchyRequireHeaderDescriptor {
 
 	PropertyDescriptor NODE = PropertyDescriptor.builder()
-		.name("node")
+		// todo lho change to "stopAt" after we support it
+		.name("hierarchyNode")
 		// TOBEDONE JNO: node constraint docs
 		.description("""
-			WIP
-						""")
+			Specifies root node of the hierarchy.
+			""")
 		// type is expected to be a `node` constraint
 		.build();
 }

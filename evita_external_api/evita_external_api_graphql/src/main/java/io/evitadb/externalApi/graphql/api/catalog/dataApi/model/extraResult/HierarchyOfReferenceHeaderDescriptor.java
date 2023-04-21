@@ -37,9 +37,9 @@ public interface HierarchyOfReferenceHeaderDescriptor extends HierarchyHeaderDes
 
 	PropertyDescriptor EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR = PropertyDescriptor.builder()
 		.name("emptyHierarchicalEntityBehaviour")
-		// TOBEDONE JNO: hierarchyOfReference emptyHierarchicalEntityBehaviour parameter docs
 		.description("""
-			WIP
+			The enumeration controls behaviour of hierarchy whether the hierarchical nodes that are not referred
+			by any of the queried entities should be part of the result hierarchy statistics tree.
 			""")
 		.type(nonNull(EmptyHierarchicalEntityBehaviour.class))
 		.build();

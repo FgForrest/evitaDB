@@ -25,13 +25,15 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.LevelInfoDto;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.HierarchyRequireOutputNameResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.SpecificHierarchyDataFetcher.LevelInfoDto;
+import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -47,14 +49,35 @@ public class SpecificHierarchyDataFetcher implements DataFetcher<List<LevelInfoD
 	public List<LevelInfoDto> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final Map<String, List<LevelInfo>> hierarchiesOfReference = environment.getSource();
 
-//		HierarchyRequireOutputNameResolver.resolve(environment.getSelectionSet())
-//		environment.
-		return null;
+		final String outputName = HierarchyRequireOutputNameResolver.resolve(environment.getField());
+		final List<LevelInfo> hierarchy = hierarchiesOfReference.get(outputName);
+		Assert.isPremiseValid(
+			hierarchy != null,
+			() -> new GraphQLQueryResolvingInternalError("Missing hierarchy for name `" + outputName + "`")
+		);
+
+		final List<LevelInfoDto> flattenedHierarchy = new LinkedList<>();
+		hierarchy.forEach(rootLevelInfo -> createLevelInfoDto(flattenedHierarchy, null, rootLevelInfo));
+
+		return flattenedHierarchy;
 	}
 
-	protected record LevelInfoDto(@Nullable Integer parentId,
-	                              @Nonnull EntityClassifier entity,
-	                              @Nullable Integer queriedEntityCount,
-	                              @Nullable Integer childrenCount,
-	                              boolean hasChildren) {}
+	private void createLevelInfoDto(@Nonnull List<LevelInfoDto> flattenedHierarchy,
+	                                @Nullable LevelInfo parentLevelInfo,
+	                                @Nonnull LevelInfo levelInfo) {
+		final LevelInfoDto currentLevelInfoDto = new LevelInfoDto(
+			parentLevelInfo != null
+				? parentLevelInfo.entity().getPrimaryKey()
+				: null,
+			levelInfo.entity(),
+			levelInfo.queriedEntityCount(),
+			levelInfo.childrenCount(),
+			!levelInfo.children().isEmpty()
+		);
+		flattenedHierarchy.add(currentLevelInfoDto);
+
+		levelInfo.children()
+			.forEach(childLevelInfo -> createLevelInfoDto(flattenedHierarchy, levelInfo, childLevelInfo));
+	}
+
 }

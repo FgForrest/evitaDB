@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 
 import io.evitadb.api.query.require.HierarchyParents;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
  * Descriptor of header arguments for {@link HierarchyParents}.
@@ -31,4 +33,24 @@ import io.evitadb.api.query.require.HierarchyParents;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface HierarchyParentsHeaderDescriptor extends HierarchyRequireHeaderDescriptor {
+
+	PropertyDescriptor SIBLINGS = PropertyDescriptor.builder()
+		.name("siblings")
+		// TOBEDONE JNO: proper docs for siblings inside parents
+		.description("""
+			Requests sibling nodes besides the parent nodes.
+			""")
+		// type is expected to be a sibling request object
+		.build();
+
+	// todo lho docs
+	interface HierarchyParentsSiblingsSpecification extends HierarchyRequireHeaderDescriptor {
+
+		ObjectDescriptor THIS = ObjectDescriptor.builder()
+			.name("*ParentsSiblingsSpecification")
+			.description("""
+                Specifies which siblings of parents will be returned and how.
+				""")
+			.build();
+	}
 }
