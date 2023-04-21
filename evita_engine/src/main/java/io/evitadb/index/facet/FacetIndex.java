@@ -23,7 +23,7 @@
 
 package io.evitadb.index.facet;
 
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -66,7 +66,7 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Facet index provides fast O(1) access to the bitmaps of entity primary keys that refer to the faceted entity.
- * This index allows processing of {@link FacetInSet} filtering query and is used to
+ * This index allows processing of {@link FacetHaving} filtering query and is used to
  * generate {@link io.evitadb.api.query.require.FacetSummary} response.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

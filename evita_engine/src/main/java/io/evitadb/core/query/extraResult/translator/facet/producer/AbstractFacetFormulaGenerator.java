@@ -42,7 +42,7 @@ import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
-import io.evitadb.core.query.filter.translator.facet.FacetInSetTranslator;
+import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -127,7 +127,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * Contains deferred lambda function that should be applied at the moment {@link NotFormula} processing is finished
 	 * by this visitor. This postponed mutator solves the situation when the facet formula needs to be applied above
 	 * NOT container and not within it. This is related to the internal mechanisms of {@link FutureNotFormula}
-	 * propagation and {@link FacetInSetTranslator} facet formula composition.
+	 * propagation and {@link FacetHavingTranslator} facet formula composition.
 	 */
 	protected BiFunction<Formula, Formula[], Formula> deferredMutator;
 	/**

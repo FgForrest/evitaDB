@@ -24,7 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.facet.producer;
 
 import com.carrotsearch.hppc.IntSet;
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
@@ -127,8 +127,8 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 */
 	private final List<Map<String, FacetReferenceIndex>> facetIndexes;
 	/**
-	 * Contains index of all requested {@link FacetInSet#getFacetIds()} in the input query grouped by their
-	 * {@link FacetInSet#getReferenceName()}.
+	 * Contains index of all requested {@link FacetHaving()} facets in the input query grouped by their
+	 * {@link FacetHaving#getReferenceName()}.
 	 */
 	private final Map<String, IntSet> requestedFacets;
 	/**
@@ -322,7 +322,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		 */
 		private final QueryContext queryContext;
 		/**
-		 * Translates {@link FacetInSet#getReferenceName()} to {@link EntitySchema#getReference(String)}.
+		 * Translates {@link FacetHaving#getReferenceName()} to {@link EntitySchema#getReference(String)}.
 		 */
 		private final Function<String, ReferenceSchemaContract> referenceSchemaLocator;
 		/**
@@ -331,7 +331,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		 */
 		private final Function<ReferenceSchemaContract, FacetSummaryRequest> referenceRequestLocator;
 		/**
-		 * Contains for each {@link FacetInSet#getType()} set of requested facets.
+		 * Contains for each {@link FacetHaving#getType()} set of requested facets.
 		 */
 		private final Map<String, IntSet> requestedFacets;
 		/**
@@ -622,6 +622,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 										LinkedHashMap::new
 									)
 								);
+
 							// create facet group statistics
 							final Map<Integer, EntityClassifier> groupEntitiesIndex = groupEntities.get(referenceSchema.getName());
 							final EntityClassifier groupEntity = getGroupEntity(groupAcc, referenceSchema, groupEntitiesIndex);
@@ -645,6 +646,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 							);
 						}
 					})
+					.filter(Objects::nonNull)
 					.collect(Collectors.toList());
 			};
 		}
@@ -707,7 +709,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	@Data
 	private static class GroupAccumulator {
 		/**
-		 * Contains {@link ReferenceSchema} related to {@link FacetInSet#getReferenceName()}.
+		 * Contains {@link ReferenceSchema} related to {@link FacetHaving#getReferenceName()}.
 		 */
 		@Nonnull private final ReferenceSchemaContract referenceSchema;
 		/**

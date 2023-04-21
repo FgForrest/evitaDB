@@ -61,7 +61,7 @@ import io.evitadb.core.query.filter.translator.bool.NotTranslator;
 import io.evitadb.core.query.filter.translator.bool.OrTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityLocaleEqualsTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
-import io.evitadb.core.query.filter.translator.facet.FacetInSetTranslator;
+import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceBetweenTranslator;
@@ -146,7 +146,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(PriceBetween.class, new PriceBetweenTranslator());
 		TRANSLATORS.put(HierarchyWithin.class, new HierarchyWithinTranslator());
 		TRANSLATORS.put(HierarchyWithinRoot.class, new HierarchyWithinRootTranslator());
-		TRANSLATORS.put(FacetInSet.class, new FacetInSetTranslator());
+		TRANSLATORS.put(FacetHaving.class, new FacetHavingTranslator());
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
 	}
 
@@ -239,6 +239,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula getFormula() {
 		return ofNullable(this.computedFormula)
+			.map(this::constructFinalFormula)
 			.orElseGet(this::getSuperSetFormula);
 	}
 
@@ -417,7 +418,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			// if current query is FilterBy we know we're at the top of the filtering query tree
 			if (filterConstraint instanceof FilterBy) {
 				// so we can assign the result of the visitor
-				this.computedFormula = constructFinalFormula(constraintFormula);
+				this.computedFormula = constraintFormula;
 			} else if (!(constraintFormula instanceof SkipFormula)) {
 				// we add the formula to the current level in the query stack
 				addFormula(constraintFormula);
@@ -480,6 +481,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 *
 	 * @param referenceSchema that identifies the examined entities
 	 * @param filterBy        the filtering constraint to satisfy
+	 * @param separateVisitor true when the evaluation should occur in isolated visitor
 	 * @return bitmap with referenced entity ids
 	 */
 	@Nonnull

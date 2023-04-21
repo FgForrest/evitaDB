@@ -200,7 +200,7 @@ public interface QueryConstraints {
 	 */
 	@Nullable
 	static ReferenceHaving referenceHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
-		return constraint == null ? null : new ReferenceHaving(referenceName, constraint);
+		return ArrayUtils.isEmpty(constraint) ? null : new ReferenceHaving(referenceName, constraint);
 	}
 
 	/**
@@ -1364,11 +1364,8 @@ public interface QueryConstraints {
 	 * selected by the user in order to be able to compute [facet summary](#facet-summary) output.*
 	 */
 	@Nullable
-	static FacetInSet facetInSet(@Nonnull String referenceName, @Nullable Integer... facetId) {
-		if (facetId == null) {
-			return null;
-		}
-		return new FacetInSet(referenceName, facetId);
+	static FacetHaving facetHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
+		return ArrayUtils.isEmpty(constraint) ? null : new FacetHaving(referenceName, constraint);
 	}
 
 	/**

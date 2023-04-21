@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.algebra.facet;
 
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -60,7 +60,7 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 	private static final long CLASS_ID = 2720865649065325701L;
 
 	/**
-	 * Contains {@link FacetInSet#getReferenceName()} of the facet that is targeted by this formula.
+	 * Contains {@link FacetHaving#getReferenceName()} of the facet that is targeted by this formula.
 	 */
 	@Getter private final String referenceName;
 	/**
@@ -68,7 +68,7 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 	 */
 	@Getter private final Integer facetGroupId;
 	/**
-	 * Contains array of requested facet ids from {@link FacetInSet#getFacetIds()} filtering query.
+	 * Contains array of requested facet ids from {@link FacetHaving#getFacetIds()} filtering query.
 	 */
 	@Getter private final int[] facetIds;
 	/**

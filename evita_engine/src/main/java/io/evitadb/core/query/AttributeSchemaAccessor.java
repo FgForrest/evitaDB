@@ -83,7 +83,7 @@ public class AttributeSchemaAccessor {
 		notNull(
 			attributeSchema,
 			() -> ofNullable(entitySchema)
-				.map(it -> new AttributeNotFoundException(attributeName, it))
+				.map(it -> referenceSchema == null ? new AttributeNotFoundException(attributeName, it) : new AttributeNotFoundException(attributeName, referenceSchema, it))
 				.orElseGet(() -> new AttributeNotFoundException(attributeName, catalogSchema))
 		);
 		EvitaInvalidUsageException exception = null;

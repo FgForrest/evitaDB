@@ -527,8 +527,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -790,8 +790,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -893,8 +893,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -987,8 +987,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(@currency),
 						priceInPriceLists(@priceListVip, @priceListBasic),
 						userFilter(
-							facetInSet(@entitiesStore, @facetId1, @facetId2),
-							facetInSet(@entitiesBrand, @facetId1, @facetId2)
+							facetHaving(@entitiesStore, entityPrimaryKeyInSet(@facetId1, @facetId2)),
+							facetHaving(@entitiesBrand, entityPrimaryKeyInSet(@facetId1, @facetId2))
 						)
 					)
 				),
@@ -1078,8 +1078,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -1166,8 +1166,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -1260,7 +1260,7 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?, ?, ?, ?),
 						userFilter(
-							facetInSet(?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?))
 						)
 					)
 				),
@@ -1331,7 +1331,7 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?, ?, ?, ?),
 						userFilter(
-							facetInSet(?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?))
 						)
 					)
 				),

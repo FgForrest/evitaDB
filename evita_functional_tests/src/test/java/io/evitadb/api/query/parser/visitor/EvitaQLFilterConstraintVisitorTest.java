@@ -24,7 +24,7 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
 import io.evitadb.api.query.parser.ParserExecutor;
@@ -889,44 +889,45 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
-    void shouldParseFacetInSetConstraint() {
-        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("facetInSet('a',10)");
-        assertEquals(facetInSet("a", 10), constraint1);
+    void shouldParseFacetHavingConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("facetHaving('a',entityPrimaryKeyInSet(10))");
+        assertEquals(facetHaving("a", entityPrimaryKeyInSet(10)), constraint1);
 
-        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("facetInSet('a',10,20,50)");
-        assertEquals(new FacetInSet("a", 10, 20, 50), constraint2);
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("facetHaving('a',entityPrimaryKeyInSet(10,20,50))");
+        assertEquals(new FacetHaving("a", entityPrimaryKeyInSet(10, 20, 50)), constraint2);
 
-        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("facetInSet ( 'a'  , 10,  20,50 )");
-        assertEquals(new FacetInSet("a", 10, 20, 50), constraint3);
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("facetHaving ( 'a'  , entityPrimaryKeyInSet(10),  entityPrimaryKeyInSet(20,50) )");
+        assertEquals(new FacetHaving("a", entityPrimaryKeyInSet(10, 20, 50)), constraint3);
 
-        final FilterConstraint constraint4 = parseFilterConstraint("facetInSet('a',?)", 10);
-        assertEquals(facetInSet("a", 10), constraint4);
+        final FilterConstraint constraint4 = parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(?))", 10);
+        assertEquals(facetHaving("a", entityPrimaryKeyInSet(10)), constraint4);
 
-        final FilterConstraint constraint5 = parseFilterConstraint("facetInSet(@name, @pk)", Map.of("name", "a", "pk", 10));
-        assertEquals(facetInSet("a", 10), constraint5);
+        final FilterConstraint constraint5 = parseFilterConstraint("facetHaving(@name, entityPrimaryKeyInSet(@pk))", Map.of("name", "a", "pk", 10));
+        assertEquals(facetHaving("a", entityPrimaryKeyInSet(10)), constraint5);
 
-        final FilterConstraint constraint6 = parseFilterConstraint("facetInSet('a',?)", List.of(10, 11));
-        assertEquals(facetInSet("a", 10, 11), constraint6);
+        final FilterConstraint constraint6 = parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(?))", List.of(10, 11));
+        assertEquals(facetHaving("a", entityPrimaryKeyInSet(10, 11)), constraint6);
 
-        final FilterConstraint constraint7 = parseFilterConstraint("facetInSet(@name, @pk)", Map.of("name", "a", "pk", List.of(10, 11)));
-        assertEquals(facetInSet("a", 10, 11), constraint7);
+        final FilterConstraint constraint7 = parseFilterConstraint("facetHaving(@name, entityPrimaryKeyInSet(@pk))", Map.of("name", "a", "pk", List.of(10, 11)));
+        assertEquals(facetHaving("a", entityPrimaryKeyInSet(10, 11)), constraint7);
 
-        final FilterConstraint constraint8 = parseFilterConstraint("facetInSet('a',?,?)", 10, 11);
-        assertEquals(facetInSet("a", 10, 11), constraint8);
+        final FilterConstraint constraint8 = parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(?,?))", 10, 11);
+        assertEquals(facetHaving("a", entityPrimaryKeyInSet(10, 11)), constraint8);
 
-        final FilterConstraint constraint9 = parseFilterConstraint("facetInSet(@name, @pk1, @pk2)", Map.of("name", "a", "pk1", 10, "pk2", 11));
-        assertEquals(facetInSet("a", 10, 11), constraint9);
+        final FilterConstraint constraint9 = parseFilterConstraint("facetHaving(@name, entityPrimaryKeyInSet(@pk1, @pk2))", Map.of("name", "a", "pk1", 10, "pk2", 11));
+        assertEquals(facetHaving("a", entityPrimaryKeyInSet(10, 11)), constraint9);
     }
 
     @Test
-    void shouldNotParseFacetInSetConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetInSet('a',10)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetInSet('a',?)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetInSet('a',@b)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetInSet"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetInSet()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetInSet('a')"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetInSet('a','b',5)"));
+    void shouldNotParseFacetHavingConstraint() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(10))"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(?))"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(@b))"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving()"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving('a')"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving('a',5)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("facetHaving('a','b',entityPrimaryKeyInSet(5))"));
     }
 
     @Test

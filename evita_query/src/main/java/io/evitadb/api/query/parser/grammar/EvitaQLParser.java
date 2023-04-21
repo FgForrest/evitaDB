@@ -1,15 +1,49 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2023
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
 
-import org.antlr.v4.runtime.atn.*;
+import org.antlr.v4.runtime.NoViableAltException;
+import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.RuntimeMetaData;
+import org.antlr.v4.runtime.TokenStream;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.VocabularyImpl;
+import org.antlr.v4.runtime.atn.ATN;
+import org.antlr.v4.runtime.atn.ATNDeserializer;
+import org.antlr.v4.runtime.atn.ParserATNSimulator;
+import org.antlr.v4.runtime.atn.PredictionContextCache;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.misc.*;
-import org.antlr.v4.runtime.tree.*;
-import java.util.List;
-import java.util.Iterator;
+import org.antlr.v4.runtime.tree.ParseTreeListener;
+import org.antlr.v4.runtime.tree.ParseTreeVisitor;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
 import java.util.ArrayList;
+import java.util.List;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class EvitaQLParser extends Parser {
@@ -91,7 +125,7 @@ public class EvitaQLParser extends Parser {
 			"'attributeEqualsTrue'", "'attributeEqualsFalse'", "'attributeIs'", "'attributeIsNull'", 
 			"'attributeIsNotNull'", "'attributeInRange'", "'entityPrimaryKeyInSet'", 
 			"'entityLocaleEquals'", "'priceInCurrency'", "'priceInPriceLists'", "'priceValidNow'", 
-			"'priceValidIn'", "'priceBetween'", "'facetInSet'", "'referenceHaving'", 
+			"'priceValidIn'", "'priceBetween'", "'facetHaving'", "'referenceHaving'", 
 			"'hierarchyWithin'", "'hierarchyWithinSelf'", "'hierarchyWithinRoot'", 
 			"'hierarchyWithinRootSelf'", "'directRelation'", "'excludingRoot'", "'excluding'", 
 			"'entityHaving'", "'orderBy'", "'attributeNatural'", "'priceNatural'", 
@@ -1069,26 +1103,6 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
-	public static class FacetInSetConstraintContext extends FilterConstraintContext {
-		public ClassifierWithValueListArgsContext args;
-		public ClassifierWithValueListArgsContext classifierWithValueListArgs() {
-			return getRuleContext(ClassifierWithValueListArgsContext.class,0);
-		}
-		public FacetInSetConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
-		@Override
-		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterFacetInSetConstraint(this);
-		}
-		@Override
-		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitFacetInSetConstraint(this);
-		}
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitFacetInSetConstraint(this);
-			else return visitor.visitChildren(this);
-		}
-	}
 	public static class AttributeEqualsTrueConstraintContext extends FilterConstraintContext {
 		public ClassifierArgsContext args;
 		public ClassifierArgsContext classifierArgs() {
@@ -1106,6 +1120,26 @@ public class EvitaQLParser extends Parser {
 		@Override
 		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
 			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitAttributeEqualsTrueConstraint(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+	public static class FacetHavingConstraintContext extends FilterConstraintContext {
+		public ClassifierWithFilterConstraintArgsContext args;
+		public ClassifierWithFilterConstraintArgsContext classifierWithFilterConstraintArgs() {
+			return getRuleContext(ClassifierWithFilterConstraintArgsContext.class,0);
+		}
+		public FacetHavingConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterFacetHavingConstraint(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitFacetHavingConstraint(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitFacetHavingConstraint(this);
 			else return visitor.visitChildren(this);
 		}
 	}
@@ -1893,13 +1927,13 @@ public class EvitaQLParser extends Parser {
 				}
 				break;
 			case T__30:
-				_localctx = new FacetInSetConstraintContext(_localctx);
+				_localctx = new FacetHavingConstraintContext(_localctx);
 				enterOuterAlt(_localctx, 29);
 				{
 				setState(220);
 				match(T__30);
 				setState(221);
-				((FacetInSetConstraintContext)_localctx).args = classifierWithValueListArgs();
+				((FacetHavingConstraintContext)_localctx).args = classifierWithFilterConstraintArgs();
 				}
 				break;
 			case T__31:
@@ -7318,7 +7352,7 @@ public class EvitaQLParser extends Parser {
 		"\2\2\u00d5\u00d6\7\36\2\2\u00d6\u00f3\5&\24\2\u00d7\u00da\7\37\2\2\u00d8"+
 		"\u00db\5&\24\2\u00d9\u00db\5<\37\2\u00da\u00d8\3\2\2\2\u00da\u00d9\3\2"+
 		"\2\2\u00db\u00f3\3\2\2\2\u00dc\u00dd\7 \2\2\u00dd\u00f3\5@!\2\u00de\u00df"+
-		"\7!\2\2\u00df\u00f3\58\35\2\u00e0\u00e1\7\"\2\2\u00e1\u00f3\5F$\2\u00e2"+
+		"\7!\2\2\u00df\u00f3\5F$\2\u00e0\u00e1\7\"\2\2\u00e1\u00f3\5F$\2\u00e2"+
 		"\u00e3\7#\2\2\u00e3\u00f3\5N(\2\u00e4\u00e5\7$\2\2\u00e5\u00f3\5P)\2\u00e6"+
 		"\u00e7\7%\2\2\u00e7\u00f3\5R*\2\u00e8\u00e9\7&\2\2\u00e9\u00f3\5T+\2\u00ea"+
 		"\u00eb\7\'\2\2\u00eb\u00f3\5&\24\2\u00ec\u00ed\7(\2\2\u00ed\u00f3\5&\24"+

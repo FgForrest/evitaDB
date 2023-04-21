@@ -214,7 +214,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 						attributeIs("AGE", AttributeSpecialValue.NULL),
 						and(
 							priceBetween(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
-							facetInSet("BRAND", 10, 20, 30)
+							facetHaving("BRAND", entityPrimaryKeyInSet(10, 20, 30))
 						)
 					),
 					referenceHaving(
@@ -246,7 +246,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 							),
 							mapOf(
 								"priceBetween", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
-								"facetBrandInSet", List.of(10, 20, 30)
+								"facetBrandHaving", List.of(10, 20, 30)
 							)
 						),
 						"referenceCategoryHaving", List.of(

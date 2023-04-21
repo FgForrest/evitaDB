@@ -25,7 +25,7 @@ package io.evitadb.core.query.filter.translator.facet;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.And;
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -39,6 +39,7 @@ import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.exception.EvitaInternalError;
@@ -53,40 +54,45 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
 /**
- * This implementation of {@link FilteringConstraintTranslator} converts {@link FacetInSet} to {@link AbstractFormula}.
+ * This implementation of {@link FilteringConstraintTranslator} converts {@link FacetHaving} to {@link AbstractFormula}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class FacetInSetTranslator implements FilteringConstraintTranslator<FacetInSet> {
+public class FacetHavingTranslator implements FilteringConstraintTranslator<FacetHaving>, SelfTraversingTranslator {
 
 	@Nonnull
 	@Override
-	public Formula translate(@Nonnull FacetInSet facetInSet, @Nonnull FilterByVisitor filterByVisitor) {
+	public Formula translate(@Nonnull FacetHaving facetHaving, @Nonnull FilterByVisitor filterByVisitor) {
+		final ReferenceSchemaContract referenceSchema = filterByVisitor.getSchema().getReferenceOrThrowException(facetHaving.getReferenceName());
+		isTrue(referenceSchema.isFaceted(), "Reference of type `" + facetHaving.getReferenceName() + "` is not marked as faceted.");
+
 		final List<Formula> collectedFormulas = filterByVisitor.collectFromIndexes(
 			entityIndex -> {
+				final int[] facetIds = filterByVisitor.getReferencedRecordIdFormula(
+					referenceSchema, filterBy(facetHaving.getChildren())
+				).compute().getArray();
 				// first collect all formulas
 				return entityIndex.getFacetReferencingEntityIdsFormula(
-					facetInSet.getReferenceName(),
-					(groupId, facetIds, recordIdBitmaps) -> {
-						final ReferenceSchemaContract referenceSchema = filterByVisitor.getSchema().getReferenceOrThrowException(facetInSet.getReferenceName());
-						isTrue(referenceSchema.isFaceted(), "Reference of type `" + facetInSet.getReferenceName() + "` is faceted.");
+					facetHaving.getReferenceName(),
+					(groupId, theFacetIds, recordIdBitmaps) -> {
 						if (referenceSchema.isReferencedGroupTypeManaged() && filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId)) {
 							// AND relation is requested for facet of this group
 							return new FacetGroupAndFormula(
-								facetInSet.getReferenceName(), groupId, facetIds, recordIdBitmaps
+								facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps
 							);
 						} else {
 							// default facet relation inside same group is or
 							return new FacetGroupOrFormula(
-								facetInSet.getReferenceName(), groupId, facetIds, recordIdBitmaps
+								facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps
 							);
 						}
 					},
-					facetInSet.getFacetIds()
+					facetIds
 				).stream();
 			});
 
@@ -117,7 +123,6 @@ public class FacetInSetTranslator implements FilteringConstraintTranslator<Facet
 					it -> {
 						final Integer groupId = it.getFacetGroupId();
 						if (groupId != null) {
-							final ReferenceSchemaContract referenceSchema = filterByVisitor.getSchema().getReferenceOrThrowException(facetInSet.getReferenceName());
 							if (referenceSchema.isReferencedGroupTypeManaged()) {
 								// OR relation is requested for facets of this group
 								if (filterByVisitor.isFacetGroupDisjunction(referenceSchema, groupId)) {

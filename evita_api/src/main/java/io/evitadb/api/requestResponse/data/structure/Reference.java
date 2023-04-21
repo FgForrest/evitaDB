@@ -23,7 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
@@ -52,7 +52,7 @@ import static java.util.Optional.ofNullable;
 
 /**
  * References refer to other entities (of same or different entity type).
- * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+ * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
  * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
  * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
  * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.

@@ -25,7 +25,7 @@ package io.evitadb.core.query.algebra.facet;
 
 import com.esotericsoftware.kryo.util.IntMap;
 import com.esotericsoftware.kryo.util.IntMap.Entry;
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.core.query.algebra.Formula;
@@ -102,7 +102,7 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 	}
 
 	/**
-	 * Returns {@link FacetInSet#getType()} of the facet that is targeted by this formula.
+	 * Returns {@link FacetHaving#getType()} of the facet that is targeted by this formula.
 	 * This information is crucial for correct {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} computation.
 	 */
 	@Nonnull
@@ -115,7 +115,7 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 	Integer getFacetGroupId();
 
 	/**
-	 * Returns array of requested facet ids from {@link FacetInSet#getFacetIds()} filtering query.
+	 * Returns array of requested facet ids from {@link FacetHaving#getFacetIds()} filtering query.
 	 * This information is crucial for correct {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} computation.
 	 */
 	@Nonnull

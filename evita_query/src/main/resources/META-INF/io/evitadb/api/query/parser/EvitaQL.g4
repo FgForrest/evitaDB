@@ -69,7 +69,7 @@ filterConstraint
     | 'priceValidNow'                   emptyArgs                                               # priceValidNowConstraint
     | 'priceValidIn'                    (emptyArgs | args = valueArgs)                          # priceValidInConstraint
     | 'priceBetween'                    args = betweenValuesArgs                                # priceBetweenConstraint
-    | 'facetInSet'                      args = classifierWithValueListArgs                      # facetInSetConstraint
+    | 'facetHaving'                     args = classifierWithFilterConstraintArgs               # facetHavingConstraint
     | 'referenceHaving'                 args = classifierWithFilterConstraintArgs               # referenceHavingConstraint
     | 'hierarchyWithin'                 args = hierarchyWithinConstraintArgs                    # hierarchyWithinConstraint
     | 'hierarchyWithinSelf'             args = hierarchyWithinSelfConstraintArgs                # hierarchyWithinSelfConstraint

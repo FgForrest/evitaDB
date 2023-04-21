@@ -151,7 +151,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 
 	@Nullable
 	static IntPredicate createFacetPredicate(
-		@Nullable FilterBy filterBy,
+		@Nonnull FilterBy filterBy,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
@@ -165,7 +165,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 
 	@Nullable
 	static Sorter createFacetSorter(
-		@Nullable OrderBy orderBy,
+		@Nonnull OrderBy orderBy,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
