@@ -297,7 +297,7 @@ second) and average time (microseconds per operation).
 	</Tbody>
 </Table>
 
-*A gist with the raw results can be found [here](https://gist.github.com/lukashornych/4f500cd1e20de805c697888f263c415c) and
+*A gist with the raw results can be found [here](https://gist.github.com/novoj/cef56bd940a015b4cfb1ad389d2b6705) and
 charts for visualization [here](https://jmh.morethan.io/?gist=cef56bd940a015b4cfb1ad389d2b6705&topBar=HTTP%20web%20server%20upgraded%20versions%20from%2003/2023%20(optimalized)).*
 
 From the above results, there are 3 main adepts for the winner: microhttp, Netty and Undertow. Quite interesting and
