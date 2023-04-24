@@ -121,7 +121,8 @@ public class HierarchyOfReferenceTranslator
 							} else {
 								return createFilterFormula(
 									extraResultPlanner.getQueryContext(),
-									filter, hierarchyIndex
+									filter, hierarchyIndex,
+									extraResultPlanner.getAttributeSchemaAccessor()
 								);
 							}
 						})

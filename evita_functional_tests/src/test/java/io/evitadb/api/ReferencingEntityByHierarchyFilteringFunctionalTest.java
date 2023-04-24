@@ -326,7 +326,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	@DisplayName("Should return all products in categories ignoring relations in specified category subtrees")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test
-	void shouldReturnAllProductsInCategoriesExceptCertainRelationsToSpecifiedSubtrees(Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, Hierarchy categoryHierarchy) {
+	void shouldReturnAllProductsInCategoriesExceptCertainRelationsToSpecifiedSubtrees(Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
 		final Map<Integer, SealedEntity> categoryIndex = originalCategoryEntities
 			.stream()
 			.collect(
@@ -362,23 +362,21 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 				assertResultIs(
 					originalProductEntities,
-					sealedEntity -> {
-						return sealedEntity
-							.getReferences(Entities.CATEGORY)
-							.stream()
-							.anyMatch(it -> {
-								final boolean isTransient = it.getAttribute(ATTRIBUTE_TRANSIENT, Boolean.class);
-								final List<SealedEntity> categoryPath = Stream.concat(
-										Stream.of(it.getReferencedPrimaryKey()),
-										categoryHierarchy.getParentItems(String.valueOf(it.getReferencedPrimaryKey()))
-											.stream()
-											.map(node -> Integer.parseInt(node.getCode()))
-									).map(categoryIndex::get)
-									.toList();
-								return !isTransient &&
-									categoryPath.stream().noneMatch(theCategory -> theCategory.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
-							});
-					},
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.CATEGORY)
+						.stream()
+						.anyMatch(it -> {
+							final boolean isTransient = it.getAttribute(ATTRIBUTE_TRANSIENT, Boolean.class);
+							final List<SealedEntity> categoryPath = Stream.concat(
+									Stream.of(it.getReferencedPrimaryKey()),
+									categoryHierarchy.getParentItems(String.valueOf(it.getReferencedPrimaryKey()))
+										.stream()
+										.map(node -> Integer.parseInt(node.getCode()))
+								).map(categoryIndex::get)
+								.toList();
+							return !isTransient &&
+								categoryPath.stream().noneMatch(theCategory -> theCategory.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						}),
 					result.getRecordData()
 				);
 				return null;

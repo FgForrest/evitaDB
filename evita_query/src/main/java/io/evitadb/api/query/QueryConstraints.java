@@ -2945,7 +2945,7 @@ public interface QueryConstraints {
 	 * TOBEDONE JNO: docs
 	 */
 	@Nonnull
-	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequirements... requirements) {
+	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
 		return statisticsDepth == null ?
 			new FacetSummary(FacetStatisticsDepth.COUNTS, requirements) :
 			new FacetSummary(statisticsDepth, requirements);
@@ -2957,7 +2957,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
-		@Nullable EntityFetchRequirements... requirements
+		@Nullable EntityRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
 	}
@@ -2967,7 +2967,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityFetchRequirements... requirements
+		@Nullable EntityRequire... requirements
 	) {
 		return facetSummary(statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
 	}
@@ -2980,7 +2980,7 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityFetchRequirements... requirements
+		@Nullable EntityRequire... requirements
 	) {
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
@@ -3004,7 +3004,7 @@ public interface QueryConstraints {
 	 * TOBEDONE JNO: docs
 	 */
 	@Nonnull
-	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable EntityFetchRequirements... requirements) {
+	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable EntityRequire... requirements) {
 		return new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
 	}
 
@@ -3012,7 +3012,7 @@ public interface QueryConstraints {
 	 * TOBEDONE JNO: docs
 	 */
 	@Nonnull
-	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequirements... requirements) {
+	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
 		return statisticsDepth == null ?
 			new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements) :
 			new FacetSummaryOfReference(referenceName, statisticsDepth, requirements);
@@ -3025,7 +3025,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
-		@Nullable EntityFetchRequirements... requirements
+		@Nullable EntityRequire... requirements
 	) {
 		return facetSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
 	}
@@ -3036,7 +3036,7 @@ public interface QueryConstraints {
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityFetchRequirements... requirements
+		@Nullable EntityRequire... requirements
 	) {
 		return facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
 	}
@@ -3050,7 +3050,7 @@ public interface QueryConstraints {
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
-		@Nullable EntityFetchRequirements... requirements
+		@Nullable EntityRequire... requirements
 	) {
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;

@@ -107,7 +107,8 @@ public class HierarchyOfSelfTranslator
 						filter,
 						() -> createFilterFormula(
 							extraResultPlanner.getQueryContext(),
-							filter, globalIndex
+							filter, globalIndex,
+							extraResultPlanner.getAttributeSchemaAccessor()
 						)
 					);
 					return FormulaFactory.and(
@@ -127,7 +128,8 @@ public class HierarchyOfSelfTranslator
 						filter,
 						() -> createFilterFormula(
 							extraResultPlanner.getQueryContext(),
-							filter, globalIndex
+							filter, globalIndex,
+							extraResultPlanner.getAttributeSchemaAccessor()
 						)
 					);
 					return new FilteringFormulaHierarchyEntityPredicate(
