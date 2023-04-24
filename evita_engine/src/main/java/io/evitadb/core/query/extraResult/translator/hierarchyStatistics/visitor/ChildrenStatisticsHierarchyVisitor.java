@@ -26,7 +26,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;

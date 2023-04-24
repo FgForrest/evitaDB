@@ -47,13 +47,9 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public abstract class GraphQLConstraintResolver<C extends Constraint<?>> extends ConstraintResolver<C> {
 
-	@Nonnull @Getter protected final DataLocator rootDataLocator;
-
 	protected GraphQLConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
-	                                    @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers,
-	                                    @Nonnull DataLocator rootDataLocator) {
+	                                    @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers) {
 		super(catalogSchema, additionalResolvers);
-		this.rootDataLocator = rootDataLocator;
 	}
 
 	@Nonnull

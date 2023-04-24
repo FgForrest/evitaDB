@@ -35,6 +35,7 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -373,7 +374,7 @@ public interface RandomQueryGenerator {
 	}
 
 	/**
-	 * Creates randomized query requiring {@link io.evitadb.api.requestResponse.extraResult.HierarchyStatistics} computation for
+	 * Creates randomized query requiring {@link Hierarchy} computation for
 	 * passed entity schema based on passed set.
 	 */
 	default Query generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {

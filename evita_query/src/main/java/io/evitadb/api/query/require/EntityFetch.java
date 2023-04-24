@@ -48,7 +48,7 @@ import java.util.stream.Stream;
 	shortDescription = "Returns richer entities instead of just entity references (empty container returns only entity body).",
 	supportedIn = {ConstraintDomain.GENERIC, ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.FACET}
 )
-public class EntityFetch extends AbstractRequireConstraintContainer implements EntityFetchRequirements {
+public class EntityFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {
 
 	@Serial private static final long serialVersionUID = -781235795350040285L;
 

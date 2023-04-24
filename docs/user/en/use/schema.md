@@ -352,7 +352,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 
 </Note>
 
-#### Prices
+### Prices
 
 When prices are enabled, entities of this type can have a set of prices associated with them and can be 
 [filtered](../query/filtering/price.md) and [sorted](../query/ordering/price.md) by price constraints. Single entity 
@@ -373,7 +373,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 
 </Note>
 
-#### Attribute
+### Attributes
 
 An entity type can have zero or more attributes. The system is designed for situation when entity has tens of 
 attributes. You should pay attention to the number of `filterable` / `sortable` / `unique` attributes. There is a 
@@ -418,12 +418,12 @@ The attribute schema is described by:
 
 </Note>
 
-##### Default value
+#### Default value
 
 An attribute may have a default value defined. The value is used when a new entity is created and no value has been 
 assigned to a particular attribute. There is no other situation where the default value matters.
 
-##### Allowed decimal places
+#### Allowed decimal places
 
 The allowed decimal places setting is an optimization that allows rich numeric types (such
 as [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) for precise

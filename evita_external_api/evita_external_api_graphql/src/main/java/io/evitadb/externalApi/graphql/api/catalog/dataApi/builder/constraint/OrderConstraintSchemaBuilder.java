@@ -70,18 +70,7 @@ public class OrderConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilder
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new GraphQLSchemaBuildingError("Could not find `orderBy` order query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new GraphQLSchemaBuildingError(
-				"There multiple variants of `orderBy` order query, cannot decide which to choose."
-			)
-		);
-		return descriptors.iterator().next();
+		return ConstraintDescriptorProvider.getConstraint(OrderBy.class);
 	}
 
 	@Nonnull

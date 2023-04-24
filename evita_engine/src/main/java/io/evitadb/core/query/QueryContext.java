@@ -34,7 +34,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.DebugMode;
-import io.evitadb.api.query.require.EntityFetchRequirements;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -395,7 +395,7 @@ public class QueryContext {
 	 * the original {@link EvitaRequest}
 	 */
 	@Nonnull
-	public Optional<SealedEntity> fetchEntity(int entityPrimaryKey, @Nonnull EntityFetchRequirements requirements) {
+	public Optional<SealedEntity> fetchEntity(int entityPrimaryKey, @Nonnull EntityFetchRequire requirements) {
 		return fetchEntity(entityType, entityPrimaryKey, requirements);
 	}
 
@@ -403,7 +403,7 @@ public class QueryContext {
 	 * Method loads requested entity contents by specifying its primary key.
 	 */
 	@Nonnull
-	public List<SealedEntity> fetchEntities(int[] entityPrimaryKeys, @Nonnull EntityFetchRequirements requirements) {
+	public List<SealedEntity> fetchEntities(int[] entityPrimaryKeys, @Nonnull EntityFetchRequire requirements) {
 		return fetchEntities(entityType, entityPrimaryKeys, requirements);
 	}
 
@@ -412,7 +412,7 @@ public class QueryContext {
 	 * the original {@link EvitaRequest}
 	 */
 	@Nonnull
-	public Optional<SealedEntity> fetchEntity(@Nullable String entityType, int entityPrimaryKey, @Nonnull EntityFetchRequirements requirements) {
+	public Optional<SealedEntity> fetchEntity(@Nullable String entityType, int entityPrimaryKey, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection targetCollection = getEntityCollectionOrThrowException(entityType, "fetch entity");
 		final EvitaRequest fetchRequest = fabricateFetchRequest(entityType, requirements);
 		return targetCollection.getEntity(entityPrimaryKey, fetchRequest, evitaSession);
@@ -422,7 +422,7 @@ public class QueryContext {
 	 * Method loads requested entity contents by specifying its primary key.
 	 */
 	@Nonnull
-	public List<SealedEntity> fetchEntities(@Nullable String entityType, @Nonnull int[] entityPrimaryKeys, @Nonnull EntityFetchRequirements requirements) {
+	public List<SealedEntity> fetchEntities(@Nullable String entityType, @Nonnull int[] entityPrimaryKeys, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection entityCollection = getEntityCollectionOrThrowException(entityType, "fetch entities");
 		final EvitaRequest fetchRequest = fabricateFetchRequest(entityType, requirements);
 		return entityCollection.getEntities(entityPrimaryKeys, fetchRequest, evitaSession);
@@ -495,7 +495,7 @@ public class QueryContext {
 	 * Method will prefetch all entities mentioned in `entitiesToPrefetch` and loads them with the scope of `requirements`.
 	 * The entities will reveal only the scope to the `requirements` - no less, no more data.
 	 */
-	public void prefetchEntities(@Nonnull Bitmap entitiesToPrefetch, @Nonnull EntityFetchRequirements requirements) {
+	public void prefetchEntities(@Nonnull Bitmap entitiesToPrefetch, @Nonnull EntityFetchRequire requirements) {
 		if (this.entityReferencePkSequence > 0) {
 			prefetchEntities(
 				Arrays.stream(entitiesToPrefetch.getArray())
@@ -518,7 +518,7 @@ public class QueryContext {
 	 * Method will prefetch all entities mentioned in `entitiesToPrefetch` and loads them with the scope of `requirements`.
 	 * The entities will reveal only the scope to the `requirements` - no less, no more data.
 	 */
-	public void prefetchEntities(@Nonnull EntityReferenceContract<?>[] entitiesToPrefetch, @Nonnull EntityFetchRequirements requirements) {
+	public void prefetchEntities(@Nonnull EntityReferenceContract<?>[] entitiesToPrefetch, @Nonnull EntityFetchRequire requirements) {
 		if (entitiesToPrefetch.length != 0) {
 			if (this.prefetchedEntities == null) {
 				this.prefetchedEntities = new ArrayList<>(entitiesToPrefetch.length);
@@ -1157,7 +1157,7 @@ public class QueryContext {
 	 * {@link EntityCollection#enrichEntity(SealedEntity, EvitaRequest, EvitaSessionContract)} methods.
 	 */
 	@Nonnull
-	private EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequirements requirements) {
+	private EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
 		return evitaRequest.deriveCopyWith(entityType, requirements);
 	}
 

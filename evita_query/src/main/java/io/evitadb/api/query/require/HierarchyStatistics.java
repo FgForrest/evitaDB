@@ -62,11 +62,13 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		// unnecessary to duplicate the hierarchy prefix
 		super(
 			"statistics",
-			new Serializable[]{statisticsBase}
+			statisticsBase == null
+				? StatisticsBase.WITHOUT_USER_FILTER
+				: statisticsBase
 		);
 	}
 
-	@Creator(silentImplicitClassifier = true)
+	@Creator
 	public HierarchyStatistics(
 		@Nonnull @Value StatisticsBase statisticsBase,
 		@Nonnull @Value StatisticsType... statisticsType
@@ -79,7 +81,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 				statisticsBase == null ?
 					new Serializable[] {StatisticsBase.WITHOUT_USER_FILTER} : new Serializable[] {statisticsBase},
 				ArrayUtils.isEmpty(statisticsType) ?
-					new StatisticsType[]{StatisticsType.CHILDREN_COUNT} :
+					new StatisticsType[0] :
 					statisticsType
 			)
 		);

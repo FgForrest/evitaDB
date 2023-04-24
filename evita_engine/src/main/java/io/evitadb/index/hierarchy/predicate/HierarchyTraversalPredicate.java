@@ -23,7 +23,7 @@
 
 package io.evitadb.index.hierarchy.predicate;
 
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 
 import javax.annotation.Nonnull;
 import java.util.function.Predicate;

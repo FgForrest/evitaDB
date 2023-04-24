@@ -35,6 +35,10 @@ import javax.annotation.Nullable;
  */
 public record HierarchyDataLocator(@Nonnull String entityType, @Nullable String referenceName) implements DataLocatorWithReference {
 
+	public HierarchyDataLocator(@Nonnull String entityType) {
+		this(entityType, null);
+	}
+
 	@Nonnull
 	@Override
 	public ConstraintDomain targetDomain() {

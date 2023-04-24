@@ -31,6 +31,7 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.AllowedConstraintPredicate;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintBuildContext;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKey;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
@@ -82,7 +83,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildContainer(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildContainer(@Nonnull ConstraintBuildContext buildContext,
 	                                           @Nonnull ContainerKey containerKey,
 	                                           @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		final String containerName = constructContainerName(containerKey);
@@ -142,7 +143,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildPrimitiveConstraintValue(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildPrimitiveConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                          @Nonnull ValueParameterDescriptor valueParameter,
 	                                                          boolean canBeRequired,
 	                                                          @Nullable ValueTypeSupplier valueTypeSupplier) {
@@ -186,7 +187,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildWrapperRangeConstraintValue(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildWrapperRangeConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                             @Nonnull List<ValueParameterDescriptor> valueParameters,
 	                                                             @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final OpenApiSimpleType itemType = buildPrimitiveConstraintValue(
@@ -200,9 +201,12 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildChildConstraintValue(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                      @Nonnull ChildParameterDescriptor childParameter) {
-		final OpenApiSimpleType childContainer = obtainContainer(buildContext, childParameter);
+		final OpenApiSimpleType childContainer = obtainContainer(
+			new ConstraintBuildContext(resolveChildDataLocator(buildContext, childParameter.domain())),
+			childParameter
+		);
 
 		if (childContainer instanceof OpenApiScalar) {
 			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
@@ -218,7 +222,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildWrapperObjectConstraintValue(@Nonnull BuildContext buildContext,
+	protected OpenApiSimpleType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                              @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                              @Nonnull List<ValueParameterDescriptor> valueParameters,
 	                                                              @Nullable ChildParameterDescriptor childParameter,

@@ -23,7 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -31,10 +34,10 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
@@ -51,27 +54,31 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLTester;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.not;
@@ -97,6 +104,29 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	private static final String PRODUCT_QUERY_PATH = "data.queryProduct";
 	private static final String CATEGORY_QUERY_PATH = "data.queryCategory";
+
+	private static final String CATEGORY_HIERARCHY_PATH = CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
+	private static final String SELF_HIERARCHY_PATH = CATEGORY_HIERARCHY_PATH + "." + HierarchyDescriptor.SELF.name();
+	private static final String SELF_MEGA_MENU_PATH = SELF_HIERARCHY_PATH + ".megaMenu";
+	private static final String SELF_ROOT_SIBLINGS_PATH = SELF_HIERARCHY_PATH + ".rootSiblings";
+
+	private static final String PRODUCT_HIERARCHY_PATH = PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
+	private static final String REFERENCED_HIERARCHY_PATH = PRODUCT_HIERARCHY_PATH + ".category";
+	private static final String REFERENCED_MEGA_MENU_PATH = REFERENCED_HIERARCHY_PATH + ".megaMenu";
+	private static final String REFERENCED_ROOT_SIBLINGS_PATH = REFERENCED_HIERARCHY_PATH + ".rootSiblings";
+
+	private static final String LEVEL_INFO_FRAGMENT = """
+			parentId
+			entity {
+				primaryKey
+				attributes {
+					code
+				}
+			}
+			queriedEntityCount
+			childrenCount
+			hasChildren
+			""";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -2920,117 +2950,399 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			);
 	}
 
-	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return two levels of category statistics for products")
-	@Disabled("TODO LHO: will be reimplemented")
-	void shouldReturnTwoLevelsOfCategoryStatisticsForProducts(Evita evita, GraphQLTester tester) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+	@DisplayName("Should return self hierarchy from root")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyFromRoot(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				return session.query(
+				final EvitaResponse<EntityReference> response = session.query(
 					query(
-						collection(Entities.PRODUCT),
+						collection(Entities.CATEGORY),
 						filterBy(
-							and(
-								attributeEquals(ATTRIBUTE_ALIAS, true),
-								entityLocaleEquals(CZECH_LOCALE)
-							)
+							entityLocaleEquals(CZECH_LOCALE)
 						),
 						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyOfReference(
-								Entities.CATEGORY,
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent(ATTRIBUTE_CODE)),
-									statistics()
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
 					),
 					EntityReference.class
 				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = createHierarchyStatisticsDto(response);
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
 
 		tester.test(TEST_CATALOG)
-			.document(
-				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasEquals: true
-		                        entityLocaleEquals: cs_CZ
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        hierarchyStatistics {
-		                            __typename
-		                            category {
-		                                __typename
-		                                cardinality
-		                                entity {
-		                                    __typename
-	                                        primaryKey
-	                                        attributes {
-	                                            code
-	                                        }
-	                                    }
-		                                childrenStatistics {
-		                                    __typename
-		                                    cardinality
-		                                    entity {
-		                                        __typename
-		                                        primaryKey
-		                                        attributes {
-		                                            code
-		                                        }
-		                                    }
-	                                    }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: fromRoot(
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
-				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
-			)
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + "." + TYPENAME_FIELD,
-				equalTo(HierarchyStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
-			)
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category",
-				equalTo(expectedBody)
-			);
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
 	}
 
-	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return two levels of self statistics for category")
-	@Disabled("TODO LHO: will be reimplemented")
-	void shouldReturnTwoLevelsOfSelfStatisticsForCategory(Evita evita, GraphQLTester tester) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+	@DisplayName("Should return self hierarchy from node")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyFromNode(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				return session.query(
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(6)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromNode(
+									"megaMenu",
+									node(filterBy(entityPrimaryKeyInSet(2))),
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyWithinSelf: { ofParent: 6 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: fromNode(
+										hierarchyNode: { filterBy: { entityPrimaryKeyInSet: 2 }}
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return self hierarchy children")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyChildren(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								children(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(1)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyWithinSelf: { ofParent: 1 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: children(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return self hierarchy parents without siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyParentsWithoutSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyWithinSelf: { ofParent: 30 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: parents(
+										hierarchyStopAt: { hierarchyDistance: 100 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return self hierarchy parents with siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyParentsWithSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									siblings(
+										entityFetch(attributeContent()),
+										stopAt(distance(2)),
+										statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+											new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+									),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyWithinSelf: { ofParent: 30 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: parents(
+										hierarchyStopAt: { hierarchyDistance: 100 }
+										siblings: {
+											hierarchyStopAt: {
+												hierarchyDistance: 2
+											}
+											%s
+										}
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return self hierarchy root siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyRootSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
@@ -3039,205 +3351,801 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							)
 						),
 						require(
-							page(1, Integer.MAX_VALUE),
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
 							hierarchyOfSelf(
-								fromRoot(
-									"megaMenu",
-									entityFetch(attributeContent(ATTRIBUTE_CODE)),
-									statistics()
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								siblings(
+									"rootSiblings",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
 					),
 					EntityReference.class
 				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = createSelfHierarchyStatisticsDto(response);
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> rootSiblings = hierarchy.getSelfStatistics("rootSiblings");
+				final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
+				assertFalse(flattenedRootSiblings.isEmpty());
+				return flattenedRootSiblings;
+			});
 
 		tester.test(TEST_CATALOG)
-			.document(
-				"""
-		            query {
-		                queryCategory(
-		                    filterBy: {
-		                        entityLocaleEquals: cs_CZ
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        hierarchyStatistics {
-		                            __typename
-		                            self {
-		                                __typename
-		                                cardinality
-		                                entity {
-		                                    __typename
-	                                        primaryKey
-	                                        attributes {
-	                                            code
-	                                        }
-	                                    }
-		                                childrenStatistics {
-		                                    __typename
-		                                    cardinality
-		                                    entity {
-		                                        __typename
-		                                        primaryKey
-		                                        attributes {
-		                                            code
-		                                        }
-		                                    }
-	                                    }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									rootSiblings: siblings(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
-				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Category")))
-			)
-			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + "." + TYPENAME_FIELD,
-				equalTo(HierarchyStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Category")))
-			)
-			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".self",
-				equalTo(expectedBody)
-			);
+			.body(SELF_ROOT_SIBLINGS_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return multiple different self hierarchies")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnMultipleDifferentSelfHierarchies(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var hierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								),
+								siblings(
+									"rootSiblings",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				return response.getExtraResult(Hierarchy.class);
+			});
+
+		final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+		assertFalse(flattenedMegaMenu.isEmpty());
+
+		final List<LevelInfo> rootSiblings = hierarchy.getSelfStatistics("rootSiblings");
+		final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
+		assertFalse(flattenedRootSiblings.isEmpty());
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: fromRoot(
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+									rootSiblings: siblings(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT,
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(flattenedMegaMenu))
+			.body(SELF_ROOT_SIBLINGS_PATH, equalTo(flattenedRootSiblings));
 	}
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return error for self statistics of product")
-	void shouldReturnErrorForSelfStatisticsOfProduct(GraphQLTester tester) {
+	@DisplayName("Should not return multiple self hierarchies with same output name")
+	void shouldNotReturnMultipleSelfHierarchiesWithSameOutputName(Evita evita, GraphQLTester tester) {
 		tester.test(TEST_CATALOG)
-			.document(
-				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        entityLocaleEquals: cs_CZ
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        hierarchyStatistics {
-		                            self {
-		                                cardinality
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self {
+									megaMenu: fromRoot { %s }
+								}
+							}
+							otherHierarchy {
+								self {
+									megaMenu: siblings { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				LEVEL_INFO_FRAGMENT,
+				LEVEL_INFO_FRAGMENT)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
 
-	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should pass locale to hierarchy statistics entities")
-	@Disabled("TODO LHO: will be reimplemented")
-	void shouldPassLocaleToHierarchyStatisticsEntities(Evita evita, GraphQLTester tester) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+	@DisplayName("Should return referenced hierarchy from root")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyFromRoot(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				return session.query(
+				final EvitaResponse<EntityReference> response = session.query(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
 							and(
-								attributeEquals(ATTRIBUTE_ALIAS, true),
-								entityLocaleEquals(CZECH_LOCALE)
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
 							)
 						),
 						require(
-							page(1, Integer.MAX_VALUE),
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
 							hierarchyOfReference(
 								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
 								fromRoot(
 									"megaMenu",
-									entityFetch(attributeContent(ATTRIBUTE_NAME)),
-									statistics()
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
 						)
 					),
 					EntityReference.class
 				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = response.getExtraResult(HierarchyStatistics.class)
-			.getStatistics(Entities.CATEGORY)
-			.entrySet()
-			.stream()
-			// TODO LHO - this needs to be corrected probably
-			.flatMap(it -> it.getValue().stream())
-			.map(it -> ((SealedEntity) it.entity()).getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
-			.toList();
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
 
 		tester.test(TEST_CATALOG)
-			.document(
-				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasEquals: true
-		                        entityLocaleEquals: cs_CZ
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        hierarchyStatistics {
-		                            category {
-		                                entity {
-	                                        attributes {
-	                                            name
-	                                        }
-	                                    }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: fromRoot(
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category." + HierarchyStatisticsLevelInfoDescriptor.ENTITY.name() + "." + EntityDescriptor.ATTRIBUTES.name() + "." + ATTRIBUTE_NAME,
-				equalTo(expectedBody)
-			);
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy from node")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyFromNode(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithin(Entities.CATEGORY,6)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromNode(
+									"megaMenu",
+									node(filterBy(entityPrimaryKeyInSet(2))),
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithin: { ofParent: 6 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: fromNode(
+										hierarchyNode: { filterBy: { entityPrimaryKeyInSet: 2 }}
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy children")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyChildren(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithin(Entities.CATEGORY, 1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								children(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(1)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithin: { ofParent: 1 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: children(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy parents without siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyParentsWithoutSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithin(Entities.CATEGORY, 30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithin: { ofParent: 30 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: parents(
+										hierarchyStopAt: { hierarchyDistance: 100 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy parents with siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyParentsWithSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithin(Entities.CATEGORY, 30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									siblings(
+										entityFetch(attributeContent()),
+										stopAt(distance(2)),
+										statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+											new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+									),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithin: { ofParent: 30 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: parents(
+										hierarchyStopAt: { hierarchyDistance: 100 }
+										siblings: {
+											hierarchyStopAt: {
+												hierarchyDistance: 2
+											}
+											%s
+										}
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy root siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyRootSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								siblings(
+									"rootSiblings",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> rootSiblings = hierarchy.getStatistics(Entities.CATEGORY, "rootSiblings");
+				final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
+				assertFalse(flattenedRootSiblings.isEmpty());
+				return flattenedRootSiblings;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithinRoot: {}
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									rootSiblings: siblings(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_ROOT_SIBLINGS_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return multiple different referenced hierarchies")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnMultipleDifferentReferencedHierarchies(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var hierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								),
+								siblings(
+									"rootSiblings",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				return response.getExtraResult(Hierarchy.class);
+			});
+
+		final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+		assertFalse(flattenedMegaMenu.isEmpty());
+
+		final List<LevelInfo> rootSiblings = hierarchy.getStatistics(Entities.CATEGORY, "rootSiblings");
+		final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
+		assertFalse(flattenedRootSiblings.isEmpty());
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithinRoot: {}
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: fromRoot(
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+									rootSiblings: siblings(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT,
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(flattenedMegaMenu))
+			.body(REFERENCED_ROOT_SIBLINGS_PATH, equalTo(flattenedRootSiblings));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should not return multiple referenced hierarchies with same output name")
+	void shouldNotReturnMultipleSelfHierarchiesWithReferencedOutputName(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithinRoot: {}
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(emptyHierarchicalEntityBehaviour: REMOVE_EMPTY) {
+									megaMenu: fromRoot { %s }
+								}
+							}
+							otherHierarchy {
+								category(emptyHierarchicalEntityBehaviour: REMOVE_EMPTY) {
+									megaMenu: siblings { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				LEVEL_INFO_FRAGMENT,
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
 
 	@Test
@@ -3570,101 +4478,31 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createHierarchyStatisticsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyStatistics hierarchyStatistics = response.getExtraResult(HierarchyStatistics.class);
-		final Map<String, List<LevelInfo>> categoryStatistics = hierarchyStatistics.getStatistics(Entities.CATEGORY);
-
-		final var levelInfoDtos = new LinkedList<Map<String, Object>>();
-
-		categoryStatistics
-			.values()
-			.stream()
-			// TODO LHO - this needs to be corrected probably
-			.flatMap(Collection::stream)
-			.forEach(levelInfo1 ->
-				levelInfoDtos.add(
-					map()
-						.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
-						.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo1.queriedEntityCount())
-						.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo1.entity())
-							.map(parentEntity -> map()
-								.e(TYPENAME_FIELD, "Category")
-								.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-								.e(EntityDescriptor.ATTRIBUTES.name(), map()
-									.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-									.build())
-								.build())
-							.get())
-						.e(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS.name(), levelInfo1.childrenStatistics()
-							.stream()
-							.map(levelInfo2 -> map()
-								.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
-								.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo2.queriedEntityCount())
-								.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo2.entity())
-									.map(parentEntity -> map()
-										.e(TYPENAME_FIELD, "Category")
-										.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-										.e(EntityDescriptor.ATTRIBUTES.name(), map()
-											.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-											.build())
-										.build())
-									.get())
-								.build())
-							.toList())
-						.build()
-				)
-			);
-
-		return levelInfoDtos;
+	private List<Map<String, Object>> createFlattenedHierarchy(@Nonnull List<LevelInfo> hierarchy) {
+		final List<Map<String, Object>> flattenedHierarchy = new LinkedList<>();
+		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, null, levelInfo));
+		return flattenedHierarchy;
 	}
 
-	@Nonnull
-	private List<Map<String, Object>> createSelfHierarchyStatisticsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyStatistics hierarchyStatistics = response.getExtraResult(HierarchyStatistics.class);
-		final Map<String, List<LevelInfo>> categoryStatistics = hierarchyStatistics.getSelfStatistics();
+	private void createFlattenedHierarchy(@Nonnull List<Map<String, Object>> flattenedHierarchy,
+	                                      @Nullable LevelInfo parentLevelInfo,
+	                                      @Nonnull LevelInfo levelInfo) {
+		final Map<String, Object> currentLevelInfoDto = map()
+			.e(LevelInfoDescriptor.PARENT_ID.name(), parentLevelInfo != null
+				? parentLevelInfo.entity().getPrimaryKey()
+				: null)
+			.e(LevelInfoDescriptor.ENTITY.name(), map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
+				.e(EntityDescriptor.ATTRIBUTES.name(), map()
+					.e(ATTRIBUTE_CODE, ((SealedEntity) levelInfo.entity()).getAttribute(ATTRIBUTE_CODE))))
+			.e(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), levelInfo.queriedEntityCount())
+			.e(LevelInfoDescriptor.CHILDREN_COUNT.name(), levelInfo.childrenCount())
+			.e(LevelInfoDescriptor.HAS_CHILDREN.name(), !levelInfo.children().isEmpty())
+			.build();
+		flattenedHierarchy.add(currentLevelInfoDto);
 
-		final var levelInfoDtos = new LinkedList<Map<String, Object>>();
-
-		categoryStatistics
-			.values()
-			.stream()
-			// TODO LHO - this needs to be corrected probably
-			.flatMap(Collection::stream)
-			.forEach(levelInfo1 ->
-			levelInfoDtos.add(
-				map()
-					.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Category"), createEmptyEntitySchema("Category")))
-					.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo1.queriedEntityCount())
-					.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo1.entity())
-						.map(parentEntity -> map()
-							.e(TYPENAME_FIELD, "Category")
-							.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-								.build())
-							.build())
-						.get())
-					.e(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS.name(), levelInfo1.childrenStatistics()
-						.stream()
-						.map(levelInfo2 -> map()
-							.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Category"), createEmptyEntitySchema("Category")))
-							.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo2.queriedEntityCount())
-							.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo2.entity())
-								.map(parentEntity -> map()
-									.e(TYPENAME_FIELD, "Category")
-									.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-										.build())
-									.build())
-								.get())
-							.build())
-						.toList())
-					.build()
-			)
-		);
-
-		return levelInfoDtos;
+		levelInfo.children()
+			.forEach(childLevelInfo -> createFlattenedHierarchy(flattenedHierarchy, levelInfo, childLevelInfo));
 	}
 
 	@Nonnull
@@ -3732,5 +4570,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 			)
 			.toList();
+	}
+
+	protected static Stream<Arguments> statisticTypeAndBaseVariants() {
+		return Stream.of(
+			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.WITHOUT_USER_FILTER)
+		);
+	}
+
+	@Nonnull
+	private static String getHierarchyStatisticsArgument(@Nonnull EnumSet<StatisticsType> statisticsType,
+	                                                     @Nonnull StatisticsBase base) {
+		return statisticsType.isEmpty()
+			? "hierarchyStatistics: { statisticsBase: " + base.name() + "}"
+			: "hierarchyStatistics: { statisticsBase: " + base.name() + ", statisticsType: [" +
+			statisticsType.stream()
+				.map(Enum::name)
+				.collect(Collectors.joining(",")) +
+			"]}";
 	}
 }

@@ -23,13 +23,13 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor for header arguments of {@link CatalogRootDescriptor#ENTITY_LIST}
+ * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#LIST_ENTITY}
  * query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022

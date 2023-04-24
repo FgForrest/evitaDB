@@ -35,7 +35,6 @@ import static io.evitadb.api.query.filter.AttributeSpecialValue.NOT_NULL;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
 import static io.evitadb.api.query.require.StatisticsBase.WITHOUT_USER_FILTER;
-import static io.evitadb.api.query.require.StatisticsType.CHILDREN_COUNT;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -266,7 +265,7 @@ class PrettyPrintingVisitorTest {
 				\t\t\t\tentityFetch(
 				\t\t\t\t\tattributeContent()
 				\t\t\t\t),
-				\t\t\t\tstatistics(?, ?)
+				\t\t\t\tstatistics(?)
 				\t\t\t)
 				\t\t),
 				\t\tpage(?, ?)
@@ -279,7 +278,7 @@ class PrettyPrintingVisitorTest {
 				"PRODUCT",
 				"a", "b", "def", NOT_NULL, "c", 1, 78, "utr", true, "d", 1, "e", 1,
 				"x", ASC,
-				"CATEGORY", REMOVE_EMPTY, "megaMenu", WITHOUT_USER_FILTER, CHILDREN_COUNT, 1, 100
+				"CATEGORY", REMOVE_EMPTY, "megaMenu", WITHOUT_USER_FILTER, 1, 100
 			},
 			result.parameters().toArray(new Serializable[0])
 		);

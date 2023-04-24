@@ -44,14 +44,13 @@ class HierarchyStatisticsTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new HierarchyStatistics(null).isApplicable());
 		assertTrue(new HierarchyStatistics(StatisticsBase.COMPLETE_FILTER).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
 		final HierarchyStatistics hierarchyStatistics = statistics();
-		assertEquals("statistics(WITHOUT_USER_FILTER,CHILDREN_COUNT)", hierarchyStatistics.toString());
+		assertEquals("statistics(WITHOUT_USER_FILTER)", hierarchyStatistics.toString());
 	}
 
 	@Test

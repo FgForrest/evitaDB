@@ -253,7 +253,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * {@link HierarchyWithinRoot} sub-constraints. Result of this method is cached so that additional calls introduce no
 	 * performance penalty.
 	 */
-	@Nonnull
+	@Nullable
 	public FilterBy getFilterByWithoutHierarchyFilter(@Nullable ReferenceSchemaContract referenceSchema) {
 		if (filterByWithoutHierarchyFilter == null) {
 			filterByWithoutHierarchyFilter = (FilterBy) ofNullable(getFilterBy())
@@ -279,10 +279,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						}
 					)
 				)
-				.orElse(null);
+				.orElseGet(FilterBy::new);
 
 		}
-		return filterByWithoutHierarchyFilter;
+		return filterByWithoutHierarchyFilter.isApplicable() ? filterByWithoutHierarchyFilter : null;
 	}
 
 	/**
@@ -290,7 +290,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * {@link HierarchyWithinRoot} constraints and {@link UserFilter} parts. Result of this method is cached so that
 	 * additional calls introduce no performance penalty.
 	 */
-	@Nonnull
+	@Nullable
 	public FilterBy getFilterByWithoutHierarchyAndUserFilter(@Nullable ReferenceSchemaContract referenceSchema) {
 		if (filteringFormulaWithoutHierarchyAndUserFilter == null) {
 			filteringFormulaWithoutHierarchyAndUserFilter = (FilterBy) ofNullable(getFilterBy())
@@ -318,10 +318,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						}
 					)
 				)
-				.orElse(null);
+				.orElseGet(FilterBy::new);
 
 		}
-		return filteringFormulaWithoutHierarchyAndUserFilter;
+		return filteringFormulaWithoutHierarchyAndUserFilter.isApplicable() ? filteringFormulaWithoutHierarchyAndUserFilter : null;
 	}
 
 	/**

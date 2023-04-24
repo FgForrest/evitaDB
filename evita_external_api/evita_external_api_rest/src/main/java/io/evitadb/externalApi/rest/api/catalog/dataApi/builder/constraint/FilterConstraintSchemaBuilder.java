@@ -74,16 +74,7 @@ public class FilterConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilde
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new OpenApiBuildingError("Could not find `filterBy` filter query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new OpenApiBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
-		);
-		return descriptors.iterator().next();
+		return ConstraintDescriptorProvider.getConstraint(FilterBy.class);
 	}
 
 	@Nonnull

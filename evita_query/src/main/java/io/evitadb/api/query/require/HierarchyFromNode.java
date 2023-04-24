@@ -60,7 +60,8 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children, additionalChildren);
 		for (RequireConstraint requireConstraint : children) {
 			Assert.isTrue(
-				requireConstraint instanceof HierarchyOutputRequireConstraint ||
+				requireConstraint instanceof HierarchyNode ||
+					requireConstraint instanceof HierarchyOutputRequireConstraint ||
 					requireConstraint instanceof EntityFetch,
 				"Constraint HierarchyFromNode accepts only HierarchyStopAt, HierarchyStatistics and EntityFetch as inner constraints!"
 			);
@@ -71,7 +72,7 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 		);
 	}
 
-	@Creator(silentImplicitClassifier = true)
+	@Creator
 	public HierarchyFromNode(@Nonnull @Value String outputName,
 	                         @Nonnull @Child HierarchyNode node,
 	                         @Nullable @Child EntityFetch entityFetch,
@@ -105,6 +106,7 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 	 * Returns the key the computed extra result should be registered to.
 	 */
 	@Nonnull
+	@Override
 	public String getOutputName() {
 		return (String) getArguments()[0];
 	}
