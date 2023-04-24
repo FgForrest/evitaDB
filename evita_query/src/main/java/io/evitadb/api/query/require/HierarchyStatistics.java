@@ -64,8 +64,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 			"statistics",
 			statisticsBase == null
 				? StatisticsBase.WITHOUT_USER_FILTER
-				: statisticsBase,
-			StatisticsType.CHILDREN_COUNT
+				: statisticsBase
 		);
 	}
 
@@ -82,7 +81,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 				statisticsBase == null ?
 					new Serializable[] {StatisticsBase.WITHOUT_USER_FILTER} : new Serializable[] {statisticsBase},
 				ArrayUtils.isEmpty(statisticsType) ?
-					new StatisticsType[]{StatisticsType.CHILDREN_COUNT} :
+					new StatisticsType[0] :
 					statisticsType
 			)
 		);
