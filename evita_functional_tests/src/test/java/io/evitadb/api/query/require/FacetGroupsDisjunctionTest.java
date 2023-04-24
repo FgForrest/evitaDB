@@ -25,7 +25,9 @@ package io.evitadb.api.query.require;
 
 import org.junit.jupiter.api.Test;
 
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.facetGroupsDisjunction;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -37,37 +39,36 @@ class FacetGroupsDisjunctionTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final FacetGroupsDisjunction facetGroupsDisjunction = facetGroupsDisjunction("brand", 1, 5, 7);
+		final FacetGroupsDisjunction facetGroupsDisjunction = facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7)));
 		assertEquals("brand", facetGroupsDisjunction.getReferenceName());
-		assertArrayEquals(new int[] {1, 5, 7}, facetGroupsDisjunction.getFacetGroups());
+		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsDisjunction.getFacetGroups());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new FacetGroupsDisjunction(null).isApplicable());
-		assertFalse(new FacetGroupsDisjunction("brand").isApplicable());
-		assertTrue(facetGroupsDisjunction("brand", 1).isApplicable());
-		assertTrue(facetGroupsDisjunction("brand", 1, 5, 7).isApplicable());
+		assertFalse(new FacetGroupsDisjunction(null, null).isApplicable());
+		assertFalse(new FacetGroupsDisjunction("brand", null).isApplicable());
+		assertTrue(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7))).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		final FacetGroupsDisjunction facetGroupsDisjunction = facetGroupsDisjunction("brand", 1, 5, 7);
-		assertEquals("facetGroupsDisjunction('brand',1,5,7)", facetGroupsDisjunction.toString());
+		final FacetGroupsDisjunction facetGroupsDisjunction = facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7)));
+		assertEquals("facetGroupsDisjunction('brand',filterBy(entityPrimaryKeyInSet(1,5,7)))", facetGroupsDisjunction.toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(facetGroupsDisjunction("brand", 1, 1, 5), facetGroupsDisjunction("brand", 1, 1, 5));
-		assertEquals(facetGroupsDisjunction("brand", 1, 1, 5), facetGroupsDisjunction("brand", 1, 1, 5));
-		assertNotEquals(facetGroupsDisjunction("brand", 1, 1, 5), facetGroupsDisjunction("brand", 1, 1, 6));
-		assertNotEquals(facetGroupsDisjunction("brand", 1, 1, 5), facetGroupsDisjunction("brand", 1, 1));
-		assertNotEquals(facetGroupsDisjunction("brand", 1, 1, 5), facetGroupsDisjunction("brand", 2, 1, 5));
-		assertNotEquals(facetGroupsDisjunction("brand", 1, 1, 5), facetGroupsDisjunction("category", 1, 1, 6));
-		assertNotEquals(facetGroupsDisjunction("brand", 1, 1, 5), facetGroupsDisjunction("brand", 1, 1));
-		assertEquals(facetGroupsDisjunction("brand", 1, 1, 5).hashCode(), facetGroupsDisjunction("brand", 1, 1, 5).hashCode());
-		assertNotEquals(facetGroupsDisjunction("brand", 1, 1, 5).hashCode(), facetGroupsDisjunction("brand", 1, 1, 6).hashCode());
-		assertNotEquals(facetGroupsDisjunction("brand", 1, 1, 5).hashCode(), facetGroupsDisjunction("brand", 1, 1).hashCode());
+		assertNotSame(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))));
+		assertEquals(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))));
+		assertNotEquals(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 6))));
+		assertNotEquals(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1))));
+		assertNotEquals(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(2, 1, 5))));
+		assertNotEquals(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsDisjunction("category", filterBy(entityPrimaryKeyInSet(1, 1, 6))));
+		assertNotEquals(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))), facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1))));
+		assertEquals(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(), facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode());
+		assertNotEquals(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(), facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 6))).hashCode());
+		assertNotEquals(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1, 5))).hashCode(), facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 1))).hashCode());
 	}
 
 }

@@ -135,9 +135,9 @@ public class EvitaQLParser extends Parser {
 			"'priceType'", "'dataInLocales'", "'hierarchyParentsOfSelf'", "'hierarchyParentsOfReference'", 
 			"'facetSummary'", "'facetSummaryOfReference'", "'facetGroupsConjunction'", 
 			"'facetGroupsDisjunction'", "'facetGroupsNegation'", "'attributeHistogram'", 
-			"'priceHistogram'", "'hierarchyStatisticsOfSelf'", "'hierarchyStatisticsOfReference'", 
-			"'queryTelemetry'", "'?'", null, null, null, null, null, null, null, 
-			null, null, null, null, null, null, "'('", "')'", "','", "'{'", "'}'"
+			"'priceHistogram'", "'hierarchyOfSelf'", "'hierarchyOfReference'", "'queryTelemetry'", 
+			"'?'", null, null, null, null, null, null, null, null, null, null, null, 
+			null, null, "'('", "')'", "','", "'{'", "'}'"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -2340,9 +2340,9 @@ public class EvitaQLParser extends Parser {
 		}
 	}
 	public static class FacetGroupsDisjunctionConstraintContext extends RequireConstraintContext {
-		public ClassifierWithValueListArgsContext args;
-		public ClassifierWithValueListArgsContext classifierWithValueListArgs() {
-			return getRuleContext(ClassifierWithValueListArgsContext.class,0);
+		public ClassifierWithFilterConstraintArgsContext args;
+		public ClassifierWithFilterConstraintArgsContext classifierWithFilterConstraintArgs() {
+			return getRuleContext(ClassifierWithFilterConstraintArgsContext.class,0);
 		}
 		public FacetGroupsDisjunctionConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
 		@Override
@@ -2698,26 +2698,6 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
-	public static class HierarchyStatisticsOfReferenceConstraintContext extends RequireConstraintContext {
-		public ClassifierListWithOptionalRequireConstraintArgsContext args;
-		public ClassifierListWithOptionalRequireConstraintArgsContext classifierListWithOptionalRequireConstraintArgs() {
-			return getRuleContext(ClassifierListWithOptionalRequireConstraintArgsContext.class,0);
-		}
-		public HierarchyStatisticsOfReferenceConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
-		@Override
-		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterHierarchyStatisticsOfReferenceConstraint(this);
-		}
-		@Override
-		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitHierarchyStatisticsOfReferenceConstraint(this);
-		}
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitHierarchyStatisticsOfReferenceConstraint(this);
-			else return visitor.visitChildren(this);
-		}
-	}
 	public static class DataInLocalesConstraintContext extends RequireConstraintContext {
 		public ValueListArgsContext args;
 		public EmptyArgsContext emptyArgs() {
@@ -2742,9 +2722,9 @@ public class EvitaQLParser extends Parser {
 		}
 	}
 	public static class FacetGroupsConjunctionConstraintContext extends RequireConstraintContext {
-		public ClassifierWithValueListArgsContext args;
-		public ClassifierWithValueListArgsContext classifierWithValueListArgs() {
-			return getRuleContext(ClassifierWithValueListArgsContext.class,0);
+		public ClassifierWithFilterConstraintArgsContext args;
+		public ClassifierWithFilterConstraintArgsContext classifierWithFilterConstraintArgs() {
+			return getRuleContext(ClassifierWithFilterConstraintArgsContext.class,0);
 		}
 		public FacetGroupsConjunctionConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
 		@Override
@@ -2778,6 +2758,29 @@ public class EvitaQLParser extends Parser {
 		@Override
 		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
 			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitSingleRefWithOrderReferenceContentConstraint(this);
+			else return visitor.visitChildren(this);
+		}
+	}
+	public static class HierarchyOfSelfConstraintContext extends RequireConstraintContext {
+		public RequireConstraintArgsContext args;
+		public EmptyArgsContext emptyArgs() {
+			return getRuleContext(EmptyArgsContext.class,0);
+		}
+		public RequireConstraintArgsContext requireConstraintArgs() {
+			return getRuleContext(RequireConstraintArgsContext.class,0);
+		}
+		public HierarchyOfSelfConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterHierarchyOfSelfConstraint(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitHierarchyOfSelfConstraint(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitHierarchyOfSelfConstraint(this);
 			else return visitor.visitChildren(this);
 		}
 	}
@@ -2868,9 +2871,9 @@ public class EvitaQLParser extends Parser {
 		}
 	}
 	public static class FacetGroupsNegationConstraintContext extends RequireConstraintContext {
-		public ClassifierWithValueListArgsContext args;
-		public ClassifierWithValueListArgsContext classifierWithValueListArgs() {
-			return getRuleContext(ClassifierWithValueListArgsContext.class,0);
+		public ClassifierWithFilterConstraintArgsContext args;
+		public ClassifierWithFilterConstraintArgsContext classifierWithFilterConstraintArgs() {
+			return getRuleContext(ClassifierWithFilterConstraintArgsContext.class,0);
 		}
 		public FacetGroupsNegationConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
 		@Override
@@ -2887,26 +2890,23 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
-	public static class HierarchyStatisticsOfSelfConstraintContext extends RequireConstraintContext {
-		public RequireConstraintArgsContext args;
-		public EmptyArgsContext emptyArgs() {
-			return getRuleContext(EmptyArgsContext.class,0);
+	public static class HierarchyOfReferenceConstraintContext extends RequireConstraintContext {
+		public ClassifierListWithOptionalRequireConstraintArgsContext args;
+		public ClassifierListWithOptionalRequireConstraintArgsContext classifierListWithOptionalRequireConstraintArgs() {
+			return getRuleContext(ClassifierListWithOptionalRequireConstraintArgsContext.class,0);
 		}
-		public RequireConstraintArgsContext requireConstraintArgs() {
-			return getRuleContext(RequireConstraintArgsContext.class,0);
-		}
-		public HierarchyStatisticsOfSelfConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
+		public HierarchyOfReferenceConstraintContext(RequireConstraintContext ctx) { copyFrom(ctx); }
 		@Override
 		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterHierarchyStatisticsOfSelfConstraint(this);
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterHierarchyOfReferenceConstraint(this);
 		}
 		@Override
 		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitHierarchyStatisticsOfSelfConstraint(this);
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitHierarchyOfReferenceConstraint(this);
 		}
 		@Override
 		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitHierarchyStatisticsOfSelfConstraint(this);
+			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitHierarchyOfReferenceConstraint(this);
 			else return visitor.visitChildren(this);
 		}
 	}
@@ -3275,7 +3275,7 @@ public class EvitaQLParser extends Parser {
 				setState(334);
 				match(T__62);
 				setState(335);
-				((FacetGroupsConjunctionConstraintContext)_localctx).args = classifierWithValueListArgs();
+				((FacetGroupsConjunctionConstraintContext)_localctx).args = classifierWithFilterConstraintArgs();
 				}
 				break;
 			case 23:
@@ -3285,7 +3285,7 @@ public class EvitaQLParser extends Parser {
 				setState(336);
 				match(T__63);
 				setState(337);
-				((FacetGroupsDisjunctionConstraintContext)_localctx).args = classifierWithValueListArgs();
+				((FacetGroupsDisjunctionConstraintContext)_localctx).args = classifierWithFilterConstraintArgs();
 				}
 				break;
 			case 24:
@@ -3295,7 +3295,7 @@ public class EvitaQLParser extends Parser {
 				setState(338);
 				match(T__64);
 				setState(339);
-				((FacetGroupsNegationConstraintContext)_localctx).args = classifierWithValueListArgs();
+				((FacetGroupsNegationConstraintContext)_localctx).args = classifierWithFilterConstraintArgs();
 				}
 				break;
 			case 25:
@@ -3319,7 +3319,7 @@ public class EvitaQLParser extends Parser {
 				}
 				break;
 			case 27:
-				_localctx = new HierarchyStatisticsOfSelfConstraintContext(_localctx);
+				_localctx = new HierarchyOfSelfConstraintContext(_localctx);
 				enterOuterAlt(_localctx, 27);
 				{
 				setState(344);
@@ -3336,20 +3336,20 @@ public class EvitaQLParser extends Parser {
 				case 2:
 					{
 					setState(346);
-					((HierarchyStatisticsOfSelfConstraintContext)_localctx).args = requireConstraintArgs();
+					((HierarchyOfSelfConstraintContext)_localctx).args = requireConstraintArgs();
 					}
 					break;
 				}
 				}
 				break;
 			case 28:
-				_localctx = new HierarchyStatisticsOfReferenceConstraintContext(_localctx);
+				_localctx = new HierarchyOfReferenceConstraintContext(_localctx);
 				enterOuterAlt(_localctx, 28);
 				{
 				setState(349);
 				match(T__68);
 				setState(350);
-				((HierarchyStatisticsOfReferenceConstraintContext)_localctx).args = classifierListWithOptionalRequireConstraintArgs();
+				((HierarchyOfReferenceConstraintContext)_localctx).args = classifierListWithOptionalRequireConstraintArgs();
 				}
 				break;
 			case 29:
@@ -7398,37 +7398,37 @@ public class EvitaQLParser extends Parser {
 		"\2\2\u0145\u0144\3\2\2\2\u0146\u0164\3\2\2\2\u0147\u0148\7>\2\2\u0148"+
 		"\u0164\5L\'\2\u0149\u014c\7?\2\2\u014a\u014d\5&\24\2\u014b\u014d\5f\64"+
 		"\2\u014c\u014a\3\2\2\2\u014c\u014b\3\2\2\2\u014d\u0164\3\2\2\2\u014e\u014f"+
-		"\7@\2\2\u014f\u0164\5h\65\2\u0150\u0151\7A\2\2\u0151\u0164\58\35\2\u0152"+
-		"\u0153\7B\2\2\u0153\u0164\58\35\2\u0154\u0155\7C\2\2\u0155\u0164\58\35"+
-		"\2\u0156\u0157\7D\2\2\u0157\u0164\5D#\2\u0158\u0159\7E\2\2\u0159\u0164"+
-		"\5<\37\2\u015a\u015d\7F\2\2\u015b\u015e\5&\24\2\u015c\u015e\5.\30\2\u015d"+
-		"\u015b\3\2\2\2\u015d\u015c\3\2\2\2\u015e\u0164\3\2\2\2\u015f\u0160\7G"+
-		"\2\2\u0160\u0164\5L\'\2\u0161\u0162\7H\2\2\u0162\u0164\5&\24\2\u0163\u0108"+
-		"\3\2\2\2\u0163\u010d\3\2\2\2\u0163\u010f\3\2\2\2\u0163\u0111\3\2\2\2\u0163"+
-		"\u0116\3\2\2\2\u0163\u011b\3\2\2\2\u0163\u0120\3\2\2\2\u0163\u0125\3\2"+
-		"\2\2\u0163\u0127\3\2\2\2\u0163\u012c\3\2\2\2\u0163\u0131\3\2\2\2\u0163"+
-		"\u0133\3\2\2\2\u0163\u0135\3\2\2\2\u0163\u0137\3\2\2\2\u0163\u0139\3\2"+
-		"\2\2\u0163\u013b\3\2\2\2\u0163\u013d\3\2\2\2\u0163\u0142\3\2\2\2\u0163"+
-		"\u0147\3\2\2\2\u0163\u0149\3\2\2\2\u0163\u014e\3\2\2\2\u0163\u0150\3\2"+
-		"\2\2\u0163\u0152\3\2\2\2\u0163\u0154\3\2\2\2\u0163\u0156\3\2\2\2\u0163"+
-		"\u0158\3\2\2\2\u0163\u015a\3\2\2\2\u0163\u015f\3\2\2\2\u0163\u0161\3\2"+
-		"\2\2\u0164\33\3\2\2\2\u0165\u016a\5\24\13\2\u0166\u0167\7Y\2\2\u0167\u0169"+
-		"\5\24\13\2\u0168\u0166\3\2\2\2\u0169\u016c\3\2\2\2\u016a\u0168\3\2\2\2"+
-		"\u016a\u016b\3\2\2\2\u016b\35\3\2\2\2\u016c\u016a\3\2\2\2\u016d\u0172"+
-		"\5\26\f\2\u016e\u016f\7Y\2\2\u016f\u0171\5\26\f\2\u0170\u016e\3\2\2\2"+
-		"\u0171\u0174\3\2\2\2\u0172\u0170\3\2\2\2\u0172\u0173\3\2\2\2\u0173\37"+
-		"\3\2\2\2\u0174\u0172\3\2\2\2\u0175\u017a\5\30\r\2\u0176\u0177\7Y\2\2\u0177"+
-		"\u0179\5\30\r\2\u0178\u0176\3\2\2\2\u0179\u017c\3\2\2\2\u017a\u0178\3"+
-		"\2\2\2\u017a\u017b\3\2\2\2\u017b!\3\2\2\2\u017c\u017a\3\2\2\2\u017d\u0182"+
-		"\5\32\16\2\u017e\u017f\7Y\2\2\u017f\u0181\5\32\16\2\u0180\u017e\3\2\2"+
-		"\2\u0181\u0184\3\2\2\2\u0182\u0180\3\2\2\2\u0182\u0183\3\2\2\2\u0183#"+
-		"\3\2\2\2\u0184\u0182\3\2\2\2\u0185\u0186\7W\2\2\u0186\u018b\5\22\n\2\u0187"+
-		"\u0188\7Y\2\2\u0188\u018a\5\22\n\2\u0189\u0187\3\2\2\2\u018a\u018d\3\2"+
-		"\2\2\u018b\u0189\3\2\2\2\u018b\u018c\3\2\2\2\u018c\u018e\3\2\2\2\u018d"+
-		"\u018b\3\2\2\2\u018e\u018f\7X\2\2\u018f%\3\2\2\2\u0190\u0191\7W\2\2\u0191"+
-		"\u0192\7X\2\2\u0192\'\3\2\2\2\u0193\u0194\7W\2\2\u0194\u0199\5\26\f\2"+
-		"\u0195\u0196\7Y\2\2\u0196\u0198\5\26\f\2\u0197\u0195\3\2\2\2\u0198\u019b"+
-		"\3\2\2\2\u0199\u0197\3\2\2\2\u0199\u019a\3\2\2\2\u019a\u019c\3\2\2\2\u019b"+
+		"\7@\2\2\u014f\u0164\5h\65\2\u0150\u0151\7A\2\2\u0151\u0164\5F$\2\u0152"+
+		"\u0153\7B\2\2\u0153\u0164\5F$\2\u0154\u0155\7C\2\2\u0155\u0164\5F$\2\u0156"+
+		"\u0157\7D\2\2\u0157\u0164\5D#\2\u0158\u0159\7E\2\2\u0159\u0164\5<\37\2"+
+		"\u015a\u015d\7F\2\2\u015b\u015e\5&\24\2\u015c\u015e\5.\30\2\u015d\u015b"+
+		"\3\2\2\2\u015d\u015c\3\2\2\2\u015e\u0164\3\2\2\2\u015f\u0160\7G\2\2\u0160"+
+		"\u0164\5L\'\2\u0161\u0162\7H\2\2\u0162\u0164\5&\24\2\u0163\u0108\3\2\2"+
+		"\2\u0163\u010d\3\2\2\2\u0163\u010f\3\2\2\2\u0163\u0111\3\2\2\2\u0163\u0116"+
+		"\3\2\2\2\u0163\u011b\3\2\2\2\u0163\u0120\3\2\2\2\u0163\u0125\3\2\2\2\u0163"+
+		"\u0127\3\2\2\2\u0163\u012c\3\2\2\2\u0163\u0131\3\2\2\2\u0163\u0133\3\2"+
+		"\2\2\u0163\u0135\3\2\2\2\u0163\u0137\3\2\2\2\u0163\u0139\3\2\2\2\u0163"+
+		"\u013b\3\2\2\2\u0163\u013d\3\2\2\2\u0163\u0142\3\2\2\2\u0163\u0147\3\2"+
+		"\2\2\u0163\u0149\3\2\2\2\u0163\u014e\3\2\2\2\u0163\u0150\3\2\2\2\u0163"+
+		"\u0152\3\2\2\2\u0163\u0154\3\2\2\2\u0163\u0156\3\2\2\2\u0163\u0158\3\2"+
+		"\2\2\u0163\u015a\3\2\2\2\u0163\u015f\3\2\2\2\u0163\u0161\3\2\2\2\u0164"+
+		"\33\3\2\2\2\u0165\u016a\5\24\13\2\u0166\u0167\7Y\2\2\u0167\u0169\5\24"+
+		"\13\2\u0168\u0166\3\2\2\2\u0169\u016c\3\2\2\2\u016a\u0168\3\2\2\2\u016a"+
+		"\u016b\3\2\2\2\u016b\35\3\2\2\2\u016c\u016a\3\2\2\2\u016d\u0172\5\26\f"+
+		"\2\u016e\u016f\7Y\2\2\u016f\u0171\5\26\f\2\u0170\u016e\3\2\2\2\u0171\u0174"+
+		"\3\2\2\2\u0172\u0170\3\2\2\2\u0172\u0173\3\2\2\2\u0173\37\3\2\2\2\u0174"+
+		"\u0172\3\2\2\2\u0175\u017a\5\30\r\2\u0176\u0177\7Y\2\2\u0177\u0179\5\30"+
+		"\r\2\u0178\u0176\3\2\2\2\u0179\u017c\3\2\2\2\u017a\u0178\3\2\2\2\u017a"+
+		"\u017b\3\2\2\2\u017b!\3\2\2\2\u017c\u017a\3\2\2\2\u017d\u0182\5\32\16"+
+		"\2\u017e\u017f\7Y\2\2\u017f\u0181\5\32\16\2\u0180\u017e\3\2\2\2\u0181"+
+		"\u0184\3\2\2\2\u0182\u0180\3\2\2\2\u0182\u0183\3\2\2\2\u0183#\3\2\2\2"+
+		"\u0184\u0182\3\2\2\2\u0185\u0186\7W\2\2\u0186\u018b\5\22\n\2\u0187\u0188"+
+		"\7Y\2\2\u0188\u018a\5\22\n\2\u0189\u0187\3\2\2\2\u018a\u018d\3\2\2\2\u018b"+
+		"\u0189\3\2\2\2\u018b\u018c\3\2\2\2\u018c\u018e\3\2\2\2\u018d\u018b\3\2"+
+		"\2\2\u018e\u018f\7X\2\2\u018f%\3\2\2\2\u0190\u0191\7W\2\2\u0191\u0192"+
+		"\7X\2\2\u0192\'\3\2\2\2\u0193\u0194\7W\2\2\u0194\u0199\5\26\f\2\u0195"+
+		"\u0196\7Y\2\2\u0196\u0198\5\26\f\2\u0197\u0195\3\2\2\2\u0198\u019b\3\2"+
+		"\2\2\u0199\u0197\3\2\2\2\u0199\u019a\3\2\2\2\u019a\u019c\3\2\2\2\u019b"+
 		"\u0199\3\2\2\2\u019c\u019d\7X\2\2\u019d)\3\2\2\2\u019e\u019f\7W\2\2\u019f"+
 		"\u01a0\5\26\f\2\u01a0\u01a1\7X\2\2\u01a1+\3\2\2\2\u01a2\u01a3\7W\2\2\u01a3"+
 		"\u01a8\5\30\r\2\u01a4\u01a5\7Y\2\2\u01a5\u01a7\5\30\r\2\u01a6\u01a4\3"+

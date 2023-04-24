@@ -56,7 +56,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 	@Test
 	void shouldResolveValueRequireConstraint() {
 		assertEquals(
-			facetGroupsConjunction("BRAND", 1, 2),
+			facetGroupsConjunction("BRAND", filterBy(entityPrimaryKeyInSet(1, 2))),
 			resolver.resolve(
 				Entities.PRODUCT,
 				"facetBrandGroupsConjunction",

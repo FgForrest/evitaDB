@@ -896,7 +896,7 @@ class EvitaQLFilterConstraintVisitorTest {
         final FilterConstraint constraint2 = parseFilterConstraintUnsafe("facetHaving('a',entityPrimaryKeyInSet(10,20,50))");
         assertEquals(new FacetHaving("a", entityPrimaryKeyInSet(10, 20, 50)), constraint2);
 
-        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("facetHaving ( 'a'  , entityPrimaryKeyInSet(10),  entityPrimaryKeyInSet(20,50) )");
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("facetHaving ( 'a'  , entityPrimaryKeyInSet(10,  20,50) )");
         assertEquals(new FacetHaving("a", entityPrimaryKeyInSet(10, 20, 50)), constraint3);
 
         final FilterConstraint constraint4 = parseFilterConstraint("facetHaving('a',entityPrimaryKeyInSet(?))", 10);

@@ -481,7 +481,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 *
 	 * @param referenceSchema that identifies the examined entities
 	 * @param filterBy        the filtering constraint to satisfy
-	 * @param separateVisitor true when the evaluation should occur in isolated visitor
 	 * @return bitmap with referenced entity ids
 	 */
 	@Nonnull
@@ -498,7 +497,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			return EmptyFormula.INSTANCE;
 		}
 
-		final Formula resultFormula = executeInContext(
+		return executeInContext(
 			Collections.singletonList(entityIndex),
 			ReferenceContent.ALL_REFERENCES,
 			entityIndex.getEntitySchema(),
@@ -511,7 +510,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 				return getFormulaAndClear();
 			}
 		);
-		return resultFormula;
 	}
 
 	/**
@@ -549,30 +547,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	public boolean isReferenceQueriedByOtherConstraints() {
 		return this.targetIndexes.stream()
 			.anyMatch(it -> it.getRepresentedConstraint() instanceof ReferenceHaving);
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by conjunction (AND) instead
-	 * of default disjunction (OR).
-	 */
-	public boolean isFacetGroupConjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		return groupId != null && getEvitaRequest().isFacetGroupConjunction(referenceSchema.getName(), groupId);
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` is requested to be joined with other facet groups by
-	 * disjunction (OR) instead of default conjunction (AND).
-	 */
-	public boolean isFacetGroupDisjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		return groupId != null && getEvitaRequest().isFacetGroupDisjunction(referenceSchema.getName(), groupId);
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by negation (AND NOT) instead
-	 * of default disjunction (OR).
-	 */
-	public boolean isFacetGroupNegation(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		return groupId != null && getEvitaRequest().isFacetGroupNegation(referenceSchema.getName(), groupId);
 	}
 
 	/**

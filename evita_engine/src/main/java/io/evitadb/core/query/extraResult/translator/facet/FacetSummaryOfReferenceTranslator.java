@@ -47,6 +47,8 @@ import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringForm
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.collection.BitmapIntoBitmapCollector;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.utils.Assert;
 
@@ -88,7 +90,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			Set.of(extraResultPlanner.getFilteringFormula()) :
 			extraResultPlanner.getUserFilteringFormula();
 		// find all requested facets
-		final Map<String, IntSet> requestedFacets = formulaScope
+		final Map<String, Bitmap> requestedFacets = formulaScope
 			.stream()
 			.flatMap(it -> FormulaFinder.find(it, FacetGroupFormula.class, LookUp.SHALLOW).stream())
 			.collect(
@@ -96,7 +98,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 					FacetGroupFormula::getReferenceName,
 					Collectors.mapping(
 						FacetGroupFormula::getFacetIds,
-						new IntArrayToIntSetCollector()
+						BitmapIntoBitmapCollector.INSTANCE
 					)
 				)
 			);

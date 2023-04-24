@@ -42,15 +42,15 @@ import java.util.stream.Collector;
  * ``` java
  * Collectors.groupingBy(
  *    it -> it.getKey(),
- *    Collectors.mapping(it -> it.getValue(), BitmapCollector.INSTANCE)
+ *    Collectors.mapping(it -> it.getValue(), BitmapIntoBitmapCollector.INSTANCE)
  * )
  * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class BitmapCollector implements Collector<Integer, Bitmap, Bitmap> {
-	public static final BitmapCollector INSTANCE = new BitmapCollector();
+public class BitmapIntoBitmapCollector implements Collector<Bitmap, Bitmap, Bitmap> {
+	public static final BitmapIntoBitmapCollector INSTANCE = new BitmapIntoBitmapCollector();
 
 	@Override
 	public Supplier<Bitmap> supplier() {
@@ -58,8 +58,8 @@ public class BitmapCollector implements Collector<Integer, Bitmap, Bitmap> {
 	}
 
 	@Override
-	public BiConsumer<Bitmap, Integer> accumulator() {
-		return Bitmap::add;
+	public BiConsumer<Bitmap, Bitmap> accumulator() {
+		return Bitmap::addAll;
 	}
 
 	@Override

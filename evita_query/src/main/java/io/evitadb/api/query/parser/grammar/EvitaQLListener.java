@@ -975,29 +975,29 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitPriceHistogramConstraint(EvitaQLParser.PriceHistogramConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code hierarchyStatisticsOfSelfConstraint}
+	 * Enter a parse tree produced by the {@code hierarchyOfSelfConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterHierarchyStatisticsOfSelfConstraint(EvitaQLParser.HierarchyStatisticsOfSelfConstraintContext ctx);
+	void enterHierarchyOfSelfConstraint(EvitaQLParser.HierarchyOfSelfConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code hierarchyStatisticsOfSelfConstraint}
+	 * Exit a parse tree produced by the {@code hierarchyOfSelfConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitHierarchyStatisticsOfSelfConstraint(EvitaQLParser.HierarchyStatisticsOfSelfConstraintContext ctx);
+	void exitHierarchyOfSelfConstraint(EvitaQLParser.HierarchyOfSelfConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code hierarchyStatisticsOfReferenceConstraint}
+	 * Enter a parse tree produced by the {@code hierarchyOfReferenceConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterHierarchyStatisticsOfReferenceConstraint(EvitaQLParser.HierarchyStatisticsOfReferenceConstraintContext ctx);
+	void enterHierarchyOfReferenceConstraint(EvitaQLParser.HierarchyOfReferenceConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code hierarchyStatisticsOfReferenceConstraint}
+	 * Exit a parse tree produced by the {@code hierarchyOfReferenceConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitHierarchyStatisticsOfReferenceConstraint(EvitaQLParser.HierarchyStatisticsOfReferenceConstraintContext ctx);
+	void exitHierarchyOfReferenceConstraint(EvitaQLParser.HierarchyOfReferenceConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code queryTelemetryConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.

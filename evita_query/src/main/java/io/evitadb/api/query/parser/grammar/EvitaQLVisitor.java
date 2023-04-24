@@ -587,19 +587,19 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPriceHistogramConstraint(EvitaQLParser.PriceHistogramConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code hierarchyStatisticsOfSelfConstraint}
+	 * Visit a parse tree produced by the {@code hierarchyOfSelfConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitHierarchyStatisticsOfSelfConstraint(EvitaQLParser.HierarchyStatisticsOfSelfConstraintContext ctx);
+	T visitHierarchyOfSelfConstraint(EvitaQLParser.HierarchyOfSelfConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code hierarchyStatisticsOfReferenceConstraint}
+	 * Visit a parse tree produced by the {@code hierarchyOfReferenceConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitHierarchyStatisticsOfReferenceConstraint(EvitaQLParser.HierarchyStatisticsOfReferenceConstraintContext ctx);
+	T visitHierarchyOfReferenceConstraint(EvitaQLParser.HierarchyOfReferenceConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code queryTelemetryConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.

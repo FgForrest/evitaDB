@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.extraResult.translator.facet.producer;
 
-import com.carrotsearch.hppc.IntSet;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.require.EntityFetch;
@@ -50,7 +49,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.bitmap.collection.BitmapCollector;
+import io.evitadb.index.bitmap.collection.IntegerIntoBitmapCollector;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetIndex;
@@ -130,7 +129,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 * Contains index of all requested {@link FacetHaving()} facets in the input query grouped by their
 	 * {@link FacetHaving#getReferenceName()}.
 	 */
-	private final Map<String, IntSet> requestedFacets;
+	private final Map<String, Bitmap> requestedFacets;
 	/**
 	 * Contains the facet summary configuration set specifically for facets of certain reference.
 	 * The {@link ReferenceSchema#getName()} is used as a key of this map.
@@ -148,7 +147,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		@Nonnull Formula filterFormula,
 		@Nonnull Formula filterFormulaWithoutUserFilter,
 		@Nonnull List<Map<String, FacetReferenceIndex>> facetIndexes,
-		@Nonnull Map<String, IntSet> requestedFacets
+		@Nonnull Map<String, Bitmap> requestedFacets
 	) {
 		this.queryContext = queryContext;
 		this.filterFormula = filterFormula;
@@ -333,7 +332,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 		/**
 		 * Contains for each {@link FacetHaving#getType()} set of requested facets.
 		 */
-		private final Map<String, IntSet> requestedFacets;
+		private final Map<String, Bitmap> requestedFacets;
 		/**
 		 * Facet calculator computes the entity count that relate to each facet.
 		 */
@@ -443,7 +442,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 				.collect(
 					Collectors.groupingBy(
 						it -> it.getReferenceSchema().getName(),
-						Collectors.mapping(GroupAccumulator::getGroupId, BitmapCollector.INSTANCE)
+						Collectors.mapping(GroupAccumulator::getGroupId, IntegerIntoBitmapCollector.INSTANCE)
 					)
 				);
 		}
@@ -664,10 +663,9 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 			theFacetStatistics.keySet().forEach(writer::add);
 			// create sorted array using the sorter
 			final ConstantFormula unsortedIds = new ConstantFormula(new BaseBitmap(writer.get()));
-			final int[] sortedEntities = sorter.sortAndSlice(
+			return sorter.sortAndSlice(
 				queryContext, unsortedIds, 0, unsortedIds.compute().size()
 			);
-			return sortedEntities;
 		}
 
 		private int compareFacetGroupSummaries(Map<String, Bitmap> groupIdIndex, Map<String, int[]> sortedGroupIds, GroupAccumulator o1, GroupAccumulator o2) {

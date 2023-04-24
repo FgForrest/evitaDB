@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.facet.producer;
 
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 
@@ -45,9 +46,9 @@ import java.util.function.BiPredicate;
 public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 
 	public FacetFormulaGenerator(
-		@Nonnull BiPredicate<String, Integer> isFacetGroupConjunction,
-		@Nonnull BiPredicate<String, Integer> isFacetGroupDisjunction,
-		@Nonnull BiPredicate<String, Integer> isFacetGroupNegation
+		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupConjunction,
+		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupDisjunction,
+		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupNegation
 	) {
 		super(isFacetGroupConjunction, isFacetGroupDisjunction, isFacetGroupNegation);
 	}

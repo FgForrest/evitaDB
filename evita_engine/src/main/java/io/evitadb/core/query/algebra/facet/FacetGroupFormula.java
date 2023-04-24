@@ -23,8 +23,8 @@
 
 package io.evitadb.core.query.algebra.facet;
 
-import com.esotericsoftware.kryo.util.IntMap;
-import com.esotericsoftware.kryo.util.IntMap.Entry;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -32,12 +32,15 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.function.BiFunction;
 
 import static io.evitadb.index.bitmap.RoaringBitmapBackedBitmap.getRoaringBitmap;
@@ -56,7 +59,7 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 	 * Method merges two {@link FacetGroupFormula} of the same type related to same group id into the one.
 	 */
 	@Nonnull
-	static <T extends FacetGroupFormula> T mergeWith(@Nonnull FacetGroupFormula a, @Nonnull FacetGroupFormula b, @Nonnull BiFunction<int[], Bitmap[], T> factory) {
+	static <T extends FacetGroupFormula> T mergeWith(@Nonnull FacetGroupFormula a, @Nonnull FacetGroupFormula b, @Nonnull BiFunction<Bitmap, Bitmap[], T> factory) {
 		Assert.isPremiseValid(
 			Objects.equals(a.getFacetGroupId(), b.getFacetGroupId()),
 			"Both formulas must share facet group id!"
@@ -70,35 +73,41 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 			"Both formulas must be of type FacetGroupAndFormula!"
 		);
 
-		final int[] thisFacetIds = a.getFacetIds();
+		final Bitmap thisFacetIds = a.getFacetIds();
 		final Bitmap[] thisFacetBitmaps = a.getBitmaps();
-		final int[] thatFacetIds = b.getFacetIds();
+		final Bitmap thatFacetIds = b.getFacetIds();
 		final Bitmap[] thatFacetBitmaps = b.getBitmaps();
 
-		final IntMap<Bitmap> aggregatedBitmaps = new IntMap<>(thisFacetIds.length + thatFacetIds.length);
-		for (int i = 0; i < thisFacetIds.length; i++) {
-			int facetId = thisFacetIds[i];
-			aggregatedBitmaps.put(facetId, thisFacetBitmaps[i]);
+		final RoaringBitmapWriter<RoaringBitmap> collectedFacetIds = RoaringBitmapBackedBitmap.buildWriter();
+		final IntObjectMap<Bitmap> aggregatedBitmaps = new IntObjectHashMap<>(thisFacetIds.size() + thatFacetIds.size());
+		final OfInt thisFacetIdsIterator = thisFacetIds.iterator();
+		int thisFacetIdsIndex = 0;
+		while (thisFacetIdsIterator.hasNext()) {
+			final int facetId = thisFacetIdsIterator.next();
+			collectedFacetIds.add(facetId);
+			aggregatedBitmaps.put(facetId, thisFacetBitmaps[thisFacetIdsIndex++]);
 		}
 
-		for (int i = 0; i < thatFacetIds.length; i++) {
-			int facetId = thatFacetIds[i];
-			final Bitmap bitmap = thatFacetBitmaps[i];
+		final OfInt thatFacetIdsIterator = thatFacetIds.iterator();
+		int thatFacetIdsIndex = 0;
+		while (thatFacetIdsIterator.hasNext()) {
+			final int facetId = thatFacetIdsIterator.next();
+			final Bitmap bitmap = thatFacetBitmaps[thatFacetIdsIndex++];
 			final Bitmap combinedBitmaps = ofNullable(aggregatedBitmaps.get(facetId))
 				.map(it -> (Bitmap) new BaseBitmap(RoaringBitmap.or(getRoaringBitmap(it), getRoaringBitmap(bitmap))))
 				.orElse(bitmap);
+			collectedFacetIds.add(facetId);
 			aggregatedBitmaps.put(facetId, combinedBitmaps);
 		}
 
-		final int[] collectedFacetIds = new int[aggregatedBitmaps.size];
-		final Bitmap[] collectedBitmaps = new Bitmap[aggregatedBitmaps.size];
+		final BaseBitmap collectedAndFinalizedFacetIds = new BaseBitmap(collectedFacetIds.get());
+		final Bitmap[] collectedBitmaps = new Bitmap[collectedAndFinalizedFacetIds.size()];
 		int index = 0;
-		for (Entry<Bitmap> entry : aggregatedBitmaps) {
-			collectedFacetIds[index] = entry.key;
-			collectedBitmaps[index++] = entry.value;
+		for (Integer facetId : collectedAndFinalizedFacetIds) {
+			collectedBitmaps[index++] = aggregatedBitmaps.get(facetId);
 		}
 
-		return factory.apply(collectedFacetIds, collectedBitmaps);
+		return factory.apply(collectedAndFinalizedFacetIds, collectedBitmaps);
 	}
 
 	/**
@@ -115,11 +124,11 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 	Integer getFacetGroupId();
 
 	/**
-	 * Returns array of requested facet ids from {@link FacetHaving#getFacetIds()} filtering query.
+	 * Returns array of requested facet ids from {@link FacetHaving} filtering query.
 	 * This information is crucial for correct {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} computation.
 	 */
 	@Nonnull
-	int[] getFacetIds();
+	Bitmap getFacetIds();
 
 	/**
 	 * Returns array of bitmaps that match the requested facet ids from {@link #getFacetIds()}.

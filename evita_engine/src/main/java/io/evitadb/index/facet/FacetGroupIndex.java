@@ -39,7 +39,6 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,6 +46,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -168,9 +168,9 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	 * combined by OR relation it would produce result of all entities referring this group.
 	 */
 	@Nonnull
-	public Bitmap[] getFacetIdIndexesAsArray(int[] facetPrimaryKeys) {
-		return Arrays.stream(facetPrimaryKeys)
-			.mapToObj(this.facetIdIndexes::get)
+	public Bitmap[] getFacetIdIndexesAsArray(Bitmap facetPrimaryKeys) {
+		return StreamSupport.stream(facetPrimaryKeys.spliterator(), false)
+			.map(this.facetIdIndexes::get)
 			.filter(Objects::nonNull)
 			.map(FacetIdIndex::getRecords)
 			.toArray(Bitmap[]::new);

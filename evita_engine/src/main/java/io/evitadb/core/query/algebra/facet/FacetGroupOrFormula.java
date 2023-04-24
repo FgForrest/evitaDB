@@ -42,9 +42,9 @@ import org.roaringbitmap.RoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Optional.ofNullable;
 
@@ -68,15 +68,15 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 	 */
 	@Getter private final Integer facetGroupId;
 	/**
-	 * Contains array of requested facet ids from {@link FacetHaving#getFacetIds()} filtering query.
+	 * Contains array of requested facet ids from {@link FacetHaving} filtering query.
 	 */
-	@Getter private final int[] facetIds;
+	@Getter private final Bitmap facetIds;
 	/**
 	 * Contains array of bitmaps that represents the entity primary keys that match {@link #facetIds}.
 	 */
 	@Getter private final Bitmap[] bitmaps;
 
-	public FacetGroupOrFormula(@Nonnull String referenceName, @Nullable Integer facetGroupId, @Nonnull int[] facetIds, @Nonnull Bitmap... bitmaps) {
+	public FacetGroupOrFormula(@Nonnull String referenceName, @Nullable Integer facetGroupId, @Nonnull Bitmap facetIds, @Nonnull Bitmap... bitmaps) {
 		super();
 		this.referenceName = referenceName;
 		this.facetGroupId = facetGroupId;
@@ -99,11 +99,13 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 	@Nonnull
 	@Override
 	public FacetGroupFormula getCloneWithFacet(int facetId, @Nonnull Bitmap... entityIds) {
-		Assert.isTrue(!ArrayUtils.contains(this.facetIds, facetId), "Formula already contains facet id `" + facetId + "`");
+		Assert.isTrue(!this.facetIds.contains(facetId), "Formula already contains facet id `" + facetId + "`");
+		final Bitmap clonedFacetIdsBitmap = new BaseBitmap(facetIds);
+		clonedFacetIdsBitmap.add(facetId);
 		return new FacetGroupOrFormula(
 			referenceName,
 			facetGroupId,
-			ArrayUtils.insertIntIntoArrayOnIndex(facetId, facetIds, facetIds.length),
+			clonedFacetIdsBitmap,
 			ArrayUtils.mergeArrays(bitmaps, entityIds)
 		);
 	}
@@ -121,11 +123,11 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " OR (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + Arrays.toString(facetIds) + "): ");
+		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " OR (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + facetIds.toString() + "): ");
 		for (int i = 0; i < bitmaps.length; i++) {
 			final Bitmap bitmap = bitmaps[i];
 			sb.append(" ↦ ").append(bitmap.toString());
-			if (i + 1 < facetIds.length) {
+			if (i + 1 < facetIds.size()) {
 				sb.append(", ");
 			}
 		}
@@ -172,7 +174,7 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 			Stream.of(
 					LongStream.of(hashFunction.hashChars(referenceName)),
 					facetGroupId == null ? LongStream.empty() : LongStream.of(facetGroupId),
-					IntStream.of(facetIds).mapToLong(it -> it).sorted(),
+					StreamSupport.stream(facetIds.spliterator(), false).mapToLong(it -> it),
 					Arrays.stream(bitmaps)
 						.filter(it -> it instanceof TransactionalBitmap)
 						.mapToLong(it -> ((TransactionalBitmap) it).getId())

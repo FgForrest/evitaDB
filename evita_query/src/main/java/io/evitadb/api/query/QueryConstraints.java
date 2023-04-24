@@ -1700,11 +1700,11 @@ public interface QueryConstraints {
 	 * be composed as: blue(11) AND red(12)
 	 */
 	@Nullable
-	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName, @Nullable Integer... facetGroups) {
-		if (facetGroups == null) {
+	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
+		if (filterBy == null || !filterBy.isApplicable()) {
 			return null;
 		}
-		return new FacetGroupsConjunction(referenceName, facetGroups);
+		return new FacetGroupsConjunction(referenceName, filterBy);
 	}
 
 	/**
@@ -1757,11 +1757,11 @@ public interface QueryConstraints {
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
 	 */
 	@Nullable
-	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName, @Nullable Integer... facetGroups) {
-		if (facetGroups == null) {
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
+		if (filterBy == null || !filterBy.isApplicable()) {
 			return null;
 		}
-		return new FacetGroupsDisjunction(referenceName, facetGroups);
+		return new FacetGroupsDisjunction(referenceName, filterBy);
 	}
 
 	/**
@@ -1780,11 +1780,11 @@ public interface QueryConstraints {
 	 * when selected.
 	 */
 	@Nullable
-	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName, @Nullable Integer... facetGroups) {
-		if (facetGroups == null) {
+	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
+		if (filterBy == null || !filterBy.isApplicable()) {
 			return null;
 		}
-		return new FacetGroupsNegation(referenceName, facetGroups);
+		return new FacetGroupsNegation(referenceName, filterBy);
 	}
 
 	/**

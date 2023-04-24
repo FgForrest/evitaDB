@@ -407,15 +407,15 @@ public interface RandomQueryGenerator {
 			if (!groupIds.isEmpty()) {
 				if (dice == 1) {
 					requireConstraints.add(
-						facetGroupsConjunction(facetHaving.getReferenceName(), getRandomItem(random, groupIds))
+						facetGroupsConjunction(facetHaving.getReferenceName(), filterBy(entityPrimaryKeyInSet(getRandomItem(random, groupIds))))
 					);
 				} else if (dice == 2) {
 					requireConstraints.add(
-						facetGroupsDisjunction(facetHaving.getReferenceName(), getRandomItem(random, groupIds))
+						facetGroupsDisjunction(facetHaving.getReferenceName(), filterBy(entityPrimaryKeyInSet(getRandomItem(random, groupIds))))
 					);
 				} else if (dice == 3) {
 					requireConstraints.add(
-						facetGroupsNegation(facetHaving.getReferenceName(), getRandomItem(random, groupIds))
+						facetGroupsNegation(facetHaving.getReferenceName(), filterBy(entityPrimaryKeyInSet(getRandomItem(random, groupIds))))
 					);
 				}
 			}

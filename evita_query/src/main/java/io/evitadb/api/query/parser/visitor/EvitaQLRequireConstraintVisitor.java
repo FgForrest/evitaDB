@@ -615,10 +615,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	public RequireConstraint visitFacetGroupsConjunctionConstraint(@Nonnull EvitaQLParser.FacetGroupsConjunctionConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetGroupsConjunction(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
-			)
+			() -> {
+				/* TODO LHO - review */
+				final FilterBy filterBy = (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor);
+				return new FacetGroupsConjunction(
+					ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+					filterBy
+				);
+			}
 		);
 	}
 
@@ -626,10 +630,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	public RequireConstraint visitFacetGroupsDisjunctionConstraint(@Nonnull EvitaQLParser.FacetGroupsDisjunctionConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetGroupsDisjunction(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
-			)
+			() -> {
+				/* TODO LHO - review */
+				final FilterBy filterBy = (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor);
+				return new FacetGroupsDisjunction(
+					ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+					filterBy
+				);
+			}
 		);
 	}
 
@@ -637,10 +645,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	public RequireConstraint visitFacetGroupsNegationConstraint(@Nonnull EvitaQLParser.FacetGroupsNegationConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetGroupsNegation(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
-			)
+			() -> {
+				/* TODO LHO - review */
+				final FilterBy filterBy = (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor);
+				return new FacetGroupsNegation(
+					ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+					filterBy
+				);
+			}
 		);
 	}
 
@@ -666,7 +678,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyStatisticsOfSelfConstraint(@Nonnull EvitaQLParser.HierarchyStatisticsOfSelfConstraintContext ctx) {
+	public RequireConstraint visitHierarchyOfSelfConstraint(@Nonnull EvitaQLParser.HierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -681,7 +693,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyStatisticsOfReferenceConstraint(@Nonnull EvitaQLParser.HierarchyStatisticsOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitHierarchyOfReferenceConstraint(@Nonnull EvitaQLParser.HierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {

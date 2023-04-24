@@ -43,6 +43,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -73,9 +74,9 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 
 		final List<Formula> collectedFormulas = filterByVisitor.collectFromIndexes(
 			entityIndex -> {
-				final int[] facetIds = filterByVisitor.getReferencedRecordIdFormula(
+				final Bitmap facetIds = filterByVisitor.getReferencedRecordIdFormula(
 					referenceSchema, filterBy(facetHaving.getChildren())
-				).compute().getArray();
+				).compute();
 				// first collect all formulas
 				return entityIndex.getFacetReferencingEntityIdsFormula(
 					facetHaving.getReferenceName(),

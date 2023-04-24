@@ -196,7 +196,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	}
 
 	@Override
-	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(@Nonnull String referenceName, @Nonnull TriFunction<Integer, int[], Bitmap[], FacetGroupFormula> formulaFactory, @Nonnull int... facetId) {
+	public List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(@Nonnull String referenceName, @Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory, @Nonnull Bitmap facetId) {
 		// fetch index for referenced entity type
 		final FacetReferenceIndex facetEntityTypeIndex = facetingEntities.get(referenceName);
 		// if not found or empty, or input parameter is empty - return empty result
