@@ -27,6 +27,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +51,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 	@BeforeEach
 	void init() {
 		super.init();
-		resolver = new OrderConstraintResolver(catalogSchema, "PRODUCT");
+		resolver = new OrderConstraintResolver(catalogSchema);
 	}
 
 	@Test
@@ -58,6 +59,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertEquals(
 			attributeNatural("CODE", OrderDirection.ASC),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"attributeCodeNatural",
 				OrderDirection.ASC
 			)
@@ -66,9 +68,9 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueOrderConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("attributeCodeNatural", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attributeCodeNatural", List.of()));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("attributeCodeNatural", Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", null));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", List.of()));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "attributeCodeNatural", Map.of()));
 	}
 
 	@Test
@@ -80,6 +82,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 				random()
 			),
 			resolver.resolve(
+				Entities.PRODUCT,
 				"referenceCategoryProperty",
 				mapOf(
 					"attributeCodeNatural", OrderDirection.ASC,
@@ -91,9 +94,9 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveChildOrderConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve("referenceCategoryProperty", null));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("referenceCategoryProperty", "abc"));
-		assertThrows(EvitaInternalError.class, () -> resolver.resolve("referenceCategoryProperty", List.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", null));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", "abc"));
+		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "referenceCategoryProperty", List.of()));
 	}
 
 	@Test
@@ -111,6 +114,7 @@ class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 			),
 			QueryPurifierVisitor.purify(
 				resolver.resolve(
+					Entities.PRODUCT,
 					"orderBy",
 					mapOf(
 						"attributeCodeNatural", OrderDirection.ASC,

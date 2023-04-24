@@ -24,7 +24,7 @@
 package io.evitadb.core.query.sort.attribute.translator;
 
 import io.evitadb.api.query.QueryConstraints;
-import io.evitadb.api.query.require.CombinableEntityContentRequire;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.RequiredArgsConstructor;
 
@@ -67,7 +67,7 @@ public final class EntityReferenceAttributeExtractor implements AttributeExtract
 
 	@Nonnull
 	@Override
-	public CombinableEntityContentRequire getRequirements() {
+	public EntityContentRequire getRequirements() {
 		return QueryConstraints.referenceContent(referencedEntity);
 	}
 

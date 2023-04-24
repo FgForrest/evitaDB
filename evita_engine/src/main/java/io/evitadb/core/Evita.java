@@ -72,10 +72,12 @@ import org.jboss.threads.JBossExecutors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.ServiceLoader.Provider;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -195,26 +197,39 @@ public final class Evita implements EvitaContract {
 					CopyOnWriteArrayList::new
 				)
 			);
-		this.catalogs = new ConcurrentHashMap<>(
-			Arrays.stream(FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault()))
-				.map(it -> {
-					final String catalogName = it.toFile().getName();
-					try {
-						final long start = System.nanoTime();
-						final CatalogContract catalog = new Catalog(
-							catalogName, it, cacheSupervisor, configuration.storage());
-						log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
-						return catalog;
-					} catch (Throwable ex) {
-						log.error("Catalog {} is corrupted!", catalogName);
-						return new CorruptedCatalog(catalogName, it, ex);
-					}
-				})
-				.collect(Collectors.toMap(CatalogContract::getName, Function.identity()))
-		);
 
-		this.active = true;
-		this.readOnly = this.configuration.server().readOnly();
+		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault());
+		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
+		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);
+		for (Path directory : directories) {
+			final String catalogName = directory.toFile().getName();
+			scheduler.execute(() -> {
+				CatalogContract catalog;
+				try {
+					final long start = System.nanoTime();
+					catalog = new Catalog(
+						catalogName, directory, cacheSupervisor, configuration.storage());
+					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+				} catch (Throwable ex) {
+					log.error("Catalog {} is corrupted!", catalogName);
+					catalog = new CorruptedCatalog(catalogName, directory, ex);
+				}
+				this.catalogs.put(catalogName, catalog);
+				startUpLatch.countDown();
+			});
+		}
+
+		try {
+			startUpLatch.await();
+			this.active = true;
+			this.readOnly = this.configuration.server().readOnly();
+		} catch (InterruptedException ex) {
+			// terminate evitaDB - it has not properly started
+			this.executor.shutdown();
+			for (CatalogContract catalog : this.catalogs.values()) {
+				catalog.terminate();
+			}
+		}
 	}
 
 	/**
@@ -311,7 +326,7 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
-	public void replaceCatalog(@Nonnull String catalogNameToBeReplaced, @Nonnull String catalogNameToBeReplacedWith) {
+	public void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
 		assertActive();
 		update(new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
 	}

@@ -348,10 +348,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			   we work with referencedEntityTypeIndex here - this index contains referenced entity primary keys as records
 			   this means we can directly filter against `allReferencedEntityIds` and apply the filter constraint
 			 */
-			final EntityPrimaryKeyInSet epks = new EntityPrimaryKeyInSet(
-				Arrays.stream(allReferencedEntityIds).boxed().toArray(Integer[]::new)
+			final FilterBy filterByToUse = new FilterBy(
+				ArrayUtils.mergeArrays(
+					filterBy.getChildren(),
+					new FilterConstraint[] {
+						new EntityPrimaryKeyInSet(
+							Arrays.stream(allReferencedEntityIds).boxed().toArray(Integer[]::new)
+						)
+					}
+				)
 			);
-			final FilterBy filterByToUse = new FilterBy(new And(epks, filterBy.getChild()));
 
 			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
 			final EntitySchemaContract entitySchema = theFilterByVisitor.getSchema();
@@ -368,7 +374,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		} else {
 			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
 			final List<EntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
-				new ReferenceHaving(referenceSchema.getName(), filterBy.getChild())
+				new ReferenceHaving(referenceSchema.getName(), filterBy.getChildren())
 			);
 
 			if (referencedEntityIndexes.isEmpty()) {

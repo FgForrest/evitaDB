@@ -57,8 +57,6 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
 @RequiredArgsConstructor
 public class ConstraintKeyBuilder {
 
-	// todo lho spustit perf testy pro gql a rest
-
 	/**
 	 * Builds field key uniquely representing single variant of constraint.
 	 *

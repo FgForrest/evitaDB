@@ -44,12 +44,12 @@ public abstract class CachableElementKey {
 	 * Defines for which constraint this object is relevant.
 	 */
 	@Nonnull
-	private final ConstraintType containerType;
+	protected final ConstraintType containerType;
 	/**
 	 * Data locator used in the built container.
 	 */
 	@Nonnull
-	private final DataLocator dataLocator;
+	protected final DataLocator dataLocator;
 
 	/**
 	 * Creates hash ultimately identifying this key. Two keys that are equal generates same hash.

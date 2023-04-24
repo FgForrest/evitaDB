@@ -271,6 +271,15 @@ class ArrayUtilsTest {
 		assertArrayEquals(new Integer[] {5}, ArrayUtils.copyOf(theArray, Integer.class, 4, 5));
 	}
 
+	@Test
+	void shouldSortArray() {
+		final int[] sortedArray = new int[] {8, 5, 6, 2, 9, 7, 1, 3};
+		assertArrayEquals(new int[] {5, 1, 3}, ArrayUtils.sortAlong(sortedArray, new int[] {1, 3, 5}));
+		assertArrayEquals(new int[] {8, 5, 2, 1, 3}, ArrayUtils.sortAlong(sortedArray, new int[] {1, 2, 3, 5, 8}));
+		assertArrayEquals(new int[] {8, 5, 2, 4, 10}, ArrayUtils.sortAlong(sortedArray, new int[] {2, 4, 5, 8, 10}));
+	}
+
+
 	private void assertInsertPosition(InsertionPosition insertionPosition, boolean found, int index) {
 		if (found) {
 			assertTrue(insertionPosition.alreadyPresent());

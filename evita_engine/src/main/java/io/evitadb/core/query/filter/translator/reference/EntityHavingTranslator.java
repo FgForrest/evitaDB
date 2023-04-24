@@ -36,6 +36,8 @@ import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.reference.ReferenceOwnerTranslatingFormula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -50,7 +52,10 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
 
@@ -114,13 +119,17 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 					final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
 					final Function<FilterConstraint, FilterConstraint> enricher = processingScope.getNestedQueryFormulaEnricher();
 					final FilterBy combinedFilterBy = new FilterBy(enricher.apply(filterConstraint));
+					final Supplier<String> nestedQueryDescription = () ->"Reference `" + referenceSchema.getName() + "`, " +
+						"entity `" + referencedEntityType + "`: " +
+						Arrays.stream(combinedFilterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
+
 					final Formula nestedQueryFormula = filterByVisitor.computeOnlyOnce(
 						combinedFilterBy,
 						() -> {
 							try {
 								filterByVisitor.pushStep(
 									QueryPhase.PLANNING_FILTER_NESTED_QUERY,
-									"Reference `" + referenceSchema.getName() + "`, entity `" + referencedEntityType + "`"
+									nestedQueryDescription
 								);
 								return getNestedQueryFormula(
 									filterByVisitor,
@@ -134,10 +143,11 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 							}
 						}
 					);
-					if (entityIndex instanceof ReferencedTypeEntityIndex) {
-						return nestedQueryFormula;
+					final Formula outputFormula;
+					if (entityIndex instanceof ReferencedTypeEntityIndex || entityIndex == referencedEntityCollection.getGlobalIndex()) {
+						outputFormula = nestedQueryFormula;
 					} else {
-						return new ReferenceOwnerTranslatingFormula(
+						outputFormula = new ReferenceOwnerTranslatingFormula(
 							referencedEntityCollection.getGlobalIndex(),
 							nestedQueryFormula,
 							it -> ofNullable(filterByVisitor.getReferencedEntityIndex(referenceSchema, it))
@@ -145,6 +155,20 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 								.orElse(EmptyBitmap.INSTANCE)
 						);
 					}
+					final QueryContext queryContext = filterByVisitor.getQueryContext();
+					return new DeferredFormula(
+						new FormulaWrapper(
+							outputFormula,
+							formula -> {
+								try {
+									queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
+									return formula.compute();
+								} finally {
+									queryContext.popStep();
+								}
+							}
+						)
+					);
 				}
 			);
 		}

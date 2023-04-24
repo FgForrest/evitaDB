@@ -41,7 +41,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
@@ -87,7 +87,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Evita entity fetch by primary key functionality")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityFetchingFunctionalTest {
 	protected static final String FIFTY_PRODUCTS = "FiftyProducts";
@@ -133,8 +133,8 @@ public class EntityFetchingFunctionalTest {
 	}
 
 	@Nonnull
-	private static Integer[] getRequestedIdsByPredicate(List<SealedEntity> originalProductEntities, Predicate<SealedEntity> predicate) {
-		final Integer[] entitiesMatchingTheRequirements = originalProductEntities
+	private static Integer[] getRequestedIdsByPredicate(List<SealedEntity> originalProducts, Predicate<SealedEntity> predicate) {
+		final Integer[] entitiesMatchingTheRequirements = originalProducts
 			.stream()
 			.filter(predicate)
 			.map(EntityContract::getPrimaryKey)
@@ -145,8 +145,8 @@ public class EntityFetchingFunctionalTest {
 	}
 
 	@Nonnull
-	private static SealedEntity findEntityByPredicate(List<SealedEntity> originalProductEntities, Predicate<SealedEntity> predicate) {
-		return originalProductEntities
+	private static SealedEntity findEntityByPredicate(List<SealedEntity> originalProducts, Predicate<SealedEntity> predicate) {
+		return originalProducts
 			.stream()
 			.filter(predicate)
 			.findFirst()
@@ -593,9 +593,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Single entity with attributes in passed language only by primary key should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveSingleEntityWithAttributesInLanguageByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveSingleEntityWithAttributesInLanguageByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH) != null && it.getAttribute(ATTRIBUTE_URL, LOCALE_CZECH) != null &&
 				it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) == null && it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) == null
 		);
@@ -633,9 +633,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Single entity with attributes in multiple languages only by primary key should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveSingleEntityWithAttributesInMultipleLanguagesByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveSingleEntityWithAttributesInMultipleLanguagesByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH) != null && it.getAttribute(ATTRIBUTE_URL, LOCALE_CZECH) != null &&
 				it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null && it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null
 		);
@@ -674,8 +674,8 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with attributes in passed language only by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithAttributesInLanguageByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
-		final Integer[] pks = originalProductEntities
+	void shouldRetrieveMultipleEntitiesWithAttributesInLanguageByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] pks = originalProducts
 			.stream()
 			.filter(
 				it ->
@@ -749,9 +749,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with associated data only by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithAssociatedDataByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithAssociatedDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> !it.getAssociatedDataValues(ASSOCIATED_DATA_REFERENCED_FILES).isEmpty()
 		);
 
@@ -787,9 +787,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with associated data in passed language only by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithAssociatedDataInLanguageDataByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithAssociatedDataInLanguageDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH) != null &&
 				it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) == null
 		);
@@ -826,9 +826,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with associated data in multiple language only by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithAssociatedDataInMultipleLanguageDataByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithAssociatedDataInMultipleLanguageDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH) != null &&
 				it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
@@ -866,9 +866,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with selected associated data only by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithNamedAssociatedDataByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithNamedAssociatedDataByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH) != null &&
 				it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
 				!it.getAssociatedDataValues(ASSOCIATED_DATA_REFERENCED_FILES).isEmpty()
@@ -908,9 +908,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with selected associated data in passed language only by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithNamedAssociatedDataInLanguageByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithNamedAssociatedDataInLanguageByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH) != null &&
 				it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) == null &&
 				!it.getAssociatedDataValues(ASSOCIATED_DATA_REFERENCED_FILES).isEmpty()
@@ -952,9 +952,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with all prices by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithAllPricesByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithAllPricesByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getPrices().stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_EUR::equals) &&
 				it.getPrices().stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_USD::equals) &&
 				it.getPrices().stream().map(PriceContract::getPriceList).anyMatch(PRICE_LIST_BASIC::equals) &&
@@ -993,9 +993,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with prices in selected currency by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithPricesInCurrencyByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithPricesInCurrencyByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> {
 				final List<PriceContract> filteredPrices = it.getPrices()
 					.stream()
@@ -1042,9 +1042,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with prices in selected price lists by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithPricesInPriceListsByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithPricesInPriceListsByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getPrices(CURRENCY_USD).stream().filter(PriceContract::isSellable).map(PriceContract::getPriceList).anyMatch(PRICE_LIST_BASIC::equals) &&
 				it.getPrices(CURRENCY_USD).stream().filter(PriceContract::isSellable).map(PriceContract::getPriceList)
 					.noneMatch(pl ->
@@ -1096,10 +1096,10 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with prices valid in specified time by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithPricesValidInTimeByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithPricesValidInTimeByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final OffsetDateTime theMoment = OffsetDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getPrices().stream().filter(PriceContract::isSellable).map(PriceContract::getValidity).anyMatch(validity -> validity == null || validity.isValidFor(theMoment))
 		);
 
@@ -1142,9 +1142,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with references by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithReferencesByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithReferencesByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> !it.getReferences().isEmpty()
 		);
 
@@ -1180,9 +1180,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with specific references by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithSpecificReferencesByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithSpecificReferencesByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> !it.getReferences(Entities.CATEGORY).isEmpty() && !it.getReferences(Entities.STORE).isEmpty()
 		);
 
@@ -1220,9 +1220,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Multiple entities with references by their primary keys should be found")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldRetrieveMultipleEntitiesWithReferencesByTypeAndByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldRetrieveMultipleEntitiesWithReferencesByTypeAndByPrimaryKey(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> !it.getReferences(Entities.STORE).isEmpty()
 		);
 
@@ -1259,9 +1259,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Attributes can be lazy auto loaded")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadAttributes(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadAttributes(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> !it.getAttributeValues().isEmpty()
 		);
 
@@ -1295,9 +1295,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Attributes can be lazy auto loaded while respecting language")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadAttributesButLanguageMustBeRespected(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadAttributesButLanguageMustBeRespected(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH) != null &&
 				it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null
 		);
@@ -1338,9 +1338,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Associated data can be lazy auto loaded")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadAssociatedData(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadAssociatedData(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> !it.getAssociatedDataValues(ASSOCIATED_DATA_REFERENCED_FILES).isEmpty()
 		);
 
@@ -1373,9 +1373,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Associated data can be lazy auto loaded")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadAssociatedDataButLanguageMustBeRespected(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadAssociatedDataButLanguageMustBeRespected(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH) != null &&
 				it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
 				!it.getAssociatedDataValues(ASSOCIATED_DATA_REFERENCED_FILES).isEmpty()
@@ -1415,9 +1415,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Associated data can be lazy auto loaded in different languages lazily")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadAssociatedDataWithIncrementallyAddingLanguages(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadAssociatedDataWithIncrementallyAddingLanguages(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH) != null &&
 				it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
 				!it.getAssociatedDataValues(ASSOCIATED_DATA_REFERENCED_FILES).isEmpty()
@@ -1463,9 +1463,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Associated data can be lazy auto loaded incrementally by name")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadAssociatedDataByNameIncrementally(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadAssociatedDataByNameIncrementally(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, LOCALE_CZECH) != null &&
 				it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
 				!it.getAssociatedDataValues(ASSOCIATED_DATA_REFERENCED_FILES).isEmpty()
@@ -1508,9 +1508,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Prices can be lazy auto loaded")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadAllPrices(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadAllPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getPrices().stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_GBP::equals) &&
 				it.getPrices().stream().map(PriceContract::getCurrency).anyMatch(CURRENCY_USD::equals) &&
 				it.getPrices().stream().map(PriceContract::getPriceList).anyMatch(PRICE_LIST_BASIC::equals) &&
@@ -1551,10 +1551,10 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("Prices can be lazy auto loaded")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadFilteredPrices(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadFilteredPrices(Evita evita, List<SealedEntity> originalProducts) {
 		final OffsetDateTime theMoment = OffsetDateTime.of(2013, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> it.getPrices()
 				.stream()
 				.filter(PriceContract::isSellable)
@@ -1601,9 +1601,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("References can be lazy auto loaded")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadReferences(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadReferences(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> !it.getReferences(Entities.CATEGORY).isEmpty() &&
 				!it.getReferences(Entities.BRAND).isEmpty() &&
 				!it.getReferences(Entities.STORE).isEmpty()
@@ -1629,7 +1629,7 @@ public class EntityFetchingFunctionalTest {
 				final SealedEntity product = productByPk.getRecordData().get(0);
 				assertTrue(product.getReferences().isEmpty());
 
-				final SealedEntity theEntity = originalProductEntities
+				final SealedEntity theEntity = originalProducts
 					.stream()
 					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
 					.findFirst()
@@ -1647,9 +1647,9 @@ public class EntityFetchingFunctionalTest {
 	@DisplayName("References can be lazy auto loaded in iterative fashion")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
-	void shouldLazyLoadReferencesIteratively(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldLazyLoadReferencesIteratively(Evita evita, List<SealedEntity> originalProducts) {
 		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProductEntities,
+			originalProducts,
 			it -> !it.getReferences(Entities.CATEGORY).isEmpty() &&
 				!it.getReferences(Entities.BRAND).isEmpty() &&
 				!it.getReferences(Entities.STORE).isEmpty()
@@ -1675,7 +1675,7 @@ public class EntityFetchingFunctionalTest {
 				final SealedEntity product = productByPk.getRecordData().get(0);
 				assertTrue(product.getReferences().isEmpty());
 
-				final SealedEntity theEntity = originalProductEntities
+				final SealedEntity theEntity = originalProducts
 					.stream()
 					.filter(it -> Objects.equals(it.getPrimaryKey(), entitiesMatchingTheRequirements[0]))
 					.findFirst()

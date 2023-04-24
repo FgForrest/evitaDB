@@ -46,9 +46,6 @@ import java.util.function.Consumer;
  * working with formula tree and reconstructing it to different form. This is namely used in {@link AttributeHistogram}
  * computation that needs to exclude query targeting the attribute histogram is computed for.
  *
- * TOBEDONE JNO - this needs a special form of flattened formula and special interface because it gets used in attribute histogram computer
- * TOBEDONE JNO - this needs a special handling in conjunction with SelectionFormula!
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class AttributeFormula extends AbstractCacheableFormula {

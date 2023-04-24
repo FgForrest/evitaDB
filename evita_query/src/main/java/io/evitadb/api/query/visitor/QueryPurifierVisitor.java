@@ -31,6 +31,7 @@ import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -52,14 +53,6 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	private final UnaryOperator<Constraint<?>> constraintTranslator;
 	private Constraint<?> result = null;
 
-	private QueryPurifierVisitor() {
-		this(null);
-	}
-
-	private QueryPurifierVisitor(@Nullable UnaryOperator<Constraint<?>> constraintTranslator) {
-		this.constraintTranslator = ofNullable(constraintTranslator).orElse(UnaryOperator.identity());
-	}
-
 	public static Constraint<?> purify(@Nonnull Constraint<?> constraint) {
 		final QueryPurifierVisitor visitor = new QueryPurifierVisitor();
 		constraint.accept(visitor);
@@ -70,6 +63,14 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 		final QueryPurifierVisitor visitor = new QueryPurifierVisitor(constraintTranslator);
 		constraint.accept(visitor);
 		return visitor.getResult();
+	}
+
+	private QueryPurifierVisitor() {
+		this(null);
+	}
+
+	private QueryPurifierVisitor(@Nullable UnaryOperator<Constraint<?>> constraintTranslator) {
+		this.constraintTranslator = ofNullable(constraintTranslator).orElse(UnaryOperator.identity());
 	}
 
 	@Override
@@ -108,10 +109,13 @@ public class QueryPurifierVisitor implements ConstraintVisitor {
 	/**
 	 * Creates new immutable container with reduced count of children.
 	 */
-	private void createNewContainerWithReducedChildren(ConstraintContainer<?> container,
-													   List<Constraint<?>> reducedChildren,
-													   List<Constraint<?>> reducedAdditionalChildren) {
-		final Constraint<?>[] newChildren = reducedChildren.toArray(Constraint<?>[]::new);
+	private <T extends Constraint<T>> void createNewContainerWithReducedChildren(
+		ConstraintContainer<T> container,
+		List<Constraint<?>> reducedChildren,
+		List<Constraint<?>> reducedAdditionalChildren
+	) {
+		//noinspection unchecked
+		final T[] newChildren = reducedChildren.toArray(value -> (T[]) Array.newInstance(container.getType(), 0));
 		final Constraint<?>[] newAdditionalChildren = reducedAdditionalChildren.toArray(Constraint<?>[]::new);
 		final Constraint<?> copyWithNewChildren = container.getCopyWithNewChildren(newChildren, newAdditionalChildren);
 		if (copyWithNewChildren.isApplicable()) {

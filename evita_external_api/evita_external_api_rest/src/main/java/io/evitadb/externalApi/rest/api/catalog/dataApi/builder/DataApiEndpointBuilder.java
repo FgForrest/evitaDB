@@ -347,17 +347,19 @@ public class DataApiEndpointBuilder {
 		}
 
 		// build unique attribute filter arguments
-		parameters.addAll(entitySchema.getAttributes()
-			.values()
-			.stream()
-			.filter(AttributeSchemaContract::isUnique)
-			.map(as -> newQueryParameter()
-				.name(as.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
-				.description(as.getDescription())
-				.deprecationNotice(as.getDeprecationNotice())
-				.type(DataTypesConverter.getOpenApiScalar(as.getPlainType()))
-				.build())
-			.toList());
+		if (!withPkInPath) {
+			parameters.addAll(entitySchema.getAttributes()
+				.values()
+				.stream()
+				.filter(AttributeSchemaContract::isUnique)
+				.map(as -> newQueryParameter()
+					.name(as.getNameVariant(ARGUMENT_NAME_NAMING_CONVENTION))
+					.description(as.getDescription())
+					.deprecationNotice(as.getDeprecationNotice())
+					.type(DataTypesConverter.getOpenApiScalar(as.getPlainType()))
+					.build())
+				.toList());
+		}
 
 
 		//build fetch params

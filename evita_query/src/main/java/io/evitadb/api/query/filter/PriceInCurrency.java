@@ -65,12 +65,12 @@ import java.util.Currency;
 public class PriceInCurrency extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {
 	@Serial private static final long serialVersionUID = -6188252788595824381L;
 
-	private PriceInCurrency(Serializable... arguments) {
-		super(arguments);
+	private PriceInCurrency(@Nonnull Serializable... arguments) {
+		super(null, arguments);
 	}
 
 	public PriceInCurrency(@Nonnull String currency) {
-		super(currency);
+		super(null, currency);
 	}
 
 	@Creator

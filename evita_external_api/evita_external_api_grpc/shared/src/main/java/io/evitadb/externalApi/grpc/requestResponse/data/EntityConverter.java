@@ -598,7 +598,7 @@ public class EntityConverter {
 
 	@Nonnull
 	public static SealedEntity parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
-		/* TODO JNO - implement me */
+		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
 		return null;
 	}
 

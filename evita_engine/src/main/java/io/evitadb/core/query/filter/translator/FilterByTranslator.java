@@ -27,8 +27,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 
 import javax.annotation.Nonnull;
@@ -45,15 +44,7 @@ public class FilterByTranslator implements FilteringConstraintTranslator<FilterB
 	public Formula translate(@Nonnull FilterBy filterConstraints, @Nonnull FilterByVisitor filterByVisitor) {
 		return FutureNotFormula.postProcess(
 			filterByVisitor.getCollectedFormulasOnCurrentLevel(),
-			formulas -> {
-				if (formulas.length == 0) {
-					return EmptyFormula.INSTANCE;
-				} else if (formulas.length == 1) {
-					return formulas[0];
-				} else {
-					return new AndFormula(formulas);
-				}
-			},
+			FormulaFactory::and,
 			filterByVisitor::getSuperSetFormula
 		);
 	}

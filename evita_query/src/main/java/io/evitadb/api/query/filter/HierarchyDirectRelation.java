@@ -147,27 +147,22 @@ import java.io.Serializable;
 )
 public class HierarchyDirectRelation extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 3959881131308135131L;
+	private static final String CONSTRAINT_NAME = "directRelation";
 
-	private HierarchyDirectRelation(Serializable... arguments) {
-		super(arguments);
+	private HierarchyDirectRelation(@Nonnull Serializable... arguments) {
+		// missing "hierarchy" prefix because this query can be used only within some other hierarchy query,
+		// it would be unnecessary to duplicate the hierarchy prefix
+		super(CONSTRAINT_NAME, arguments);
 	}
 
 	@Creator
 	public HierarchyDirectRelation() {
-		super();
+		super(CONSTRAINT_NAME);
 	}
 
 	@Override
 	public boolean isApplicable() {
 		return true;
-	}
-
-	@Nonnull
-	@Override
-	public String getName() {
-		// missing "hierarchy" prefix because this query can be used only within some other hierarchy query,
-		// it would be unnecessary to duplicate the hierarchy prefix
-		return "directRelation";
 	}
 
 	@Nonnull

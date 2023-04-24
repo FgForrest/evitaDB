@@ -61,6 +61,16 @@ public record ObjectDescriptor(@Nonnull String name,
 		);
 	}
 
+	/**
+	 * Extends existing descriptor into new one. Note that {@link ObjectDescriptor#name} is not being transferred to
+	 * prevent name duplication.
+	 */
+	public static ObjectDescriptorBuilder extend(@Nonnull ObjectDescriptor objectDescriptor) {
+		return builder()
+			.description(objectDescriptor.description())
+			.staticFields(objectDescriptor.staticFields());
+	}
+
 	@Nonnull
 	public String name() {
 		Assert.isPremiseValid(

@@ -41,31 +41,31 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-class EntityContentRequireCombiningCollector implements Collector<CombinableEntityContentRequire, Map<Class<? extends CombinableEntityContentRequire>, CombinableEntityContentRequire>, EntityContentRequire[]> {
+class EntityContentRequireCombiningCollector implements Collector<EntityContentRequire, Map<Class<? extends EntityContentRequire>, EntityContentRequire>, EntityContentRequire[]> {
 
 	@Override
-	public Supplier<Map<Class<? extends CombinableEntityContentRequire>, CombinableEntityContentRequire>> supplier() {
+	public Supplier<Map<Class<? extends EntityContentRequire>, EntityContentRequire>> supplier() {
 		return () -> createLinkedHashMap(10);
 	}
 
 	@Override
-	public BiConsumer<Map<Class<? extends CombinableEntityContentRequire>, CombinableEntityContentRequire>, CombinableEntityContentRequire> accumulator() {
+	public BiConsumer<Map<Class<? extends EntityContentRequire>, EntityContentRequire>, EntityContentRequire> accumulator() {
 		return (entityContentRequireIndex, entityContentRequire) -> entityContentRequireIndex.merge(
 			entityContentRequire.getClass(),
 			entityContentRequire,
-			CombinableEntityContentRequire::combineWith
+			EntityContentRequire::combineWith
 		);
 	}
 
 	@Override
-	public BinaryOperator<Map<Class<? extends CombinableEntityContentRequire>, CombinableEntityContentRequire>> combiner() {
+	public BinaryOperator<Map<Class<? extends EntityContentRequire>, EntityContentRequire>> combiner() {
 		return (entityContentRequireIndex, entityContentRequireIndex2) -> {
 			throw new EvitaInternalError("Cannot combine multiple content require indexes.");
 		};
 	}
 
 	@Override
-	public Function<Map<Class<? extends CombinableEntityContentRequire>, CombinableEntityContentRequire>, EntityContentRequire[]> finisher() {
+	public Function<Map<Class<? extends EntityContentRequire>, EntityContentRequire>, EntityContentRequire[]> finisher() {
 		return entityContentRequireIndex -> entityContentRequireIndex.values()
 			.stream()
 			.map(EntityContentRequire.class::cast)

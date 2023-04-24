@@ -45,9 +45,14 @@ public class ObjectDescriptorToGraphQLInputObjectTransformer implements ObjectDe
 
 	@Override
 	public GraphQLInputObjectType.Builder apply(@Nonnull ObjectDescriptor objectDescriptor) {
-		final GraphQLInputObjectType.Builder objectBuilder = GraphQLInputObjectType.newInputObject()
-			.name(objectDescriptor.name())
-			.description(objectDescriptor.description());
+		final GraphQLInputObjectType.Builder objectBuilder = GraphQLInputObjectType.newInputObject();
+
+		if (objectDescriptor.isNameStatic()) {
+			objectBuilder.name(objectDescriptor.name());
+		}
+		if (objectDescriptor.description() != null) {
+			objectBuilder.description(objectDescriptor.description());
+		}
 
 		if (objectDescriptor.staticFields() != null) {
 			objectDescriptor.staticFields().stream()

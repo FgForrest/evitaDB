@@ -49,7 +49,7 @@ import io.evitadb.test.TestConstants;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
@@ -89,7 +89,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaClientDataSet";
@@ -343,7 +343,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				})
 			);
 
-			evitaClient.replaceCatalog(newCatalog, TEST_CATALOG);
+			evitaClient.replaceCatalog(TEST_CATALOG, newCatalog);
 
 			final Set<String> catalogNamesAgain = evitaClient.getCatalogNames();
 			assertEquals(1, catalogNamesAgain.size());
@@ -358,7 +358,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		} finally {
 			evitaClient.defineCatalog(TEST_CATALOG);
-			evitaClient.replaceCatalog(TEST_CATALOG, newCatalog);
+			evitaClient.replaceCatalog(newCatalog, TEST_CATALOG);
 		}
 	}
 

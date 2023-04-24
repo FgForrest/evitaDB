@@ -39,6 +39,7 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.DateTimeRange;
@@ -394,7 +395,7 @@ public interface RestRandomQueryGenerator {
 	}
 
 	/**
-	 * Creates randomized query requiring {@link io.evitadb.api.requestResponse.extraResult.HierarchyStatistics} computation for
+	 * Creates randomized query requiring {@link Hierarchy} computation for
 	 * passed entity schema based on passed set.
 	 */
 	default RestQuery generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {
@@ -409,7 +410,7 @@ public interface RestRandomQueryGenerator {
 			new RestConstraint[] {
 				new RestConstraint(Page.class, Map.of("number", 1, "size", 20)),
 				Optional.of(pickRandom(random, referencedHierarchyEntities))
-					.map(it -> new RestConstraint(it, HierarchyStatisticsOfReference.class, true))
+					.map(it -> new RestConstraint(it, HierarchyOfReference.class, true))
 					.orElseThrow()
 			}
 		);

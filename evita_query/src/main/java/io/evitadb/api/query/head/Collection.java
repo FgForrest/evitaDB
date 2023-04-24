@@ -62,7 +62,7 @@ public class Collection extends ConstraintLeaf<HeadConstraint> implements HeadCo
 
 	@Creator
 	public Collection(@Nonnull @Value String entityType) {
-		super(entityType);
+		super(null, entityType);
 	}
 
 	/**

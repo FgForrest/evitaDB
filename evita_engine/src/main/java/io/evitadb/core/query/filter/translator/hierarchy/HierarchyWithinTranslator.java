@@ -24,23 +24,32 @@
 package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.NotFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Objects;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link HierarchyWithin} to {@link AbstractFormula}.
@@ -49,32 +58,57 @@ import javax.annotation.Nonnull;
  */
 public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<HierarchyWithin> {
 
-	public static int[] createFormulaFromHierarchyIndexForDifferentEntity(int parentId, int[] excludedChildrenIds, boolean directRelation, boolean excludingRoot, EntityIndex globalIndex) {
+	public static Formula createFormulaFromHierarchyIndex(
+		int parentId,
+		@Nullable HierarchyFilteringPredicate excludedChildren,
+		boolean directRelation,
+		boolean excludingRoot,
+		@Nonnull EntityIndex globalIndex,
+		@Nonnull QueryContext queryContext
+	) {
 		if (directRelation) {
-			if (ArrayUtils.isEmpty(excludedChildrenIds)) {
-				return new int[]{parentId};
+			// if the hierarchy entity is the same as queried entity
+			if (Objects.equals(queryContext.getSchema().getName(), globalIndex.getEntitySchema().getName())) {
+				if (excludedChildren == null) {
+					return globalIndex.getHierarchyNodesForParentFormula(parentId);
+				} else {
+					return globalIndex.getHierarchyNodesForParentFormula(parentId, excludedChildren);
+				}
 			} else {
-				throw new EvitaInvalidUsageException("Excluded query has no sense when direct relation query is used as well!");
+				if (excludedChildren == null) {
+					return new ConstantFormula(new BaseBitmap(parentId));
+				} else {
+					return excludedChildren.test(parentId) ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(parentId));
+				}
 			}
 		} else {
-			return excludingRoot ?
-				globalIndex.listHierarchyNodesFromParent(parentId, excludedChildrenIds).getArray() :
-				globalIndex.listHierarchyNodesFromParentIncludingItself(parentId, excludedChildrenIds).getArray();
+			if (excludedChildren == null) {
+				return excludingRoot ?
+					globalIndex.getListHierarchyNodesFromParentFormula(parentId) :
+					globalIndex.getListHierarchyNodesFromParentIncludingItselfFormula(parentId);
+			} else {
+				return excludingRoot ?
+					globalIndex.getListHierarchyNodesFromParentFormula(parentId, excludedChildren) :
+					globalIndex.getListHierarchyNodesFromParentIncludingItselfFormula(parentId, excludedChildren);
+			}
 		}
 	}
 
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull HierarchyWithin hierarchyWithin, @Nonnull FilterByVisitor filterByVisitor) {
+		final QueryContext queryContext = filterByVisitor.getQueryContext();
 		final String referenceName = hierarchyWithin.getReferenceName();
 		final int parentId = hierarchyWithin.getParentId();
-		final int[] excludedChildrenIds = hierarchyWithin.getExcludedChildrenIds();
 		final boolean directRelation = hierarchyWithin.isDirectRelation();
 		final boolean excludingRoot = hierarchyWithin.isExcludingRoot();
 
-		final EntitySchemaContract targetEntitySchema = referenceName == null ?
-			filterByVisitor.getSchema() :
-			filterByVisitor.getSchema(filterByVisitor.getSchema().getReferenceOrThrowException(referenceName).getReferencedEntityType());
+		final ReferenceSchemaContract referenceSchema = ofNullable(referenceName)
+			.map(it -> filterByVisitor.getSchema().getReferenceOrThrowException(it))
+			.orElse(null);
+		final EntitySchemaContract targetEntitySchema = ofNullable(referenceSchema)
+			.map(it -> filterByVisitor.getSchema(it.getReferencedEntityType()))
+			.orElse(filterByVisitor.getSchema());
 
 		Assert.isTrue(
 			targetEntitySchema.isWithHierarchy(),
@@ -82,9 +116,18 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		);
 
 		if (referenceName == null) {
-			final EntityIndex globalIndex = filterByVisitor.getGlobalEntityIndex();
-			return createFormulaFromHierarchyIndexForSameEntity(
-				parentId, excludedChildrenIds, directRelation, excludingRoot, globalIndex
+			return queryContext.computeOnlyOnce(
+				hierarchyWithin,
+				() -> createFormulaFromHierarchyIndex(
+					parentId,
+					createAndStoreExclusionPredicate(
+						queryContext,
+						hierarchyWithin.getExcludedChildrenFilter(),
+						filterByVisitor.getGlobalEntityIndex(),
+						referenceSchema
+					),
+					directRelation, excludingRoot, filterByVisitor.getGlobalEntityIndex(), queryContext
+				)
 			);
 		} else {
 			// when we target the hierarchy indexes and there are filtering constraints in conjunction scope that target
@@ -101,34 +144,21 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 				final TargetIndexes targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithin);
 				if (targetIndexes == null) {
 					final EntityIndex foreignEntityIndex = filterByVisitor.getGlobalEntityIndex(referenceName);
-					final int[] referencedIds = createFormulaFromHierarchyIndexForDifferentEntity(
-						parentId, excludedChildrenIds, directRelation, excludingRoot, foreignEntityIndex
+					final FilterConstraint[] excludedChildrenFormula = hierarchyWithin.getExcludedChildrenFilter();
+					final HierarchyFilteringPredicate exclusionPredicate = ArrayUtils.isEmpty(excludedChildrenFormula) ?
+						null :
+						new FilteringFormulaHierarchyEntityPredicate(
+							queryContext, foreignEntityIndex, new FilterBy(excludedChildrenFormula), referenceSchema
+						);
+					final Formula referencedIds = createFormulaFromHierarchyIndex(
+						parentId, exclusionPredicate, directRelation, excludingRoot, foreignEntityIndex, queryContext
 					);
-					return getReferencedEntityFormulas(filterByVisitor, referenceName, referencedIds);
+					return getReferencedEntityFormulas(filterByVisitor, referenceName, referencedIds.compute().getArray());
 
 				} else {
 					return getReferencedEntityFormulas(targetIndexes.getIndexesOfType(EntityIndex.class));
 				}
 			}
-		}
-	}
-
-	private Formula createFormulaFromHierarchyIndexForSameEntity(int parentId, int[] excludedChildrenIds, boolean directRelation, boolean excludingRoot, EntityIndex globalIndex) {
-		if (directRelation) {
-			if (ArrayUtils.isEmpty(excludedChildrenIds)) {
-				return globalIndex.getHierarchyNodesForParentFormula(parentId);
-			} else {
-				return new NotFormula(
-					new ConstantFormula(
-						new BaseBitmap(excludedChildrenIds)
-					),
-					globalIndex.getHierarchyNodesForParentFormula(parentId)
-				);
-			}
-		} else {
-			return excludingRoot ?
-				globalIndex.getListHierarchyNodesFromParentFormula(parentId, excludedChildrenIds) :
-				globalIndex.getListHierarchyNodesFromParentIncludingItselfFormula(parentId, excludedChildrenIds);
 		}
 	}
 

@@ -39,7 +39,11 @@ import java.io.Serializable;
 abstract class AbstractRequireConstraintLeaf extends ConstraintLeaf<RequireConstraint> implements RequireConstraint {
 	@Serial private static final long serialVersionUID = -8275346133230475050L;
 
-	protected AbstractRequireConstraintLeaf(Serializable... arguments) {
+	protected AbstractRequireConstraintLeaf(@Nonnull String name, @Nonnull Serializable... arguments) {
+		super(name, arguments);
+	}
+
+	protected AbstractRequireConstraintLeaf(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

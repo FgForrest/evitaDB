@@ -28,6 +28,7 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier
 import io.evitadb.api.query.descriptor.ConstraintCreator.SilentImplicitClassifier;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -115,10 +116,25 @@ public class ConstraintDescriptorProvider {
 	}
 
 	@Nonnull
+	public static ConstraintDescriptor getConstraint(@Nonnull Class<? extends Constraint<?>> constraintClass) {
+		final Set<ConstraintDescriptor> constraints = getConstraints(constraintClass);
+		Assert.isPremiseValid(
+			constraints.size() == 1,
+			"There are multiple variants of constraint `" + constraintClass.getName() + "`."
+		);
+		return constraints.iterator().next();
+	}
+
+	@Nonnull
 	public static Set<ConstraintDescriptor> getConstraints(@Nonnull Class<? extends Constraint<?>> constraintClass) {
-		return CONSTRAINT_DESCRIPTORS.stream()
+		final Set<ConstraintDescriptor> foundConstraints = CONSTRAINT_DESCRIPTORS.stream()
 			.filter(cd -> cd.constraintClass().equals(constraintClass))
 			.collect(Collectors.toUnmodifiableSet());
+		Assert.isPremiseValid(
+			!foundConstraints.isEmpty(),
+			"Unknown constraint `" + constraintClass.getName() + "`. Is it properly registered?"
+		);
+		return foundConstraints;
 	}
 
 	/**

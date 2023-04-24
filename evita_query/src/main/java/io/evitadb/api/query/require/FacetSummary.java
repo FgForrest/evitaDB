@@ -37,7 +37,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
@@ -125,7 +124,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	}
 
 	/**
-	 * Returns requirements for facet entities.
+	 * Returns content requirements for facet entities.
 	 */
 	@Nullable
 	public EntityFetch getFacetEntityRequirement() {
@@ -144,7 +143,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	}
 
 	/**
-	 * Returns requirements for group entities.
+	 * Returns content requirements for group entities.
 	 */
 	@Nullable
 	public EntityGroupFetch getGroupEntityRequirement() {
@@ -163,22 +162,14 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
 		return true;
 	}
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-			.map(c -> (RequireConstraint) c)
-			.toArray(RequireConstraint[]::new);
-		return new FacetSummary(getArguments(), requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new FacetSummary(getArguments(), children);
 	}
 
 	@Nonnull

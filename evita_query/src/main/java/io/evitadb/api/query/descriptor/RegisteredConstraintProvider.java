@@ -139,10 +139,20 @@ class RegisteredConstraintProvider {
 		// references
 		ReferenceContent.class,
 		// hierarchy
-		HierarchyStatisticsOfSelf.class,
-		HierarchyStatisticsOfReference.class,
+//		HierarchyChildren.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
+		HierarchyDistance.class,
+//		HierarchyFromNode.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
+//		HierarchyFromRoot.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
+		HierarchyLevel.class,
+		HierarchyNode.class,
+		HierarchyOfReference.class,
+		HierarchyOfSelf.class,
+//		HierarchyParents.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
 		HierarchyParentsOfSelf.class,
 		HierarchyParentsOfReference.class,
+//		HierarchySiblings.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
+		HierarchyStatistics.class,
+		HierarchyStopAt.class,
 		// facet
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,

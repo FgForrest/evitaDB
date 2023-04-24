@@ -39,6 +39,7 @@ import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -58,32 +59,21 @@ public class FilterConstraintResolver extends GraphQLConstraintResolver<FilterCo
 	@Nonnull
 	private final ConstraintDescriptor wrapperContainer;
 
-	public FilterConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String rootEntityType) {
-		this(
-			catalogSchema,
-			new EntityDataLocator(rootEntityType)
-		);
-	}
-
-	public FilterConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull DataLocator rootDataLocator) {
+	public FilterConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
 		super(
 			catalogSchema,
-			createHashMap(0), // currently, we don't support any filter constraint with additional children
-			rootDataLocator
+			createHashMap(0) // currently, we don't support any filter constraint with additional children
 		);
+		wrapperContainer = ConstraintDescriptorProvider.getConstraint(And.class);
+	}
 
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(And.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new GraphQLQueryResolvingInternalError("Could not find `and` filter query for wrapper container.")
+	@Nullable
+	public FilterConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new EntityDataLocator(rootEntityType),
+			key,
+			value
 		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new GraphQLQueryResolvingInternalError(
-				"There multiple variants of `and` filter query, cannot decide which to choose for wrapper container."
-			)
-		);
-		wrapperContainer = descriptors.iterator().next();
 	}
 
 	@Override
@@ -99,16 +89,7 @@ public class FilterConstraintResolver extends GraphQLConstraintResolver<FilterCo
 
 	@Nonnull
 	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new GraphQLSchemaBuildingError("Could not find `filterBy` filter query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new GraphQLSchemaBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
-		);
-		return descriptors.iterator().next();
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
+		return ConstraintDescriptorProvider.getConstraint(FilterBy.class);
 	}
 }

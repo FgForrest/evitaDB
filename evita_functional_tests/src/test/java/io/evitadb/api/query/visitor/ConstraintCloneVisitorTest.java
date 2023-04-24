@@ -83,17 +83,17 @@ class ConstraintCloneVisitorTest {
 
 		assertEquals(
 			"""
-			and(
-			\tattributeEquals('a', 'b'),
-			\tor(
-			\t\tattributeIs('def', NOT_NULL),
-			\t\tattributeEquals('xev', false),
-			\t\tattributeBetween('c', 1, 78),
-			\t\tnot(
-			\t\t\tattributeEquals('utr', false)
-			\t\t)
-			\t)
-			)""",
+				and(
+				\tattributeEquals('a', 'b'),
+				\tor(
+				\t\tattributeIs('def', NOT_NULL),
+				\t\tattributeEquals('xev', false),
+				\t\tattributeBetween('c', 1, 78),
+				\t\tnot(
+				\t\t\tattributeEquals('utr', false)
+				\t\t)
+				\t)
+				)""",
 			PrettyPrintingVisitor.toString(clone, "\t")
 		);
 	}
@@ -110,13 +110,13 @@ class ConstraintCloneVisitorTest {
 
 		assertEquals(
 			"""
-					and(
-					\tattributeEquals('a', 'b'),
-					\tor(
-					\t\tattributeIs('def', NOT_NULL),
-					\t\tattributeBetween('c', 1, 78)
-					\t)
-					)""",
+				and(
+				\tattributeEquals('a', 'b'),
+				\tor(
+				\t\tattributeIs('def', NOT_NULL),
+				\t\tattributeBetween('c', 1, 78)
+				\t)
+				)""",
 			PrettyPrintingVisitor.toString(clone, "\t")
 		);
 	}
@@ -133,16 +133,16 @@ class ConstraintCloneVisitorTest {
 
 		assertEquals(
 			"""
-					and(
-					\tattributeEquals('a', 'b'),
-					\tor(
-					\t\tattributeIs('def', NOT_NULL),
-					\t\tattributeEquals('xev', true),
-					\t\tnot(
-					\t\t\tattributeEquals('utr', true)
-					\t\t)
-					\t)
-					)""",
+				and(
+				\tattributeEquals('a', 'b'),
+				\tor(
+				\t\tattributeIs('def', NOT_NULL),
+				\t\tattributeEquals('xev', true),
+				\t\tnot(
+				\t\t\tattributeEquals('utr', true)
+				\t\t)
+				\t)
+				)""",
 			PrettyPrintingVisitor.toString(clone, "\t")
 		);
 	}
@@ -164,46 +164,48 @@ class ConstraintCloneVisitorTest {
 
 		assertEquals(
 			"""
-					and(
-					\tattributeEquals('a', 'b'),
-					\tor(
-					\t\tattributeIs('def', NOT_NULL),
-					\t\tattributeEquals('xev', true),
-					\t\tattributeBetween('c', 1, 78),
-					\t\tand(
-					\t\t\tattributeEquals('utr', true),
-					\t\t\tattributeEquals('added', true)
-					\t\t)
-					\t)
-					)""",
+				and(
+				\tattributeEquals('a', 'b'),
+				\tor(
+				\t\tattributeIs('def', NOT_NULL),
+				\t\tattributeEquals('xev', true),
+				\t\tattributeBetween('c', 1, 78),
+				\t\tand(
+				\t\t\tattributeEquals('utr', true),
+				\t\t\tattributeEquals('added', true)
+				\t\t)
+				\t)
+				)""",
 			PrettyPrintingVisitor.toString(clone, "\t")
 		);
 	}
 
 	@Test
 	void shouldCloneRequireConstraintReplacingIsTrueInAdditionalChildren() {
-		final RequireConstraint clone = ConstraintCloneVisitor.clone(requireConstraint, (visitor, examined) -> {
-			if (examined instanceof final AttributeEquals attributeEquals && attributeEquals.getAttributeValue().equals(true)) {
-				return new AttributeEquals(attributeEquals.getAttributeName(), false);
-			} else {
-				return examined;
-			}
-		});
+		final RequireConstraint clone = ConstraintCloneVisitor.clone(
+			requireConstraint,
+			(visitor, examined) -> {
+				if (examined instanceof final AttributeEquals attributeEquals && attributeEquals.getAttributeValue().equals(true)) {
+					return new AttributeEquals(attributeEquals.getAttributeName(), false);
+				} else {
+					return examined;
+				}
+			});
 
 		assertEquals(
 			"""
-					require(
-					\tpage(1, 20),
-					\treferenceContent(
-					\t\t'a',
-					\t\tfilterBy(
-					\t\t\tattributeEquals('def', false)
-					\t\t),
-					\t\tentityFetch(
-					\t\t\tattributeContent('code')
-					\t\t)
-					\t)
-					)""",
+				require(
+				\tpage(1, 20),
+				\treferenceContent(
+				\t\t'a',
+				\t\tfilterBy(
+				\t\t\tattributeEquals('def', false)
+				\t\t),
+				\t\tentityFetch(
+				\t\t\tattributeContent('code')
+				\t\t)
+				\t)
+				)""",
 			PrettyPrintingVisitor.toString(clone, "\t")
 		);
 	}

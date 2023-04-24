@@ -34,6 +34,8 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Base query defines shared behaviour for all constraints.
  *
@@ -42,7 +44,7 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode(of = {"name", "arguments"})
 abstract class BaseConstraint<T extends Constraint<T>> implements Constraint<T> {
 	@Serial private static final long serialVersionUID = 2216675116416057520L;
-	private final String name = StringUtils.uncapitalize(this.getClass().getSimpleName());
+	private final String name;
 	private final Serializable[] arguments;
 
 	@Nonnull
@@ -54,6 +56,24 @@ abstract class BaseConstraint<T extends Constraint<T>> implements Constraint<T> 
 	}
 
 	protected BaseConstraint(@Nonnull Serializable... arguments) {
+		super();
+		this.name = getDefaultName();
+		if (Arrays.stream(arguments).anyMatch(it -> it != EvitaDataTypes.toSupportedType(it))) {
+			this.arguments = Arrays.stream(arguments)
+				.map(EvitaDataTypes::toSupportedType)
+				.toArray(Serializable[]::new);
+		} else {
+			this.arguments = arguments;
+		}
+	}
+
+	@Nonnull
+	protected String getDefaultName() {
+		return StringUtils.uncapitalize(this.getClass().getSimpleName());
+	}
+
+	protected BaseConstraint(@Nullable String name, @Nonnull Serializable... arguments) {
+		this.name = ofNullable(name).orElseGet(this::getDefaultName);
 		if (Arrays.stream(arguments).anyMatch(it -> it != EvitaDataTypes.toSupportedType(it))) {
 			this.arguments = Arrays.stream(arguments)
 				.map(EvitaDataTypes::toSupportedType)

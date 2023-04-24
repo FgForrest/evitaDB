@@ -34,7 +34,6 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * This `and` is container query that contains two or more inner constraints which output is combined by
@@ -66,11 +65,8 @@ public class And extends AbstractFilterConstraintContainer implements GenericCon
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final FilterConstraint[] filterChildren = Arrays.stream(children)
-				.map(c -> (FilterConstraint) c)
-				.toArray(FilterConstraint[]::new);
-		return new And(filterChildren);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new And(children);
 	}
 
 	@Nonnull

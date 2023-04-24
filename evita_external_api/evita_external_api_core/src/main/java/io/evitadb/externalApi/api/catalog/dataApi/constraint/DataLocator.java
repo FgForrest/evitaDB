@@ -29,7 +29,8 @@ import javax.annotation.Nonnull;
 
 /**
  * Specifies how to get original data to generate constraints from. Currently, used to find correct attribute and reference
- * schemas in any position in query tree.
+ * schemas in any position in query tree. It is basically an "implementation" of the {@link ConstraintDomain} to actually locate data
+ * in that domain.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

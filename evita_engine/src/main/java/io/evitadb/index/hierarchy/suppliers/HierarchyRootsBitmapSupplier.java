@@ -27,6 +27,7 @@ import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
@@ -39,24 +40,31 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class HierarchyRootsBitmapSupplier extends AbstractHierarchyBitmapSupplier {
-	private static final int CLASS_ID = 495405054;
+	private static final long CLASS_ID = -946906775L;
+	/**
+	 * Contains set of entity primary keys whose subtrees should be excluded from listing.
+	 */
+	@Nonnull private final HierarchyFilteringPredicate excludedNodeTrees;
 
-	public HierarchyRootsBitmapSupplier(HierarchyIndex hierarchyIndex, long[] transactionalId) {
+	public HierarchyRootsBitmapSupplier(@Nonnull HierarchyIndex hierarchyIndex, long[] transactionalId, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
 		super(hierarchyIndex, transactionalId);
+		this.excludedNodeTrees = excludedNodeTrees;
 	}
 
 	@Override
 	public long computeHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashInt(CLASS_ID);
+		return hashFunction.hashLongs(
+			new long[]{CLASS_ID, excludedNodeTrees.computeHash(hashFunction)}
+		);
 	}
 
 	@Override
 	public Bitmap get() {
-		return hierarchyIndex.getRootHierarchyNodes();
+		return hierarchyIndex.getRootHierarchyNodes(excludedNodeTrees);
 	}
 
 	@Override
 	public int getEstimatedCardinality() {
-		return hierarchyIndex.getRootHierarchyNodeCount();
+		return hierarchyIndex.getRootHierarchyNodeCount(excludedNodeTrees);
 	}
 }

@@ -34,7 +34,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.DebugMode;
-import io.evitadb.api.query.require.EntityFetchRequirements;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -74,6 +74,7 @@ import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
@@ -162,12 +163,6 @@ public class QueryContext {
 	@Getter
 	@Nonnull private final CacheSupervisor cacheSupervisor;
 	/**
-	 * Contains list of prefetched entities if they were considered worthwhile to prefetch -
-	 * see {@link SelectionFormula} for more information.
-	 */
-	@Getter
-	private List<EntityDecorator> prefetchedEntities;
-	/**
 	 * This flag signalizes that the entity prefetching is not possible within this context. I.e. it means that
 	 * the {@link #prefetchedEntities} will always be NULL. Prefetching is not possible for nested queries since
 	 * the prefetched entities wouldn't ever be used in the output and it would also force us to eagerly evaluate
@@ -175,6 +170,12 @@ public class QueryContext {
 	 */
 	@Getter
 	private final boolean prefetchPossible;
+	/**
+	 * Contains list of prefetched entities if they were considered worthwhile to prefetch -
+	 * see {@link SelectionFormula} for more information.
+	 */
+	@Getter
+	private List<EntityDecorator> prefetchedEntities;
 	/**
 	 * Contains sequence of already assigned virtual entity primary keys.
 	 * If set to zero - no virtual entity primary key was assigned, if greater than zero it represents the last assigned
@@ -207,9 +208,20 @@ public class QueryContext {
 	private byte[] frozenRandom;
 	/**
 	 * Internal cache currently server sor caching the computed formulas of nested queries.
+	 *
 	 * @see #computeOnlyOnce(FilterConstraint, Supplier) for more details
 	 */
 	private Map<Constraint<?>, Formula> internalCache;
+	/**
+	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
+	 * that should be excuded from traversal.
+	 */
+	@Getter
+	private HierarchyFilteringPredicate hierarchyExclusionPredicate;
+	/**
+	 * Internal flag that singalizes the query context is already within {@link #computingOnce} scope.
+	 */
+	private boolean computingOnce;
 
 	public <S extends IndexKey, T extends Index<S>> QueryContext(
 		@Nonnull Catalog catalog,
@@ -266,11 +278,11 @@ public class QueryContext {
 
 	/**
 	 * Executes code in `lambda` function with a {@link Random} object that will generate the same sequences for each
-	 * call of {@link #getRandom()} method.
+	 * call of {@link #getRandom()} method. It also doesn't record a query telemetry.
 	 *
 	 * @see #frozenRandom for more information
 	 */
-	public void doWithFrozenRandom(@Nonnull Runnable lambda) {
+	public void executeInDryRun(@Nonnull Runnable lambda) {
 		try {
 			final ByteArrayOutputStream bos = new ByteArrayOutputStream(200);
 			try (var os = new ObjectOutputStream(bos)) {
@@ -283,6 +295,13 @@ public class QueryContext {
 		} finally {
 			this.frozenRandom = null;
 		}
+	}
+
+	/**
+	 * Returns true if the context is inside {@link #executeInDryRun(Runnable)} method.
+	 */
+	public boolean isDryRun() {
+		return this.frozenRandom != null;
 	}
 
 	/**
@@ -376,7 +395,7 @@ public class QueryContext {
 	 * the original {@link EvitaRequest}
 	 */
 	@Nonnull
-	public Optional<SealedEntity> fetchEntity(int entityPrimaryKey, @Nonnull EntityFetchRequirements requirements) {
+	public Optional<SealedEntity> fetchEntity(int entityPrimaryKey, @Nonnull EntityFetchRequire requirements) {
 		return fetchEntity(entityType, entityPrimaryKey, requirements);
 	}
 
@@ -384,7 +403,7 @@ public class QueryContext {
 	 * Method loads requested entity contents by specifying its primary key.
 	 */
 	@Nonnull
-	public List<SealedEntity> fetchEntities(int[] entityPrimaryKeys, @Nonnull EntityFetchRequirements requirements) {
+	public List<SealedEntity> fetchEntities(int[] entityPrimaryKeys, @Nonnull EntityFetchRequire requirements) {
 		return fetchEntities(entityType, entityPrimaryKeys, requirements);
 	}
 
@@ -393,7 +412,7 @@ public class QueryContext {
 	 * the original {@link EvitaRequest}
 	 */
 	@Nonnull
-	public Optional<SealedEntity> fetchEntity(@Nullable String entityType, int entityPrimaryKey, @Nonnull EntityFetchRequirements requirements) {
+	public Optional<SealedEntity> fetchEntity(@Nullable String entityType, int entityPrimaryKey, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection targetCollection = getEntityCollectionOrThrowException(entityType, "fetch entity");
 		final EvitaRequest fetchRequest = fabricateFetchRequest(entityType, requirements);
 		return targetCollection.getEntity(entityPrimaryKey, fetchRequest, evitaSession);
@@ -403,7 +422,7 @@ public class QueryContext {
 	 * Method loads requested entity contents by specifying its primary key.
 	 */
 	@Nonnull
-	public List<SealedEntity> fetchEntities(@Nullable String entityType, @Nonnull int[] entityPrimaryKeys, @Nonnull EntityFetchRequirements requirements) {
+	public List<SealedEntity> fetchEntities(@Nullable String entityType, @Nonnull int[] entityPrimaryKeys, @Nonnull EntityFetchRequire requirements) {
 		final EntityCollection entityCollection = getEntityCollectionOrThrowException(entityType, "fetch entities");
 		final EvitaRequest fetchRequest = fabricateFetchRequest(entityType, requirements);
 		return entityCollection.getEntities(entityPrimaryKeys, fetchRequest, evitaSession);
@@ -476,7 +495,7 @@ public class QueryContext {
 	 * Method will prefetch all entities mentioned in `entitiesToPrefetch` and loads them with the scope of `requirements`.
 	 * The entities will reveal only the scope to the `requirements` - no less, no more data.
 	 */
-	public void prefetchEntities(@Nonnull Bitmap entitiesToPrefetch, @Nonnull EntityFetchRequirements requirements) {
+	public void prefetchEntities(@Nonnull Bitmap entitiesToPrefetch, @Nonnull EntityFetchRequire requirements) {
 		if (this.entityReferencePkSequence > 0) {
 			prefetchEntities(
 				Arrays.stream(entitiesToPrefetch.getArray())
@@ -499,7 +518,7 @@ public class QueryContext {
 	 * Method will prefetch all entities mentioned in `entitiesToPrefetch` and loads them with the scope of `requirements`.
 	 * The entities will reveal only the scope to the `requirements` - no less, no more data.
 	 */
-	public void prefetchEntities(@Nonnull EntityReferenceContract<?>[] entitiesToPrefetch, @Nonnull EntityFetchRequirements requirements) {
+	public void prefetchEntities(@Nonnull EntityReferenceContract<?>[] entitiesToPrefetch, @Nonnull EntityFetchRequire requirements) {
 		if (entitiesToPrefetch.length != 0) {
 			if (this.prefetchedEntities == null) {
 				this.prefetchedEntities = new ArrayList<>(entitiesToPrefetch.length);
@@ -525,9 +544,9 @@ public class QueryContext {
 						final EvitaRequest fetchRequest = fabricateFetchRequest(entityType, requirements);
 						final EntityCollection targetCollection = getEntityCollectionOrThrowException(entityType, "fetch entity");
 						return Arrays.stream(it.getValue().toArray())
-								.mapToObj(pk -> targetCollection.getEntityDecorator(pk, fetchRequest, evitaSession))
-								.filter(Optional::isPresent)
-								.map(Optional::get);
+							.mapToObj(pk -> targetCollection.getEntityDecorator(pk, fetchRequest, evitaSession))
+							.filter(Optional::isPresent)
+							.map(Optional::get);
 					})
 					.forEach(it -> this.prefetchedEntities.add(it));
 			}
@@ -561,7 +580,7 @@ public class QueryContext {
 	 * Adds new step of query evaluation.
 	 */
 	public void pushStep(@Nonnull QueryPhase phase) {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			telemetryStack.push(
 				telemetryStack.peek().addStep(phase)
 			);
@@ -572,9 +591,20 @@ public class QueryContext {
 	 * Adds new step of query evaluation.
 	 */
 	public void pushStep(@Nonnull QueryPhase phase, @Nonnull String message) {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			telemetryStack.push(
 				telemetryStack.peek().addStep(phase, message)
+			);
+		}
+	}
+
+	/**
+	 * Adds new step of query evaluation.
+	 */
+	public void pushStep(@Nonnull QueryPhase phase, @Nonnull Supplier<String> messageSupplier) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
+			telemetryStack.push(
+				telemetryStack.peek().addStep(phase, messageSupplier.get())
 			);
 		}
 	}
@@ -584,7 +614,7 @@ public class QueryContext {
 	 */
 	@Nullable
 	public QueryTelemetry getCurrentStep() {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			return telemetryStack.peek();
 		}
 		return null;
@@ -594,7 +624,7 @@ public class QueryContext {
 	 * Finishes current query evaluation step.
 	 */
 	public void popStep() {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			telemetryStack.pop().finish();
 		}
 	}
@@ -603,7 +633,7 @@ public class QueryContext {
 	 * Finishes current query evaluation step.
 	 */
 	public void popStep(@Nonnull String message) {
-		if (!telemetryStack.isEmpty()) {
+		if (!telemetryStack.isEmpty() && !isDryRun()) {
 			telemetryStack.pop().finish(message);
 		}
 	}
@@ -613,16 +643,20 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public QueryTelemetry finalizeAndGetTelemetry() {
-		Assert.isPremiseValid(!telemetryStack.isEmpty(), "The telemetry has been already retrieved!");
+		if (isDryRun()) {
+			return new QueryTelemetry(QueryPhase.OVERALL);
+		} else {
+			Assert.isPremiseValid(!telemetryStack.isEmpty(), "The telemetry has been already retrieved!");
 
-		// there may be some steps still open at the time extra results is fabricated
-		QueryTelemetry rootStep;
-		do {
-			rootStep = telemetryStack.pop();
-			rootStep.finish();
-		} while (!telemetryStack.isEmpty());
+			// there may be some steps still open at the time extra results is fabricated
+			QueryTelemetry rootStep;
+			do {
+				rootStep = telemetryStack.pop();
+				rootStep.finish();
+			} while (!telemetryStack.isEmpty());
 
-		return rootStep;
+			return rootStep;
+		}
 	}
 
 	/**
@@ -858,6 +892,69 @@ public class QueryContext {
 	 */
 
 	/**
+	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or throws comprehensible
+	 * exception. In order exception to be comprehensible you need to provide sensible `reason` for accessing
+	 * the collection in the input parameter.
+	 */
+	@Nonnull
+	public EntityCollection getEntityCollectionOrThrowException(@Nullable String entityType, @Nonnull String reason) {
+		if (entityType == null) {
+			throw new EntityCollectionRequiredException(reason);
+		} else if (Objects.equals(entityType, this.entityType) && entityCollection != null) {
+			return entityCollection;
+		} else {
+			return catalog.getCollectionForEntityOrThrowException(entityType);
+		}
+	}
+
+	/**
+	 * This method is used to avoid multiple creation of the exactly same outputs of the nested queries that involve
+	 * creating separate optimized calculation formula tree. There are usually multiple formula calculation trees
+	 * created when trying to find the most optimal one - only the least expensive is used at the end. Because
+	 * the nested tree is evaluated separately we need to cache its result to avoid unnecessary multiple creations
+	 * of the exactly same nested query formula tree.
+	 *
+	 * @param constraint      caching key for which the lambda should be invoked only once
+	 * @param formulaSupplier the lambda that creates the formula
+	 * @return created formula
+	 */
+	@Nonnull
+	public Formula computeOnlyOnce(
+		@Nonnull FilterConstraint constraint,
+		@Nonnull Supplier<Formula> formulaSupplier
+	) {
+		if (computingOnce) {
+			return formulaSupplier.get();
+		} else {
+			try {
+				computingOnce = true;
+				if (parentContext == null) {
+					if (internalCache == null) {
+						internalCache = new HashMap<>();
+					}
+					return internalCache.computeIfAbsent(
+						constraint, cnt -> formulaSupplier.get()
+					);
+				} else {
+					return parentContext.computeOnlyOnce(
+						constraint, formulaSupplier
+					);
+				}
+			} finally {
+				computingOnce = false;
+			}
+		}
+	}
+
+	/**
+	 * Sets resolved hierarchy exclusion predicate to be shared among filter and requirement phase.
+	 */
+	public void setHierarchyExclusionPredicate(@Nonnull HierarchyFilteringPredicate hierarchyExclusionPredicate) {
+		Assert.isPremiseValid(this.hierarchyExclusionPredicate == null, "The hierarchy exclusion predicate can be set only once!");
+		this.hierarchyExclusionPredicate = hierarchyExclusionPredicate;
+	}
+
+	/**
 	 * Method retrieves already assigned masking id for the {@link EntityReference} or creates brand new. This virtual
 	 * id is necessary because our filtering logic works with {@link Bitmap} objects that contains plain integers. In
 	 * situation when no target entity collection is specified and filters targeting global attributes retrieves
@@ -1054,59 +1151,13 @@ public class QueryContext {
 	}
 
 	/**
-	 * Method returns appropriate {@link EntityCollection} for the {@link #evitaRequest} or throws comprehensible
-	 * exception. In order exception to be comprehensible you need to provide sensible `reason` for accessing
-	 * the collection in the input parameter.
-	 */
-	@Nonnull
-	public EntityCollection getEntityCollectionOrThrowException(@Nullable String entityType, @Nonnull String reason) {
-		if (entityType == null) {
-			throw new EntityCollectionRequiredException(reason);
-		} else if (Objects.equals(entityType, this.entityType) && entityCollection != null) {
-			return entityCollection;
-		} else {
-			return catalog.getCollectionForEntityOrThrowException(entityType);
-		}
-	}
-
-	/**
-	 * This method is used to avoid multiple creation of the exactly same outputs of the nested queries that involve
-	 * creating separate optimized calculation formula tree. There are usually multiple formula calculation trees
-	 * created when trying to find the most optimal one - only the least expensive is used at the end. Because
-	 * the nested tree is evaluated separately we need to cache its result to avoid unnecessary multiple creations
-	 * of the exactly same nested query formula tree.
-	 *
-	 * @param constraint caching key for which the lambda should be invoked only once
-	 * @param formulaSupplier the lambda that creates the formula
-	 * @return created formula
-	 */
-	@Nonnull
-	public Formula computeOnlyOnce(
-		@Nonnull FilterConstraint constraint,
-		@Nonnull Supplier<Formula> formulaSupplier
-	) {
-		if (parentContext == null) {
-			if (internalCache == null) {
-				internalCache = new HashMap<>();
-			}
-			return internalCache.computeIfAbsent(
-				constraint, cnt -> formulaSupplier.get()
-			);
-		} else {
-			return parentContext.computeOnlyOnce(
-				constraint, formulaSupplier
-			);
-		}
-	}
-
-	/**
 	 * Method creates new {@link EvitaRequest} for particular `entityType` that takes all passed `requiredConstraints`
 	 * into the account. Fabricated request is expected to be used only for passing the scope to
 	 * {@link EntityCollection#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)} or
 	 * {@link EntityCollection#enrichEntity(SealedEntity, EvitaRequest, EvitaSessionContract)} methods.
 	 */
 	@Nonnull
-	private EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequirements requirements) {
+	private EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
 		return evitaRequest.deriveCopyWith(entityType, requirements);
 	}
 

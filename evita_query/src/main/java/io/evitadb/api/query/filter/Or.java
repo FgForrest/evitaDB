@@ -34,7 +34,6 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * This `or` is container query that contains two or more inner constraints which output is combined by
@@ -66,11 +65,8 @@ public class Or extends AbstractFilterConstraintContainer implements GenericCons
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final FilterConstraint[] filterChildren = Arrays.stream(children)
-				.map(c -> (FilterConstraint) c)
-				.toArray(FilterConstraint[]::new);
-		return new Or(filterChildren);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new Or(children);
 	}
 
 	@Nonnull

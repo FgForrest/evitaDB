@@ -67,7 +67,7 @@ import java.util.stream.Stream;
 	shortDescription = "The constraint triggers fetching referenced entity bodies into returned main entities.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class ReferenceContent extends AbstractRequireConstraintContainer implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, CombinableEntityContentRequire {
+public class ReferenceContent extends AbstractRequireConstraintContainer implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
 	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent();
 
@@ -283,11 +283,6 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
 		return true;
 	}
@@ -302,7 +297,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends CombinableEntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof ReferenceContent, "Only References requirement can be combined with this one!");
 		if (isAllRequested()) {
 			return (T) this;
@@ -322,14 +317,11 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
 		if (additionalChildren.length > 2 || (additionalChildren.length == 2 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) && !OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType()))) {
 			throw new IllegalArgumentException("Expected single or no additional filter and order child query.");
 		}
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-			.map(c -> (RequireConstraint) c)
-			.toArray(RequireConstraint[]::new);
-		return new ReferenceContent(getReferencedEntityTypes(), requireChildren, additionalChildren);
+		return new ReferenceContent(getReferencedEntityTypes(), children, additionalChildren);
 	}
 
 	@Nonnull

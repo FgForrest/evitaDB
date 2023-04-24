@@ -66,7 +66,8 @@ filterConstraint
     | 'entityLocaleEquals'              args = valueArgs                                        # entityLocaleEqualsConstraint
     | 'priceInCurrency'                 args = valueArgs                                        # priceInCurrencyConstraint
     | 'priceInPriceLists'               (emptyArgs | args = classifierListArgs)                 # priceInPriceListsConstraints
-    | 'priceValidIn'                    args = valueArgs                                        # priceValidInConstraint
+    | 'priceValidNow'                   emptyArgs                                               # priceValidNowConstraint
+    | 'priceValidIn'                    (emptyArgs | args = valueArgs)                          # priceValidInConstraint
     | 'priceBetween'                    args = betweenValuesArgs                                # priceBetweenConstraint
     | 'facetInSet'                      args = classifierWithValueListArgs                      # facetInSetConstraint
     | 'referenceHaving'                 args = classifierWithFilterConstraintArgs               # referenceHavingConstraint
@@ -76,7 +77,7 @@ filterConstraint
     | 'hierarchyWithinRootSelf'         args = hierarchyWithinRootSelfConstraintArgs            # hierarchyWithinRootSelfConstraint
     | 'directRelation'                  emptyArgs                                               # hierarchyDirectRelationConstraint
     | 'excludingRoot'                   emptyArgs                                               # hierarchyExcludingRootConstraint
-    | 'excluding'                       (emptyArgs | args = valueListArgs)                      # hierarchyExcludingConstraint
+    | 'excluding'                       args = filterConstraintListArgs                         # hierarchyExcludingConstraint
     | 'entityHaving'                    args = filterConstraintArgs                             # entityHavingConstraint
     ;
 

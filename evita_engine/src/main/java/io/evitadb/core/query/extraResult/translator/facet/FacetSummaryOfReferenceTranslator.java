@@ -106,6 +106,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			facetSummaryProducer = new FacetSummaryProducer(
 				extraResultPlanner.getQueryContext(),
 				extraResultPlanner.getFilteringFormula(),
+				extraResultPlanner.getFilteringFormulaWithoutUserFilter(),
 				facetIndexes,
 				requestedFacets
 			);
