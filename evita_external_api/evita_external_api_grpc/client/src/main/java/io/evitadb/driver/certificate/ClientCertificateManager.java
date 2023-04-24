@@ -23,7 +23,9 @@
 
 package io.evitadb.driver.certificate;
 
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.netty.handler.ssl.ApplicationProtocolConfig.Protocol;
@@ -33,6 +35,7 @@ import io.netty.handler.ssl.ApplicationProtocolNames;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -43,6 +46,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
@@ -56,11 +60,14 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Main purpose of this class is to build the {@link SslContext} for the client. It contains a builder that is used to
  * collect and hold all necessary parameters from EvitaClientConfiguration and modify them if necessary to be
  * used in the {@link SslContext} building process.
  */
+@Slf4j
 @RequiredArgsConstructor
 public class ClientCertificateManager {
 	private static final Path DEFAULT_CLIENT_CERTIFICATE_FOLDER_PATH = Paths.get(System.getProperty("java.io.tmpdir"), "evita-client-certificates");
@@ -75,6 +82,8 @@ public class ClientCertificateManager {
 	private final String clientPrivateKeyPassword;
 	private final boolean isMtlsEnabled;
 	private final boolean useGeneratedCertificate;
+	private final String host;
+	private final int port;
 	private final boolean usingTrustedRootCaCertificate;
 	private static final String TRUST_STORE_FILE_NAME = "trustStore.jks";
 	public static Path getDefaultClientCertificateFolderPath() {
@@ -84,12 +93,14 @@ public class ClientCertificateManager {
 	public static class Builder {
 		private Path certificateClientFolderPath = DEFAULT_CLIENT_CERTIFICATE_FOLDER_PATH;
 		private Path rootCaCertificatePath = Path.of(CertificateUtils.getGeneratedRootCaCertificateFileName());
-		private Path clientCertificateFileName = null;
-		private Path clientPrivateKeyFileName = null;
+		private Path clientCertificateFilePath = null;
+		private Path clientPrivateKeyFilePath = null;
 		private String clientPrivateKeyPassword = null;
 		private String trustStorePassword = "trustStorePassword";
 		private boolean isMtlsEnabled = false;
 		private boolean useGeneratedCertificate = true;
+		private String host;
+		private int port;
 		private boolean usingTrustedRootCaCertificate = false;
 
 		public Builder certificateClientFolderPath(@Nonnull Path certificateClientFolderPath) {
@@ -103,12 +114,16 @@ public class ClientCertificateManager {
 		}
 
 		public Builder clientCertificateFilePath(@Nullable Path clientCertificateFilePath) {
-			this.clientCertificateFileName = certificateClientFolderPath.resolve(clientCertificateFilePath);
+			this.clientCertificateFilePath = ofNullable(clientCertificateFilePath)
+				.map(it -> certificateClientFolderPath.resolve(it))
+				.orElse(null);
 			return this;
 		}
 
 		public Builder clientPrivateKeyFilePath(@Nullable Path clientPrivateKeyFilePath) {
-			this.clientPrivateKeyFileName = certificateClientFolderPath.resolve(clientPrivateKeyFilePath);
+			this.clientPrivateKeyFilePath = ofNullable(clientPrivateKeyFilePath)
+				.map(it -> certificateClientFolderPath.resolve(it))
+				.orElse(null);
 			return this;
 		}
 
@@ -127,8 +142,10 @@ public class ClientCertificateManager {
 			return this;
 		}
 
-		public Builder useGeneratedCertificate(boolean useGeneratedCertificate) {
+		public Builder useGeneratedCertificate(boolean useGeneratedCertificate, @Nonnull String host, int port) {
 			this.useGeneratedCertificate = useGeneratedCertificate;
+			this.host = host;
+			this.port = port;
 			return this;
 		}
 
@@ -142,11 +159,12 @@ public class ClientCertificateManager {
 				trustStorePassword,
 				certificateClientFolderPath,
 				rootCaCertificatePath,
-				clientCertificateFileName,
-				clientPrivateKeyFileName,
+				clientCertificateFilePath,
+				clientPrivateKeyFilePath,
 				clientPrivateKeyPassword,
 				isMtlsEnabled,
 				useGeneratedCertificate,
+				host, port,
 				usingTrustedRootCaCertificate
 			);
 		}
@@ -160,6 +178,36 @@ public class ClientCertificateManager {
 	public SslContext buildClientSslContext() {
 		try {
 			final Path usedCertificatePath = getUsedRootCaCertificatePath();
+
+			try {
+				if (!getDefaultClientCertificateFolderPath().toFile().exists()) {
+					Assert.isPremiseValid(
+						getDefaultClientCertificateFolderPath().toFile().mkdirs(),
+						() -> "Cannot create path `" + getDefaultClientCertificateFolderPath() + "`!"
+					);
+				}
+
+				if (useGeneratedCertificate && !usedCertificatePath.toFile().exists()) {
+					getCertificatesFromServer(host, port);
+				}
+
+				final CertificateFactory cf = CertificateFactory.getInstance("X.509");
+				final Certificate serverCert;
+				try (InputStream in = new FileInputStream(usedCertificatePath.toFile())) {
+					serverCert = cf.generateCertificate(in);
+				}
+				log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(serverCert));
+				if (isMtlsEnabled) {
+					final Certificate clientCert;
+					try (InputStream in = new FileInputStream(clientCertificateFilePath.toFile())) {
+						clientCert = cf.generateCertificate(in);
+					}
+					log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(clientCert));
+				}
+			} catch (CertificateException | IOException | NoSuchAlgorithmException e) {
+				throw new EvitaInternalError(e.getMessage(), e);
+			}
+
 			final TrustManager trustManagerTrustingProvidedRootCertificate = getTrustManagerTrustingProvidedCertificate(usedCertificatePath, "evita-root-ca");
 			final SslContextBuilder sslContextBuilder = SslContextBuilder.forClient()
 				.applicationProtocolConfig(
@@ -169,7 +217,7 @@ public class ClientCertificateManager {
 						SelectedListenerFailureBehavior.ACCEPT,
 						ApplicationProtocolNames.HTTP_2));
 			if (isMtlsEnabled) {
-				if (clientCertificateFilePath == null || clientPrivateKeyFilePath == null) {
+				if (clientPrivateKeyFilePath == null) {
 					throw new EvitaInvalidUsageException("Client certificate path is not set while using mTLS. Check evita configuration file.");
 				}
 				sslContextBuilder.keyManager(new File(clientCertificateFilePath.toUri()), new File(clientPrivateKeyFilePath.toUri()), clientPrivateKeyPassword);
@@ -205,7 +253,7 @@ public class ClientCertificateManager {
 			}
 		}
 		try {
-			downloadFileFromServer(apiEndpoint, CertificateUtils.getGeneratedRootCaCertificateFileName().toString());
+			downloadFileFromServer(apiEndpoint, CertificateUtils.getGeneratedRootCaCertificateFileName());
 			downloadFileFromServer(apiEndpoint, CertificateUtils.getGeneratedClientCertificateFileName());
 			downloadFileFromServer(apiEndpoint, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
 		} catch (IOException e) {
@@ -262,6 +310,9 @@ public class ClientCertificateManager {
 		final File trustStoreFile = new File(certificateClientFolderPath.resolve(TRUST_STORE_FILE_NAME).toUri());
 		final KeyStore trustStore = KeyStore.getInstance("JKS");
 		final char[] trustStorePasswordCharArray = this.trustStorePassword.toCharArray();
+		if (!certificateClientFolderPath.toFile().exists()) {
+			Assert.isTrue(certificateClientFolderPath.toFile().mkdirs(), () -> "Cannot create folder `" + certificateClientFolderPath + "`!");
+		}
 		if (!trustStoreFile.exists()) {
 			trustStore.load(null, null);
 			try (final FileOutputStream trustStoreOutputStream = new FileOutputStream(trustStoreFile)) {

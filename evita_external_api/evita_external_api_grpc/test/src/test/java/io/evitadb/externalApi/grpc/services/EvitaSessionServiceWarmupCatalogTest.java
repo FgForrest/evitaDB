@@ -31,10 +31,8 @@ import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
@@ -43,13 +41,14 @@ import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
 import io.evitadb.externalApi.grpc.testUtils.TestChannelCreator;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
-import io.evitadb.externalApi.grpc.utils.GrpcServer;
+import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.grpc.ManagedChannel;
-import io.grpc.Server;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,7 +56,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.Collections;
 import java.util.List;
 
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
@@ -72,37 +70,48 @@ import static org.wildfly.common.Assert.assertTrue;
 @Slf4j
 class EvitaSessionServiceWarmupCatalogTest {
 	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
-	private static Server server;
-	private static ManagedChannel channel;
+	private static ExternalApiServer EXTERNAL_API_SERVER;
+	private static ManagedChannel CHANNEL;
 
 	@DataSet(value = THOUSAND_PRODUCTS, expectedCatalogState = CatalogState.WARMING_UP)
 	List<SealedEntity> setUp(Evita evita) {
-		final GrpcServer grpcServer = new GrpcServer(new EvitaSystemDataProvider(evita), new ApiOptions(null, new CertificateSettings.Builder().build(), Collections.emptyMap()), new GrpcConfig());
-		try {
-			server = grpcServer.getServer().start();
-		} catch (Exception e) {
-			log.error("Failed to start server", e);
-		}
+		final ExternalApiServer externalApiServer = new ExternalApiServer(
+			evita,
+			ApiOptions.builder()
+				.enable(GrpcProvider.CODE)
+				.enable(SystemProvider.CODE)
+				.build()
+		);
 
-		channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), server.getPort());
+		// open the API on configured ports
+		externalApiServer.start();
+
+		EXTERNAL_API_SERVER = externalApiServer;
+		CHANNEL = TestChannelCreator.getChannel(
+			new ClientSessionInterceptor(),
+			externalApiServer
+		);
 
 		return new TestDataProvider().generateEntities(evita);
+	}
+
+	@OnDataSetTearDown(THOUSAND_PRODUCTS)
+	void onDataSetTearDown() {
+		CHANNEL.shutdown();
+		EXTERNAL_API_SERVER.close();
 	}
 
 	@AfterEach
 	void afterEach() {
 		SessionIdHolder.reset();
-		if (!server.isTerminated()) {
-			server.shutdown();
-		}
 	}
 
 	@Test
 	@UseDataSet(value = THOUSAND_PRODUCTS, destroyAfterTest = true)
 	@DisplayName("Should be able to insert new entities with primaryKey generated while inserting into the database")
 	void shouldBeAbleToInsertEntitiesInWarmupCatalogState(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		final String entityType = Entities.PRODUCT;
 		final int entitiesToInsert = 100;
@@ -139,8 +148,8 @@ class EvitaSessionServiceWarmupCatalogTest {
 	@UseDataSet(value = THOUSAND_PRODUCTS, destroyAfterTest = true)
 	@DisplayName("Should be able to update entities in warmup catalog state")
 	void shouldBeAbleUpdateEntitiesInWarmupCatalogState(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		final String entityType = Entities.PRODUCT;
 

@@ -94,7 +94,9 @@ public class GrpcServer {
 			if (mtlsConfiguration != null && Boolean.TRUE.equals(mtlsConfiguration.enabled())) {
 				if (apiOptions.certificate().generateAndUseSelfSigned()) {
 					tlsServerCredentialsBuilder.trustManager(
-						new File(apiOptions.certificate().folderPath() + File.separator + CertificateUtils.getGeneratedRootCaCertificateFileName())
+						apiOptions.certificate().getFolderPath()
+							.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName())
+							.toFile()
 					);
 				}
 				tlsServerCredentialsBuilder.clientAuth(TlsServerCredentials.ClientAuth.REQUIRE);
@@ -110,7 +112,11 @@ public class GrpcServer {
 			}
 			tlsServerCredentials = tlsServerCredentialsBuilder.build();
 		} catch (Exception e) {
-			throw new EvitaInternalError("Failed to create gRPC server credentials with provided certificate and private key.");
+			throw new EvitaInternalError(
+				"Failed to create gRPC server credentials with provided certificate and private key: " + e.getMessage(),
+				"Failed to create gRPC server credentials with provided certificate and private key.",
+				e
+			);
 		}
 		server = Grpc.newServerBuilderForPort(hosts[0].port(), tlsServerCredentials)
 			.intercept(new ServerSessionInterceptor(evitaSystemDataProvider.getEvita()))

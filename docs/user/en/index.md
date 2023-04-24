@@ -51,8 +51,8 @@ in the separate part of this site.
 ## Get started
 
 1. [Run evitaDB](get-started/run-evitadb.md)
-   1. [Run embedded in you application](get-started/run-evitadb.md#run-embedded-in-you-application)
-   2. [Run as service inside Docker](get-started/run-evitadb.md#run-as-service-inside-docker)
+   1. [Run embedded in you application](use/connectors/java.md)
+   2. [Run as service inside Docker](operate/run.md)
 2. [Create your first database](get-started/create-first-database.md)
 3. [Query our dataset](get-started/query-our-dataset.md)
 
@@ -61,13 +61,13 @@ in the separate part of this site.
 1. [Data model](use/entity.md)
    1. [Data types](use/data-types.md)
    2. [Schema](use/schema.md)
-2. [Connectors](use/connectors/connectors.md)
+2. **Connectors**
    1. [GraphQL](use/connectors/graphql.md)
    2. [REST](use/connectors/rest.md)
    3. [gRPC](use/connectors/grpc.md)
    4. [Java](use/connectors/java.md)
    5. [C#](use/connectors/c-sharp.md)
-3. [API](use/api/api.md)
+3. **API**
    1. [Define schema](use/api/schema-api.md)
    2. [Upsert data](use/api/write-data.md)
    3. [Query data](use/api/query-data.md)
@@ -77,7 +77,7 @@ in the separate part of this site.
 ## Query
 
 1. [Basics](query/basics.md)
-2. [Filtering](query/filtering/filtering.md)
+2. **Filtering**
    1. [Bitwise](query/filtering/bitwise.md)
    2. [Boolean](query/filtering/boolean.md)
    3. [Comparable](query/filtering/comparable.md)
@@ -88,12 +88,12 @@ in the separate part of this site.
    8. [References](query/filtering/references.md)
    9. [Hierarchy](query/filtering/hierarchy.md)
    10. [Facet](query/filtering/facet.md)
-3. [Ordering](query/ordering/ordering.md)
+3. **Ordering**
    1. [Natural](query/ordering/natural.md)
    2. [Price](query/ordering/price.md)
    3. [Reference](query/ordering/reference.md)
    4. [Random](query/ordering/random.md)
-4. [Requirements](query/requirements/requirements.md)
+4. Requirements**
    1. [Paging](query/requirements/paging.md)
    2. [Fetching](query/requirements/fetching.md)
    3. [Price](query/requirements/price.md)

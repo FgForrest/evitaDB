@@ -8,7 +8,7 @@ ENV EVITA_JAR_NAME="$EVITA_JAR_NAME"
 USER root
 
 RUN set -ex \
-    && mkdir "$EVITA_HOME" "$EVITA_HOME/bin" "$EVITA_HOME/conf" "$EVITA_HOME/data" \
+    && mkdir "$EVITA_HOME" "$EVITA_HOME/bin" "$EVITA_HOME/conf" "$EVITA_HOME/data" "$EVITA_HOME/certificates" \
     && : ## end
 COPY entrypoint.sh /
 COPY "$EVITA_JAR_NAME" "$EVITA_HOME/bin"
@@ -17,6 +17,7 @@ COPY "evita-configuration.yaml" "$EVITA_HOME/conf"
 ## may be to be overriden in container
 ENV EVITA_CONFIG_FILE="$EVITA_HOME/conf/evita-configuration.yaml"
 ENV EVITA_STORAGE_DIR="$EVITA_HOME/data"
+ENV EVITA_CERTIFICATE_DIR="$EVITA_HOME/certificates"
 ENV EVITA_LOG_FILE="$EVITA_HOME/logback.xml"
 ENV EVITA_JAVA_OPTS=""
 ENV EVITA_ARGS=""

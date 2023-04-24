@@ -31,6 +31,7 @@ if [ "$1" = "" ]; then
         -jar "${EVITA_HOME}/bin/${EVITA_JAR_NAME}" \
         "-DconfigFile=$EVITA_CONFIG_FILE" \
         "-Dstorage.storageDirectory=$EVITA_STORAGE_DIR" \
+        "-Dapi.certificate.folderPath=$EVITA_CERTIFICATE_DIR" \
         "-Dlogback.configurationFile=$EVITA_LOG_FILE" \
         $EVITA_ARGS
 else

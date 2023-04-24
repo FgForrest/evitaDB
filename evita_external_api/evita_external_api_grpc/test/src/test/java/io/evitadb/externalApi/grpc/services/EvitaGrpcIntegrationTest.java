@@ -25,10 +25,8 @@ package io.evitadb.externalApi.grpc.services;
 
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityRequest;
@@ -40,16 +38,16 @@ import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.testUtils.TestChannelCreator;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
-import io.evitadb.externalApi.grpc.utils.GrpcServer;
+import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.grpc.ManagedChannel;
-import io.grpc.Server;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -57,7 +55,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -75,28 +72,32 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @Slf4j
 public class EvitaGrpcIntegrationTest {
 	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
-	private static Server server;
-	private static ManagedChannel channel;
+	private static ExternalApiServer EXTERNAL_API_SERVER;
+	private static ManagedChannel CHANNEL;
 
 	@DataSet(THOUSAND_PRODUCTS)
 	List<SealedEntity> setUp(Evita evita) {
-		final GrpcServer grpcServer = new GrpcServer(new EvitaSystemDataProvider(evita), new ApiOptions(null, new CertificateSettings.Builder().build(), Collections.emptyMap()), new GrpcConfig());
-		try {
-			server = grpcServer.getServer().start();
-		} catch (Exception e) {
-			log.error("Failed to start server", e);
-		}
+		final ExternalApiServer externalApiServer = new ExternalApiServer(
+			evita,
+			ApiOptions.builder()
+				.enable(GrpcProvider.CODE)
+				.enable(SystemProvider.CODE)
+				.build()
+		);
 
-		channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), server.getPort());
+		// open the API on configured ports
+		externalApiServer.start();
+
+		EXTERNAL_API_SERVER = externalApiServer;
+		CHANNEL = TestChannelCreator.getChannel(new ClientSessionInterceptor(), externalApiServer);
 
 		return new TestDataProvider().generateEntities(evita);
 	}
 
-	@AfterAll
-	public static void tearDown() {
-		if (!server.isTerminated()) {
-			server.shutdown();
-		}
+	@OnDataSetTearDown(THOUSAND_PRODUCTS)
+	void onDataSetTearDown() {
+		CHANNEL.shutdown();
+		EXTERNAL_API_SERVER.close();
 	}
 
 	@AfterEach
@@ -108,8 +109,8 @@ public class EvitaGrpcIntegrationTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to get a session id from EvitaService and with its usage should be able to get valid response from EvitaSessionService")
 	void shouldBeAbleToGetSessionAndWithItCallSessionDependentMethods(Evita evita) {
-		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(CHANNEL);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
 
 		final String entityType = Entities.PRODUCT;
 		final int primaryKey = 1;

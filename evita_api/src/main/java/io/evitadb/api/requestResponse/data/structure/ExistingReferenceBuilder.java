@@ -47,6 +47,7 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.stream.Stream;
 
@@ -256,11 +257,17 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Nonnull
 	@Override
 	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
+		final AtomicReference<ReferenceContract> builtReference = new AtomicReference<>(baseReference);
 		return Stream.concat(
 				referenceGroupMutation == null ?
 					Stream.empty() :
 					Stream.of(referenceGroupMutation)
-						.filter(it -> referenceGroupMutation.mutateLocal(entitySchema, baseReference).getVersion() > baseReference.getVersion()),
+						.filter(it -> {
+							final ReferenceContract existingValue = builtReference.get();
+							final ReferenceContract newReference = referenceGroupMutation.mutateLocal(entitySchema, existingValue);
+							builtReference.set(newReference);
+							return existingValue == null || newReference.getVersion() > existingValue.getVersion();
+						}),
 				attributesBuilder
 					.buildChangeSet()
 					.map(it ->

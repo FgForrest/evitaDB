@@ -36,6 +36,9 @@ import java.util.List;
  *                                      Only clients who present themselves with a trusted certificate will be allowed
  *                                      to connect to the server.
  */
-public record MtlsConfiguration(@Nullable Boolean enabled, @Nonnull List<String> allowedClientCertificatePaths) {
+public record MtlsConfiguration(
+	@Nullable Boolean enabled,
+	@Nonnull List<String> allowedClientCertificatePaths
+) {
 
 }

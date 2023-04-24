@@ -1,0 +1,8 @@
+elasticsearch_container:
+    image: elasticsearch:7.9.3
+    environment:
+     - discovery.type=single-node
+    container_name: elasticsearch
+    ports:
+     - "127.0.0.1:9300:9300"
+     - "127.0.0.1:9200:9200"

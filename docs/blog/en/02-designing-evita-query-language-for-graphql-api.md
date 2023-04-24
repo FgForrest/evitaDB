@@ -3,6 +3,7 @@ title: Designing the Evita Query Language for the GraphQL API
 perex: In evitaDB (like in many other databases), in order to get any data, you need to somehow ask which data you want. The GraphQL language is, however, specific and needs a specific syntax.
 date: '2022-01-12'
 author: 'Lukáš Hornych'
+motive: assets/images/02-designing-evita-query-language-for-graphql-api.png
 ---
 
 A set of these questions is called a _query_. Each _query_ contains several questions or some sort of hints to filter, sort,
@@ -93,7 +94,7 @@ articles and documentations about attempts of creating
 such [DSL](https://en.wikipedia.org/wiki/Domain-specific_language)s.
 
 Following examples are something we didn’t like too much because this way the editor cannot provide any code completion for
-a client and would be annoyed writing the query with all of the special characters.
+a client and would be annoyed writing the query with all the special characters.
 
 * [https://www.linkedin.com/pulse/building-your-own-query-language-my-first-career-project-batra/](https://www.linkedin.com/pulse/building-your-own-query-language-my-first-career-project-batra/)
 * [https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html)

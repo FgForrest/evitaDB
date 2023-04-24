@@ -52,10 +52,8 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.ApiOptions;
-import io.evitadb.externalApi.configuration.CertificateSettings;
-import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
+import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -66,18 +64,18 @@ import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
 import io.evitadb.externalApi.grpc.testUtils.TestChannelCreator;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
-import io.evitadb.externalApi.grpc.utils.GrpcServer;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
+import io.evitadb.externalApi.http.ExternalApiServer;
+import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DbInstanceParameterResolver;
 import io.evitadb.utils.CollectionUtils;
 import io.grpc.ManagedChannel;
-import io.grpc.Server;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -86,11 +84,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.opentest4j.AssertionFailedError;
 
-import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -118,14 +114,32 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 class EvitaSessionServiceFunctionalTest {
 	private static final String THOUSAND_PRODUCTS = "ThousandProducts";
-	private static Server server;
-	private static ManagedChannel channel;
+	private static ExternalApiServer EXTERNAL_API_SERVER;
+	private static ManagedChannel CHANNEL;
 
-	@AfterAll
-	static void tearDown() {
-		if (!server.isTerminated()) {
-			server.shutdown();
-		}
+	@DataSet(THOUSAND_PRODUCTS)
+	List<SealedEntity> setUp(Evita evita) {
+		final ExternalApiServer externalApiServer = new ExternalApiServer(
+			evita,
+			ApiOptions.builder()
+				.enable(GrpcProvider.CODE)
+				.enable(SystemProvider.CODE)
+				.build()
+		);
+
+		// open the API on configured ports
+		externalApiServer.start();
+
+		EXTERNAL_API_SERVER = externalApiServer;
+		CHANNEL = TestChannelCreator.getChannel(new ClientSessionInterceptor(), externalApiServer);
+
+		return new TestDataProvider().generateEntities(evita);
+	}
+
+	@OnDataSetTearDown(THOUSAND_PRODUCTS)
+	void onDataSetTearDown() {
+		CHANNEL.shutdown();
+		EXTERNAL_API_SERVER.close();
 	}
 
 	@AfterEach
@@ -137,8 +151,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return default instance of entity when trying to get a non-existent entity")
 	void shouldThrowWhenAskingForNonExistingEntity(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final int primaryKey = -1;
 		final String entityType = Entities.PRODUCT;
@@ -157,8 +171,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return an existing entity specified by its primary key and entity type")
 	void shouldReturnExistingEntitySpecifiedByPrimaryKeyAndEntityType(Evita evita, List<SealedEntity> entities) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		//noinspection ConstantConditions
 		final int primaryKey = entities.stream()
@@ -187,8 +201,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return enriched existing entity specified by its primary key and entity type and require query")
 	void shouldReturnExistingEnrichedEntitySpecifiedByPrimaryKeyAndEntityTypeAndEntityContentRequires(Evita evita, List<SealedEntity> entities) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		//noinspection ConstantConditions
 		final int primaryKey = entities.stream()
@@ -222,8 +236,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of entity references")
 	void shouldReturnDataChunkOfEntityReferences(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -278,8 +292,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return list of entity references")
 	void shouldReturnListOfEntityReferences(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -332,8 +346,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should throw when queryOne returns more than one entity with queryOne")
 	void shouldThrowWhenQueryOneReturnsMoreThanOneEntity(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -371,8 +385,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return one entity when using queryOne and only one matches")
 	void shouldReturnOneEntityWhenUsingQueryOneAndProperlySpecified(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(4);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -420,8 +434,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should throw when trying to get hierarchy statistics of non-hierarchical entity collection")
 	void shouldFailWhenTryingToGetHierarchyStatisticsOnNotHierarchicalCollection(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -457,8 +471,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should throw when trying to get parents of non-hierarchical entity collection")
 	void shouldFailWhenTryingToGetParentsOfNotHierarchicalCollection(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -495,8 +509,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities with one language specified")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithOneLanguageSpecified(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(17);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -575,8 +589,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities with rich references")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithRichReferences(Evita evita, List<SealedEntity> entities) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final Integer primaryKey = entities.stream()
 			.filter(it -> !it.getReferences(Entities.PARAMETER).isEmpty())
@@ -639,8 +653,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities when using multiple filter conditions, using query enums and ordering by attributes with passed mix of named and positional parameters")
 	void shouldReturnDataChunkOfEnrichedEntitiesWhenFilteringByMultipleConditionsAndOrderingByAttributesMixedParams(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> positionalParams = new ArrayList<>(19);
 		positionalParams.add(convertQueryParam(Entities.PRODUCT));
@@ -744,8 +758,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities when using multiple filter conditions, using query enums and ordering by attributes with passed positional parameters")
 	void shouldReturnDataChunkOfEnrichedEntitiesWhenFilteringByMultipleConditionsAndOrderingByAttributesPositional(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> positionalParams = new ArrayList<>(19);
 		positionalParams.add(convertQueryParam(Entities.PRODUCT));
@@ -842,8 +856,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities when using multiple filter conditions, using query enums and ordering by attributes with passed named parameters")
 	void shouldReturnDataChunkOfEnrichedEntitiesWhenFilteringByMultipleConditionsAndOrderingByAttributesNamed(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final Map<String, QueryParam> namedParams = CollectionUtils.createHashMap(19);
 		namedParams.put("entitiesProduct", convertQueryParam(Entities.PRODUCT));
@@ -936,8 +950,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities with more than one language specified")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithMoreThanOneLanguageSpecified(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(17);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -1017,8 +1031,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return extra result of parents consisting of products referencing to its categories")
 	void shouldReturnParentsOfProductsReferencingToItsCategories(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(23);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -1119,8 +1133,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return all requested extra results")
 	void shouldReturnAllRequestedExtraResults(Evita evita, List<SealedEntity> entities) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(21);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -1195,8 +1209,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return rich facet summary")
 	void shouldReturnRichFacetSummary(Evita evita, List<SealedEntity> entities) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(21);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -1261,8 +1275,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of entity references with applied within hierarchy filter with computed hierarchy statistics and parents trees consisting of entity primary keys")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithHierarchyStatisticsAndParentsOfIntegers(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(5);
 		params.add(convertQueryParam(Entities.CATEGORY));
@@ -1330,8 +1344,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities with computed hierarchy statistics and parents trees consisting of enriched entities")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithHierarchyStatisticsAndParentsOfEntities(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(3);
 		params.add(convertQueryParam(Entities.CATEGORY));
@@ -1389,8 +1403,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should throw when trying to get size of non-existing collection")
 	void shouldThrowWhenTryingToGetSizeOfNonExistingCollection(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		assertThrows(StatusRuntimeException.class, () -> evitaSessionBlockingStub.getEntityCollectionSize(
 			GrpcEntityCollectionSizeRequest.newBuilder()
@@ -1403,8 +1417,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return entity count in collection when passing name of an existing one")
 	void shouldReturnWhenTryingToGetSizeOfExistingCollection(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final AtomicReference<GrpcEntityCollectionSizeResponse> response = new AtomicReference<>();
 
@@ -1426,8 +1440,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should throw when trying to delete a collection without read/write session")
 	void shouldNotDeleteCollectionWithoutReadWriteSession(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		assertThrows(StatusRuntimeException.class, () -> evitaSessionBlockingStub.deleteCollection(
 			GrpcDeleteCollectionRequest.newBuilder()
@@ -1440,8 +1454,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should not throw when trying to delete non-existing collection")
 	void shouldNotDeleteNonExistingCollection(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		final AtomicReference<GrpcDeleteCollectionResponse> response = new AtomicReference<>();
 
@@ -1460,8 +1474,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should delete collection when passing name of an existing collection")
 	void shouldDeleteExistingCollection(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		final AtomicReference<GrpcDeleteCollectionResponse> response = new AtomicReference<>();
 
@@ -1482,8 +1496,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return catalog schema")
 	void shouldReturnCatalogSchema(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final AtomicReference<GrpcCatalogSchemaResponse> response = new AtomicReference<>();
 
@@ -1528,8 +1542,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return catalog schema")
 	void shouldReturnEntitySchema(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final AtomicReference<GrpcEntitySchemaResponse> response = new AtomicReference<>();
 
@@ -1554,8 +1568,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return set of stored entity types")
 	void shouldReturnSetOfEntityTypes(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final AtomicReference<GrpcEntityTypesResponse> response = new AtomicReference<>();
 
@@ -1579,8 +1593,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should not be able switch catalog state to ALIVE and close current session since testing instance of evita's catalog is by default in ALIVE state ")
 	void shouldNotBeAbleToSwitchCatalogStateToAliveAndClose(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final Executable executable = () -> evitaSessionBlockingStub.goLiveAndClose(Empty.newBuilder().build());
 
@@ -1591,8 +1605,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to close currently active session upon which this test operates")
 	void shouldBeAbleToCloseCurrentlyActiveSessionUponWhichThisTestOperates(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final Executable executable = () -> evitaSessionBlockingStub.close(Empty.newBuilder().build());
 
@@ -1607,8 +1621,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should not be able to mutate entity with read-only session")
 	void shouldNotBeAbleMutateEntityWithReadOnlySession(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_ONLY);
 
 		final Executable executable = () -> evitaSessionBlockingStub.upsertEntity(
 			GrpcUpsertEntityRequest.newBuilder()
@@ -1643,8 +1657,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to mutate entity attributes with read-write session with one mutation specified")
 	void shouldBeAbleMutateEntityAttributesWithReadWriteSession(Evita evita, List<SealedEntity> entities) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		final SealedEntity selectedEntity = entities.stream()
 			.filter(it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
@@ -1782,8 +1796,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to mutate entity associated data with read-write session")
 	void shouldBeAbleMutateEntityAssociatedDataWithReadWriteSession(Evita evita, List<SealedEntity> entities) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		final SealedEntity existingEntity = entities.stream()
 			.filter(e -> e.getType().equals(Entities.PRODUCT) &&
@@ -1876,8 +1890,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to mutate entity prices with read-write session")
 	void shouldBeAbleMutateEntityPricesWithReadWriteSession(Evita evita, List<SealedEntity> entities) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		final SealedEntity existingEntity = entities.stream()
 			.filter(e -> e.getType().equals(Entities.PRODUCT) &&
@@ -2039,8 +2053,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to mutate entity hierarchy placement with read-write session")
 	void shouldBeAbleMutateEntityHierarchyPlacementWithReadWriteSession(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		List<SealedEntity> originalCategoryEntities = evita.createReadOnlySession(TEST_CATALOG)
 			.queryListOfSealedEntities(Query.query(
@@ -2168,8 +2182,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to create entity with specified references with read-write session")
 	void shouldBeAbleMutateEntityReferencesWithReadWriteSession(Evita evita, List<SealedEntity> entities) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		final GrpcEntityRequest newEntityRequest = GrpcEntityRequest.newBuilder()
 			.setEntityType(Entities.PRODUCT)
@@ -2392,8 +2406,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should throw exception when trying to open transaction when one is already open")
 	void shouldThrowWhenOpeningTransactionWhenAnotherAlreadyOpen(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		final Executable openTransactionExecutable = () -> evitaSessionBlockingStub.openTransaction(Empty.getDefaultInstance());
 
@@ -2405,8 +2419,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should throw exception when trying to close transaction when none is open")
 	void shouldThrowWhenClosingTransactionWhenNoneOpen(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE);
 
 		evitaSessionBlockingStub.openTransaction(Empty.getDefaultInstance());
 
@@ -2424,8 +2438,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should write changes to database only after transaction is closed")
 	void shouldWriteChangesToDatabaseAfterCloseTransaction(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE, false);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.READ_WRITE, false);
 
 		final int primaryKey = 99999;
 		final String entityType = Entities.CATEGORY;
@@ -2472,8 +2486,8 @@ class EvitaSessionServiceFunctionalTest {
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@DisplayName("Should return query record page in binary data format")
 	void shouldReturnQueryRecordPageInBinaryDataFormat(Evita evita) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.BINARY_READ_ONLY);
+		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(CHANNEL);
+		SessionInitializer.setSession(CHANNEL, GrpcSessionType.BINARY_READ_ONLY);
 
 		final List<QueryParam> params = new ArrayList<>(8);
 		params.add(convertQueryParam(Entities.PRODUCT));
@@ -2527,24 +2541,4 @@ class EvitaSessionServiceFunctionalTest {
 		}
 	}
 
-	@DataSet(THOUSAND_PRODUCTS)
-	List<SealedEntity> setUp(Evita evita) {
-		initGrpcServerAndChannel(new EvitaSystemDataProvider(evita), new GrpcConfig());
-
-		return new TestDataProvider().generateEntities(evita);
-	}
-
-	private void initGrpcServerAndChannel(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull GrpcConfig apiConfig) {
-		if (server != null && !server.isTerminated()) {
-			server.shutdown();
-		}
-		final GrpcServer grpcServer = new GrpcServer(evitaSystemDataProvider, new ApiOptions(null, new CertificateSettings.Builder().build(), Collections.emptyMap()), apiConfig);
-		try {
-			server = grpcServer.getServer().start();
-		} catch (Exception e) {
-			log.error("Failed to start server", e);
-		}
-
-		channel = TestChannelCreator.getChannel(new ClientSessionInterceptor(), server.getPort());
-	}
 }

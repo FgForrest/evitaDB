@@ -163,7 +163,7 @@ public class SetReferenceGroupMutation extends ReferenceMutation<ReferenceKey> i
 	public ReferenceContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable ReferenceContract existingValue) {
 		Assert.isTrue(
 			existingValue != null && existingValue.exists(),
-			() -> new InvalidMutationException("Cannot remove reference " + referenceKey + " - reference doesn't exist!")
+			() -> new InvalidMutationException("Cannot set reference group " + referenceKey + " - reference doesn't exist!")
 		);
 
 		final Optional<GroupEntityReference> existingReferenceGroup = existingValue.getGroup();

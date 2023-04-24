@@ -463,12 +463,14 @@ public class ExistingAttributesBuilder implements AttributesBuilder {
 	@Nonnull
 	@Override
 	public Stream<? extends AttributeMutation> buildChangeSet() {
+		final Map<AttributeKey, AttributeValue> builtAttributes = new HashMap<>(baseAttributes.attributeValues);
 		return attributeMutations.values()
 			.stream()
 			.filter(it -> {
-				final AttributeValue existingValue = baseAttributes.getAttributeValue(it.getAttributeKey());
-				return existingValue == null ||
-					it.mutateLocal(entitySchema, existingValue).getVersion() > existingValue.getVersion();
+				final AttributeValue existingValue = builtAttributes.get(it.getAttributeKey());
+				final AttributeValue newAttribute = it.mutateLocal(entitySchema, existingValue);
+				builtAttributes.put(it.getAttributeKey(), newAttribute);
+				return existingValue == null || newAttribute.getVersion() > existingValue.getVersion();
 			});
 	}
 

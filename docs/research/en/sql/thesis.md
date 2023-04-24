@@ -41,7 +41,7 @@ described in more detail in
 the [initial analysis](#appendix-a-postgresql-selection-rationale).
 
 SQL implementation is fully functional as per the standards set out
-by _[Evita](/research/thesis-assignment/index)_. We managed to meet the criteria for judging all solutions
+by _[Evita](../assignment/index)_. We managed to meet the criteria for judging all solutions
 solely on their performance without having a dilemma of sacrificing speed for necessary functionality. This document
 describes how we achieved our goals along with our thought processes on why we implemented Evita in a specific manner.
 We will also try to describe uncommon, interesting, or significant hurdles we encountered during the whole process.
@@ -59,7 +59,7 @@ plans changed drastically as the implementation went on. For reference, we can c
 ![updated_model](assets/updated_model.png "Updated model")
 
 As the figure above shows, there are several essential changes, mainly thanks to a better understanding of the API.
-Further changes had also been made for optimization sake. Our original model presented considerable difficulties with
+For the sake of optimization, other changes were also made. Our original model presented considerable difficulties with
 the conversion of entities between the Java memory model and the relational model. Furthermore, it did not properly
 reflect the universality of data types.
 
@@ -614,7 +614,7 @@ Therefore, we end up using a single combined BTREE index capable of index-only s
 
 In this part, we will look at how we implemented the queries related to the hierarchy of Entities. Our main concern here
 is the implementation of constraints `within hierarchy` and `within root hierarchy`. As it has
-been [explained in the documentation](/research/thesis-assignment/querying/query_language#within-hierarchy-and-within-root-hierarchy),
+been [explained in the documentation](../assignment/querying/query_language#within-hierarchy-and-within-root-hierarchy),
 these constraints along with their additional arguments allow us to adjust queries as needed for querying within the
 hierarchy of entities.
 
@@ -707,7 +707,7 @@ instead of having the user-defined one. This soon changed, as using `integer`, e
 and the new root of the hierarchy was set to null. We quickly discovered further problems which led to the creation of a
 table that was essential for the explanation of all the ways to query the hierarchical entities along with all their
 constraints. This table can be
-found [in the documentation](/research/thesis-assignment/querying/query_language#within-hierarchy-and-within-root-hierarchy).
+found [in the documentation](../assignment/querying/query_language#within-hierarchy-and-within-root-hierarchy).
 This, however, showed us that we had underestimated the complexities and could not use the wrapper strategy.
 
 Our main problem was `null`, which served as a `virtual` root for the queries. This presented a serious problem in
@@ -1323,7 +1323,7 @@ The testing queries were run against generated dataset of these row counts:
 | Assoc. data | 3000000 |
 
 In the table below are results of initial testing of our designed model on example queries. Concrete SQL
-queries can be found [here](../spike/query_testing/queries).
+queries can be found here: <SourceClass>docs/research/en/sql/assets/query_testing/queries</SourceClass>.
 
 | **Required output**                                          | **Time [ms]** |
 | ------------------------------------------------------------ | --------------- |

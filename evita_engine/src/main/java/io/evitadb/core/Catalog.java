@@ -636,7 +636,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Nonnull
 	@Override
 	public Catalog createCopyWithMergedTransactionalMemory(@Nullable DataSourceChanges<CatalogIndexKey, CatalogIndex> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(schema, transaction);
+		final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(schema, transaction).orElseThrow();
 		final DataSourceChanges<CatalogIndexKey, CatalogIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayer(this);
 
 		final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(entityCollections);

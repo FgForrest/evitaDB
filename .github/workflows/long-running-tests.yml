@@ -1,0 +1,46 @@
+# Nightly job, that should execute all tests (including long-running ones) when something was committed.
+name: All tests including long-running
+
+on:
+  workflow_dispatch: # allows manual triggering
+  schedule:
+    - cron: '0 0 * * 1' # runs on Monday morning
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      # inspiration from https://github.com/nvim-neorocks/luarocks-tag-release#version-optional
+      - name: Get new commits   # initialize github env variable with count of commits into the repository that day
+        run: |
+          echo "NEW_COMMIT_COUNT=$(git log --oneline --since '168 hours ago' | wc -l)" >> $GITHUB_ENV
+          echo "Commits found: $NEW_COMMIT_COUNT"
+
+      - name: Setup Java JDK   # this should setup JDK 17 but only if something was committed this day
+        uses: actions/setup-java@v3
+        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
+        with:
+           distribution: 'temurin'
+           java-version: '17'
+           cache: 'maven'
+
+      - name: Build with Maven   # this run Maven tests but only if something was committed this day
+        if: ${{ env.NEW_COMMIT_COUNT > 0 }}
+        run: mvn -B package jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+
+      - name: Upload test results  # this upload test results but only if something was committed this day
+        uses: actions/upload-artifact@v2
+        if: ${{ env.NEW_COMMIT_COUNT > 0 }} && (success() || failure())
+        with:
+          name: test-results
+          path: 'evita*/**/target/surefire-reports/TEST-*.xml'
+
+      - name: Upload coverage to Codecov  # this upload test coverage but only if something was committed this day
+        uses: codecov/codecov-action@v3
+        if: ${{ env.NEW_COMMIT_COUNT > 0 }}

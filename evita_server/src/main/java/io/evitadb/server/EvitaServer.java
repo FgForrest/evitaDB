@@ -40,6 +40,9 @@ import io.evitadb.server.configuration.EvitaServerConfiguration;
 import io.evitadb.server.exception.ConfigurationParseException;
 import io.evitadb.server.yaml.AbstractClassDeserializer;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.ConsoleWriter;
+import io.evitadb.utils.ConsoleWriter.ConsoleColor;
+import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import lombok.Getter;
 import org.apache.commons.text.StringSubstitutor;
 import org.apache.commons.text.io.StringSubstitutorReader;
@@ -144,19 +147,18 @@ public class EvitaServer {
 		// and then initialize logger so that `logback.configurationFile` argument might apply
 		log = LoggerFactory.getLogger(EvitaServer.class);
 
-		System.out.printf(
+		ConsoleWriter.write(
 			"""
-				             _ _        ____  ____ \s
-				   _____   _(_) |_ __ _|  _ \\| __ )\s
-				  / _ \\ \\ / / | __/ _` | | | |  _ \\\s
-				 |  __/\\ V /| | || (_| | |_| | |_) |
-				  \\___| \\_/ |_|\\__\\__,_|____/|____/\s
-				                                   \s
-				alpha build %s (keep calm and report bugs 😉)
-				https://evitadb.io
-				   
-				""", readVersion()
+				\n\n            _ _        ____  ____ \s
+				  _____   _(_) |_ __ _|  _ \\| __ )\s
+				 / _ \\ \\ / / | __/ _` | | | |  _ \\\s
+				|  __/\\ V /| | || (_| | |_| | |_) |
+				 \\___| \\_/ |_|\\__\\__,_|____/|____/\s\n\n""",
+			ConsoleColor.DARK_GREEN
 		);
+		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[] {readVersion()}, ConsoleColor.LIGHT_GRAY);
+		ConsoleWriter.write("Visit us at: ");
+		ConsoleWriter.write("https://evitadb.io\n\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 
 		final Path configFilePath = ofNullable(options.get(OPTION_EVITA_CONFIGURATION_FILE))
 			.map(it -> Paths.get("").resolve(it))
@@ -253,7 +255,7 @@ public class EvitaServer {
 		if (externalApiServer != null) {
 			externalApiServer.close();
 		}
-		getLog().info("Server stopped.");
+		ConsoleWriter.write("Server stopped, bye.");
 	}
 
 	/**

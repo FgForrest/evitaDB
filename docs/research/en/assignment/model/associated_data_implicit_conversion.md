@@ -41,7 +41,7 @@ new InitialEntityBuilder('product')
 
 All [properties that comply with JavaBean naming rules](https://www.baeldung.com/java-pojo-class#what-is-a-javabean) and
 have both an accessor, a mutator method (i.e. `get` and `set` methods for the property) and are not annotated with
-<SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/data/NonSerializedData.java</SourceClass> 
+<SourceClass>[NonSerializedData.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/data/NonSerializedData.java)</SourceClass>
 annotation, are serialized into a complex type. See the following example:
 
 ``` java
@@ -91,8 +91,7 @@ public class ProductStockAvailabilityDTO implements Serializable {
 ```
 
 If the serialization process encounters any property that cannot be serialized, the
-<SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/exception/SerializationFailedException.java</SourceClass>
-is thrown.
+<SourceClass>[SerializationFailedException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/SerializationFailedException.java)</SourceClass> is thrown.
 
 ### Generic collections
 
@@ -142,21 +141,20 @@ final ProductStockAvailabilityDTO stockAvailability = entity.getAssociatedData(
 );
 ```
 
-Complex types are internally converted to a <SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/dataType/ComplexDataObject.java</SourceClass>
-type, that can be safely stored in evitaDB storage. The (de)serialization process is also designed to prevent data
-loss, and allow model evolution.
+Complex types are internally converted to a <SourceClass>[ComplexDataObject.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/dataType/ComplexDataObject.java)</SourceClass> type, 
+that can be safely stored in evitaDB storage. The (de)serialization process is also designed to prevent data loss, and allow model evolution.
 
 The deserialization process may fail with two exceptions:
 
-- <SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/exception/UnsupportedDataTypeException.java</SourceClass>
+- <SourceClass>[UnsupportedDataTypeException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/UnsupportedDataTypeException.java)</SourceClass>
   is raised when certain property cannot be deserialized due to an incompatibility
   with the specified [contract](#complex-type-can-contain-properties-of)
-- <SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java</SourceClass>
+- <SourceClass>[IncompleteDeserializationException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java)</SourceClass>
   is raised when any of the serialized data was not deserialized due to a lack of a mutator method on the class it's being converted to
   
 ### Field removal
 
-The <SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java</SourceClass>
+The <SourceClass>[IncompleteDeserializationException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java)</SourceClass> 
 exception protects developers from unintentional data loss by making a mistake in the Java model and then executing:
 
 - a fetch of existing complex type
@@ -164,7 +162,7 @@ exception protects developers from unintentional data loss by making a mistake i
 - storing it back again to evitaDB
 
 If there is legal reason for dropping some data stored along with its complex type in the previous versions of the application,
-you can use <SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/data/DiscardedData.java</SourceClass> annotation
+you can use <SourceClass>[DiscardedData.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/data/DiscardedData.java)</SourceClass> annotation
 on any complex type class to declare that it is ok to throw away data during deserialization.
 
 **Example:**
@@ -196,10 +194,9 @@ public class ProductStockAvailabilityDTO implements Serializable {
 
 There are also situations when you need to rename the field (for example you made a typo in the previous version of the
 Java Bean type). In such case you'd also experience the
-<SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java</SourceClass>,
+<SourceClass>[IncompleteDeserializationException.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/exception/IncompleteDeserializationException.java)</SourceClass>
 when you try to deserialize the type with the corrected Java Bean definition. In this situation, you can use the
-<SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/data/RenamedData.java</SourceClass>
-annotation to migrate old versions of data.
+<SourceClass>[RenamedData.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/data/RenamedData.java)</SourceClass> annotation to migrate old versions of data.
 
 **Example:**
 
@@ -233,7 +230,7 @@ public class ProductStockAvailabilityDTO implements Serializable {
 ```
 
 We may get rid of those annotations when we're confident there is no data with the old contents in evitaDB.
-Annotation <SourceClass branch="POC">evita_data_types/src/main/java/io/evitadb/api/data/RenamedData.java</SourceClass> 
+Annotation <SourceClass>[RenamedData.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_data_types/src/main/java/io/evitadb/api/data/RenamedData.java)</SourceClass>
 can also be used for model evolution - i.e. automatic translation of an old data format to the new one.
 
 **Example:**

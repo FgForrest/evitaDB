@@ -372,13 +372,15 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	@Override
 	public Stream<? extends AssociatedDataMutation> buildChangeSet() {
+		final Map<AssociatedDataKey, AssociatedDataValue> builtDataValues = new HashMap<>(baseAssociatedData.associatedDataValues);
 		return associatedDataMutations
 			.values()
 			.stream()
 			.filter(it -> {
-				final AssociatedDataValue existingValue = baseAssociatedData.getAssociatedDataValue(it.getAssociatedDataKey());
-				return existingValue == null ||
-					it.mutateLocal(entitySchema, existingValue).getVersion() > existingValue.getVersion();
+				final AssociatedDataValue existingValue = builtDataValues.get(it.getAssociatedDataKey());
+				final AssociatedDataValue newAssociatedData = it.mutateLocal(entitySchema, existingValue);
+				builtDataValues.put(it.getAssociatedDataKey(), newAssociatedData);
+				return existingValue == null || newAssociatedData.getVersion() > existingValue.getVersion();
 			});
 	}
 

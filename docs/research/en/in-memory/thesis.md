@@ -2063,7 +2063,7 @@ processing the [facet summary computation](#facet-summary), should it be require
 ### Price queries
 
 The price queries are the most complex queries in evitaDB.
-The [selling price selection algorithm](https://gitlab.fg.cz/hv/evita/-/blob/master/docs/fct_specs/querying/price_computation.md)
+The [selling price selection algorithm](../assignment/querying/price_computation.md)
 is quite complex itself and the cardinality of prices is often much larger than the cardinality of attributes. The topic
 is already discussed in [the price index chapter](#price-index).
 
