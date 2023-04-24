@@ -27,8 +27,8 @@ import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
-import io.evitadb.externalApi.api.system.model.RenameCatalogMutationHeaderDescriptor;
+import io.evitadb.core.Evita;
+import io.evitadb.externalApi.graphql.api.system.model.RenameCatalogMutationHeaderDescriptor;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -41,7 +41,7 @@ import javax.annotation.Nonnull;
 @RequiredArgsConstructor
 public class RenameCatalogMutatingDataFetcher implements DataFetcher<DataFetcherResult<CatalogContract>> {
 
-    private final EvitaSystemDataProvider evitaSystemDataProvider;
+    private final Evita evita;
 
     @Nonnull
     @Override
@@ -49,8 +49,8 @@ public class RenameCatalogMutatingDataFetcher implements DataFetcher<DataFetcher
         final String catalogName = environment.getArgument(RenameCatalogMutationHeaderDescriptor.NAME.name());
         final String newCatalogName = environment.getArgument(RenameCatalogMutationHeaderDescriptor.NEW_NAME.name());
 
-        evitaSystemDataProvider.getEvita().renameCatalog(catalogName, newCatalogName);
-        final CatalogContract renamedCatalog = evitaSystemDataProvider.getCatalog(newCatalogName);
+        evita.renameCatalog(catalogName, newCatalogName);
+        final CatalogContract renamedCatalog = evita.getCatalogInstanceOrThrowException(newCatalogName);
 
         return DataFetcherResult.<CatalogContract>newResult()
             .data(renamedCatalog)

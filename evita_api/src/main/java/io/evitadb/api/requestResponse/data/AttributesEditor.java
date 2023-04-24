@@ -113,7 +113,7 @@ public interface AttributesEditor<W extends AttributesEditor<W>> extends Attribu
 	/**
 	 * Interface that simply combines writer and builder contracts together.
 	 */
-	interface AttributesBuilder extends AttributesEditor<AttributesBuilder>, Builder<Attributes> {
+	interface AttributesBuilder extends AttributesEditor<AttributesBuilder>, BuilderContract<Attributes> {
 
 		@Nonnull
 		@Override

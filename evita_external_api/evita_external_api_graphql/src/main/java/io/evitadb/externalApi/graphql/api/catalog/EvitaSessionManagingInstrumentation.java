@@ -71,7 +71,7 @@ public class EvitaSessionManagingInstrumentation extends SimpleInstrumentation {
             evitaSession = evita.createReadWriteSession(catalogName);
             evitaSession.openTransaction();
         } else {
-            throw new GraphQLSchemaBuildingError("Operation `" + operation + "` is currently not supported by Evita GraphQL API.");
+            throw new GraphQLSchemaBuildingError("Operation `" + operation + "` is currently not supported by evitaDB GraphQL API.");
         }
         executionContext.getGraphQLContext().put(GraphQLContextKey.EVITA_SESSION, evitaSession);
 

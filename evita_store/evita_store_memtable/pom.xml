@@ -32,7 +32,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_store</artifactId>
-		<version>0.5-SNAPSHOT</version>
+		<version>0.6-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
@@ -40,12 +40,6 @@
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_store_common</artifactId>
 			<version>${project.parent.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>roaringbitmaps_workaround_build</artifactId>
-			<version>${project.parent.version}</version>
-			<scope>test</scope>
 		</dependency>
 	</dependencies>
 </project>

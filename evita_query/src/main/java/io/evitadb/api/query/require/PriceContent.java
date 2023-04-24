@@ -26,9 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -58,12 +58,12 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity prices into the returned entities.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceContent extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, CombinableEntityContentRequire {
+public class PriceContent extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, EntityContentRequire {
 	public static final String[] EMPTY_PRICE_LISTS = new String[0];
 	@Serial private static final long serialVersionUID = -8521118631539528009L;
 
@@ -79,13 +79,14 @@ public class PriceContent extends AbstractRequireConstraintLeaf implements Price
 		this(PriceContentMode.RESPECTING_FILTER, priceLists);
 	}
 
-	@ConstraintCreatorDef
-	public PriceContent(@Nonnull @ConstraintValueParamDef PriceContentMode fetchMode) {
+	public PriceContent(@Nonnull @Value PriceContentMode fetchMode) {
 		super(fetchMode);
 	}
 
-	public PriceContent(@Nonnull @ConstraintValueParamDef PriceContentMode fetchMode, @Nonnull String... priceLists) {
-		super(ArrayUtils.mergeArrays(new Serializable[] {fetchMode}, priceLists));
+	@Creator
+	public PriceContent(@Nonnull @Value PriceContentMode contentMode,
+	                    @Nonnull @Value String... priceLists) {
+		super(ArrayUtils.mergeArrays(new Serializable[] {contentMode}, priceLists));
 	}
 
 	/**
@@ -114,7 +115,7 @@ public class PriceContent extends AbstractRequireConstraintLeaf implements Price
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends CombinableEntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof PriceContent, "Only Prices requirement can be combined with this one!");
 		final PriceContent anotherPriceContent = (PriceContent) anotherRequirement;
 		if (anotherPriceContent.getFetchMode().ordinal() >= getFetchMode().ordinal()) {

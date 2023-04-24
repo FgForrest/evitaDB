@@ -57,6 +57,11 @@ public class GrpcConfig extends AbstractApiConfiguration {
 		mtlsConfiguration = new MtlsConfiguration(false, List.of());
 	}
 
+	public GrpcConfig(@Nonnull String host) {
+		super(true, host);
+		mtlsConfiguration = new MtlsConfiguration(false, List.of());
+	}
+
 	@JsonCreator
 	public GrpcConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                  @Nonnull @JsonProperty("host") String host,

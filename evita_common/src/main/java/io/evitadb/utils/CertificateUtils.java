@@ -126,6 +126,7 @@ public class CertificateUtils {
 	 * @param certificate the certificate of which fingerprint should be calculated
 	 * @return a fingerprint of the provided certificate
 	 */
+	@Nonnull
 	public static String getCertificateFingerprint(@Nonnull Certificate certificate) throws NoSuchAlgorithmException, CertificateEncodingException {
 		final StringBuilder sb = new StringBuilder(128);
 		final MessageDigest md = MessageDigest.getInstance("SHA-256");

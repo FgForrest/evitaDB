@@ -23,11 +23,11 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model;
 
-import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
- * Descriptor for header arguments of {@link CatalogRootDescriptor#ENTITY_QUERY}
+ * Descriptor for header arguments of {@link CatalogDataApiRootDescriptor#QUERY_ENTITY}
  * query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
@@ -53,7 +53,7 @@ public interface QueryEntitiesQueryHeaderDescriptor {
 		.description("""
 			Complex require query to alter query behaviour.
 			Because most of require constraints are resolved from client-defined output objects structure we need only
-			few left constraints that cannot be resolved from output structure because they usually change whole Evita
+			few left constraints that cannot be resolved from output structure because they usually change whole evitaDB
 			query behaviour.
 			""")
 		// type is expected to be tree of require constraints

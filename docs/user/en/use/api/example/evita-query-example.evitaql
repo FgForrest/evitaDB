@@ -1,0 +1,32 @@
+query(
+   collection('product'),
+   filterBy(
+      and(
+         hierarchyWithin(
+            'categories',
+            entityHaving(
+               attributeEquals('url', '/local-food')
+            )
+         ),
+         entityLocaleEquals('cs-CZ'),
+         priceValidIn(),
+         priceInCurrency('CZK'),
+         priceInPriceLists('vip', 'loyal-customer', 'regular-prices'),
+         userFilter(
+            facetInSet(
+               'parameter',
+               entityHaving(
+                  attributeInSet('code', 'gluten-free', 'original-recipe')
+               )
+            ),
+            priceBetween('600', '1600')
+         )
+      )
+   ),
+   require(
+      page(1, 20),
+      facetSummary(IMPACT),
+      priceType(WITH_TAX),
+      priceHistogram(30)
+   )
+)

@@ -27,6 +27,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import lombok.Getter;
 import org.bouncycastle.asn1.ASN1Encodable;
@@ -120,8 +121,12 @@ public class ServerCertificateManager {
 			certPrivateKeyPassword = certificatePath.privateKeyPassword();
 		}
 		return new CertificatePath(
-			certPath.toAbsolutePath().toString(),
-			certPrivateKeyPath.toAbsolutePath().toString(),
+			ofNullable(certPath.toAbsolutePath())
+				.map(it -> it.toAbsolutePath().toString())
+				.orElse(null),
+			ofNullable(certPrivateKeyPath)
+				.map(it -> it.toAbsolutePath().toString())
+				.orElse(null),
 			certPrivateKeyPassword
 		);
 	}
@@ -135,8 +140,7 @@ public class ServerCertificateManager {
 		Security.addProvider(BOUNCY_CASTLE_PROVIDER);
 		final File file = this.certificateFolderPath.toFile();
 		if (!file.exists()) {
-			//noinspection ResultOfMethodCallIgnored
-			file.mkdir();
+			Assert.isTrue(file.mkdir(), "Failed to create directory: " + this.certificateFolderPath);
 		}
 	}
 

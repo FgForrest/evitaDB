@@ -22,6 +22,7 @@
  */
 
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.rest.RestProviderRegistrar;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 /**
@@ -32,11 +33,15 @@ module evita.external.api.rest {
 	uses CatalogPersistenceServiceFactory;
 	uses ExternalApiProviderRegistrar;
 
-	provides ExternalApiProviderRegistrar with io.evitadb.externalApi.rest.RESTProviderRegistrar;
+	provides ExternalApiProviderRegistrar with RestProviderRegistrar;
 
 	opens io.evitadb.externalApi.rest.configuration to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.rest.io.model to com.fasterxml.jackson.databind;
-	opens io.evitadb.externalApi.rest.io.serializer to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.resolver.serializer to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.catalog.dataApi.dto to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.catalog.schemaApi.dto to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.system.dto to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer to com.fasterxml.jackson.databind;
+	opens io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer to com.fasterxml.jackson.databind;
 
 	requires static jsr305;
 	requires static lombok;
@@ -54,8 +59,8 @@ module evita.external.api.rest {
 	requires evita.query;
 	requires evita.engine;
 
+	exports io.evitadb.externalApi.rest;
 	exports io.evitadb.externalApi.rest.io;
-	exports io.evitadb.externalApi.rest.io.handler;
-	exports io.evitadb.externalApi.rest.io.handler.constraint;
+	exports io.evitadb.externalApi.rest.configuration;
 
 }

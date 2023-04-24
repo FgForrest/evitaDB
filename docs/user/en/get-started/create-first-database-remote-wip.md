@@ -3,7 +3,6 @@ title: Create first database
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 This 10-minutes introduction will guide you through creating a sample CRUD application for a simplified e-commerce
@@ -82,7 +81,7 @@ are stated in [Java connector chapter](../use/connectors/java.md).
 ## Define schema for your catalog
 
 When you start the application for the first time, evitaDB will be completely empty. You need first to define
-a new <Term document="docs/user/en/index.md">catalog</Term> for your data.
+a new <Term location="docs/user/en/index.md">catalog</Term> for your data.
 
 ```
 shell:>create-catalog mycatalog

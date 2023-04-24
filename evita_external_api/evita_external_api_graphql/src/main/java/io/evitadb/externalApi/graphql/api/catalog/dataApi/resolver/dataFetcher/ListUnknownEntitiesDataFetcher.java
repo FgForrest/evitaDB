@@ -43,6 +43,10 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -57,6 +61,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -79,6 +84,9 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 @Slf4j
 public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherResult<List<EntityClassifier>>> {
 
+    /**
+     * Schema of catalog to which this fetcher is mapped to.
+     */
     @Nonnull
     private final CatalogSchemaContract catalogSchema;
     /**
@@ -89,14 +97,21 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
     @Nonnull
     private final Map<String, String> entityDtoObjectTypeNameByEntityType;
 
+    @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
+
     public ListUnknownEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull Set<EntitySchemaContract> allEntitySchemas) {
         this.catalogSchema = catalogSchema;
-
         this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
         this.entityDtoObjectTypeNameByEntityType = createHashMap(allEntitySchemas.size());
-
         allEntitySchemas.forEach(entitySchema ->
             this.entityDtoObjectTypeNameByEntityType.put(entitySchema.getName(), entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION)));
+
+        this.entityFetchRequireResolver = new EntityFetchRequireResolver(
+            catalogSchema::getEntitySchemaOrThrowException,
+            new FilterConstraintResolver(catalogSchema),
+            new OrderConstraintResolver(catalogSchema)
+        );
+
     }
 
     @Nonnull
@@ -110,7 +125,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
             filterBy,
             require
         );
-        log.debug("Generated Evita query for single unknown entity fetch `{}`.", query);
+        log.debug("Generated evitaDB query for single unknown entity fetch `{}`.", query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
         final List<SealedEntity> entityReferences = evitaSession.queryList(query, SealedEntity.class);
@@ -172,16 +187,18 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
     @Nonnull
     private EntityContentRequire[] buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment,
                                                           @Nonnull String entityType) {
-        final EntityFetch entityFetch = EntityFetchRequireBuilder.buildEntityRequirement(
+        final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
             SelectionSetWrapper.from(
                 environment.getSelectionSet(),
                 entityDtoObjectTypeNameByEntityType.get(entityType)
             ),
             null,
-            entitySchemaFetcher.apply(entityType),
-            entitySchemaFetcher
+            entitySchemaFetcher.apply(entityType)
         );
-        return entityFetch == null ? new EntityContentRequire[0] : entityFetch.getRequirements();
+
+        return entityFetch
+            .map(EntityFetch::getRequirements)
+            .orElse(new EntityContentRequire[0]);
     }
 
     /**

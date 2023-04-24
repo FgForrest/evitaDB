@@ -26,10 +26,10 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.utils.Assert;
 
@@ -37,7 +37,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
@@ -64,7 +63,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "summary",
 	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with default \"fetching\" settings for all referenced entities."
 )
@@ -99,9 +98,9 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 		super(new Serializable[] {statisticsDepth}, facetEntityRequirement, groupEntityRequirement);
 	}
 
-	@ConstraintCreatorDef
-	public FacetSummary(@Nonnull @ConstraintValueParamDef FacetStatisticsDepth statisticsDepth,
-	                    @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) EntityRequire... requirements) {
+	@Creator
+	public FacetSummary(@Nonnull @Value FacetStatisticsDepth statisticsDepth,
+	                    @Nonnull @Child(uniqueChildren = true) EntityRequire... requirements) {
 		super(new Serializable[] {statisticsDepth}, requirements);
 		Assert.isTrue(
 			requirements.length <= 2,
@@ -125,7 +124,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	}
 
 	/**
-	 * Returns requirements for facet entities.
+	 * Returns content requirements for facet entities.
 	 */
 	@Nullable
 	public EntityFetch getFacetEntityRequirement() {
@@ -144,7 +143,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	}
 
 	/**
-	 * Returns requirements for group entities.
+	 * Returns content requirements for group entities.
 	 */
 	@Nullable
 	public EntityGroupFetch getGroupEntityRequirement() {
@@ -163,22 +162,14 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
 		return true;
 	}
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-			.map(c -> (RequireConstraint) c)
-			.toArray(RequireConstraint[]::new);
-		return new FacetSummary(getArguments(), requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new FacetSummary(getArguments(), children);
 	}
 
 	@Nonnull

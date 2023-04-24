@@ -33,7 +33,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>0.5-SNAPSHOT</version>
+		<version>0.6-SNAPSHOT</version>
 		<relativePath>../../pom.xml</relativePath>
 	</parent>
 	<properties>
@@ -140,12 +140,6 @@
 			<groupId>io.netty</groupId>
 			<artifactId>netty-handler</artifactId>
 			<version>${nettyHandler.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>io.evitadb</groupId>
-			<artifactId>evita_test_support</artifactId>
-			<version>${project.version}</version>
-			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>com.google.guava</groupId>

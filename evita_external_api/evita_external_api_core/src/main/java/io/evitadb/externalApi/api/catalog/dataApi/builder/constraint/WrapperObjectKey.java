@@ -23,16 +23,22 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
+import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorWithReference;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.ToString;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.security.SecureRandom;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -52,6 +58,8 @@ import java.util.Objects;
 @ToString(callSuper = true)
 public class WrapperObjectKey extends CachableElementKey {
 
+	private static final SecureRandom SRND = new SecureRandom();
+
 	/**
 	 * Actual value parameters of the object.
 	 */
@@ -62,14 +70,21 @@ public class WrapperObjectKey extends CachableElementKey {
 	 */
 	@Nullable
 	private final ChildParameterDescriptor childParameter;
+	/**
+	 * Actual additional child parameters of the object, defining nested structure
+	 */
+	@Nonnull
+	private final List<AdditionalChildParameterDescriptor> additionalChildParameters;
 
 	public WrapperObjectKey(@Nonnull ConstraintType containerType,
 	                        @Nonnull DataLocator dataLocator,
 	                        @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                        @Nullable ChildParameterDescriptor childParameter) {
+	                        @Nullable ChildParameterDescriptor childParameter,
+	                        @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters) {
 		super(containerType, dataLocator);
 		this.valueParameters = valueParameters;
 		this.childParameter = childParameter;
+		this.additionalChildParameters = additionalChildParameters;
 	}
 
 	@Override
@@ -77,7 +92,7 @@ public class WrapperObjectKey extends CachableElementKey {
 	public String toHash() {
 		final LongHashFunction hashFunction = LongHashFunction.xx3();
 		final long keyHash;
-		if (childParameter == null) {
+		if (childParameter == null && additionalChildParameters.isEmpty()) {
 			// if there is only flat structure of primitive values, we can simplify hash and reuse the object more,
 			// because primitive value parameters are not dependent on build context
 			keyHash = primitiveKeyToHash(hashFunction);
@@ -93,24 +108,17 @@ public class WrapperObjectKey extends CachableElementKey {
 		if (o == null || getClass() != o.getClass()) return false;
 
 		final WrapperObjectKey that = (WrapperObjectKey) o;
-		if (getChildParameter() == null) {
-			return that.getChildParameter() == null &&
-				Objects.equals(getValueParameters(), that.getValueParameters());
-		} else {
-			return super.equals(o) &&
-				Objects.equals(getValueParameters(), that.getValueParameters()) &&
-				Objects.equals(getChildParameter(), that.getChildParameter());
-		}
+		return Objects.equals(toHash(), that.toHash());
 	}
 
 	@Override
 	public int hashCode() {
-		if (childParameter == null) {
+		if (getChildParameter() == null && getAdditionalChildParameters().isEmpty()) {
 			// if there is only flat structure of primitive values, we can simplify hash and reuse the object more,
 			// because primitive value parameters are not dependent on build context
 			return Objects.hash(getValueParameters());
 		} else {
-			return Objects.hash(getContainerType(), getDataLocator(), getValueParameters(), getChildParameter());
+			return Objects.hash(getContainerType(), getDataLocator(), getValueParameters(), getChildParameter(), getAdditionalChildParameters());
 		}
 	}
 
@@ -132,7 +140,8 @@ public class WrapperObjectKey extends CachableElementKey {
 			hashContainerType(hashFunction),
 			hashDataLocator(hashFunction),
 			hashValueParameters(hashFunction),
-			hashChildParameter(hashFunction)
+			hashChildParameter(hashFunction),
+			hashAdditionalChildParameters(hashFunction)
 		});
 	}
 
@@ -152,10 +161,14 @@ public class WrapperObjectKey extends CachableElementKey {
 	}
 
 	private long hashChildParameter(@Nonnull LongHashFunction hashFunction) {
+		if (childParameter == null) {
+			return hashFunction.hashLongs(new long[0]);
+		}
 		return hashFunction.hashLongs(new long[]{
 			hashFunction.hashChars(childParameter.name()),
 			hashFunction.hashChars(childParameter.type().getSimpleName()),
 			hashFunction.hashBoolean(childParameter.required()),
+			hashDomain(hashFunction, childParameter.domain()),
 			hashFunction.hashBoolean(childParameter.uniqueChildren()),
 			hashFunction.hashLongs(
 				childParameter.allowedChildTypes()
@@ -174,5 +187,45 @@ public class WrapperObjectKey extends CachableElementKey {
 					.toArray()
 			)
 		});
+	}
+
+	private long hashAdditionalChildParameters(@Nonnull LongHashFunction hashFunction) {
+		return hashFunction.hashLongs(
+			getAdditionalChildParameters()
+				.stream()
+				.sorted(Comparator.comparing(AdditionalChildParameterDescriptor::constraintType))
+				.mapToLong(parameter -> hashFunction.hashLongs(new long[]{
+					hashFunction.hashChars(parameter.constraintType().name()),
+					hashFunction.hashChars(parameter.name()),
+					hashFunction.hashChars(parameter.type().getSimpleName()),
+					hashFunction.hashBoolean(parameter.required()),
+					hashDomain(hashFunction, parameter.domain())
+				}))
+				.toArray()
+		);
+	}
+
+	private long hashDomain(@Nonnull LongHashFunction hashFunction, @Nonnull ConstraintDomain domain) {
+		final ConstraintDomain actualDomain = resolveActualDomain(domain);
+		return hashFunction.hashChars(actualDomain.name());
+	}
+
+	@Nonnull
+	private ConstraintDomain resolveActualDomain(@Nonnull ConstraintDomain domain) {
+		if (!domain.isDynamic()) {
+			return domain;
+		}
+		return switch (domain) {
+			case DEFAULT -> dataLocator.targetDomain();
+			case HIERARCHY_TARGET -> {
+				Assert.isPremiseValid(
+					dataLocator instanceof DataLocatorWithReference,
+					() -> new ExternalApiInternalError("Data locator is missing ability to hold a reference.")
+				);
+				final String referenceName = ((DataLocatorWithReference) dataLocator).referenceName();
+				yield referenceName == null ? ConstraintDomain.ENTITY : ConstraintDomain.HIERARCHY;
+			}
+			default -> throw new ExternalApiInternalError("Unsupported dynamic domain `" + domain + "`.");
+		};
 	}
 }

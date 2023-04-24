@@ -26,8 +26,8 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -44,7 +44,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "random",
 	shortDescription = "The constraint sorts returned entities randomly.",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
@@ -57,7 +57,7 @@ public class Random extends AbstractOrderConstraintLeaf implements GenericConstr
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public Random() {
 	}
 

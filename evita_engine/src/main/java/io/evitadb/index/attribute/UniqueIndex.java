@@ -168,7 +168,7 @@ public class UniqueIndex implements TransactionalLayerProducer<TransactionalCont
 	 */
 	public Formula getRecordIdsFormula() {
 		// if there is transaction open, there might be changes in the bitmap, and we can't easily use cache
-		if (isTransactionAvailable()) {
+		if (isTransactionAvailable() && this.dirty.isTrue()) {
 			return new ConstantFormula(recordIds);
 		} else {
 			if (this.memoizedAllRecordsFormula == null) {

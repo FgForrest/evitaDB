@@ -96,9 +96,9 @@ public class GraphQLArtificialPageReadState extends AbstractGraphQLArtificialSta
 				.filter(it -> benchmarkState.getRandom().nextBoolean())
 				.toArray(String[]::new);
 
-			filterConstraints.add("price_inCurrency: " + randomExistingCurrency.toString());
-			filterConstraints.add("price_inPriceLists: [" + Arrays.stream(priceLists).map(p -> "\"" + p + "\"").collect(Collectors.joining(",")) + "]");
-			filterConstraints.add("price_validIn: \"" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "\"");
+			filterConstraints.add("priceInCurrency: " + randomExistingCurrency.toString());
+			filterConstraints.add("priceInPriceLists: [" + Arrays.stream(priceLists).map(p -> "\"" + p + "\"").collect(Collectors.joining(",")) + "]");
+			filterConstraints.add("priceValidIn: \"" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "\"");
 
 			/* 75% only filtered prices */
 			if (benchmarkState.getRandom().nextInt(4) != 0) {
@@ -114,7 +114,7 @@ public class GraphQLArtificialPageReadState extends AbstractGraphQLArtificialSta
 				.filter(it -> benchmarkState.getProductSchema().getReference(it).isPresent())
 				.forEach(ref -> {
 					final String refFieldName = StringUtils.toCamelCase(ref);
-					outputFields.add(refFieldName + " { " + refFieldName + " { primaryKey } }");
+					outputFields.add(refFieldName + " { referencedEntity { primaryKey } }");
 				});
 		}
 
@@ -129,7 +129,7 @@ public class GraphQLArtificialPageReadState extends AbstractGraphQLArtificialSta
 		final int pageSize = 20;
 
 		filterConstraints.add(
-			"entity_primaryKey_inSet: [" +
+			"entityPrimaryKeyInSet: [" +
 				Stream.iterate(
 						benchmarkState.getRandom().nextInt(benchmarkState.getRandom().nextInt(PRODUCT_COUNT) + 1),
 						aLong -> benchmarkState.getRandom().nextInt(PRODUCT_COUNT) + 1
@@ -139,13 +139,13 @@ public class GraphQLArtificialPageReadState extends AbstractGraphQLArtificialSta
 					.collect(Collectors.joining(",")) +
 				"]"
 		);
-		filterConstraints.add("entity_locale_equals: " + randomExistingLocale);
+		filterConstraints.add("entityLocaleEquals: " + randomExistingLocale);
 
 		this.requestBody =
 			String.format(
 				"""
 				query {
-					query_%s(
+					query%s(
 						filterBy: {
 							%s
 						}
@@ -158,7 +158,7 @@ public class GraphQLArtificialPageReadState extends AbstractGraphQLArtificialSta
 					}
 				}
 				""",
-				StringUtils.toCamelCase(Entities.PRODUCT),
+				StringUtils.toPascalCase(Entities.PRODUCT),
 				String.join(",\n", filterConstraints),
 				pageNumber,
 				pageSize,

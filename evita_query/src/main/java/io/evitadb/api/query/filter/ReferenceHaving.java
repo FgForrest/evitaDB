@@ -27,10 +27,10 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -65,7 +65,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "having",
 	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
 		"match any of the passed entity primary keys. This container resembles the SQL inner join clauses.",
@@ -81,14 +81,14 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 	/**
 	 * Private constructor that creates unnecessary / not applicable version of the query.
 	 */
-	private ReferenceHaving(@Nonnull @ConstraintClassifierParamDef String referenceName) {
+	private ReferenceHaving(@Nonnull @Classifier String referenceName) {
 		super(referenceName);
 	}
 
-	@ConstraintCreatorDef
-	public ReferenceHaving(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                       @Nonnull @ConstraintChildrenParamDef FilterConstraint children) {
-		super(referenceName, children);
+	@Creator
+	public ReferenceHaving(@Nonnull @Classifier String referenceName,
+	                       @Nonnull @Child FilterConstraint... children) {
+		super(new Serializable[]{referenceName}, children);
 	}
 
 	/**
@@ -99,14 +99,6 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 		return (String) getArguments()[0];
 	}
 
-	/**
-	 * Returns query connected with this reference query (it must be exactly one).
-	 */
-	@Nonnull
-	public FilterConstraint getConstraint() {
-		return getChildren()[0];
-	}
-
 	@Override
 	public boolean isNecessary() {
 		return getArguments().length == 1 && getChildren().length == 1;
@@ -114,8 +106,8 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length == 0 ? new ReferenceHaving(getReferenceName()) : new ReferenceHaving(getReferenceName(), (FilterConstraint) children[0]);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length == 0 ? new ReferenceHaving(getReferenceName()) : new ReferenceHaving(getReferenceName(), children);
 	}
 
 	@Nonnull

@@ -26,9 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -67,27 +67,27 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "dataInLocales",
 	shortDescription = "The constraint triggers fetching of the localized attributes or associated data in different/additional locales than the locale specified in filtering constraints (if any at all).",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class DataInLocales extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, CombinableEntityContentRequire {
+public class DataInLocales extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, EntityContentRequire {
 	@Serial private static final long serialVersionUID = 4716406488516855299L;
 
 	private DataInLocales(Serializable... arguments) {
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public DataInLocales(@Nonnull @ConstraintValueParamDef Locale... locale) {
+	@Creator
+	public DataInLocales(@Nonnull @Value Locale... locale) {
 		super(locale);
 	}
 
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends CombinableEntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof DataInLocales, "Only DataInLanguage requirement can be combined with this one!");
 		if (isAllRequested()) {
 			return (T) this;

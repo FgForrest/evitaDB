@@ -25,11 +25,11 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
@@ -71,7 +71,7 @@ import java.time.OffsetDateTime;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "inRange",
 	shortDescription = "Compares value of the attribute with passed value and checks if the range value of that " +
 		"attribute contains the passed value within its limits (both ends are inclusive). " +
@@ -95,9 +95,9 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	private <T extends Serializable & Comparable<?>> AttributeInRange(@Nonnull @ConstraintClassifierParamDef String attributeName,
-	                                                                  @Nonnull @ConstraintValueParamDef(requiresPlainType = true) T value) {
+	@Creator
+	private <T extends Serializable & Comparable<?>> AttributeInRange(@Nonnull @Classifier String attributeName,
+	                                                                  @Nonnull @Value(requiresPlainType = true) T value) {
 		super(attributeName, value);
 		Assert.isTrue(
 			value instanceof Number || value instanceof OffsetDateTime,
@@ -105,7 +105,7 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 		);
 	}
 
-	public AttributeInRange(@Nonnull @ConstraintClassifierParamDef String attributeName) {
+	public AttributeInRange(@Nonnull @Classifier String attributeName) {
 		super(attributeName);
 	}
 

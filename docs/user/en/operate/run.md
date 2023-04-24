@@ -4,7 +4,6 @@ perex:
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 The Docker image is based on RedHat JDK / Linux (see <SourceClass>docker/Dockerfile</SourceClass>) base
@@ -303,6 +302,35 @@ CONTAINER ID   IMAGE                    COMMAND            CREATED         STATU
 If you are using the host network stack (`--net=host`), you won't see any ports in the output. If you use [remap/open ports](#open--remap-ports)
 you will also see the ports configuration here.
 </Note>
+
+### Check statuses of the APIs
+
+You can check statuses of the GraphQL and the REST API by using the `curl` command.
+
+#### GraphQL
+
+For GraphQL API run (applies to default evitaDB configuration):
+```shell
+curl -k -X POST "https://localhost:5555/gql/system" \
+  -H 'Content-Type: application/graphql+json' \
+  -d '{"query":"{liveness}"}'
+```
+this should return following confirmation about liveness status of the GraphQL API:
+```json
+{"data":{"liveness":true}}
+```
+
+#### REST
+
+For REST API run (applies to default evitaDB configuration):
+```shell
+curl -k "https://localhost:5555/rest/system/liveness" \
+  -H 'Content-Type: application/json'
+```
+this should return following confirmation about liveness status of the REST API:
+```json
+{"alive":true}
+```
 
 ### Control logging
 

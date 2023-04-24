@@ -25,8 +25,8 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -140,34 +140,29 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "directRelation",
 	shortDescription = "The constraint limits hierarchy within parent constraint to take only directly related entities into an account.",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyDirectRelation extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 3959881131308135131L;
+	private static final String CONSTRAINT_NAME = "directRelation";
 
-	private HierarchyDirectRelation(Serializable... arguments) {
-		super(arguments);
+	private HierarchyDirectRelation(@Nonnull Serializable... arguments) {
+		// missing "hierarchy" prefix because this query can be used only within some other hierarchy query,
+		// it would be unnecessary to duplicate the hierarchy prefix
+		super(CONSTRAINT_NAME, arguments);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public HierarchyDirectRelation() {
-		super();
+		super(CONSTRAINT_NAME);
 	}
 
 	@Override
 	public boolean isApplicable() {
 		return true;
-	}
-
-	@Nonnull
-	@Override
-	public String getName() {
-		// missing "hierarchy" prefix because this query can be used only within some other hierarchy query,
-		// it would be unnecessary to duplicate the hierarchy prefix
-		return "directRelation";
 	}
 
 	@Nonnull

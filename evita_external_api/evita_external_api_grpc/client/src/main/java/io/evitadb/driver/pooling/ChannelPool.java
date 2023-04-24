@@ -35,6 +35,8 @@ import java.util.concurrent.TimeUnit;
  * This class serves as a concurrent channel pooling solution for {@link EvitaClient}. Each time there is a need for a
  * new channel from the {@link EvitaClient}, the pool will return an existing one if available. Otherwise, a new channel
  * will be created and returned afterwards.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ChannelPool {
 	/**

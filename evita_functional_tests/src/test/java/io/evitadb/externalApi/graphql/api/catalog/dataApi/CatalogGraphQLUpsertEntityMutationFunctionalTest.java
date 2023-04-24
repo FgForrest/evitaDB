@@ -32,8 +32,14 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -64,23 +70,29 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
-	private static final String GET_PRODUCT_PATH = "data.get_product";
-	private static final String GET_CATEGORY_PATH = "data.get_category";
-	private static final String UPSERT_PRODUCT_PATH = "data.upsert_product";
-	private static final String UPSERT_EMPTY_PATH = "data.upsert_empty";
-	private static final String UPSERT_EMPTY_WITHOUT_PK_PATH = "data.upsert_emptyWithoutPk";
-	private static final String UPSERT_CATEGORY_PATH = "data.upsert_category";
+	private static final String GET_PRODUCT_PATH = "data.getProduct";
+	private static final String GET_CATEGORY_PATH = "data.getCategory";
+	private static final String UPSERT_PRODUCT_PATH = "data.upsertProduct";
+	private static final String UPSERT_EMPTY_PATH = "data.upsertEmpty";
+	private static final String UPSERT_EMPTY_WITHOUT_PK_PATH = "data.upsertEmptyWithoutPk";
+	private static final String UPSERT_CATEGORY_PATH = "data.upsertCategory";
+	private static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE = GRAPHQL_THOUSAND_PRODUCTS + "forUpdate";
+
+	@Override
+	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
+	protected DataCarrier setUp(Evita evita) {
+		return super.setUpData(evita, 50);
+	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should insert single empty product without PK")
-	void shouldInsertSingleEmptyProductWithoutPK(Evita evita) {
-		testGraphQLCall()
+	void shouldInsertSingleEmptyProductWithoutPK(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_empty (entityExistence: MUST_NOT_EXIST) {
+	                    upsertEmpty (entityExistence: MUST_NOT_EXIST) {
 	                        __typename
 	                        primaryKey
 	                    }
@@ -95,21 +107,21 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				equalTo(
 					map()
 						.e(TYPENAME_FIELD, "Empty")
-						.e(EntityDescriptor.PRIMARY_KEY.name(), 101)
+						.e(EntityDescriptor.PRIMARY_KEY.name(), 11)
 						.build()
 				)
 			);
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should insert single empty product with PK")
-	void shouldInsertSingleEmptyProductWithPK(Evita evita) {
-		testGraphQLCall()
+	void shouldInsertSingleEmptyProductWithPK(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_emptyWithoutPk(primaryKey: 200, entityExistence: MUST_NOT_EXIST) {
+	                    upsertEmptyWithoutPk(primaryKey: 200, entityExistence: MUST_NOT_EXIST) {
 	                        primaryKey
 	                    }
 	                }
@@ -129,14 +141,14 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update product with no mutations")
-	void shouldUpdateProductWithNoMutations(Evita evita) {
-		testGraphQLCall()
+	void shouldUpdateProductWithNoMutations(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(primaryKey: 100, entityExistence: MUST_EXIST) {
+	                    upsertProduct(primaryKey: 10, entityExistence: MUST_EXIST) {
 	                        primaryKey
 	                    }
 	                }
@@ -149,21 +161,21 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				UPSERT_PRODUCT_PATH,
 				equalTo(
 					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), 100)
+						.e(EntityDescriptor.PRIMARY_KEY.name(), 10)
 						.build()
 				)
 			);
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should return error when missing arguments for product upsert")
-	void shouldReturnErrorWhenMissingArgumentsForProductUpsert(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorWhenMissingArgumentsForProductUpsert(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product {
+	                    upsertProduct {
 	                        primaryKey
 	                    }
 	                }
@@ -175,14 +187,14 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should return error when missing mutations for product update")
-	void shouldReturnErrorWhenMissingMutationsForProductUpdate(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorWhenMissingMutationsForProductUpdate(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(primaryKey: 1001, entityExistence: MAY_EXIST) {
+	                    upsertProduct(primaryKey: 1001, entityExistence: MAY_EXIST) {
 	                        primaryKey
 	                    }
 	                }
@@ -194,9 +206,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update product with attribute mutations")
-	void shouldUpdateProductWithAttributeMutations(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldUpdateProductWithAttributeMutations(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
 			.filter(it -> it.getAttribute(ATTRIBUTE_DEPRECATED) != null)
 			.findFirst()
@@ -211,11 +223,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				.build())
 			.build();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -256,11 +268,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBody));
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        attributes(locale: cs_CZ) {
 	                            name
@@ -279,9 +291,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update product with associated data mutations")
-	void shouldUpdateProductWithAssociatedDataMutations(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldUpdateProductWithAssociatedDataMutations(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
 			.filter(it -> it.getAssociatedData(ASSOCIATED_DATA_LOCALIZATION) != null)
 			.findFirst()
@@ -297,11 +309,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				.build())
 			.build();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -337,11 +349,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBody));
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        associatedData(locale: cs_CZ) {
 	                            labels
@@ -359,9 +371,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update category with hierarchical placement mutations")
-	void shouldUpdateCategoryWithHierarchicalPlacementMutations(Evita evita) {
+	void shouldUpdateCategoryWithHierarchicalPlacementMutations(Evita evita, GraphQLTester tester) {
 		final SealedEntity entityInTree = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -402,11 +414,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 				.build())
 			.build();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_category(
+	                    upsertCategory(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -436,18 +448,18 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 					expectedBodyWithHierarchicalPlacement
 				)
 			);
-		assertHierarchicalPlacement(entityInTree.getPrimaryKey(), expectedBodyWithHierarchicalPlacement);
+		assertHierarchicalPlacement(tester, entityInTree.getPrimaryKey(), expectedBodyWithHierarchicalPlacement);
 
 		final Map<String, Object> expectedBodyAfterRemoving = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), null)
 			.build();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_category(
+	                    upsertCategory(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -469,13 +481,13 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_CATEGORY_PATH, equalTo(expectedBodyAfterRemoving));
-		assertHierarchicalPlacement(entityInTree.getPrimaryKey(), expectedBodyAfterRemoving);
+		assertHierarchicalPlacement(tester, entityInTree.getPrimaryKey(), expectedBodyAfterRemoving);
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update product with new price mutation")
-	void shouldUpdateProductWithNewPriceMutation(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldUpdateProductWithNewPriceMutation(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
 			.filter(it -> it.getPrices()
 				.stream()
@@ -500,11 +512,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			))
 			.build();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -543,11 +555,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBodyWithNewPrice));
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        prices(priceLists: "other") {
 	                            priceId
@@ -575,11 +587,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.e(EntityDescriptor.PRICES.name(), List.of())
 			.build();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -606,11 +618,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBodyWithoutNewPrice));
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        prices(priceLists: "other") {
 	                            priceId
@@ -627,9 +639,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update product with price inner handling mutation")
-	void shouldUpdateProductWithPriceInnerRecordHandlingMutation(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldUpdateProductWithPriceInnerRecordHandlingMutation(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
 			.filter(it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE))
 			.findFirst()
@@ -640,11 +652,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), "SUM")
 			.build();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -667,11 +679,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH, equalTo(expectedBody));
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                        priceInnerRecordHandling
 	                    }
@@ -686,9 +698,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update product with reference mutations")
-	void shouldUpdateProductWithReferenceMutations(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldUpdateProductWithReferenceMutations(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
 			.filter(it -> it.getReferences(Entities.STORE)
 				.stream()
@@ -699,29 +711,24 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 		var expectedBody = entity.getReferences(Entities.STORE)
 			.stream()
 			.map(r -> map()
+				.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 				.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, r.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C))
-					.build())
-				.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), r.getReferencedPrimaryKey())
 					.build())
 				.build())
 			.toList();
 		expectedBody = new LinkedList<>(expectedBody);
 		expectedBody.add(map()
+			.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), 1_000_000_000)
 			.e(ReferenceDescriptor.ATTRIBUTES.name(), map()
-				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true)
-				.build())
-			.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
-				.e(EntityDescriptor.PRIMARY_KEY.name(), 1_000_000_000)
-				.build())
+				.e(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, true))
 			.build());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -747,11 +754,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                        ]
                         ) {
 	                        store {
+	                            referencedPrimaryKey
 	                            attributes {
 	                                storeVisibleForB2C
-	                            }
-	                            referencedEntity {
-	                                primaryKey
 	                            }
 	                        }
 	                    }
@@ -762,19 +767,17 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(UPSERT_PRODUCT_PATH + ".store", containsInAnyOrder(expectedBody.toArray()));
+			.body(UPSERT_PRODUCT_PATH + ".store", equalTo(expectedBody));
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        store {
+	                            referencedPrimaryKey,
 	                            attributes {
 	                                storeVisibleForB2C
-	                            }
-	                            referencedEntity {
-	                                primaryKey
 	                            }
 	                        }
 	                    }
@@ -785,14 +788,14 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(GET_PRODUCT_PATH + ".store", containsInAnyOrder(expectedBody.toArray()));
+			.body(GET_PRODUCT_PATH + ".store", equalTo(expectedBody));
 
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -819,11 +822,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_PRODUCT_PATH + ".store." + ReferenceDescriptor.REFERENCED_ENTITY.name() + "." + EntityDescriptor.PRIMARY_KEY.name(), not(containsInRelativeOrder(1_000_000_000)));
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        store {
 	                            referencedEntity {
 	                                primaryKey
@@ -841,9 +844,9 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update product with reference group mutations")
-	void shouldUpdateProductWithReferenceGroupMutations(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldUpdateProductWithReferenceGroupMutations(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final SealedEntity entity = originalProductEntities.stream()
 			.filter(it -> it.getReferences(REFERENCE_BRAND_WITH_GROUP).isEmpty())
 			.findFirst()
@@ -858,11 +861,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			}
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -888,12 +891,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		assertReferenceGroup(evita, entity.getPrimaryKey(), new GroupEntityReference(ENTITY_BRAND_GROUP, 100, 1, false));
 
-
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    upsert_product(
+	                    upsertProduct(
 	                        primaryKey: %d
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
@@ -945,12 +947,12 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 
-	private void assertHierarchicalPlacement(int primaryKey, @Nonnull Map<String, Object> expectedBodyAfterRemoving) {
-		testGraphQLCall()
+	private void assertHierarchicalPlacement(@Nonnull GraphQLTester tester, int primaryKey, @Nonnull Map<String, Object> expectedBodyAfterRemoving) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_category(primaryKey: %d) {
+	                    getCategory(primaryKey: %d) {
 	                        primaryKey
 	                        hierarchicalPlacement {
 	                            orderAmongSiblings

@@ -29,8 +29,8 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.test.Entities;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
-import io.evitadb.test.TestFileSupport;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -43,16 +43,18 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class CatalogTest implements TestFileSupport {
+class CatalogTest implements EvitaTestSupport {
+
+	public static final String DIR_CATALOG_TEST = "catalogTest";
 
 	@Test
 	void shouldDefineCatalogSchemaUpfront() throws IOException {
-		cleanTestDirectory();
+		cleanTestSubDirectory(DIR_CATALOG_TEST);
 		try (final Evita evita = new Evita(
 			EvitaConfiguration.builder()
 				.storage(
 					StorageOptions.builder()
-						.storageDirectory(getTestDirectory())
+						.storageDirectory(getTestDirectory().resolve(DIR_CATALOG_TEST))
 						.build()
 				).build()
 		)) {

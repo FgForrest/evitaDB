@@ -52,12 +52,6 @@ import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
  */
 public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
 
-	@Nonnull
-	@Override
-	protected String getEndpointPath() {
-		return "/test-catalog";
-	}
-
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
@@ -182,10 +176,5 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 					.build())
 				.build())
 			.build();
-	}
-
-	@Nonnull
-	protected static EntitySchema createEmptyEntitySchema(@Nonnull String entityType) {
-		return EntitySchema._internalBuild(entityType);
 	}
 }

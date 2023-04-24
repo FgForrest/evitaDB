@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.model.*;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,7 +43,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -51,17 +50,18 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class ClassSchemaAnalyzerTest implements TestFileSupport {
+class ClassSchemaAnalyzerTest implements EvitaTestSupport {
+	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST = "classSchemaAnalyzerTest";
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() throws IOException {
-		cleanTestDirectory();
+		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST);
 		evita = new Evita(
 			EvitaConfiguration.builder()
 				.storage(
 					StorageOptions.builder()
-						.storageDirectory(getTestDirectory())
+						.storageDirectory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST))
 						.build()
 				)
 				.build()

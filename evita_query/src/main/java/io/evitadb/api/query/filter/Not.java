@@ -27,9 +27,9 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -49,7 +49,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "not",
 	shortDescription = "The container that behaves as [logical NOT](https://en.wikipedia.org/wiki/Negation) for the inner constraint.",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
@@ -62,8 +62,8 @@ public class Not extends AbstractFilterConstraintContainer implements GenericCon
 	 */
 	private Not() {}
 
-	@ConstraintCreatorDef
-	public Not(@Nonnull @ConstraintChildrenParamDef FilterConstraint children) {
+	@Creator
+	public Not(@Nonnull @Child FilterConstraint children) {
 		super(children);
 	}
 
@@ -74,8 +74,8 @@ public class Not extends AbstractFilterConstraintContainer implements GenericCon
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length == 0 ? new Not() : new Not((FilterConstraint) children[0]);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length == 0 ? new Not() : new Not(children[0]);
 	}
 
 	@Nonnull

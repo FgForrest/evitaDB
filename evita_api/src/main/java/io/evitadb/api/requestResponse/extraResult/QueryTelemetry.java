@@ -193,6 +193,10 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 		 */
 		EXECUTION_FILTER,
 		/**
+		 * Computing entities within nested query that should be returned in output (filtering).
+		 */
+		EXECUTION_FILTER_NESTED_QUERY,
+		/**
 		 * Sorting output entities and slicing requested page.
 		 */
 		EXECUTION_SORT_AND_SLICE,

@@ -35,6 +35,7 @@ import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLField
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
+import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLUnionTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDataTypeDescriptorToGraphQLTypeTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLFieldTransformer;
@@ -61,31 +62,35 @@ import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCA
  * fields are what clients see. Then, for those field backing objects are created. For those objects another fields are created
  * and so on.
  *
+ * @see PartialGraphQLSchemaBuilder
+ * @see FinalGraphQLSchemaBuilder
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContext> {
 
-	protected final PropertyDataTypeDescriptorToGraphQLTypeTransformer propertyDataTypeBuilderTransformer;
-	protected final EndpointDescriptorToGraphQLFieldTransformer staticEndpointBuilderTransformer;
-	protected final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
-	protected final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
-	protected final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
-	protected final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
-	protected final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
-	protected final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
+	@Nonnull protected final PropertyDataTypeDescriptorToGraphQLTypeTransformer propertyDataTypeBuilderTransformer;
+	@Nonnull protected final EndpointDescriptorToGraphQLFieldTransformer staticEndpointBuilderTransformer;
+	@Nonnull protected final PropertyDescriptorToGraphQLArgumentTransformer argumentBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToGraphQLInterfaceTransformer interfaceBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToGraphQLObjectTransformer objectBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToGraphQLUnionTransformer unionBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
+	@Nonnull protected final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
+	@Nonnull protected final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
 
 	@Nonnull
-	protected final C graphQLSchemaBuildingCtx;
+	protected final C buildingContext;
 
-	protected GraphQLSchemaBuilder(@Nonnull C graphQLSchemaBuildingCtx) {
-		this.graphQLSchemaBuildingCtx = graphQLSchemaBuildingCtx;
-		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToGraphQLTypeTransformer(graphQLSchemaBuildingCtx);
+	protected GraphQLSchemaBuilder(@Nonnull C buildingContext) {
+		this.buildingContext = buildingContext;
+		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToGraphQLTypeTransformer(buildingContext);
 		this.staticEndpointBuilderTransformer = new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
 		this.argumentBuilderTransformer = new PropertyDescriptorToGraphQLArgumentTransformer(propertyDataTypeBuilderTransformer);
 		this.fieldBuilderTransformer = new PropertyDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer);
 		this.inputFieldBuilderTransformer = new PropertyDescriptorToGraphQLInputFieldTransformer(propertyDataTypeBuilderTransformer);
 		this.interfaceBuilderTransformer = new ObjectDescriptorToGraphQLInterfaceTransformer(fieldBuilderTransformer);
 		this.objectBuilderTransformer = new ObjectDescriptorToGraphQLObjectTransformer(fieldBuilderTransformer);
+		this.unionBuilderTransformer = new ObjectDescriptorToGraphQLUnionTransformer();
 		this.inputObjectBuilderTransformer = new ObjectDescriptorToGraphQLInputObjectTransformer(inputFieldBuilderTransformer);
 	}
 

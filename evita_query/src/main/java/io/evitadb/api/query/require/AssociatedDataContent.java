@@ -26,10 +26,10 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.AssociatedDataConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -57,26 +57,26 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity associated data of specified names into the returned entities.",
 	supportedIn = ConstraintDomain.ENTITY,
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AssociatedDataContent extends AbstractRequireConstraintLeaf implements AssociatedDataConstraint<RequireConstraint>, CombinableEntityContentRequire {
+public class AssociatedDataContent extends AbstractRequireConstraintLeaf implements AssociatedDataConstraint<RequireConstraint>, EntityContentRequire {
 	@Serial private static final long serialVersionUID = 4863284278176575291L;
 
 	private AssociatedDataContent(Serializable... arguments) {
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef(suffix = "all")
+	@Creator(suffix = "all")
 	public AssociatedDataContent() {
 		super();
 	}
 
-	@ConstraintCreatorDef
-	public AssociatedDataContent(@Nonnull @ConstraintValueParamDef String... associatedDataName) {
+	@Creator
+	public AssociatedDataContent(@Nonnull @Value String... associatedDataName) {
 		super(associatedDataName);
 	}
 
@@ -100,7 +100,7 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf impleme
 	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
-	public <T extends CombinableEntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
+	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
 		Assert.isTrue(anotherRequirement instanceof AssociatedDataContent, "Only AssociatedData requirement can be combined with this one!");
 		if (isAllRequested()) {
 			return (T) this;

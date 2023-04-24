@@ -26,6 +26,7 @@ package io.evitadb.utils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -67,6 +68,17 @@ public class CollectionUtils {
 	}
 
 	/**
+	 * Creates new {@link HashMap} instance with predefined contents.
+	 */
+	public static <K, V> HashMap<K, V> createHashMap(Property<K, V>... properties) {
+		final HashMap<K, V> hashMap = createHashMap(properties.length);
+		for (Property<K, V> property : properties) {
+			hashMap.put(property.name(), property.value());
+		}
+		return hashMap;
+	}
+
+	/**
 	 * Creates new {@link LinkedHashMap} instance that is pre-allocated to size that would absorb `expectedCapacity` elements
 	 * without rehashing itself.
 	 *
@@ -86,6 +98,17 @@ public class CollectionUtils {
 			return new LinkedHashMap<>((int) ((float) expectedCapacity / 0.75F + 1.0F));
 		}
 		return new LinkedHashMap<>(Integer.MAX_VALUE); // any large value
+	}
+
+	/**
+	 * Creates new {@link HashMap} instance with predefined contents.
+	 */
+	public static <K, V> LinkedHashMap<K, V> createLinkedHashMap(Property<K, V>... properties) {
+		final LinkedHashMap<K, V> hashMap = createLinkedHashMap(properties.length);
+		for (Property<K, V> property : properties) {
+			hashMap.put(property.name(), property.value());
+		}
+		return hashMap;
 	}
 
 	/**
@@ -152,6 +175,23 @@ public class CollectionUtils {
 			return new LinkedHashSet<>((int) ((float) expectedCapacity / 0.75F + 1.0F));
 		}
 		return new LinkedHashSet<>(Integer.MAX_VALUE); // any large value
+	}
+
+	/**
+	 * Factory method for property.
+	 */
+	@Nonnull
+	public static <K, V> Property<K, V> property(@Nonnull K name, @Nonnull V value) {
+		return new Property<>(name, value);
+	}
+
+	/**
+	 * DTO that can be used for bootstrapping a new map.
+	 */
+	public record Property<K, V>(
+		@Nonnull K name,
+		@Nonnull V value
+	) {
 	}
 
 }

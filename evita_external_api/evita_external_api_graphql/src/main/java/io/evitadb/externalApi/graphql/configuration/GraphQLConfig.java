@@ -26,37 +26,63 @@ package io.evitadb.externalApi.graphql.configuration;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
+import io.evitadb.externalApi.configuration.ApiWithOriginControl;
 import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * GraphQL API specific configuration.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class GraphQLConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix {
+public class GraphQLConfig extends AbstractApiConfiguration implements ApiWithSpecificPrefix, ApiWithOriginControl {
 	private static final String BASE_GRAPHQL_PATH = "gql";
+	private static final Pattern ORIGIN_PATTERN = Pattern.compile("([a-z]+)://([\\w.]+)(:(\\d+))?");
+
 	/**
 	 * Controls the prefix GraphQL API will react on.
 	 * Default value is `gql`.
 	 */
 	@Getter private final String prefix;
+	@Getter private final String[] allowedOrigins;
 
 	public GraphQLConfig() {
 		super();
 		this.prefix = BASE_GRAPHQL_PATH;
+		this.allowedOrigins = null;
+	}
+
+	public GraphQLConfig(@Nonnull String host) {
+		super(true, host);
+		this.prefix = BASE_GRAPHQL_PATH;
+		this.allowedOrigins = null;
 	}
 
 	@JsonCreator
 	public GraphQLConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 	                     @Nonnull @JsonProperty("host") String host,
-	                     @JsonProperty("prefix") String prefix) {
+	                     @Nullable @JsonProperty("prefix") String prefix,
+	                     @Nullable @JsonProperty("allowedOrigins") String allowedOrigins) {
 		super(enabled, host);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_GRAPHQL_PATH);
+		if (allowedOrigins == null) {
+			this.allowedOrigins = null;
+		} else {
+			this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+				.peek(origin -> {
+					final Matcher matcher = ORIGIN_PATTERN.matcher(origin);
+					Assert.isTrue(matcher.matches(), "Invalid origin definition: " + origin);
+				})
+				.toArray(String[]::new);
+		}
 	}
 
 }

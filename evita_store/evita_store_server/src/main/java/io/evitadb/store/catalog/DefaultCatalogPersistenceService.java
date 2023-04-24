@@ -720,7 +720,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			return catalogBootstrap;
 		} finally {
 			headerSerializationServicePool.free(serializationService);
-			log.info("Catalog loaded in {}", StringUtils.formatNano(System.nanoTime() - start));
 		}
 	}
 

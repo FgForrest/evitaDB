@@ -23,6 +23,7 @@
 
 package io.evitadb.server;
 
+import ch.qos.logback.classic.util.ContextInitializer;
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.ContextBase;
 import ch.qos.logback.core.spi.ContextAwareBase;
@@ -43,6 +44,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.VersionUtils;
 import lombok.Getter;
 import org.apache.commons.text.StringSubstitutor;
 import org.apache.commons.text.io.StringSubstitutorReader;
@@ -52,21 +54,17 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.io.BufferedInputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
-import java.util.Enumeration;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.jar.Attributes;
-import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -90,10 +88,6 @@ import static java.util.Optional.ofNullable;
  */
 public class EvitaServer {
 	/**
-	 * Logger.
-	 */
-	private static Logger log;
-	/**
 	 * Name of the argument for specification of evita configuration file path.
 	 */
 	public static final String OPTION_EVITA_CONFIGURATION_FILE = "configFile";
@@ -109,10 +103,10 @@ public class EvitaServer {
 	 * Pattern for matching Unix like arguments `--name=value`
 	 */
 	private static final Pattern OPTION_GNU_ARGUMENT = Pattern.compile("--(\\S+)=(\\S+)");
-	private static final String DEFAULT_MANIFEST_LOCATION = "META-INF/MANIFEST.MF";
-	private static final String IMPLEMENTATION_VENDOR_TITLE = "Implementation-Title";
-	private static final String IO_EVITADB_TITLE = "evitaDB - Standalone server";
-	private static final String IMPLEMENTATION_VERSION = "Implementation-Version";
+	/**
+	 * Logger.
+	 */
+	private static Logger log;
 	/**
 	 * Instance of the {@link EvitaConfiguration} initialized from the evita configuration file.
 	 */
@@ -144,8 +138,8 @@ public class EvitaServer {
 		for (Entry<String, String> argEntry : options.entrySet()) {
 			System.setProperty(argEntry.getKey(), argEntry.getValue());
 		}
-		// and then initialize logger so that `logback.configurationFile` argument might apply
-		log = LoggerFactory.getLogger(EvitaServer.class);
+
+		final String logMsg = initLog();
 
 		ConsoleWriter.write(
 			"""
@@ -156,9 +150,10 @@ public class EvitaServer {
 				 \\___| \\_/ |_|\\__\\__,_|____/|____/\s\n\n""",
 			ConsoleColor.DARK_GREEN
 		);
-		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[] {readVersion()}, ConsoleColor.LIGHT_GRAY);
+		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
 		ConsoleWriter.write("Visit us at: ");
 		ConsoleWriter.write("https://evitadb.io\n\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logMsg).map(it -> " (" + it + ")").orElse("") + "\n", ConsoleColor.DARK_GRAY);
 
 		final Path configFilePath = ofNullable(options.get(OPTION_EVITA_CONFIGURATION_FILE))
 			.map(it -> Paths.get("").resolve(it))
@@ -168,6 +163,29 @@ public class EvitaServer {
 		final ShutdownSequence shutdownSequence = new ShutdownSequence(evitaServer);
 		Runtime.getRuntime().addShutdownHook(new Thread(shutdownSequence));
 		evitaServer.run();
+	}
+
+	/**
+	 * Initializes the file from the specified location.
+	 */
+	private static String initLog() {
+		final String logMsg;
+		if (System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) == null) {
+			System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
+			logMsg = null;
+		} else {
+			final String originalFilePath = System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY);
+			final File logFile = new File(ContextInitializer.CONFIG_FILE_PROPERTY);
+			if (!logFile.exists() || !logFile.isFile()) {
+				logMsg = "original file `" + originalFilePath + "` doesn't exit";
+				System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "META-INF/logback.xml");
+			} else {
+				logMsg = null;
+			}
+		}
+		// and then initialize logger so that `logback.configurationFile` argument might apply
+		getLog();
+		return logMsg;
 	}
 
 	/**
@@ -185,27 +203,6 @@ public class EvitaServer {
 			}
 		}
 		return map;
-	}
-
-	/**
-	 * Method reads the current evitaDB version from the Manifest file where the version is injected during Maven build.
-	 */
-	private static String readVersion() {
-		try {
-			final Enumeration<URL> resources = EvitaServer.class.getClassLoader().getResources(DEFAULT_MANIFEST_LOCATION);
-			while (resources.hasMoreElements()) {
-				try (final InputStream manifestStream = resources.nextElement().openStream()) {
-					final Manifest manifest = new Manifest(manifestStream);
-					final Attributes mainAttributes = manifest.getMainAttributes();
-					if (IO_EVITADB_TITLE.equals(mainAttributes.getValue(IMPLEMENTATION_VENDOR_TITLE))) {
-						return ofNullable(mainAttributes.getValue(IMPLEMENTATION_VERSION)).orElse("?");
-					}
-				}
-			}
-		} catch (Exception ignored) {
-			// just return unknown value
-		}
-		return "?";
 	}
 
 	/**
@@ -230,6 +227,17 @@ public class EvitaServer {
 	}
 
 	/**
+	 * Returns and lazily initializes logger.
+	 */
+	@Nonnull
+	private static Logger getLog() {
+		if (log == null) {
+			log = LoggerFactory.getLogger(EvitaServer.class);
+		}
+		return log;
+	}
+
+	/**
 	 * Constructor that initializes the EvitaServer.
 	 */
 	public EvitaServer(@Nonnull Path configFileLocation, @Nonnull Map<String, String> arguments) {
@@ -243,19 +251,37 @@ public class EvitaServer {
 		this.apiOptions = evitaServerConfig.api();
 	}
 
+	/**
+	 * Constructor that initializes EvitaServer on top of existing and running Evita server.
+	 */
+	public EvitaServer(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions) {
+		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
+		this.evita = evita;
+		this.evitaConfiguration = evita.getConfiguration();
+		this.apiOptions = apiOptions;
+	}
+
+	/**
+	 * Method starts the {@link ExternalApiServer} and opens ports for all web APIs.
+	 */
 	public void run() {
-		this.evita = new Evita(evitaConfiguration);
+		if (this.evita == null) {
+			this.evita = new Evita(evitaConfiguration);
+		}
 		this.externalApiServer = new ExternalApiServer(
 			this.evita, this.apiOptions, this.externalApiProviders
 		);
 		externalApiServer.start();
 	}
 
+	/**
+	 * Method stops {@link ExternalApiServer} and closes all opened ports.
+	 */
 	public void stop() {
 		if (externalApiServer != null) {
 			externalApiServer.close();
 		}
-		ConsoleWriter.write("Server stopped, bye.");
+		ConsoleWriter.write("Server stopped, bye.\n\n");
 	}
 
 	/**
@@ -311,17 +337,6 @@ public class EvitaServer {
 	}
 
 	/**
-	 * Returns and lazily initializes logger.
-	 */
-	@Nonnull
-	private static Logger getLog() {
-		if (log == null) {
-			log = LoggerFactory.getLogger(EvitaServer.class);
-		}
-		return log;
-	}
-
-	/**
 	 * The shutdown sequence first stops the {@link EvitaServer} and then it shuts down logger instance correctly.
 	 */
 	static class ShutdownSequence extends ContextAwareBase implements Runnable {
@@ -340,10 +355,9 @@ public class EvitaServer {
 
 		protected void stop() {
 			this.addInfo("Logback context being closed via shutdown hook");
-			Context hookContext = this.getContext();
-			if (hookContext instanceof ContextBase) {
-				ContextBase context = (ContextBase)hookContext;
-				context.stop();
+			final Context hookContext = this.getContext();
+			if (hookContext instanceof ContextBase theContext) {
+				theContext.stop();
 			}
 
 		}

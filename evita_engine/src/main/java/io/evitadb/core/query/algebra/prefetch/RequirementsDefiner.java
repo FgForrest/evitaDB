@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
-import io.evitadb.api.query.require.CombinableEntityContentRequire;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;

@@ -27,9 +27,9 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.StringUtils;
 
@@ -126,7 +126,7 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "userFilter",
 	shortDescription = "The container for constraints that are controlled by the user (client UI widgets). " +
 		"It is used mainly to distinguish between user constraint (refining the search) and program defined " +
@@ -152,9 +152,9 @@ public class UserFilter extends AbstractFilterConstraintContainer implements Gen
 		);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public UserFilter(@Nonnull
-                      @ConstraintChildrenParamDef(
+                      @Child(
 						  forbidden = {
 							  EntityLocaleEquals.class,
 							  PriceInCurrency.class,
@@ -188,11 +188,8 @@ public class UserFilter extends AbstractFilterConstraintContainer implements Gen
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final FilterConstraint[] filterChildren = Arrays.stream(children)
-				.map(c -> (FilterConstraint) c)
-				.toArray(FilterConstraint[]::new);
-		return new UserFilter(filterChildren);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new UserFilter(children);
 	}
 
 	@Nonnull

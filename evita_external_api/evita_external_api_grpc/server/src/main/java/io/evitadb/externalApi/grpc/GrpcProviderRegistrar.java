@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.grpc;
 
-import io.evitadb.externalApi.EvitaSystemDataProvider;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.utils.GrpcServer;
@@ -54,8 +54,8 @@ public class GrpcProviderRegistrar implements ExternalApiProviderRegistrar<GrpcC
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<GrpcConfig> register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig grpcAPIConfig) {
-		final Server server = new GrpcServer(evitaSystemDataProvider, apiOptions, grpcAPIConfig).getServer();
+	public ExternalApiProvider<GrpcConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull GrpcConfig grpcAPIConfig) {
+		final Server server = new GrpcServer(evita, apiOptions, grpcAPIConfig).getServer();
 		return new GrpcProvider(grpcAPIConfig, server);
 	}
 }

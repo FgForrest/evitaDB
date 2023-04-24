@@ -56,10 +56,10 @@ public class CatalogSchemaApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuil
 	@Nonnull
 	public GraphQLSchema build() {
 		// internal evita schema
-		new CommonEvitaSchemaSchemaBuilder(graphQLSchemaBuildingCtx).build();
-		new EntitySchemaSchemaBuilder(graphQLSchemaBuildingCtx).build();
-		new CatalogSchemaSchemaBuilder(graphQLSchemaBuildingCtx).build();
+		new CommonEvitaSchemaSchemaBuilder(buildingContext).build();
+		new EntitySchemaSchemaBuilder(buildingContext).build();
+		new CatalogSchemaSchemaBuilder(buildingContext).build();
 
-		return graphQLSchemaBuildingCtx.buildGraphQLSchema();
+		return buildingContext.buildGraphQLSchema();
 	}
 }

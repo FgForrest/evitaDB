@@ -25,15 +25,19 @@ package io.evitadb.api.query.descriptor;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
@@ -67,7 +71,26 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 			"Constraint must have maximum of 1 classifier."
 		);
 
-		// todo lho what about additional children parameters, should it be as parameters or as other children and what about validation
+		final long numberOfChildParameters = parameters().stream()
+			.filter(ChildParameterDescriptor.class::isInstance)
+			.map(ChildParameterDescriptor.class::cast)
+			.count();
+		Assert.isPremiseValid(
+			numberOfChildParameters <= 1,
+			() -> new EvitaInternalError("Constraint cannot have multiple child parameters.")
+		);
+
+		final List<AdditionalChildParameterDescriptor> additionalChildParameters = parameters.stream()
+			.filter(AdditionalChildParameterDescriptor.class::isInstance)
+			.map(AdditionalChildParameterDescriptor.class::cast)
+			.toList();
+		final Set<ConstraintType> additionalChildParameterTypes = additionalChildParameters.stream()
+			.map(AdditionalChildParameterDescriptor::constraintType)
+			.collect(Collectors.toUnmodifiableSet());
+		Assert.isPremiseValid(
+			additionalChildParameters.size() == additionalChildParameterTypes.size(),
+			() -> new EvitaInternalError("Constraint cannot have multiple additional child parameters of same constraint type.")
+		);
 	}
 
 	/**
@@ -82,6 +105,10 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 			constructor().trySetAccessible();
 			return (Constraint<?>) constructor().newInstance(args);
 		} catch (Exception e) {
+			if (e instanceof final InvocationTargetException invocationTargetException &&
+				invocationTargetException.getTargetException() instanceof final EvitaInvalidUsageException invalidUsageException) {
+				throw invalidUsageException;
+			}
 			throw new EvitaInternalError(
 				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + constructor.getDeclaringClass().getName() + "`: " + e.getMessage(),
 				"Could not recreate constraint `" + parsedName + "`.",
@@ -145,6 +172,17 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	}
 
 	/**
+	 * Finds all additional child parameters categorized by constraint type.
+	 */
+	@Nonnull
+	public List<AdditionalChildParameterDescriptor> additionalChildParameters() {
+		return parameters().stream()
+			.filter(AdditionalChildParameterDescriptor.class::isInstance)
+			.map(AdditionalChildParameterDescriptor.class::cast)
+			.toList();
+	}
+
+	/**
 	 * Represents classifier that is not specified by client but by system.
 	 */
 	public sealed interface ImplicitClassifier permits SilentImplicitClassifier, FixedImplicitClassifier {}
@@ -192,11 +230,13 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	}
 
 	/**
-	 * Describes single constraint constructor parameter.
+	 * Describes single constraint constructor parameter which holds single or multiple child constraints (of
+	 * same type as parent container).
 	 *
 	 * @param name name of original parameter
 	 * @param type data type of original parameter
 	 * @param required children cannot be null
+	 * @param domain specifies domain for child constraints
 	 * @param uniqueChildren if each child constraint can be passed only once in this list parameter.
 	 * @param allowedChildTypes set of allowed child constraints. Constraint not specified in this set will be forbidden.
 	 * @param forbiddenChildTypes set of forbidden child constraints. All constraints are allowed except of these.
@@ -204,8 +244,24 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	public record ChildParameterDescriptor(@Nonnull String name,
 	                                       @Nonnull Class<?> type,
 	                                       boolean required,
+	                                       @Nonnull ConstraintDomain domain,
 	                                       boolean uniqueChildren,
 	                                       @Nonnull Set<Class<? extends Constraint<?>>> allowedChildTypes,
-	                                       @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) implements ParameterDescriptor {
-	}
+	                                       @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) implements ParameterDescriptor {}
+
+	/**
+	 * Describes single constraint constructor parameter which holds single or multiple additional child constraints (of different type
+	 * than the parent container).
+	 *
+	 * @param constraintType type of constraint, different from the parent container
+	 * @param name name of original parameter
+	 * @param type data type of original parameter
+	 * @param required children cannot be null
+	 * @param domain specifies domain for additional child constraints
+	 */
+	public record AdditionalChildParameterDescriptor(@Nonnull ConstraintType constraintType,
+	                                                 @Nonnull String name,
+	                                                 @Nonnull Class<?> type,
+	                                                 boolean required,
+	                                                 @Nonnull ConstraintDomain domain) implements ParameterDescriptor {}
 }

@@ -13,6 +13,20 @@ or [SSE](https://en.wikipedia.org/wiki/Server-sent_events) APIs for some specifi
 no foundation for HTTP communication as evitaDB comes only with Java API. Because of this, there was a need to find some
 HTTP server, library or framework that would serve as a common foundation for all of those mentioned APIs.
 
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### The article updated as of April 2023
+</NoteTitle>
+
+Thanks to Francesco Nigro's from RedHat comments in [Issue #1](https://github.com/FgForrest/HttpServerEvaluationTest/issues/1)
+(thanks!) we updated the versions of all tested web servers to the latest versions, fixed the problem in the Netty performance 
+test implementation that erroneously closed an HTTP connection in every iteration, and re-measured all tests, isolating 
+the CPU for JMH tests and measuring the web server instance.
+
+</Note>
+
 ## Criteria and requirements
 
 As the main requirement, we wanted the lowest possible latency and the highest possible throughput of HTTP request
@@ -149,63 +163,63 @@ second) and average time (microseconds per operation).
 	<Tbody>
       <Tr>
           <Td>microhttp</Td>
-          <Td>18,187</Td>
-          <Td>18,003</Td>
-          <Td>18,384</Td>
-      </Tr>
-      <Tr>
-          <Td>Javalin</Td>
-          <Td>17,958</Td>
-          <Td>17,697</Td>
-          <Td>18,357</Td>
-      </Tr>
-      <Tr>
-          <Td>Undertow</Td>
-          <Td>17,874</Td>
-          <Td>17,573</Td>
-          <Td>18,289</Td>
-      </Tr>
-      <Tr>
-          <Td>Micronaut</Td>
-          <Td>14,742</Td>
-          <Td>14,464</Td>
-          <Td>15,052</Td>
-      </Tr>
-      <Tr>
-          <Td>Spring Boot WebFlux</Td>
-          <Td>12,986</Td>
-          <Td>12,889</Td>
-          <Td>13,224</Td>
-      </Tr>
-      <Tr>
-          <Td>Vert.x</Td>
-          <Td>12,223</Td>
-          <Td>12,120</Td>
-          <Td>12,406</Td>
-      </Tr>
-      <Tr>
-          <Td>Spring Boot MVC</Td>
-          <Td>11,691</Td>
-          <Td>11,360</Td>
-          <Td>11,819</Td>
+          <Td>30,199</Td>
+          <Td>30,034</Td>
+          <Td>30,401</Td>
       </Tr>
       <Tr>
           <Td>Netty</Td>
-          <Td>11,272</Td>
-          <Td>11,043</Td>
-          <Td>11,407</Td>
+          <Td>28,689</Td>
+          <Td>28,617</Td>
+          <Td>28,748</Td>
+      </Tr>
+      <Tr>
+          <Td>Undertow</Td>
+          <Td>25,760</Td>
+          <Td>25,745</Td>
+          <Td>25,793</Td>
+      </Tr>
+      <Tr>
+          <Td>Javalin</Td>
+          <Td>23,650</Td>
+          <Td>23,399</Td>
+          <Td>23,995</Td>
+      </Tr>
+      <Tr>
+          <Td>Vert.x</Td>
+          <Td>22,850</Td>
+          <Td>22,477</Td>
+          <Td>23,070</Td>
+      </Tr>
+      <Tr>
+          <Td>Micronaut</Td>
+          <Td>19,572</Td>
+          <Td>19,394</Td>
+          <Td>19,841</Td>
+      </Tr>
+      <Tr>
+          <Td>Spring Boot WebFlux</Td>
+          <Td>18,158</Td>
+          <Td>17,991</Td>
+          <Td>18,234</Td>
+      </Tr> 
+      <Tr>
+          <Td>Spring Boot MVC</Td>
+          <Td>17,674</Td>
+          <Td>17,603</Td>
+          <Td>17,786</Td>
       </Tr>
       <Tr>
           <Td>Quarkus (in native mode)</Td>
-          <Td>10,100</Td>
-          <Td>10,012</Td>
-          <Td>10,159</Td>
+          <Td>11,509</Td>
+          <Td>11,383</Td>
+          <Td>11,642</Td>
       </Tr>
       <Tr>
           <Td>NanoHTTPD</Td>
-          <Td>8,874</Td>
-          <Td>8,709</Td>
-          <Td>9,023</Td>
+          <Td>6,171</Td>
+          <Td>6,051</Td>
+          <Td>6,254</Td>
       </Tr>
 	</Tbody>
 </Table>
@@ -221,81 +235,79 @@ second) and average time (microseconds per operation).
 	</Thead>
 	<Tbody>
 		<Tr>
-			<Td>Undertow</Td>
-			<Td>435</Td>
-			<Td>417</Td>
-			<Td>460</Td>
-		</Tr>
-		<Tr>
 			<Td>microhttp</Td>
-			<Td>449</Td>
-			<Td>448</Td>
-			<Td>451</Td>
-		</Tr>
-		<Tr>
-			<Td>Javalin</Td>
-			<Td>452</Td>
-			<Td>437</Td>
-			<Td>457</Td>
-		</Tr>
-		<Tr>
-			<Td>Micronaut</Td>
-			<Td>543</Td>
-			<Td>534</Td>
-			<Td>555</Td>
-		</Tr>
-		<Tr>
-			<Td>Spring Boot WebFlux</Td>
-			<Td>612</Td>
-			<Td>601</Td>
-			<Td>620</Td>
-		</Tr>
-		<Tr>
-			<Td>Vert.x</Td>
-			<Td>659</Td>
-			<Td>653</Td>
-			<Td>676</Td>
-		</Tr>
-		<Tr>
-			<Td>Spring Boot MVC</Td>
-			<Td>689</Td>
-			<Td>678</Td>
-			<Td>698</Td>
+			<Td>131</Td>
+			<Td>129</Td>
+			<Td>133</Td>
 		</Tr>
 		<Tr>
 			<Td>Netty</Td>
-			<Td>714</Td>
-			<Td>706</Td>
-			<Td>725</Td>
+			<Td>145</Td>
+			<Td>142</Td>
+			<Td>146</Td>
+		</Tr>
+		<Tr>
+			<Td>Undertow</Td>
+			<Td>156</Td>
+			<Td>156</Td>
+			<Td>156</Td>
+		</Tr>
+		<Tr>
+			<Td>Javalin</Td>
+			<Td>172</Td>
+			<Td>168</Td>
+			<Td>175</Td>
+		</Tr>
+		<Tr>
+			<Td>Vert.x</Td>
+			<Td>173</Td>
+			<Td>172</Td>
+			<Td>174</Td>
+		</Tr>
+		<Tr>
+			<Td>Micronaut</Td>
+			<Td>202</Td>
+			<Td>201</Td>
+			<Td>203</Td>
+		</Tr>
+		<Tr>
+			<Td>Spring Boot WebFlux</Td>
+			<Td>224</Td>
+			<Td>223</Td>
+			<Td>225</Td>
+		</Tr>
+		<Tr>
+			<Td>Spring Boot MVC</Td>
+			<Td>224</Td>
+			<Td>222</Td>
+			<Td>233</Td>
 		</Tr>
 		<Tr>
 			<Td>Quarkus (in native mode)</Td>
-			<Td>790</Td>
-			<Td>787</Td>
-			<Td>793</Td>
+			<Td>348</Td>
+			<Td>345</Td>
+			<Td>353</Td>
 		</Tr>
 		<Tr>
 			<Td>NanoHTTPD</Td>
-			<Td>913</Td>
-			<Td>899</Td>
-			<Td>926</Td>
+			<Td>642</Td>
+			<Td>625</Td>
+			<Td>649</Td>
 		</Tr>
 	</Tbody>
 </Table>
 
-*A gist with the raw results can be found [here](https://gist.github.com/lukashornych/4f500cd1e20de805c697888f263c415c) and
-charts for visualization [here](https://jmh.morethan.io/?gist=4f500cd1e20de805c697888f263c415c&topBar=Java%20HTTP%20servers%20and%20libraries%20performance%20comparison%20test).*
+*A gist with the raw results can be found [here](https://gist.github.com/novoj/cef56bd940a015b4cfb1ad389d2b6705) and
+charts for visualization [here](https://jmh.morethan.io/?gist=cef56bd940a015b4cfb1ad389d2b6705&topBar=HTTP%20web%20server%20upgraded%20versions%20from%2003/2023%20(optimalized)).*
 
-From the above results, there are 3 main adepts for the winner: microhttp, Javalin and Undertow. Quite interesting and
+From the above results, there are 3 main adepts for the winner: microhttp, Netty and Undertow. Quite interesting and
 surprising are the results of Javalin, which is, in fact, a framework built upon the [Jetty](https://www.eclipse.org/jetty/)
 server and not a barebone HTTP server.
-Even more surprising are the results of the popular Netty server, which is a low level server with the most difficult API
-of all of them. This is probably due to the complexity involved in setting up Netty and the large number of small
-options and optimizations, because there are a lot of other libraries that successfully use Netty as their HTTP communication layer.
-Unfortunately, it is not apparent from the documentation or examples what an optimal configuration is. Also, we expected the
-Quarkus server, which was run in native mode using [GraalVM](https://www.graalvm.org/) to end up in higher positions. In
-contrast to that, large frameworks such as Spring and Vert.x were much more performant than we ever expected due to
-their complex abstraction.
+
+The results of the popular Netty server, which is a low level server with the most difficult API of all of them, are 
+also very good. Also, we expected the Quarkus server, which was run in native mode using
+[GraalVM](https://www.graalvm.org/) to end up in higher positions. In contrast to that, large frameworks such as 
+Spring and Vert.x were much more performant than we ever expected due to their complex abstraction.
 
 ## Choosing the final solution
 
@@ -303,18 +315,31 @@ Final decision - which server, library or framework to pick was narrowed to the 
 and **Undertow**. Because they performed very similarly, the decision was made based upon their advantages and
 disadvantages relevant to evitaDB.
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why was the Netty server excluded from the selection?
+</NoteTitle>
+
+In initial performance tests, we made a mistake that led to the low performance of the Netty server compared to other
+solutions. This bug was fixed months later after a comment by Francesco Nigro. Due to the initially insufficient number
+of servers and the complex API, we excluded Netty from the list of web servers we selected for use in evitaDB.
+
+</Note>
+
 At first, the microhttp server seemed like the one to go with, mainly because of its exceptionally small codebase (around 500
 LoC) and a simple and straightforward API. Overall, this server ticked almost all the requirement boxes except the one for
 support for WebSockets. But the unsure future of this fairly new project made it quite a deal-breaker. Some other
 possible disadvantages may be the lack of support for SSL and other advanced features. With that in mind, we focused on
-choosing between Javalin and Undertow. Javalin is a lightweight framework built
-upon the [Jetty](https://www.eclipse.org/jetty/) server and Undertow is an actual HTTP server, yet they performed almost the
+choosing between Javalin and Undertow. Javalin is a lightweight framework built upon the 
+[Jetty](https://www.eclipse.org/jetty/) server and Undertow is an actual HTTP server, yet they performed almost the
 same. Both tick all the requirement boxes. Both are performant, easily embeddable, small enough to limit the
 possibilities of “magic” surprises, have simple and straightforward APIs and even support WebSockets. Both are popular
 and are updated regularly. Both support non-blocking request processing and both should probably run on GraalVM in
 the future if needed. Javalin comes with shorthand API configuration methods for setting up endpoints, built-in
 JSON-to-classes conversion using [Jackson](https://github.com/FasterXML/jackson), request validation and a simple way to
-handle errors. On the other hand, Undertow is in some ways leaner but it lets you configure a lot of low level stuff.
+handle errors. On the other hand, Undertow is in some ways leaner, but it lets you configure a lot of low level stuff.
 Similarly to Javalin, Undertow also comes with some built-in features like routing or different HTTP handlers, but
 actual HTTP request handling is not as simple as in Javalin because of a missing built-in JSON-to-classes conversion.
 

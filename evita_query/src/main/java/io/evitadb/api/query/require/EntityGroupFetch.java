@@ -26,10 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -44,12 +43,12 @@ import java.util.stream.Stream;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "groupFetch",
 	shortDescription = "Returns richer group entities instead of just entity references (empty container returns only entity body).",
 	supportedIn = {ConstraintDomain.FACET}
 )
-public class EntityGroupFetch extends AbstractRequireConstraintContainer implements EntityFetchRequirements {
+public class EntityGroupFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {
 
 	@Serial private static final long serialVersionUID = -781235795350040285L;
 
@@ -61,14 +60,9 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 		super();
 	}
 
-	@ConstraintCreatorDef
-	public EntityGroupFetch(@Nonnull @ConstraintChildrenParamDef EntityContentRequire... requirements) {
+	@Creator
+	public EntityGroupFetch(@Nonnull @Child EntityContentRequire... requirements) {
 		super(requirements);
-	}
-
-	@Override
-	public boolean isNecessary() {
-		return true;
 	}
 
 	@Override
@@ -100,12 +94,6 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 				Arrays.stream(getRequirements()),
 				Arrays.stream(anotherRequirement.getRequirements())
 			)
-			.map(r -> {
-				if (!(r instanceof CombinableEntityContentRequire)) {
-					throw new EvitaInternalError("Combinable content require is required in EntityGroupFetch.");
-				}
-				return (CombinableEntityContentRequire) r;
-			})
 			.collect(new EntityContentRequireCombiningCollector());
 
 		//noinspection unchecked
@@ -120,10 +108,7 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-			.map(c -> (RequireConstraint) c)
-			.toArray(RequireConstraint[]::new);
-		return new EntityGroupFetch(requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new EntityGroupFetch(children);
 	}
 }

@@ -29,6 +29,7 @@ import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.RequireConstraint;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -40,8 +41,20 @@ import java.io.Serializable;
 abstract class AbstractRequireConstraintContainer extends ConstraintContainer<RequireConstraint> implements RequireConstraint {
 	@Serial private static final long serialVersionUID = 5596073952193919059L;
 
+	public AbstractRequireConstraintContainer(@Nullable String name, @Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(name, arguments, children, additionalChildren);
+	}
+
+	public AbstractRequireConstraintContainer(@Nullable String name, @Nonnull Serializable[] arguments, @Nonnull RequireConstraint... children) {
+		super(name, arguments, children);
+	}
+
 	protected AbstractRequireConstraintContainer(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
 		super(arguments, children, additionalChildren);
+	}
+
+	protected AbstractRequireConstraintContainer(@Nullable String name, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+		super(name, NO_ARGS, children, additionalChildren);
 	}
 
 	protected AbstractRequireConstraintContainer(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
@@ -52,7 +65,11 @@ abstract class AbstractRequireConstraintContainer extends ConstraintContainer<Re
 		super(arguments, children);
 	}
 
-	protected AbstractRequireConstraintContainer(RequireConstraint... children) {
+	protected AbstractRequireConstraintContainer(@Nullable String name, @Nonnull RequireConstraint... children) {
+		super(name, NO_ARGS, children);
+	}
+
+	protected AbstractRequireConstraintContainer(@Nonnull RequireConstraint... children) {
 		super(children);
 	}
 
@@ -65,6 +82,11 @@ abstract class AbstractRequireConstraintContainer extends ConstraintContainer<Re
 	@Override
 	public void accept(@Nonnull ConstraintVisitor visitor) {
 		visitor.visit(this);
+	}
+
+	@Override
+	public boolean isNecessary() {
+		return true;
 	}
 
 }

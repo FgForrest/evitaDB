@@ -466,6 +466,9 @@
         <option name="SMART_TABS" value="true" />
       </indentOptions>
     </codeStyleSettings>
+    <codeStyleSettings language="Markdown">
+      <option name="WRAP_ON_TYPING" value="0" />
+    </codeStyleSettings>
     <codeStyleSettings language="SQL">
       <indentOptions>
         <option name="SMART_TABS" value="true" />

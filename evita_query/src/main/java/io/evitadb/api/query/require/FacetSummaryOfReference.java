@@ -26,11 +26,11 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.utils.Assert;
 
@@ -38,7 +38,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * This `facetSummary` requirement usage triggers computing and adding an object to the result index. The object is
@@ -65,7 +64,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "summary",
 	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with custom \"fetching\" settings for specific reference."
 )
@@ -80,7 +79,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		super(new Serializable[] {referenceName, FacetStatisticsDepth.COUNTS});
 	}
 
-	public FacetSummaryOfReference(@Nonnull String referenceName, @Nonnull @ConstraintValueParamDef FacetStatisticsDepth statisticsDepth) {
+	public FacetSummaryOfReference(@Nonnull String referenceName, @Nonnull @Value FacetStatisticsDepth statisticsDepth) {
 		super(new Serializable[] {referenceName, statisticsDepth});
 	}
 
@@ -103,10 +102,10 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		super(new Serializable[] {referenceName, statisticsDepth}, facetEntityRequirement, groupEntityRequirement);
 	}
 
-	@ConstraintCreatorDef
-	public FacetSummaryOfReference(@Nonnull @ConstraintClassifierParamDef String referenceName,
-	                               @Nonnull @ConstraintValueParamDef FacetStatisticsDepth statisticsDepth,
-	                               @Nonnull @ConstraintChildrenParamDef(uniqueChildren = true) EntityRequire... requirements) {
+	@Creator
+	public FacetSummaryOfReference(@Nonnull @Classifier String referenceName,
+	                               @Nonnull @Value FacetStatisticsDepth statisticsDepth,
+	                               @Nonnull @Child(uniqueChildren = true) EntityRequire... requirements) {
 		super(new Serializable[] {referenceName, statisticsDepth}, requirements);
 		Assert.isTrue(
 			requirements.length <= 2,
@@ -176,22 +175,14 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return true;
-	}
-
-	@Override
 	public boolean isApplicable() {
-		return true;
+		return isArgumentsNonNull() && getArguments().length >= 1;
 	}
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-			.map(c -> (RequireConstraint) c)
-			.toArray(RequireConstraint[]::new);
-		return new FacetSummaryOfReference(getArguments(), requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new FacetSummaryOfReference(getArguments(), children);
 	}
 
 	@Nonnull

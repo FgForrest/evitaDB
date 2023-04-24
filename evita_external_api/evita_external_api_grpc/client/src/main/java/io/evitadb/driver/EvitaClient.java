@@ -30,6 +30,7 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
@@ -62,6 +63,7 @@ import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -95,22 +97,41 @@ import static java.util.Optional.ofNullable;
  * seamlessly. The client & server implementation takes advantage of gRPC API that is best suited for fast communication
  * between two endpoints if both parties are Java based.
  *
- * TODO JNO - extend the documentation once the client is fully completed
+ * The class is thread-safe and can be used from multiple threads to acquire {@link EvitaClientSession} that are not
+ * thread-safe.
  *
+ * @see EvitaContract
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
 @Slf4j
 public class EvitaClient implements EvitaContract {
-
 	private static final SchemaMutationConverter<TopLevelCatalogSchemaMutation, GrpcTopLevelCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
 		new DelegatingTopLevelCatalogSchemaMutationConverter();
 
+	@Getter private final EvitaClientConfiguration configuration;
 	private final ChannelPool channelPool;
+	/**
+	 * True if client is active and hasn't yet been closed.
+	 */
 	private final AtomicBoolean active = new AtomicBoolean(true);
+	/**
+	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
+	 */
 	private final ReflectionLookup reflectionLookup;
+	/**
+	 * Index of the {@link EntitySchemaContract} cache. See {@link EvitaEntitySchemaCache} for more information.
+	 * The key in index is the catalog name.
+	 */
 	private final Map<String, EvitaEntitySchemaCache> entitySchemaCache = new ConcurrentHashMap<>(8);
+	/**
+	 * Index of the opened and active {@link EvitaClientSession} indexed by their unique {@link UUID}
+	 */
 	private final Map<UUID, EvitaSessionContract> activeSessions = CollectionUtils.createConcurrentHashMap(16);
+	/**
+	 * A lambda that needs to be invoked upon EvitaClient closing. It goes through all opened {@link EvitaClientSession}
+	 * and closes them along with their gRPC channels.
+	 */
 	private final Runnable terminationCallback;
 
 	/**
@@ -138,10 +159,12 @@ public class EvitaClient implements EvitaContract {
 		@Nonnull EvitaClientConfiguration configuration,
 		@Nullable Consumer<NettyChannelBuilder> grpcConfigurator
 	) {
+		this.configuration = configuration;
 		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
 			.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
 			.usingTrustedRootCaCertificate(configuration.trustCertificate())
 			.mtls(configuration.mtlsEnabled())
+			.certificateClientFolderPath(configuration.certificateFolderPath())
 			.clientCertificateFilePath(configuration.certificateFileName())
 			.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
 			.build();
@@ -310,7 +333,7 @@ public class EvitaClient implements EvitaContract {
 	}
 
 	@Override
-	public void replaceCatalog(@Nonnull String catalogNameToBeReplaced, @Nonnull String catalogNameToBeReplacedWith) {
+	public void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
 		assertActive();
 		update(new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
 		this.entitySchemaCache.remove(catalogNameToBeReplaced);

@@ -27,10 +27,8 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
-import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
-import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.order.AttributeNatural;
@@ -45,13 +43,14 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
-import io.evitadb.externalApi.graphql.dataType.coercing.AnyCoercing;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintKeyBuilder;
+import io.evitadb.externalApi.graphql.api.dataType.coercing.AnyCoercing;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
@@ -472,7 +471,7 @@ public interface GraphQLRandomQueryGenerator {
 	}
 
 	/**
-	 * Creates randomized query requiring {@link io.evitadb.api.requestResponse.extraResult.HierarchyStatistics} computation for
+	 * Creates randomized query requiring {@link Hierarchy} computation for
 	 * passed entity schema based on passed set.
 	 */
 	default GraphQLQuery generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {
@@ -490,7 +489,7 @@ public interface GraphQLRandomQueryGenerator {
 			new String[] {
 				String.format(
 					"""
-                    hierarchyStatistics {
+                    hierarchy {
                         %s
                     }
 					""",
@@ -1239,7 +1238,7 @@ public interface GraphQLRandomQueryGenerator {
 			return String.format(
 				"""
                     query {
-			            query_%s(
+			            query%s(
 			                %s
 			                %s
 			                %s
@@ -1254,7 +1253,7 @@ public interface GraphQLRandomQueryGenerator {
 			            }
 		            }
 					""",
-				StringUtils.toCamelCase(collectionName),
+				StringUtils.toPascalCase(collectionName),
 				filterBy != null ?
 					new GraphQLConstraint(
 						FilterBy.class,
@@ -1455,20 +1454,8 @@ public interface GraphQLRandomQueryGenerator {
 
 		@Override
 		public String toString() {
-			final List<String> keyBuilder = new LinkedList<>();
-			if (constraintDescriptor.propertyType() != ConstraintPropertyType.GENERIC) {
-				keyBuilder.add(ConstraintProcessingUtils.getPrefixByPropertyType(constraintDescriptor.propertyType()).orElseThrow());
-			}
-
-			if (classifier != null) {
-				keyBuilder.add(StringUtils.toCamelCase(classifier));
-			} else if (constraintDescriptor.creator().hasImplicitClassifier() && constraintDescriptor.creator().implicitClassifier() instanceof FixedImplicitClassifier fixedImplicitClassifier) {
-				keyBuilder.add(fixedImplicitClassifier.classifier());
-			}
-
-			keyBuilder.add(constraintDescriptor.fullName());
-
-			return String.join("_", keyBuilder) + ": " + value;
+			final String key = new ConstraintKeyBuilder().build(constraintDescriptor, () -> classifier);
+			return key + ": " + value;
 		}
 	}
 

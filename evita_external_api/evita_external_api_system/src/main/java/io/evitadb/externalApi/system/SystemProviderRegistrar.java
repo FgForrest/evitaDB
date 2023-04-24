@@ -23,11 +23,12 @@
 
 package io.evitadb.externalApi.system;
 
+import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.CertificateSettings;
+import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
@@ -62,7 +63,7 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 
 	@Nonnull
 	@Override
-	public ExternalApiProvider<SystemConfig> register(@Nonnull EvitaSystemDataProvider evitaSystemDataProvider, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig externalApiConfiguration) {
+	public ExternalApiProvider<SystemConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull SystemConfig systemConfig) {
 		final File file;
 		final String fileName;
 		final CertificateSettings certificateSettings = apiOptions.certificate();
@@ -87,6 +88,8 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 				(exchange, path) -> {
 					if (("/" + fileName).equals(path)) {
 						return resourceManager.getResource(fileName);
+					} else if (("/" + CertificateUtils.getGeneratedServerCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
+						return resourceManager.getResource(CertificateUtils.getGeneratedServerCertificateFileName());
 					} else if (("/" + CertificateUtils.getGeneratedClientCertificateFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
 						return resourceManager.getResource(CertificateUtils.getGeneratedClientCertificateFileName());
 					} else if (("/" + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).equals(path) && certificateSettings.generateAndUseSelfSigned()) {
@@ -94,24 +97,34 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 					} else {
 						return null;
 					}
-				},
-				new BlockingHandler(exchange -> {
-					exchange.setStatusCode(404);
-					exchange.endExchange();
-				})
+				}
 			);
 			return new SystemProvider(
-				externalApiConfiguration,
-				fileSystemHandler,
-				Arrays.stream(externalApiConfiguration.getBaseUrls())
+				systemConfig,
+				new BlockingHandler(
+					new CorsFilter(
+						fileSystemHandler,
+						systemConfig.getAllowedOrigins()
+					)
+				),
+				Arrays.stream(systemConfig.getBaseUrls())
 					.map(it -> it + fileName)
 					.toArray(String[]::new),
-				Arrays.stream(externalApiConfiguration.getBaseUrls())
-					.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
-					.toArray(String[]::new),
-				Arrays.stream(externalApiConfiguration.getBaseUrls())
-					.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
-					.toArray(String[]::new)
+				certificateSettings.generateAndUseSelfSigned() ?
+					Arrays.stream(systemConfig.getBaseUrls())
+						.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
+						.toArray(String[]::new) :
+					new String[0],
+				certificateSettings.generateAndUseSelfSigned() ?
+					Arrays.stream(systemConfig.getBaseUrls())
+						.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
+						.toArray(String[]::new) :
+					new String[0],
+				certificateSettings.generateAndUseSelfSigned() ?
+					Arrays.stream(systemConfig.getBaseUrls())
+						.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
+						.toArray(String[]::new) :
+					new String[0]
 			);
 		} catch (IOException e) {
 			throw new EvitaInternalError(e.getMessage(), e);

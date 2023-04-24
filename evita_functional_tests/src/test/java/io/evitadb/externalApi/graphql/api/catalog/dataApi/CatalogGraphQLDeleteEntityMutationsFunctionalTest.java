@@ -27,8 +27,14 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
+import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -53,14 +59,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
-	private static final String DELETE_PRODUCT_PATH = "data.delete_product";
-	private static final String GET_PRODUCT_PATH = "data.get_product";
+	private static final String DELETE_PRODUCT_PATH = "data.deleteProduct";
+	private static final String GET_PRODUCT_PATH = "data.getProduct";
+	public static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE = GRAPHQL_THOUSAND_PRODUCTS + "forDelete";
+
+	@Override
+	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
+	protected DataCarrier setUp(Evita evita) {
+		return super.setUpData(evita, 50);
+	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE)
 	@DisplayName("Should delete entity by query")
-	void shouldDeleteEntityByQuery(Evita evita) {
+	void shouldDeleteEntityByQuery(Evita evita, GraphQLTester tester) {
 		final List<SealedEntity> entitiesToDelete = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -91,13 +103,13 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 				.build())
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    delete_product(
+	                    deleteProduct(
 	                        filterBy: {
-	                            attribute_quantity_lessThan: "5500"
+	                            attributeQuantityLessThan: "5500"
 	                        },
 	                        limit: 2
 	                    ) {
@@ -114,14 +126,14 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 			.body(ERRORS_PATH, nullValue())
 			.body(DELETE_PRODUCT_PATH, equalTo(expectedBody));
 
-		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey());
-		assertProductDeleted(entitiesToDelete.get(1).getPrimaryKey());
+		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey(), tester);
+		assertProductDeleted(entitiesToDelete.get(1).getPrimaryKey(), tester);
 	}
 
 	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_DELETE)
 	@DisplayName("Should not delete any entity by query")
-	void shouldNotDeleteAnyEntityByQuery(Evita evita) {
+	void shouldNotDeleteAnyEntityByQuery(Evita evita, GraphQLTester tester) {
 		final List<EntityReference> entitiesToDelete = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -140,13 +152,13 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 		);
 		assertTrue(entitiesToDelete.isEmpty());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                mutation {
-	                    delete_product(
+	                    deleteProduct(
 	                        filterBy: {
-	                            attribute_quantity_greaterThan: "1000000"
+	                            attributeQuantityGreaterThan: "1000000"
 	                        }
 	                        limit: 1
 	                    ) {
@@ -161,12 +173,12 @@ public class CatalogGraphQLDeleteEntityMutationsFunctionalTest extends CatalogGr
 			.body(DELETE_PRODUCT_PATH, equalTo(List.of()));
 	}
 
-	private void assertProductDeleted(int primaryKey) {
-		testGraphQLCall()
+	private void assertProductDeleted(int primaryKey, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    get_product(primaryKey: %d) {
+	                    getProduct(primaryKey: %d) {
 	                        primaryKey
 	                    }
 	                }

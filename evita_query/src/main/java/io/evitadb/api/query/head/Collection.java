@@ -28,9 +28,9 @@ import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -48,7 +48,7 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "collection",
 	shortDescription = "The constraint specifies which entity collection will be searched for results.",
 	supportedIn = ConstraintDomain.GENERIC
@@ -60,9 +60,9 @@ public class Collection extends ConstraintLeaf<HeadConstraint> implements HeadCo
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public Collection(@Nonnull @ConstraintValueParamDef String entityType) {
-		super(entityType);
+	@Creator
+	public Collection(@Nonnull @Value String entityType) {
+		super(null, entityType);
 	}
 
 	/**

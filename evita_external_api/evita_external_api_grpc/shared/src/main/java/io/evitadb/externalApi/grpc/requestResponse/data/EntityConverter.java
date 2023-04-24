@@ -423,7 +423,7 @@ public class EntityConverter {
 			.stream()
 			.map(
 				it -> toSealedEntity(
-					entity -> entitySchemaProvider.apply(entity.getEntityType(), entity.getVersion()),
+					entity -> entitySchemaProvider.apply(entity.getEntityType(), entity.getSchemaVersion()),
 					new EvitaRequest(query, OffsetDateTime.now()),
 					it
 				)
@@ -598,7 +598,7 @@ public class EntityConverter {
 
 	@Nonnull
 	public static SealedEntity parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
-		/* TODO JNO - implement me */
+		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
 		return null;
 	}
 

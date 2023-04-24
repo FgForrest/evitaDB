@@ -29,7 +29,7 @@ import io.evitadb.externalApi.api.model.EndpointDescriptor;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 
 /**
- * Descriptor of root of schema API for schema-based external APIs.
+ * Descriptor of root of schema API for schema-based APIs.
  *
  * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Endpoints in this
  * descriptor are supposed to be dynamically registered to target generated DTO.
@@ -39,36 +39,40 @@ import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.
 public interface CatalogSchemaApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor GET_CATALOG_SCHEMA = EndpointDescriptor.builder()
-        .operation("get")
+        .operation("get*schema")
+        .urlPathItem("schema")
         .classifier("catalog")
         .description("""
-            Returns Evita's internal schema for whole catalog.
+            Returns evitaDB's internal schema for whole catalog.
             Can be used for altering catalog schema.
             """)
         .type(nonNullRef(CatalogSchemaDescriptor.THIS))
         .build();
     EndpointDescriptor UPDATE_CATALOG_SCHEMA = EndpointDescriptor.builder()
-        .operation("update")
+        .operation("update*schema")
+        .urlPathItem("schema")
         .classifier("catalog")
         .description("""
-            Updates Evita's internal schema for whole catalog.
+            Updates evitaDB's internal schema for whole catalog.
             """)
         .type(nonNullRef(CatalogSchemaDescriptor.THIS))
         .build();
 
     EndpointDescriptor GET_ENTITY_SCHEMA = EndpointDescriptor.builder()
-        .operation("get")
+        .operation("get*schema")
+        .urlPathItem("schema")
         .description("""
-            Returns Evita's internal schema for entities from `%s` collection.
+            Returns evitaDB's internal schema for entities from `%s` collection.
             Can be used for altering schema of entities and their data.
             """)
         // type is expected to be a collection-specific `EntitySchema` object
         .build();
 
     EndpointDescriptor UPDATE_ENTITY_SCHEMA = EndpointDescriptor.builder()
-        .operation("update")
+        .operation("update*schema")
+        .urlPathItem("schema")
         .description("""
-            Updates Evita's internal schema for entities from `%s` collection.
+            Updates evitaDB's internal schema for entities from `%s` collection.
             """)
         // type is expected to be a collection-specific `EntitySchema` object
         .build();

@@ -31,6 +31,7 @@ import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -114,10 +115,11 @@ public class ConstraintCloneVisitor implements ConstraintVisitor {
 	/**
 	 * Creates new immutable container with modified count of children.
 	 */
-	private void createNewContainerWithModifiedChildren(ConstraintContainer<?> container,
+	private <T extends Constraint<T>> void createNewContainerWithModifiedChildren(ConstraintContainer<T> container,
 														List<Constraint<?>> modifiedChildren,
 														List<Constraint<?>> modifiedAdditionalChildren) {
-		final Constraint<?>[] newChildren = modifiedChildren.toArray(Constraint<?>[]::new);
+		//noinspection unchecked
+		final T[] newChildren = modifiedChildren.toArray(value -> (T[]) Array.newInstance(container.getType(), 0));
 		final Constraint<?>[] newAdditionalChildren = modifiedAdditionalChildren.toArray(Constraint<?>[]::new);
 		final Constraint<?> copyWithNewChildren = container.getCopyWithNewChildren(newChildren, newAdditionalChildren);
 		if (copyWithNewChildren.isApplicable()) {

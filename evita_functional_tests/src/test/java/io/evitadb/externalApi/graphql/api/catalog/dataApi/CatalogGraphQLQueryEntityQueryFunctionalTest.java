@@ -23,17 +23,21 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
@@ -50,30 +54,31 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.text.NumberFormat;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.not;
@@ -97,14 +102,36 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	private static final int SEED = 40;
 
-	private static final String PRODUCT_QUERY_PATH = "data.query_product";
-	private static final String CATEGORY_QUERY_PATH = "data.query_category";
-	private static final String ERRORS_PATH = "errors";
+	private static final String PRODUCT_QUERY_PATH = "data.queryProduct";
+	private static final String CATEGORY_QUERY_PATH = "data.queryCategory";
+
+	private static final String CATEGORY_HIERARCHY_PATH = CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
+	private static final String SELF_HIERARCHY_PATH = CATEGORY_HIERARCHY_PATH + "." + HierarchyDescriptor.SELF.name();
+	private static final String SELF_MEGA_MENU_PATH = SELF_HIERARCHY_PATH + ".megaMenu";
+	private static final String SELF_ROOT_SIBLINGS_PATH = SELF_HIERARCHY_PATH + ".rootSiblings";
+
+	private static final String PRODUCT_HIERARCHY_PATH = PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
+	private static final String REFERENCED_HIERARCHY_PATH = PRODUCT_HIERARCHY_PATH + ".category";
+	private static final String REFERENCED_MEGA_MENU_PATH = REFERENCED_HIERARCHY_PATH + ".megaMenu";
+	private static final String REFERENCED_ROOT_SIBLINGS_PATH = REFERENCED_HIERARCHY_PATH + ".rootSiblings";
+
+	private static final String LEVEL_INFO_FRAGMENT = """
+			parentId
+			entity {
+				primaryKey
+				attributes {
+					code
+				}
+			}
+			queriedEntityCount
+			childrenCount
+			hasChildren
+			""";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key")
-	void shouldReturnProductsByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKey(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null,
@@ -127,13 +154,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            entity_primaryKey_inSet: [%d, %d]
+	                            entityPrimaryKeyInSet: [%d, %d]
 	                        }
 	                    ) {
 	                        __typename
@@ -166,7 +193,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by non-localized attribute")
-	void shouldReturnProductsByNonLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByNonLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null &&
@@ -190,13 +217,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        __typename
@@ -228,7 +255,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by range attribute from variables")
-	void shouldReturnProductsByRangeAttributeFromVariables(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByRangeAttributeFromVariables(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_SIZE) != null,
@@ -244,13 +271,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query ($size: IntegerNumberRange!) {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_size_inSet: [$size]
+	                            attributeSizeInSet: [$size]
 	                        }
 	                    ) {
 	                        __typename
@@ -266,7 +293,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			)
 			.variable(
 				"size",
-				new int[] { sizeAttributeToCompare.getPreciseFrom(), sizeAttributeToCompare.getPreciseTo() }
+				new int[]{sizeAttributeToCompare.getPreciseFrom(), sizeAttributeToCompare.getPreciseTo()}
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -277,20 +304,20 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatted big decimal is missing locale")
-	void shouldReturnErrorWhenFormattedBigDecimalIsMissingLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattedBigDecimalIsMissingLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null,
 			2
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
                         ) {
                             __typename
@@ -318,7 +345,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return big decimal attribute variants for products")
-	void shouldReturnBigDecimalAttributeVariantsForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnBigDecimalAttributeVariantsForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null,
@@ -341,14 +368,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"],
-	                            entity_locale_equals: cs_CZ
+	                            attributeCodeInSet: ["%s", "%s"],
+	                            entityLocaleEquals: cs_CZ
 	                        }
 	                    ) {
 	                        __typename
@@ -381,7 +408,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by localized attribute")
-	void shouldReturnProductsByLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null &&
@@ -404,14 +431,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_url_inSet: ["%s", "%s"]
-	                            entity_locale_equals: en
+	                            attributeUrlInSet: ["%s", "%s"]
+	                            entityLocaleEquals: en
 	                        }
 	                    ) {
 	                        __typename
@@ -443,16 +470,16 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid products fields")
-	void shouldReturnErrorForInvalidProductsFields(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForInvalidProductsFields(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 2);
 		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -466,15 +493,16 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
+
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid argument in products query")
-	void shouldReturnErrorForInvalidArgumentInProductsQuery(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidArgumentInProductsQuery(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(code: "product") {
+	                    queryProduct(code: "product") {
 	                        __typename
 	                        recordPage {
 	                            __typename
@@ -494,20 +522,20 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
-	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithPriceForSale);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic"
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
                             __typename
@@ -539,18 +567,18 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter products by non-existent price")
-	void shouldFilterProductsByNonExistentPrice(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFilterProductsByNonExistentPrice(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "nonexistent"
+	                            attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "nonexistent"
 	                        }
                         ) {
                             __typename
@@ -576,18 +604,18 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for filtering products by unknown currency")
-	void shouldReturnErrorForFilteringProductsByUnknownCurrency(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForFilteringProductsByUnknownCurrency(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: AAA,
-		                        price_inPriceLists: "basic"
+	                            attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: AAA,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
                             __typename
@@ -613,7 +641,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
-	void shouldReturnCustomPriceForSaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnCustomPriceForSaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -621,13 +649,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithPriceForSale
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            entity_primaryKey_inSet: [%d, %d]
+	                            entityPrimaryKeyInSet: [%d, %d]
 	                        }
 	                    ) {
 	                        __typename
@@ -659,21 +687,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale with entity locale")
-	void shouldReturnFormattedPriceForSaleWithEntityLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceForSaleWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithFormattedPriceForSale);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic",
-		                        entity_locale_equals: cs_CZ
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic",
+		                        entityLocaleEquals: cs_CZ
 	                        }
                         ) {
                             __typename
@@ -700,20 +728,20 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale with custom locale")
-	void shouldReturnFormattedPriceForSaleWithCustomLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceForSaleWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithFormattedPriceForSale);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic"
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
                             __typename
@@ -740,20 +768,20 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale with custom locale")
-	void shouldReturnErrorWhenFormattingPriceForSaleWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPriceForSaleWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithFormattedPriceForSale);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic"
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
                             __typename
@@ -779,7 +807,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products with filter inheritance")
-	void shouldReturnPriceForProductsWithFilterInheritance(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForProductsWithFilterInheritance(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -787,15 +815,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithPrice
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-	                            price_inCurrency: CZK
-	                            price_inPriceLists: "basic"
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            priceInCurrency: CZK
+	                            priceInPriceLists: "basic"
 	                        }
                         ) {
                             __typename
@@ -827,7 +855,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products")
-	void shouldReturnPriceForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -835,13 +863,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithPrice
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        __typename
@@ -873,7 +901,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price with entity locale")
-	void shouldReturnFormattedPriceWithEntityLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -881,14 +909,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithFormattedPrice
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"],
-	                            entity_locale_equals: cs_CZ
+	                            attributeCodeInSet: ["%s", "%s"],
+	                            entityLocaleEquals: cs_CZ
 	                        }
 	                    ) {
 	                        __typename
@@ -915,7 +943,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price with custom locale")
-	void shouldReturnFormattedPriceWithCustomLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -923,13 +951,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithFormattedPrice
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        __typename
@@ -956,16 +984,16 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return when formatting price without locale")
-	void shouldReturnErrorWhenFormattingPriceWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPriceWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        __typename
@@ -991,20 +1019,20 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all prices for products")
-	void shouldReturnAllPricesForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAllPricesForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntities(
 			originalProductEntities,
 			it -> !it.getPrices().isEmpty(),
 			2
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        __typename
@@ -1044,7 +1072,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for products")
-	void shouldReturnFilteredPricesForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFilteredPricesForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -1064,13 +1092,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
 	                        __typename
@@ -1102,7 +1130,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for multiple price lists for products")
-	void shouldReturnFilteredPricesForMutliplePriceListsForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFilteredPricesForMutliplePriceListsForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2, PRICE_LIST_BASIC, PRICE_LIST_VIP);
 
 		final var expectedBody = createBasicPageResponse(
@@ -1120,13 +1148,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
 	                        __typename
@@ -1153,7 +1181,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted prices with entity locale")
-	void shouldReturnFormattedPricesWithEntityLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPricesWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -1161,14 +1189,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithFormattedPrices
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d],
-		                        entity_locale_equals: cs_CZ
+		                        entityPrimaryKeyInSet: [%d, %d],
+		                        entityLocaleEquals: cs_CZ
 		                    }
 	                    ) {
 	                        __typename
@@ -1195,7 +1223,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted prices with custom locale")
-	void shouldReturnFormattedPricesWithCustomLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPricesWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -1203,13 +1231,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithFormattedPrices
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
 	                        __typename
@@ -1236,16 +1264,16 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatting prices without locale")
-	void shouldReturnErrorWhenFormattingPricesWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPricesWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
 	                        __typename
@@ -1271,12 +1299,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with inherited locale for products")
-	void shouldReturnAssociatedDataWithInheritedLocaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithInheritedLocaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
 				it.getAllLocales().contains(Locale.ENGLISH),
-			 2
+			2
 		);
 
 		final var expectedBody = createBasicPageResponse(
@@ -1284,14 +1312,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithAssociatedData
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-	                            entity_locale_equals: en
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            entityLocaleEquals: en
 	                        }
                         ) {
                             __typename
@@ -1321,7 +1349,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with custom locale for products")
-	void shouldReturnAssociatedDataWithCustomLocaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithCustomLocaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null,
@@ -1333,13 +1361,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			this::createEntityDtoWithAssociatedData
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        __typename
@@ -1369,7 +1397,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single reference for products")
-	void shouldReturnSingleReferenceForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleReferenceForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.PARAMETER).size() == 1 &&
@@ -1424,13 +1452,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			}
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        __typename
@@ -1479,7 +1507,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference list for products")
-	void shouldReturnReferenceListForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferenceListForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() > 1,
@@ -1507,13 +1535,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			}
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        __typename
@@ -1543,8 +1571,120 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return filtered and ordered reference list for products")
+	void shouldReturnFilteredAndOrderedReferenceListForProducts(GraphQLTester tester, List<SealedEntity> originalProductsEntities, List<SealedEntity> originalStoreEntities) {
+		final Map<Integer, SealedEntity> storesIndexedByPk = originalStoreEntities.stream()
+			.collect(Collectors.toMap(
+				EntityContract::getPrimaryKey,
+				Function.identity()
+			));
+
+		final Map<Integer, Set<String>> productsWithLotsOfStores = originalProductsEntities.stream()
+			.filter(it -> it.getReferences(Entities.STORE).size() > 4 && it.getLocales().contains(CZECH_LOCALE))
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getReferences(Entities.STORE)
+						.stream()
+						.map(ref -> ref.getReferenceKey().primaryKey())
+						.map(storesIndexedByPk::get)
+						.map(store -> store.getAttribute(ATTRIBUTE_CODE, String.class))
+						.collect(Collectors.toSet())
+				)
+			);
+
+		final AtomicBoolean atLeastFirst = new AtomicBoolean();
+		final Random rnd = new Random(5);
+		final String[] randomStores = productsWithLotsOfStores
+			.values()
+			.stream()
+			.flatMap(Collection::stream)
+			.filter(it -> atLeastFirst.compareAndSet(false, true) || rnd.nextInt(10) == 0)
+			.distinct()
+			.toArray(String[]::new);
+
+		final var expectedBody = createBasicPageResponse(
+			productsWithLotsOfStores.keySet()
+				.stream()
+				.sorted()
+				.map(id -> originalProductsEntities.stream()
+					.filter(it -> it.getPrimaryKey().equals(id))
+					.findFirst()
+					.orElseThrow())
+				.toList(),
+			entity -> {
+				final var references = entity.getReferences(Entities.STORE)
+					.stream()
+					.map(it -> storesIndexedByPk.get(it.getReferencedPrimaryKey()))
+					.filter(it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null)
+					.sorted(Comparator.comparing(it -> (String) it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE), Comparator.reverseOrder()))
+					.map(reference ->
+						map()
+							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getPrimaryKey()))
+							.build())
+					.toList();
+				assertFalse(references.isEmpty());
+
+				return map()
+					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+					.e("store", references)
+					.build();
+			}
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: [%s],
+	                            entityLocaleEquals: cs_CZ
+	                        }
+	                    ) {
+	                        __typename
+	                        recordPage(number: 1, size: %d) {
+	                            __typename
+	                            data {
+	                                primaryKey
+			                        type
+		                            store(
+		                                filterBy: {
+		                                    entityHaving: {
+		                                        attributeCodeInSet: [%s]
+		                                    }
+		                                },
+		                                orderBy: {
+		                                    entityProperty: {
+		                                        attributeNameNatural: DESC
+		                                    }
+		                                }
+		                            ) {
+		                                referencedEntity {
+		                                    primaryKey
+		                                }
+		                            }
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				productsWithLotsOfStores.keySet().stream().map(Object::toString).collect(Collectors.joining(",")),
+				Integer.MAX_VALUE,
+				Arrays.stream(randomStores).map(it -> "\"" + it + "\"").collect(Collectors.joining(","))
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should find product by complex query")
-	void shouldFindProductByComplexQuery(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFindProductByComplexQuery(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final Random rnd = new Random(SEED);
 		final List<SealedEntity> withTrueAlias = originalProductEntities.stream()
 			.filter(it -> Objects.equals(Boolean.TRUE, it.getAttribute(ATTRIBUTE_ALIAS)) && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
@@ -1561,41 +1701,41 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			TEST_CATALOG,
 			session -> {
 				return session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							and(
-								or(
-									and(
-										attributeEquals(ATTRIBUTE_ALIAS, withTrueAlias.get(0).getAttribute(ATTRIBUTE_ALIAS)),
-										attributeEquals(ATTRIBUTE_PRIORITY, withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY))
-									),
-									and(
-										attributeEquals(ATTRIBUTE_ALIAS, withTrueAlias.get(1).getAttribute(ATTRIBUTE_ALIAS)),
-										attributeEquals(ATTRIBUTE_PRIORITY, withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY))
-									),
-									and(
-										attributeEquals(ATTRIBUTE_ALIAS, false),
-										attributeInSet(
-											ATTRIBUTE_PRIORITY,
-											(Long)withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-											(Long)withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-											(Long)withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
-											(Long)withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY)
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									or(
+										and(
+											attributeEquals(ATTRIBUTE_ALIAS, withTrueAlias.get(0).getAttribute(ATTRIBUTE_ALIAS)),
+											attributeEquals(ATTRIBUTE_PRIORITY, withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY))
+										),
+										and(
+											attributeEquals(ATTRIBUTE_ALIAS, withTrueAlias.get(1).getAttribute(ATTRIBUTE_ALIAS)),
+											attributeEquals(ATTRIBUTE_PRIORITY, withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY))
+										),
+										and(
+											attributeEquals(ATTRIBUTE_ALIAS, false),
+											attributeInSet(
+												ATTRIBUTE_PRIORITY,
+												(Long) withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+												(Long) withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+												(Long) withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+												(Long) withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY)
+											)
 										)
+									),
+									not(
+										attributeEquals(ATTRIBUTE_CODE, withFalseAlias.get(4).getAttribute(ATTRIBUTE_CODE))
 									)
-								),
-								not(
-									attributeEquals(ATTRIBUTE_CODE, withFalseAlias.get(4).getAttribute(ATTRIBUTE_CODE))
 								)
+							),
+							require(
+								page(1, Integer.MAX_VALUE)
 							)
 						),
-						require(
-							page(1, Integer.MAX_VALUE)
-						)
-					),
-					EntityReference.class
-				)
+						EntityReference.class
+					)
 					.getRecordData()
 					.stream()
 					.map(EntityReference::getPrimaryKey)
@@ -1605,28 +1745,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		assertTrue(expectedEntities.length > 0);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    query_product(
+	                    queryProduct(
 	                        filterBy: {
 	                            or: [
 	                                {
-	                                    attribute_alias_equals: %b
-	                                    attribute_priority_equals: "%s"
+	                                    attributeAliasEquals: %b
+	                                    attributePriorityEquals: "%s"
 	                                },
 	                                {
-	                                    attribute_alias_equals: %b
-	                                    attribute_priority_equals: "%s"
+	                                    attributeAliasEquals: %b
+	                                    attributePriorityEquals: "%s"
 	                                },
 	                                {
-	                                    attribute_alias_equals: false
-	                                    attribute_priority_inSet: ["%s", "%s", "%s", "%s"]
+	                                    attributeAliasEquals: false
+	                                    attributePriorityInSet: ["%s", "%s", "%s", "%s"]
 	                                }
 	                            ]
 	                            not: {
-	                                attribute_code_equals: "%s"
+	                                attributeCodeEquals: "%s"
 	                            }
 	                        }
 	                    ) {
@@ -1642,10 +1782,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_ALIAS),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
+				(Long) withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+				(Long) withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+				(Long) withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+				(Long) withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
 				withFalseAlias.get(4).getAttribute(ATTRIBUTE_CODE),
 				Integer.MAX_VALUE
 			)
@@ -1661,7 +1801,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should order entities by complex query")
-	void shouldOrderEntitiesByComplexQuery(Evita evita) {
+	void shouldOrderEntitiesByComplexQuery(Evita evita, GraphQLTester tester) {
 		final Integer[] expectedEntities = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1688,17 +1828,17 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			}
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        attribute_priority_lessThan: "35000"
+		                        attributePriorityLessThan: "35000"
 		                    }
 		                    orderBy: {
-		                        attribute_created_natural: DESC,
-		                        attribute_manufactured_natural: ASC
+		                        attributeCreatedNatural: DESC,
+		                        attributeManufacturedNatural: ASC
 		                    }
 		                ) {
 		                    recordStrip(limit: 30) {
@@ -1714,7 +1854,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "."  + ResponseDescriptor.RECORD_STRIP.name() + "." + RecordPageDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + RecordPageDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(expectedEntities)
 			);
 	}
@@ -1722,7 +1862,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return page of entities")
-	void shouldReturnPageOfEntities(Evita evita) {
+	void shouldReturnPageOfEntities(Evita evita, GraphQLTester tester) {
 		final List<Integer> expectedEntities = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1746,13 +1886,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertTrue(expectedEntities.size() > 10);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        attribute_priority_lessThan: "35000"
+		                        attributePriorityLessThan: "35000"
 		                    }
 		                ) {
 		                    recordPage(number: 2, size: 3) {
@@ -1781,7 +1921,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return strip of entities")
-	void shouldReturnStripOfEntities(Evita evita) {
+	void shouldReturnStripOfEntities(Evita evita, GraphQLTester tester) {
 		final List<Integer> expectedEntities = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1805,13 +1945,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertTrue(expectedEntities.size() > 10);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        attribute_priority_lessThan: "35000"
+		                        attributePriorityLessThan: "35000"
 		                    }
 		                ) {
 		                    recordStrip(offset: 2, limit: 3) {
@@ -1840,7 +1980,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return attribute histogram")
-	void shouldReturnAttributeHistogram(Evita evita) {
+	void shouldReturnAttributeHistogram(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1862,13 +2002,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        attribute_alias_is: NOT_NULL
+		                        attributeAliasIs: NOT_NULL
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -1919,7 +2059,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return multiple attribute histograms")
-	void shouldReturnMultipleAttributeHistograms(Evita evita) {
+	void shouldReturnMultipleAttributeHistograms(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1942,13 +2082,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final var expectedQuantityHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
 		final var expectedPriorityHistogram = createAttributeHistogramDto(response, ATTRIBUTE_PRIORITY);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        attribute_alias_is: NOT_NULL
+		                        attributeAliasIs: NOT_NULL
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2003,7 +2143,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return multiple same attribute histogram buckets")
-	void shouldReturnMultipleSameAttributeHistogramBuckets(Evita evita) {
+	void shouldReturnMultipleSameAttributeHistogramBuckets(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2025,13 +2165,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        attribute_alias_is: NOT_NULL
+		                        attributeAliasIs: NOT_NULL
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2087,14 +2227,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing attribute histogram buckets count")
-	void shouldReturnErrorForMissingAttributeHistogramBucketsCount(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMissingAttributeHistogramBucketsCount(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        attribute_alias_is: NOT_NULL
+		                        attributeAliasIs: NOT_NULL
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2129,14 +2269,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing attribute histogram buckets count")
-	void shouldReturnErrorForMissingAttributeHistogramBuckets(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMissingAttributeHistogramBuckets(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        attribute_alias_is: NOT_NULL
+		                        attributeAliasIs: NOT_NULL
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2166,14 +2306,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for multiple attribute histogram buckets count")
-	void shouldReturnErrorForMultipleAttributeHistogramBucketsCount(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMultipleAttributeHistogramBucketsCount(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        attribute_alias_is: NOT_NULL
+		                        attributeAliasIs: NOT_NULL
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2209,7 +2349,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price histogram")
-	void shouldReturnPriceHistogram(Evita evita) {
+	void shouldReturnPriceHistogram(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2234,14 +2374,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createPriceHistogramDto(response);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        price_inCurrency: EUR
-		                        price_inPriceLists: ["vip", "basic"]
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2285,7 +2425,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return multiple same price histograms")
-	void shouldReturnMultipleSamePriceHistograms(Evita evita) {
+	void shouldReturnMultipleSamePriceHistograms(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2310,14 +2450,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createPriceHistogramDto(response);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        price_inCurrency: EUR
-		                        price_inPriceLists: ["vip", "basic"]
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2372,15 +2512,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing price histogram buckets count")
-	void shouldReturnErrorForMissingPriceHistogramBucketsCount(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMissingPriceHistogramBucketsCount(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        price_inCurrency: EUR
-		                        price_inPriceLists: ["vip", "basic"]
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2413,15 +2553,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing price histogram buckets")
-	void shouldReturnErrorForMissingPriceHistogramBuckets(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMissingPriceHistogramBuckets(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        price_inCurrency: EUR
-		                        price_inPriceLists: ["vip", "basic"]
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2449,15 +2589,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for multiple price histogram buckets counts")
-	void shouldReturnErrorForMultiplePriceHistogramBucketsCounts(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForMultiplePriceHistogramBucketsCounts(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        price_inCurrency: EUR
-		                        price_inPriceLists: ["vip", "basic"]
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2495,7 +2635,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return category parents for products")
-	void shouldReturnCategoryParentsForProducts(Evita evita) {
+	void shouldReturnCategoryParentsForProducts(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2518,13 +2658,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createHierarchyParentsDto(response);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        hierarchy_category_within: {
+		                        hierarchyCategoryWithin: {
 		                            ofParent: 95
 		                        }
 		                    }
@@ -2580,14 +2720,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return category parents for products")
-	void shouldReturnErrorForSelfParentsForProducts(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForSelfParentsForProducts(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        hierarchy_category_within: {
+		                        hierarchyCategoryWithin: {
 		                            ofParent: 95
 		                        }
 		                    }
@@ -2631,7 +2771,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return self parents for category")
-	void shouldReturnSelfParentsForCategory(Evita evita) {
+	void shouldReturnSelfParentsForCategory(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2651,11 +2791,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createSelfHierarchyParentsDto(response);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_category {
+		                queryCategory {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -2703,12 +2843,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for references in self parents for category")
-	void shouldReturnErrorForReferencesInSelfParentsForCategory(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForReferencesInSelfParentsForCategory(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_category {
+		                queryCategory {
 		                    recordPage(size: %d) {
 		                        data {
 		                            primaryKey
@@ -2740,7 +2880,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should pass locale to parents")
-	void shouldPassLocaleToParents(Evita evita) {
+	void shouldPassLocaleToParents(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2766,16 +2906,16 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createAttributeOfHierarchyParentsDto(response);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product(
+		                queryProduct(
 		                    filterBy: {
-		                        hierarchy_category_within: {
+		                        hierarchyCategoryWithin: {
 		                            ofParent: 95
 		                        }
-		                        entity_locale_equals: cs_CZ
+		                        entityLocaleEquals: cs_CZ
 		                    }
 		                ) {
 		                    recordPage(size: %d) {
@@ -2810,108 +2950,399 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			);
 	}
 
-	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return two levels of category statistics for products")
-	void shouldReturnTwoLevelsOfCategoryStatisticsForProducts(Evita evita) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+	@DisplayName("Should return self hierarchy from root")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyFromRoot(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				return session.query(
+				final EvitaResponse<EntityReference> response = session.query(
 					query(
-						collection(Entities.PRODUCT),
+						collection(Entities.CATEGORY),
 						filterBy(
-							and(
-								attributeEquals(ATTRIBUTE_ALIAS, true),
-								entityLocaleEquals(CZECH_LOCALE)
-							)
+							entityLocaleEquals(CZECH_LOCALE)
 						),
 						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_CODE)))
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
 						)
 					),
 					EntityReference.class
 				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = createHierarchyStatisticsDto(response);
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
 
-		testGraphQLCall()
-			.document(
-				"""
-		            query {
-		                query_product(
-		                    filterBy: {
-		                        attribute_alias_equals: true
-		                        entity_locale_equals: cs_CZ
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        hierarchyStatistics {
-		                            __typename
-		                            category {
-		                                __typename
-		                                cardinality
-		                                entity {
-		                                    __typename
-	                                        primaryKey
-	                                        attributes {
-	                                            code
-	                                        }
-	                                    }
-		                                childrenStatistics {
-		                                    __typename
-		                                    cardinality
-		                                    entity {
-		                                        __typename
-		                                        primaryKey
-		                                        attributes {
-		                                            code
-		                                        }
-		                                    }
-	                                    }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: fromRoot(
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
-				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
-			)
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + "." + TYPENAME_FIELD,
-				equalTo(HierarchyStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
-			)
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category",
-				equalTo(expectedBody)
-			);
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
 	}
 
-	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return two levels of self statistics for category")
-	void shouldReturnTwoLevelsOfSelfStatisticsForCategory(Evita evita) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+	@DisplayName("Should return self hierarchy from node")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyFromNode(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				return session.query(
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(6)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromNode(
+									"megaMenu",
+									node(filterBy(entityPrimaryKeyInSet(2))),
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyWithinSelf: { ofParent: 6 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: fromNode(
+										hierarchyNode: { filterBy: { entityPrimaryKeyInSet: 2 }}
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return self hierarchy children")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyChildren(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								children(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(1)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyWithinSelf: { ofParent: 1 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: children(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return self hierarchy parents without siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyParentsWithoutSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyWithinSelf: { ofParent: 30 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: parents(
+										hierarchyStopAt: { hierarchyDistance: 100 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return self hierarchy parents with siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyParentsWithSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinSelf(30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									siblings(
+										entityFetch(attributeContent()),
+										stopAt(distance(2)),
+										statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+											new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+									),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyWithinSelf: { ofParent: 30 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: parents(
+										hierarchyStopAt: { hierarchyDistance: 100 }
+										siblings: {
+											hierarchyStopAt: {
+												hierarchyDistance: 2
+											}
+											%s
+										}
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return self hierarchy root siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnSelfHierarchyRootSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
@@ -2920,112 +3351,798 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							)
 						),
 						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfSelf(entityFetch(attributeContent(ATTRIBUTE_CODE)))
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								siblings(
+									"rootSiblings",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
 						)
 					),
 					EntityReference.class
 				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = createSelfHierarchyStatisticsDto(response);
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> rootSiblings = hierarchy.getSelfStatistics("rootSiblings");
+				final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
+				assertFalse(flattenedRootSiblings.isEmpty());
+				return flattenedRootSiblings;
+			});
 
-		testGraphQLCall()
-			.document(
-				"""
-		            query {
-		                query_category(
-		                    filterBy: {
-		                        entity_locale_equals: cs_CZ
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        hierarchyStatistics {
-		                            __typename
-		                            self {
-		                                __typename
-		                                cardinality
-		                                entity {
-		                                    __typename
-	                                        primaryKey
-	                                        attributes {
-	                                            code
-	                                        }
-	                                    }
-		                                childrenStatistics {
-		                                    __typename
-		                                    cardinality
-		                                    entity {
-		                                        __typename
-		                                        primaryKey
-		                                        attributes {
-		                                            code
-		                                        }
-		                                    }
-	                                    }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									rootSiblings: siblings(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
-				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Category")))
-			)
-			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + "." + TYPENAME_FIELD,
-				equalTo(HierarchyStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Category")))
-			)
-			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".self",
-				equalTo(expectedBody)
-			);
+			.body(SELF_ROOT_SIBLINGS_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return multiple different self hierarchies")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnMultipleDifferentSelfHierarchies(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var hierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfSelf(
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								),
+								siblings(
+									"rootSiblings",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				return response.getExtraResult(Hierarchy.class);
+			});
+
+		final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+		assertFalse(flattenedMegaMenu.isEmpty());
+
+		final List<LevelInfo> rootSiblings = hierarchy.getSelfStatistics("rootSiblings");
+		final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
+		assertFalse(flattenedRootSiblings.isEmpty());
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self(orderBy: {attributeCodeNatural: DESC}) {
+									megaMenu: fromRoot(
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+									rootSiblings: siblings(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT,
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(SELF_MEGA_MENU_PATH, equalTo(flattenedMegaMenu))
+			.body(SELF_ROOT_SIBLINGS_PATH, equalTo(flattenedRootSiblings));
 	}
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return error for self statistics of product")
-	void shouldReturnErrorForSelfStatisticsOfProduct(Evita evita) {
-		testGraphQLCall()
-			.document(
-				"""
-		            query {
-		                query_product(
-		                    filterBy: {
-		                        entity_locale_equals: cs_CZ
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        hierarchyStatistics {
-		                            self {
-		                                cardinality
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
+	@DisplayName("Should not return multiple self hierarchies with same output name")
+	void shouldNotReturnMultipleSelfHierarchiesWithSameOutputName(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								self {
+									megaMenu: fromRoot { %s }
+								}
+							}
+							otherHierarchy {
+								self {
+									megaMenu: siblings { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				LEVEL_INFO_FRAGMENT,
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy from root")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyFromRoot(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: fromRoot(
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy from node")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyFromNode(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithin(Entities.CATEGORY,6)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromNode(
+									"megaMenu",
+									node(filterBy(entityPrimaryKeyInSet(2))),
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithin: { ofParent: 6 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: fromNode(
+										hierarchyNode: { filterBy: { entityPrimaryKeyInSet: 2 }}
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy children")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyChildren(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithin(Entities.CATEGORY, 1)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								children(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(1)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithin: { ofParent: 1 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: children(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy parents without siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyParentsWithoutSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithin(Entities.CATEGORY, 30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithin: { ofParent: 30 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: parents(
+										hierarchyStopAt: { hierarchyDistance: 100 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy parents with siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyParentsWithSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithin(Entities.CATEGORY, 30)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								parents(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									siblings(
+										entityFetch(attributeContent()),
+										stopAt(distance(2)),
+										statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+											new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+									),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+				assertFalse(flattenedMegaMenu.isEmpty());
+				return flattenedMegaMenu;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithin: { ofParent: 30 }
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: parents(
+										hierarchyStopAt: { hierarchyDistance: 100 }
+										siblings: {
+											hierarchyStopAt: {
+												hierarchyDistance: 2
+											}
+											%s
+										}
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return referenced hierarchy root siblings")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnReferencedHierarchyRootSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var expectedHierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								siblings(
+									"rootSiblings",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
+				final List<LevelInfo> rootSiblings = hierarchy.getStatistics(Entities.CATEGORY, "rootSiblings");
+				final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
+				assertFalse(flattenedRootSiblings.isEmpty());
+				return flattenedRootSiblings;
+			});
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithinRoot: {}
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									rootSiblings: siblings(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_ROOT_SIBLINGS_PATH, equalTo(expectedHierarchy));
+	}
+
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return multiple different referenced hierarchies")
+	@ParameterizedTest
+	@MethodSource("statisticTypeAndBaseVariants")
+	void shouldReturnMultipleDifferentReferencedHierarchies(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+		var hierarchy = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityLocaleEquals(CZECH_LOCALE),
+								hierarchyWithinRoot(Entities.CATEGORY)
+							)
+						),
+						require(
+							// we don't need the results whatsoever
+							page(1, 0),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							// we need only data about cardinalities
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								orderBy(attributeNatural(ATTRIBUTE_CODE, DESC)),
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent()),
+									stopAt(distance(2)),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								),
+								siblings(
+									"rootSiblings",
+									entityFetch(attributeContent()),
+									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
+										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				return response.getExtraResult(Hierarchy.class);
+			});
+
+		final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
+		assertFalse(flattenedMegaMenu.isEmpty());
+
+		final List<LevelInfo> rootSiblings = hierarchy.getStatistics(Entities.CATEGORY, "rootSiblings");
+		final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
+		assertFalse(flattenedRootSiblings.isEmpty());
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithinRoot: {}
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(
+									orderBy: {attributeCodeNatural: DESC},
+									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
+								) {
+									megaMenu: fromRoot(
+										hierarchyStopAt: { hierarchyDistance: 2 }
+										%s
+									) { %s }
+									rootSiblings: siblings(
+										hierarchyStopAt: { hierarchyDistance: 1 }
+										%s
+									) { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT,
+				getHierarchyStatisticsArgument(statisticsType, base),
+				LEVEL_INFO_FRAGMENT)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(REFERENCED_MEGA_MENU_PATH, equalTo(flattenedMegaMenu))
+			.body(REFERENCED_ROOT_SIBLINGS_PATH, equalTo(flattenedRootSiblings));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should not return multiple referenced hierarchies with same output name")
+	void shouldNotReturnMultipleSelfHierarchiesWithReferencedOutputName(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							entityLocaleEquals: cs_CZ,
+							hierarchyCategoryWithinRoot: {}
+						}
+					) {
+						recordPage(size: 0) {data {primaryKey}}
+						extraResults {
+							hierarchy {
+								category(emptyHierarchicalEntityBehaviour: REMOVE_EMPTY) {
+									megaMenu: fromRoot { %s }
+								}
+							}
+							otherHierarchy {
+								category(emptyHierarchicalEntityBehaviour: REMOVE_EMPTY) {
+									megaMenu: siblings { %s }
+								}
+							}
+						}
+					}
+				}
+				""",
+				LEVEL_INFO_FRAGMENT,
+				LEVEL_INFO_FRAGMENT)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
@@ -3033,81 +4150,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should pass locale to hierarchy statistics entities")
-	void shouldPassLocaleToHierarchyStatisticsEntities(Evita evita) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							and(
-								attributeEquals(ATTRIBUTE_ALIAS, true),
-								entityLocaleEquals(CZECH_LOCALE)
-							)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_NAME)))
-						)
-					),
-					EntityReference.class
-				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
-
-		final var expectedBody = response.getExtraResult(HierarchyStatistics.class)
-			.getStatistics(Entities.CATEGORY)
-			.stream()
-			.map(it -> ((SealedEntity) it.entity()).getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
-			.toList();
-
-		testGraphQLCall()
-			.document(
-				"""
-		            query {
-		                query_product(
-		                    filterBy: {
-		                        attribute_alias_equals: true
-		                        entity_locale_equals: cs_CZ
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        hierarchyStatistics {
-		                            category {
-		                                entity {
-	                                        attributes {
-	                                            name
-	                                        }
-	                                    }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category." + HierarchyStatisticsLevelInfoDescriptor.ENTITY.name() + "." + EntityDescriptor.ATTRIBUTES.name() + "." + ATTRIBUTE_NAME,
-				equalTo(expectedBody)
-			);
-	}
-
-	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return facet summary with counts for products")
-	void shouldReturnFacetSummaryWithCountsForProducts(Evita evita) {
+	void shouldReturnFacetSummaryWithCountsForProducts(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3126,11 +4170,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createFacetSummaryWithCountsDto(response);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product {
+		                queryProduct {
 		                    extraResults {
 		                        __typename
 		                        facetSummary {
@@ -3142,6 +4186,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			                                primaryKey
 			                                type
 			                            }
+			                            count
 			                            facetStatistics {
 			                                __typename
 			                                facetEntity {
@@ -3180,7 +4225,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return facet summary with impacts and entities for products")
-	void shouldReturnFacetSummaryWithImpactsAndEntitiesForProducts(Evita evita) {
+	void shouldReturnFacetSummaryWithImpactsAndEntitiesForProducts(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3203,11 +4248,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createFacetSummaryWithImpactsDto(response);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                query_product {
+		                queryProduct {
 		                    extraResults {
 		                        facetSummary {
 		                            brand {
@@ -3215,6 +4260,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                    primaryKey
 		                                    type
 		                                }
+		                                count
 			                            facetStatistics {
 			                                facetEntity {
 			                                    primaryKey
@@ -3246,7 +4292,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(
 				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".brand",
 				equalTo(expectedBody)
-			);;
+			);
+		;
 	}
 
 
@@ -3431,91 +4478,31 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createHierarchyStatisticsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyStatistics hierarchyStatistics = response.getExtraResult(HierarchyStatistics.class);
-		final List<LevelInfo> categoryStatistics = hierarchyStatistics.getStatistics(Entities.CATEGORY);
-
-		final var levelInfoDtos = new LinkedList<Map<String, Object>>();
-
-		categoryStatistics.forEach(levelInfo1 ->
-			levelInfoDtos.add(
-				map()
-					.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
-					.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo1.cardinality())
-					.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo1.entity())
-						.map(parentEntity -> map()
-							.e(TYPENAME_FIELD, "Category")
-							.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-								.build())
-							.build())
-						.get())
-					.e(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS.name(), levelInfo1.childrenStatistics()
-						.stream()
-						.map(levelInfo2 -> map()
-							.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
-							.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo2.cardinality())
-							.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo2.entity())
-								.map(parentEntity -> map()
-									.e(TYPENAME_FIELD, "Category")
-									.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-										.build())
-									.build())
-								.get())
-							.build())
-						.toList())
-					.build()
-			)
-		);
-
-		return levelInfoDtos;
+	private List<Map<String, Object>> createFlattenedHierarchy(@Nonnull List<LevelInfo> hierarchy) {
+		final List<Map<String, Object>> flattenedHierarchy = new LinkedList<>();
+		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, null, levelInfo));
+		return flattenedHierarchy;
 	}
 
-	@Nonnull
-	private List<Map<String, Object>> createSelfHierarchyStatisticsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyStatistics hierarchyStatistics = response.getExtraResult(HierarchyStatistics.class);
-		final List<LevelInfo> categoryStatistics = hierarchyStatistics.getSelfStatistics();
+	private void createFlattenedHierarchy(@Nonnull List<Map<String, Object>> flattenedHierarchy,
+	                                      @Nullable LevelInfo parentLevelInfo,
+	                                      @Nonnull LevelInfo levelInfo) {
+		final Map<String, Object> currentLevelInfoDto = map()
+			.e(LevelInfoDescriptor.PARENT_ID.name(), parentLevelInfo != null
+				? parentLevelInfo.entity().getPrimaryKey()
+				: null)
+			.e(LevelInfoDescriptor.ENTITY.name(), map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
+				.e(EntityDescriptor.ATTRIBUTES.name(), map()
+					.e(ATTRIBUTE_CODE, ((SealedEntity) levelInfo.entity()).getAttribute(ATTRIBUTE_CODE))))
+			.e(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), levelInfo.queriedEntityCount())
+			.e(LevelInfoDescriptor.CHILDREN_COUNT.name(), levelInfo.childrenCount())
+			.e(LevelInfoDescriptor.HAS_CHILDREN.name(), !levelInfo.children().isEmpty())
+			.build();
+		flattenedHierarchy.add(currentLevelInfoDto);
 
-		final var levelInfoDtos = new LinkedList<Map<String, Object>>();
-
-		categoryStatistics.forEach(levelInfo1 ->
-			levelInfoDtos.add(
-				map()
-					.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Category"), createEmptyEntitySchema("Category")))
-					.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo1.cardinality())
-					.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo1.entity())
-						.map(parentEntity -> map()
-							.e(TYPENAME_FIELD, "Category")
-							.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-								.build())
-							.build())
-						.get())
-					.e(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS.name(), levelInfo1.childrenStatistics()
-						.stream()
-						.map(levelInfo2 -> map()
-							.e(TYPENAME_FIELD, HierarchyStatisticsLevelInfoDescriptor.THIS.name(createEmptyEntitySchema("Category"), createEmptyEntitySchema("Category")))
-							.e(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), levelInfo2.cardinality())
-							.e(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), Optional.of(levelInfo2.entity())
-								.map(parentEntity -> map()
-									.e(TYPENAME_FIELD, "Category")
-									.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-										.build())
-									.build())
-								.get())
-							.build())
-						.toList())
-					.build()
-			)
-		);
-
-		return levelInfoDtos;
+		levelInfo.children()
+			.forEach(childLevelInfo -> createFlattenedHierarchy(flattenedHierarchy, levelInfo, childLevelInfo));
 	}
 
 	@Nonnull
@@ -3529,6 +4516,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				map()
 					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics ->
@@ -3557,6 +4545,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.map(groupStatistics ->
 				map()
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics ->
@@ -3581,5 +4570,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 			)
 			.toList();
+	}
+
+	protected static Stream<Arguments> statisticTypeAndBaseVariants() {
+		return Stream.of(
+			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.WITHOUT_USER_FILTER)
+		);
+	}
+
+	@Nonnull
+	private static String getHierarchyStatisticsArgument(@Nonnull EnumSet<StatisticsType> statisticsType,
+	                                                     @Nonnull StatisticsBase base) {
+		return statisticsType.isEmpty()
+			? "hierarchyStatistics: { statisticsBase: " + base.name() + "}"
+			: "hierarchyStatistics: { statisticsBase: " + base.name() + ", statisticsType: [" +
+			statisticsType.stream()
+				.map(Enum::name)
+				.collect(Collectors.joining(",")) +
+			"]}";
 	}
 }

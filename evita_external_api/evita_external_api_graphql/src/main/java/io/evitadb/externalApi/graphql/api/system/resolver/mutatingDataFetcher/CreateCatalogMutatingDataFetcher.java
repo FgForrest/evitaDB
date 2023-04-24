@@ -27,8 +27,8 @@ import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
-import io.evitadb.externalApi.api.system.model.CreateCatalogMutationHeaderDescriptor;
+import io.evitadb.core.Evita;
+import io.evitadb.externalApi.graphql.api.system.model.CreateCatalogMutationHeaderDescriptor;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -41,15 +41,15 @@ import javax.annotation.Nonnull;
 @RequiredArgsConstructor
 public class CreateCatalogMutatingDataFetcher implements DataFetcher<DataFetcherResult<CatalogContract>> {
 
-    private final EvitaSystemDataProvider evitaSystemDataProvider;
+    private final Evita evita;
 
     @Nonnull
     @Override
     public DataFetcherResult<CatalogContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final String catalogName = environment.getArgument(CreateCatalogMutationHeaderDescriptor.NAME.name());
 
-        evitaSystemDataProvider.getEvita().defineCatalog(catalogName);
-        final CatalogContract newCatalog = evitaSystemDataProvider.getCatalog(catalogName);
+        evita.defineCatalog(catalogName);
+        final CatalogContract newCatalog = evita.getCatalogInstanceOrThrowException(catalogName);
         // we don't have a way to use benefits of warming up state in GQL
         newCatalog.goLive();
 

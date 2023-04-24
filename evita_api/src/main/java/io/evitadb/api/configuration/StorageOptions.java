@@ -89,6 +89,13 @@ public record StorageOptions(
 		return new StorageOptions.Builder();
 	}
 
+	/**
+	 * Builder for the storage options. Recommended to use to avoid binary compatibility problems in the future.
+	 */
+	public static StorageOptions.Builder builder(StorageOptions storageOptions) {
+		return new StorageOptions.Builder(storageOptions);
+	}
+
 	public StorageOptions() {
 		this(
 			DEFAULT_DIRECTORY,
@@ -128,9 +135,18 @@ public record StorageOptions(
 		private long waitOnCloseSeconds = DEFAULT_WAIT_ON_CLOSE_SECONDS;
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
 		private int maxOpenedReadHandles = DEFAULT_MAX_OPENED_READ_HANDLES;
-		private boolean computeCRC32 = DEFAULT_COMPUTE_CRC;
+		private boolean computeCRC32C = DEFAULT_COMPUTE_CRC;
 
 		Builder() {
+		}
+
+		Builder(@Nonnull StorageOptions storageOptions) {
+			this.storageDirectory = storageOptions.storageDirectory;
+			this.lockTimeoutSeconds = storageOptions.lockTimeoutSeconds;
+			this.waitOnCloseSeconds = storageOptions.waitOnCloseSeconds;
+			this.outputBufferSize = storageOptions.outputBufferSize;
+			this.maxOpenedReadHandles = storageOptions.maxOpenedReadHandles;
+			this.computeCRC32C = storageOptions.computeCRC32C;
 		}
 
 		public Builder storageDirectory(Path storageDirectory) {
@@ -159,7 +175,7 @@ public record StorageOptions(
 		}
 
 		public Builder computeCRC32(boolean computeCRC32) {
-			this.computeCRC32 = computeCRC32;
+			this.computeCRC32C = computeCRC32;
 			return this;
 		}
 
@@ -170,7 +186,7 @@ public record StorageOptions(
 				waitOnCloseSeconds,
 				outputBufferSize,
 				maxOpenedReadHandles,
-				computeCRC32
+				computeCRC32C
 			);
 		}
 

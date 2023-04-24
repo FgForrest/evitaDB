@@ -25,9 +25,9 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.order.PriceNatural;
 
 import javax.annotation.Nonnull;
@@ -53,15 +53,15 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "type",
 	shortDescription = "The constraint specifies which price type (with/without tax) will be used for handling filtering and sorting constraints."
 )
 public class PriceType extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -7156758352138266166L;
 
-	@ConstraintCreatorDef
-	public PriceType(@Nonnull @ConstraintValueParamDef QueryPriceMode queryPriceMode) {
+	@Creator
+	public PriceType(@Nonnull @Value QueryPriceMode queryPriceMode) {
 		super(queryPriceMode);
 	}
 

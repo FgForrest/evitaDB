@@ -30,6 +30,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
@@ -39,6 +40,10 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityQueryHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -55,7 +60,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -76,17 +80,17 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 	/**
 	 * Schema of collection to which this fetcher is mapped to.
 	 */
-	@Nonnull
-	private final EntitySchemaContract entitySchema;
-	/**
-	 * Function to fetch specific entity schema based on its name.
-	 */
-	@Nonnull
-	private final Function<String, EntitySchemaContract> entitySchemaFetcher;
+	@Nonnull private final EntitySchemaContract entitySchema;
+
+	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
 	public GetEntityDataFetcher(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
-		this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
+		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
+			catalogSchema::getEntitySchemaOrThrowException,
+			new FilterConstraintResolver(catalogSchema),
+			new OrderConstraintResolver(catalogSchema)
+		);
 	}
 
 	@Nonnull
@@ -101,7 +105,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 			filterBy,
 			require
 		);
-		log.debug("Generated Evita query for single entity fetch of type `{}` is `{}`.", entitySchema.getName(), query);
+		log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", entitySchema.getName(), query);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 
@@ -148,14 +152,14 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 
     @Nonnull
     private Require buildRequire(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
-        return require(
-            EntityFetchRequireBuilder.buildEntityRequirement(
-                SelectionSetWrapper.from(environment.getSelectionSet()),
-                arguments.locale(),
-                entitySchema,
-	            entitySchemaFetcher
-            )
-        );
+	    final EntityFetch entityFetch = entityFetchRequireResolver.resolveEntityFetch(
+		    SelectionSetWrapper.from(environment.getSelectionSet()),
+		    arguments.locale(),
+		    entitySchema
+	    )
+		    .orElse(null);
+
+	    return require(entityFetch);
     }
 
     @Nonnull

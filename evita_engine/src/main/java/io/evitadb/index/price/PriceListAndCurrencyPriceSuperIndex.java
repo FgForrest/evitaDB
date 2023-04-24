@@ -193,7 +193,9 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		this.priceRecords.add(priceRecord);
 		// make index dirty
 		this.dirty.setToTrue();
-		this.memoizedIndexedPriceIds = null;
+		if (!isTransactionAvailable()) {
+			this.memoizedIndexedPriceIds = null;
+		}
 	}
 
 	/**
@@ -224,7 +226,9 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		}
 		// make index dirty
 		this.dirty.setToTrue();
-		this.memoizedIndexedPriceIds = null;
+		if (!isTransactionAvailable()) {
+			this.memoizedIndexedPriceIds = null;
+		}
 	}
 
 	/**
@@ -234,7 +238,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	@Nonnull
 	public int[] getIndexedPriceIds() {
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable()) {
+		if (isTransactionAvailable() && this.dirty.isTrue()) {
 			return this.indexedPriceIds.getArray();
 		} else {
 			if (memoizedIndexedPriceIds == null) {

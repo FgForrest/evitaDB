@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.experimental.Delegate;
@@ -149,19 +150,20 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 		@Nullable Consumer<GlobalAttributeSchemaEditor.GlobalAttributeSchemaBuilder> whichIs
 	) {
 		final Optional<GlobalAttributeSchemaContract> existingAttribute = getAttribute(attributeName);
+		final Class<? extends Serializable> requestedType = EvitaDataTypes.toWrappedForm(ofType);
 		final GlobalAttributeSchemaBuilder attributeSchemaBuilder =
 			existingAttribute
 				.map(it -> {
 					Assert.isTrue(
-						ofType.equals(it.getType()),
+						requestedType.equals(it.getType()),
 						() -> new InvalidSchemaMutationException(
 							"Attribute " + attributeName + " has already assigned type " + it.getType() +
-								", cannot change this type to: " + ofType + "!"
+								", cannot change this type to: " + requestedType + "!"
 						)
 					);
 					return new GlobalAttributeSchemaBuilder(baseSchema, it);
 				})
-				.orElseGet(() -> new GlobalAttributeSchemaBuilder(baseSchema, attributeName, ofType));
+				.orElseGet(() -> new GlobalAttributeSchemaBuilder(baseSchema, attributeName, requestedType));
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
 		final GlobalAttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();

@@ -24,19 +24,19 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
-import io.evitadb.api.query.descriptor.ConstraintPropertyType;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
-import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
@@ -46,21 +46,24 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.FacetDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorParser.ParsedConstraintDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER_NAMING_CONVENTION;
 
 /**
  * Resolves client JSON argument containing JSON representation of {@link Constraint} tree of specific type
@@ -95,17 +98,54 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER
  * Key can have one of 3 formats depending on descriptor data:
  * <ul>
  *     <li>`{fullName}` - if it's generic constraint without classifier</li>
- *     <li>`{propertyType}_{fullName}` - if it's not generic constraint and doesn't have classifier</li>
- *     <li>`{propertyType}_{classifier}_{fullName}` - if it's not generic constraint and has classifier</li>
+ *     <li>`{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier</li>
+ *     <li>`{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier</li>
  * </ul>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public abstract class ConstraintResolver<C extends Constraint<?>, O> {
+public abstract class ConstraintResolver<C extends Constraint<?>> {
 
-	@Nonnull
-	protected CatalogSchemaContract catalogSchema;
+	@Nonnull protected final CatalogSchemaContract catalogSchema;
+	@Nonnull private final ConstraintDescriptorParser keyParser;
+	@Nonnull private final ConstraintKeyBuilder keyBuilder;
+	/**
+	 * Map of additional resolvers for cross-resolving constraints of different constraint types.
+	 */
+	@Nonnull private final Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers;
+
+	public ConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema,
+	                          @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintResolver<?>>> additionalResolvers) {
+		Assert.isPremiseValid(
+			additionalResolvers.keySet()
+				.stream()
+				.noneMatch(it -> it.equals(getConstraintType())),
+			() -> createQueryResolvingInternalError("Resolver of type `" + getConstraintType() + "` cannot have additional resolver of same type.")
+		);
+
+		this.catalogSchema = catalogSchema;
+		this.keyParser = new ConstraintDescriptorParser(catalogSchema, getConstraintType());
+		this.keyBuilder = new ConstraintKeyBuilder();
+		this.additionalResolvers = additionalResolvers;
+	}
+
+	/**
+	 * Resolves single JSON field representing single {@link Constraint}. If constraint is container, child constraints
+	 * are recursively resolved as well, ultimately returning a whole tree of constraints.
+	 *
+	 * @param rootDataLocator defines data context for the root constraint container
+	 * @param key key describing constraint generated by {@code ConstraintSchemaBuilder#buildConstraintKey(ConstraintDescriptor, Supplier)}
+	 * @param value value containing data for constraint reconstruction
+	 * @return resolved constraint with its possible children
+	 */
+	@Nullable
+	public C resolve(@Nonnull DataLocator rootDataLocator, @Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new ConstraintResolveContext(rootDataLocator),
+			key,
+			value
+		);
+	}
 
 	/**
 	 * Resolves single JSON field representing single {@link Constraint}. If constraint is container, child constraints
@@ -116,13 +156,15 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * @return resolved constraint with its possible children
 	 */
 	@Nullable
-	public C resolve(@Nonnull String key, @Nullable O value) {
-		return resolve(
-			new ResolveContext(getRootDataLocator()),
-			key,
-			value
-		);
+	protected C resolve(@Nonnull ConstraintResolveContext resolveContext, @Nonnull String key, @Nullable Object value) {
+		final ParsedConstraintDescriptor parsedConstraintDescriptor = keyParser.parse(resolveContext, key)
+			.orElseThrow(() -> createQueryResolvingInternalError("Unknown constraint `" + key + "`. Check that it has correct property type and name and support for classifier."));
+		final ConstraintResolveContext innerResolveContext = resolveContext.toBuilder()
+			.dataLocator(parsedConstraintDescriptor.innerDataLocator())
+			.build();
+		return reconstructConstraint(innerResolveContext, parsedConstraintDescriptor, value);
 	}
+
 
 	/**
 	 * Target output constraint class.
@@ -143,16 +185,10 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	protected abstract ConstraintDescriptor getWrapperContainer();
 
 	/**
-	 * Returns root data locator which begins the schema building.
-	 */
-	@Nonnull
-	protected abstract DataLocator getRootDataLocator();
-
-	/**
 	 * Returns root query container from which other nested constraints will be built.
 	 */
 	@Nonnull
-	protected abstract ConstraintDescriptor getRootConstraintContainerDescriptor();
+	protected abstract ConstraintDescriptor getDefaultRootConstraintContainerDescriptor();
 
 	/**
 	 * Determines if children constraints are unique.
@@ -162,222 +198,80 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	}
 
 	/**
-	 * Resolves single JSON field representing single {@link Constraint}. If constraint is container, child constraints
-	 * are recursively resolved as well, ultimately returning a whole tree of constraints.
-	 *
-	 * @param key key describing constraint generated by {@code ConstraintSchemaBuilder#buildConstraintKey(ConstraintDescriptor, Supplier)}
-	 * @param value value containing data for constraint reconstruction
-	 * @return resolved constraint with its possible children
-	 */
-	@Nullable
-	protected C resolve(@Nonnull ResolveContext resolveContext, @Nonnull String key, @Nullable O value) {
-		final ParsedKey parsedKey = parseKey(key);
-		final ConstraintDescriptor constraintDescriptor = findConstraintDescriptor(parsedKey);
-		return reconstructConstraint(resolveContext, parsedKey, constraintDescriptor, value);
-	}
-
-	/**
-	 * Extracts information from to string key to be able to find original constraint.
-	 *
-	 * <h3>Formats</h3>
-	 * Key can have one of 3 formats depending on descriptor data:
-	 * <ul>
-	 *     <li>`{fullName}` - if it's generic constraint without classifier</li>
-	 *     <li>`{propertyType}_{fullName}` - if it's not generic constraint and doesn't have classifier</li>
-	 *     <li>`{propertyType}_{classifier}_{fullName}` - if it's not generic constraint and has classifier</li>
-	 * </ul>
-	 */
-	@Nonnull
-	private ParsedKey parseKey(@Nonnull String key) {
-		final ConstraintPropertyType propertyType;
-		final String classifier;
-		final String fullName;
-
-		final int indexOfFirstSplit = key.indexOf(ConstraintProcessingUtils.KEY_PARTS_DELIMITER);
-		final int indexOfSecondSplit = key.lastIndexOf(ConstraintProcessingUtils.KEY_PARTS_DELIMITER);
-		if (indexOfFirstSplit == -1) {
-			// we expect name only
-			propertyType = ConstraintPropertyType.GENERIC;
-			classifier = null;
-			fullName = key;
-		} else if (indexOfFirstSplit == indexOfSecondSplit) {
-			// we expect group and name only
-			final String prefix = key.substring(0, indexOfFirstSplit);
-			propertyType = ConstraintProcessingUtils.getPropertyTypeByPrefix(prefix)
-				.orElseThrow(() -> createQueryResolvingInternalError("Missing constraint property type for prefix `" + prefix + "`."));
-			classifier = null;
-			fullName = key.substring(indexOfSecondSplit + 1);
-		} else {
-			// we expect group, classifier and name
-			final String prefix = key.substring(0, indexOfFirstSplit);
-			propertyType = ConstraintProcessingUtils.getPropertyTypeByPrefix(prefix)
-				.orElseThrow(() -> createQueryResolvingInternalError("Missing constraint property type for prefix `" + prefix + "`."));
-			classifier = key.substring(indexOfFirstSplit + 1, indexOfSecondSplit);
-			fullName = key.substring(indexOfSecondSplit + 1);
-		}
-
-		return new ParsedKey(key, propertyType, classifier, fullName);
-	}
-
-	/**
-	 * Finds descriptor of original constraint represented by client key.
-	 */
-	@Nonnull
-	private ConstraintDescriptor findConstraintDescriptor(@Nonnull ParsedKey parsedKey) {
-		return ConstraintDescriptorProvider
-			.getConstraint(
-				getConstraintType(),
-				parsedKey.propertyType(),
-				parsedKey.fullName(),
-				parsedKey.classifier()
-			)
-			.orElseThrow(() ->
-				createQueryResolvingInternalError("Unknown constraint `" + parsedKey.originalKey() + "`. Check that it has correct property type and name and support for classifier.")
-			);
-	}
-
-	/**
 	 * Tries to reconstruct constraint object from JSON representation.
 	 *
-	 * @param parsedKey key representing original constraint
-	 * @param constraintDescriptor descriptor of found original constraint
+	 * @param parsedConstraintDescriptor key representing original constraint
 	 * @param value value from client to parse to constraint instantiation args
 	 * @return reconstructed constraint or null
 	 */
 	@Nullable
-	private C reconstructConstraint(@Nonnull ResolveContext resolveContext,
-	                                @Nonnull ParsedKey parsedKey,
-	                                @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                @Nullable O value) {
-		final List<Object> instantiationArgs = resolveValueToInstantiationArgs(resolveContext, parsedKey, value, constraintDescriptor);
+	private C reconstructConstraint(@Nonnull ConstraintResolveContext resolveContext,
+	                                @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                @Nullable Object value) {
+		final List<Object> instantiationArgs = resolveValueToInstantiationArgs(resolveContext, parsedConstraintDescriptor, value);
 		if (instantiationArgs == null) {
 			return null;
 		}
 		//noinspection unchecked
-		return (C) constraintDescriptor.creator().instantiateConstraint(instantiationArgs.toArray(), parsedKey.originalKey());
+		return (C) parsedConstraintDescriptor.constraintDescriptor().creator().instantiateConstraint(instantiationArgs.toArray(), parsedConstraintDescriptor.originalKey());
 	}
 
 	@Nullable
-	private List<Object> resolveValueToInstantiationArgs(@Nonnull ResolveContext resolveContext,
-	                                                     @Nonnull ParsedKey parsedKey,
-	                                                     @Nullable O value,
-	                                                     @Nonnull ConstraintDescriptor constraintDescriptor) {
-		final ConstraintValueStructure valueStructure = ConstraintProcessingUtils.getValueStructureForConstraintCreator(constraintDescriptor.creator());
+	private List<Object> resolveValueToInstantiationArgs(@Nonnull ConstraintResolveContext resolveContext,
+	                                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                     @Nullable Object value) {
+		final ConstraintValueStructure valueStructure = ConstraintProcessingUtils.getValueStructureForConstraintCreator(
+			parsedConstraintDescriptor.constraintDescriptor().creator()
+		);
 
 		if (valueStructure == ConstraintValueStructure.NONE) {
-			return resolveNoneParameter(resolveContext, valueStructure, parsedKey, value) ? new ArrayList<>(0) : null;
+			return resolveNoneParameter(parsedConstraintDescriptor, value) ? new ArrayList<>(0) : null;
 		}
 
 		final List<Object> instantiationArgs = new LinkedList<>();
-		final List<ParameterDescriptor> parameters = constraintDescriptor.creator().parameters();
-		String originalClassifier = null;
+		final List<ParameterDescriptor> parameters = parsedConstraintDescriptor.constraintDescriptor().creator().parameters();
 		for (ParameterDescriptor parameter : parameters) {
+			final Object argument;
 			if (parameter instanceof ClassifierParameterDescriptor) {
-				originalClassifier = resolveClassifierParameter(resolveContext, parsedKey, constraintDescriptor);
-				instantiationArgs.add(originalClassifier);
+				argument = resolveClassifierParameter(parsedConstraintDescriptor);
 			} else if (parameter instanceof final ValueParameterDescriptor valueParameterDescriptor) {
-				instantiationArgs.add(
-					resolveValueParameter(resolveContext, valueParameterDescriptor, valueStructure, parsedKey, originalClassifier, value)
-				);
+				argument = resolveValueParameter(valueParameterDescriptor, valueStructure, parsedConstraintDescriptor, value);
 			} else if (parameter instanceof final ChildParameterDescriptor childParameterDescriptor) {
-				instantiationArgs.add(
-					resolveChildParameter(resolveContext, constraintDescriptor, childParameterDescriptor, valueStructure, originalClassifier, parsedKey, value)
-				);
+				argument = resolveChildParameter(resolveContext, childParameterDescriptor, valueStructure, parsedConstraintDescriptor, value);
+			} else if (parameter instanceof final AdditionalChildParameterDescriptor additionalChildParameterDescriptor) {
+				argument = resolveAdditionalChildParameter(resolveContext, additionalChildParameterDescriptor, valueStructure, parsedConstraintDescriptor, value);
+			} else {
+				throw createQueryResolvingInternalError("Unknown parameter type `" + parameter.getClass().getName() + "`.");
 			}
+			instantiationArgs.add(argument);
 		}
 
 		return instantiationArgs;
 	}
 
-	protected abstract boolean resolveNoneParameter(@Nonnull ResolveContext resolveContext,
-	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
-	                                     @Nonnull ParsedKey parsedKey,
-	                                     @Nullable O value);
+	private boolean resolveNoneParameter(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                     @Nullable Object value) {
+		Assert.notNull(
+			value,
+			() -> createInvalidArgumentException("Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires non-null value.")
+		);
+
+		return (boolean) value;
+	}
 
 	/**
 	 * Tries to resolve {@link ClassifierParameterDescriptor} to single constraint instantiation arg.
 	 */
 	@Nonnull
-	private String resolveClassifierParameter(@Nonnull ResolveContext resolveContext,
-	                                          @Nonnull ParsedKey parsedKey,
-	                                          @Nonnull ConstraintDescriptor constraintDescriptor) {
-		final String classifier = parsedKey.classifier();
+	private String resolveClassifierParameter(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor) {
+		final String classifier = parsedConstraintDescriptor.classifier();
 		Assert.isPremiseValid(
 			classifier != null,
 			() -> createQueryResolvingInternalError(
-				"Constraint `" + parsedKey.originalKey() + "` requires classifier but no classifier found."
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires classifier but no classifier found."
 			)
 		);
-
-		final DataLocator dataLocator = resolveContext.dataLocator();
-		final EntitySchemaContract schemaForClassifier = findRequiredEntitySchema(dataLocator);
-		return switch (dataLocator.targetDomain()) {
-			case ENTITY, GENERIC -> switch (constraintDescriptor.propertyType()) {
-				case ATTRIBUTE -> schemaForClassifier.getAttributeByName(classifier, CLASSIFIER_NAMING_CONVENTION)
-					.map(AttributeSchemaContract::getName)
-					.orElseThrow(() -> createQueryResolvingInternalError(
-						"Could not find attribute schema for classifier `" + classifier + "`."
-					));
-				case ASSOCIATED_DATA -> schemaForClassifier.getAssociatedDataByName(classifier, CLASSIFIER_NAMING_CONVENTION)
-					.map(AssociatedDataSchemaContract::getName)
-					.orElseThrow(() -> createQueryResolvingInternalError(
-						"Could not find associated data schema for classifier `" + classifier + "`."
-					));
-				case REFERENCE -> schemaForClassifier.getReferenceByName(classifier, CLASSIFIER_NAMING_CONVENTION)
-					.map(ReferenceSchemaContract::getName)
-					.orElseThrow(() -> createQueryResolvingInternalError(
-						"Could not find reference schema for classifier `" + classifier + "`."
-					));
-				case HIERARCHY -> schemaForClassifier.getReferenceByName(classifier, CLASSIFIER_NAMING_CONVENTION)
-					.map(ReferenceSchemaContract::getName)
-					.orElseThrow(() -> createQueryResolvingInternalError(
-						"Could not find hierarchical reference schema for classifier `" + classifier + "`."
-					));
-				case FACET -> schemaForClassifier.getReferenceByName(classifier, CLASSIFIER_NAMING_CONVENTION)
-					.map(ReferenceSchemaContract::getName)
-					.orElseThrow(() -> createQueryResolvingInternalError(
-						"Could not find faceted reference schema for classifier `" + classifier + "`."
-					));
-				default -> throw createQueryResolvingInternalError(
-					"Constraint property type `" + constraintDescriptor.propertyType() + "` does not support classifier parameter."
-				);
-			};
-			case REFERENCE, HIERARCHY -> {
-				final String referenceName;
-				if (dataLocator instanceof final ReferenceDataLocator referenceDataLocator) {
-					referenceName = referenceDataLocator.referenceName();
-				} else if (dataLocator instanceof final HierarchyDataLocator hierarchyDataLocator) {
-					referenceName = hierarchyDataLocator.referenceName();
-					Assert.isPremiseValid(
-						referenceName != null,
-						() -> createQueryResolvingInternalError(
-							"Missing reference name for constraint `" + parsedKey.originalKey() + "`."
-						)
-					);
-				} else {
-					throw createQueryResolvingInternalError(
-						"Illegal data locator type `" + dataLocator.getClass().getName() + "` for domain `" + dataLocator.targetDomain()
-					);
-				}
-				if (constraintDescriptor.propertyType() == ConstraintPropertyType.ATTRIBUTE) {
-					yield schemaForClassifier.getReference(referenceName)
-						.flatMap(it -> it.getAttributeByName(classifier, CLASSIFIER_NAMING_CONVENTION))
-						.map(AttributeSchemaContract::getName)
-						.orElseThrow(() -> createQueryResolvingInternalError(
-							"Could not find attribute schema for classifier `" + classifier + "`."
-						));
-				} else {
-					throw createQueryResolvingInternalError(
-						"Constraint property type `" + constraintDescriptor.propertyType() + "` does not support classifier parameter."
-					);
-				}
-			}
-			default -> {
-				throw createQueryResolvingInternalError(
-					"Classifier parameters are not supported in domain `" + dataLocator.targetDomain() + "`."
-				);
-			}
-		};
+		return classifier;
 	}
 
 	/**
@@ -385,82 +279,79 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 *
 	 * @param parameterDescriptor descriptor of value parameter to resolve
 	 * @param constraintValueStructure structure of input value to parse
-	 * @param parsedKey key representing original constraint
+	 * @param parsedConstraintDescriptor key representing original constraint
 	 * @param value client value to parse arg from
 	 * @return instantiation arg if possible
 	 */
 	@Nullable
-	private Object resolveValueParameter(@Nonnull ResolveContext resolveContext,
-	                                     @Nonnull ValueParameterDescriptor parameterDescriptor,
+	private Object resolveValueParameter(@Nonnull ValueParameterDescriptor parameterDescriptor,
 	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
-	                                     @Nonnull ParsedKey parsedKey,
-	                                     @Nullable String originalClassifier,
-	                                     @Nullable O value) {
-		final O argument = extractValueParameterFromValue(
-			parsedKey,
+	                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                     @Nullable Object value) {
+		final Object argument = extractValueParameterFromValue(
+			parsedConstraintDescriptor,
 			value,
 			parameterDescriptor,
 			constraintValueStructure
 		);
-		return convertValueParameterArgumentToInstantiationArg(resolveContext, originalClassifier, argument, parsedKey, parameterDescriptor);
+		return convertValueParameterArgumentToInstantiationArg(argument, parsedConstraintDescriptor, parameterDescriptor);
 	}
 
 	/**
 	 * Tries to extract raw argument for value descriptor from client value
 	 */
 	@Nullable
-	private O extractValueParameterFromValue(@Nonnull ParsedKey parsedKey,
-	                                         @Nullable O value,
+	private Object extractValueParameterFromValue(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                         @Nullable Object value,
 	                                         @Nonnull ValueParameterDescriptor parameterDescriptor,
 	                                         @Nonnull ConstraintValueStructure constraintValueStructure) {
-		O argument;
+		Object argument;
 		final String parameterName = parameterDescriptor.name();
 
 		if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
-			argument = extractValueArgumentFromWrapperObject(parsedKey, value, parameterDescriptor);
+			argument = extractValueArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor);
 
 			// we want treat missing arrays as empty arrays for more client convenience
-			if (isNullValue(argument) && parameterDescriptor.type().isArray()) {
-				//noinspection unchecked
-				argument = (O) createEmptyListObject();
+			if (argument == null && parameterDescriptor.type().isArray()) {
+				argument = createEmptyListObject();
 			}
 
-			if (parameterDescriptor.required() && isNullValue(argument)) {
+			if (parameterDescriptor.required() && argument == null) {
 				throw createInvalidArgumentException(
-					"Constraint `" + parsedKey.originalKey() + "` requires parameter `" + parameterName + "` to be non-null."
+					"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires parameter `" + parameterName + "` to be non-null."
 				);
 			}
 		} else if (constraintValueStructure == ConstraintValueStructure.WRAPPER_RANGE) {
 			if (parameterName.equals(ConstraintProcessingUtils.WRAPPER_RANGE_FROM_VALUE_PARAMETER)) {
-				argument = extractFromArgumentFromWrapperRange(parsedKey, value, parameterDescriptor);
+				argument = extractFromArgumentFromWrapperRange(parsedConstraintDescriptor, value);
 
-				if (parameterDescriptor.required() && isNullValue(argument)) {
+				if (parameterDescriptor.required() && argument == null) {
 					throw createInvalidArgumentException(
-						"Constraint `" + parsedKey.originalKey() + "` requires `" + ConstraintProcessingUtils.WRAPPER_RANGE_FROM_VALUE_PARAMETER + "` argument of range to be non-null value."
+						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires `" + ConstraintProcessingUtils.WRAPPER_RANGE_FROM_VALUE_PARAMETER + "` argument of range to be non-null value."
 					);
 				}
 			} else if (parameterName.equals(ConstraintProcessingUtils.WRAPPER_RANGE_TO_VALUE_PARAMETER)) {
-				argument = extractToArgumentFromWrapperRange(parsedKey, value, parameterDescriptor);
+				argument = extractToArgumentFromWrapperRange(parsedConstraintDescriptor, value);
 
-				if (parameterDescriptor.required() && isNullValue(argument)) {
+				if (parameterDescriptor.required() && argument == null) {
 					throw createInvalidArgumentException(
-						"Constraint `" + parsedKey.originalKey() + "` requires `" + ConstraintProcessingUtils.WRAPPER_RANGE_TO_VALUE_PARAMETER + "` argument of range to be non-null value."
+						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires `" + ConstraintProcessingUtils.WRAPPER_RANGE_TO_VALUE_PARAMETER + "` argument of range to be non-null value."
 					);
 				}
 			} else {
-				throw createQueryResolvingInternalError("Constraint descriptor for `" + parsedKey.originalKey() + "` has unknown parameter `" + parameterName);
+				throw createQueryResolvingInternalError("Constraint descriptor for `" + parsedConstraintDescriptor.originalKey() + "` has unknown parameter `" + parameterName);
 			}
 		} else if (constraintValueStructure == ConstraintValueStructure.PRIMITIVE) {
 			argument = value;
 
-			if (parameterDescriptor.required() && isNullValue(argument)) {
+			if (parameterDescriptor.required() && argument == null) {
 				throw createInvalidArgumentException(
-					"Constraint `" + parsedKey.originalKey() + "` requires non-null value."
+					"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires non-null value."
 				);
 			}
 		} else {
 			throw createInvalidArgumentException(
-				"Constraint `" + parsedKey.originalKey() + "` requires value parameter but value isn't object, primitive or range value."
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires value parameter but value isn't object, primitive or range value."
 			);
 		}
 		return argument;
@@ -470,100 +361,162 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * Should extract raw argument from wrapper object `value`.
 	 */
 	@Nullable
-	protected abstract O extractValueArgumentFromWrapperObject(@Nonnull ParsedKey parsedKey,
-	                                                           @Nullable O value,
-	                                                           @Nonnull ValueParameterDescriptor parameterDescriptor);
+	private Object extractValueArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                       @Nullable Object value,
+	                                                       @Nonnull ValueParameterDescriptor parameterDescriptor) {
+		return extractArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
+	}
 
 	/**
 	 * Should extract raw `from` argument from wrapper range `value`.
 	 */
 	@Nullable
-	protected abstract O extractFromArgumentFromWrapperRange(@Nonnull ParsedKey parsedKey,
-	                                                         @Nullable O value,
-	                                                         @Nonnull ValueParameterDescriptor parameterDescriptor);
+	private Object extractFromArgumentFromWrapperRange(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor, @Nullable Object value) {
+		return extractRangeFromWrapperRange(parsedConstraintDescriptor, value).get(0);
+	}
 
 	/**
 	 * Should extract raw `to` argument from wrapper range `value`.
 	 */
 	@Nullable
-	protected abstract O extractToArgumentFromWrapperRange(@Nonnull ParsedKey parsedKey,
-	                                                       @Nullable O value,
-	                                                       @Nonnull ValueParameterDescriptor parameterDescriptor);
+	private Object extractToArgumentFromWrapperRange(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor, @Nullable Object value) {
+		return extractRangeFromWrapperRange(parsedConstraintDescriptor, value).get(1);
+	}
+
+	@Nullable
+	private Object extractArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                @Nullable Object value,
+	                                                @Nonnull String parameterName) {
+		final Map<String, Object> wrapperObject;
+		try {
+			//noinspection unchecked
+			wrapperObject = (Map<String, Object>) value;
+		} catch (ClassCastException e) {
+			throw createQueryResolvingInternalError(
+				"Constraint `" + parsedConstraintDescriptor + "` expected to be wrapper object but found `" + value + "`."
+			);
+		}
+		if (wrapperObject == null) {
+			return null;
+		} else {
+			return wrapperObject.get(parameterName);
+		}
+	}
+
+	@Nonnull
+	private List<Object> extractRangeFromWrapperRange(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                  @Nullable Object value) {
+		final List<Object> range;
+		try {
+			//noinspection unchecked
+			range = (List<Object>) value;
+		} catch (ClassCastException e) {
+			throw createQueryResolvingInternalError(
+				"Constraint `" + parsedConstraintDescriptor + "` expected to be wrapper range but found `" + value + "`."
+			);
+		}
+		Assert.notNull(
+			range,
+			() -> createInvalidArgumentException("Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires range value.")
+		);
+		Assert.isTrue(
+			range.size() == ConstraintProcessingUtils.WRAPPER_RANGE_PARAMETERS_COUNT,
+			() -> createInvalidArgumentException("Constraint `" + parsedConstraintDescriptor.originalKey() + "` has invalid range format.")
+		);
+
+		return range;
+	}
 
 	/**
 	 * Converts extracted raw value parameter argument to target data type needed by value parameter descriptor.
 	 */
 	@Nullable
-	protected abstract Object convertValueParameterArgumentToInstantiationArg(@Nonnull ResolveContext resolveContext,
-	                                                                          @Nullable String originalClassifier,
-	                                                                          @Nullable O argument,
-	                                                                          @Nonnull ParsedKey parsedKey,
-	                                                                          @Nonnull ValueParameterDescriptor valueParameterDescriptor);
+	private Object convertValueParameterArgumentToInstantiationArg(@Nullable Object argument,
+	                                                               @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                               @Nonnull ValueParameterDescriptor valueParameterDescriptor) {
+		if (argument == null) {
+			// we can return null if parameter isn't required
+			return null;
+		} else if (valueParameterDescriptor.type().isArray()) {
+			final List<Object> listArgument;
+			try {
+				//noinspection unchecked
+				listArgument = (List<Object>) argument;
+			} catch (ClassCastException e) {
+				throw createQueryResolvingInternalError("Constraint `" + parsedConstraintDescriptor.originalKey() + "` expected list value but found `" + argument + "`.");
+			}
+			//noinspection unchecked
+			return convertApiListToSpecificArray(
+				(Class<? extends Serializable>) valueParameterDescriptor.type().getComponentType(),
+				listArgument
+			);
+		} else {
+			return argument;
+		}
+	}
 
 	/**
 	 * Tries to resolve {@link ChildParameterDescriptor} to single constraint instantiation arg.
 	 *
 	 * @param resolveContext context for resolving
-	 * @param constraintDescriptor descriptor of constraint being resolved
-	 * @param parameterDescriptor descriptor of children parameter to resolve
+	 * @param childParameterDescriptor descriptor of children parameter to resolve
 	 * @param constraintValueStructure structure of input value to parse
-	 * @param originalClassifier classifier converted to original Evita one
-	 * @param parsedKey key representing original constraint
+	 * @param parsedConstraintDescriptor key representing original constraint
 	 * @param value client value to parse arg from
 	 * @return instantiation arg if possible
 	 */
 	@Nullable
-	private Object resolveChildParameter(@Nonnull ResolveContext resolveContext,
-	                                     @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                     @Nonnull ChildParameterDescriptor parameterDescriptor,
+	private Object resolveChildParameter(@Nonnull ConstraintResolveContext resolveContext,
+	                                     @Nonnull ChildParameterDescriptor childParameterDescriptor,
 	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
-	                                     @Nullable String originalClassifier,
-	                                     @Nonnull ParsedKey parsedKey,
-	                                     @Nullable O value) {
-		final O argument = extractChildParameterFromValue(
-			parsedKey,
+	                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                     @Nullable Object value) {
+		final Object argument = extractChildParameterFromValue(
+			parsedConstraintDescriptor,
 			value,
 			constraintValueStructure,
-			parameterDescriptor
+			childParameterDescriptor
 		);
 
-		final ResolveContext childResolveContext = resolveChildrenContext(resolveContext, constraintDescriptor, originalClassifier, parsedKey);
-		return convertChildParameterArgumentToInstantiationArg(childResolveContext, argument, parsedKey, parameterDescriptor);
+		final DataLocator childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, childParameterDescriptor.domain());
+		final ConstraintResolveContext childResolveContext = resolveContext.toBuilder()
+			.dataLocator(childDataLocator)
+			.build();
+		return convertChildParameterArgumentToInstantiationArg(childResolveContext, argument, parsedConstraintDescriptor, childParameterDescriptor);
 	}
 
 	/**
 	 * Tries to extract raw argument for children descriptor from client value
 	 */
 	@Nullable
-	private O extractChildParameterFromValue(@Nonnull ParsedKey parsedKey,
-	                                         @Nullable O value,
-	                                         @Nonnull ConstraintValueStructure constraintValueStructure,
-	                                         @Nonnull ChildParameterDescriptor parameterDescriptor) {
-		O argument;
+	private Object extractChildParameterFromValue(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+                                                  @Nullable Object value,
+                                                  @Nonnull ConstraintValueStructure constraintValueStructure,
+                                                  @Nonnull ChildParameterDescriptor parameterDescriptor) {
+		Object argument;
 		if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
-			argument = extractChildArgumentFromWrapperObject(parsedKey, value, parameterDescriptor);
+			argument = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor);
 			// we want treat missing arrays as empty arrays for more client convenience
-			if (isNullValue(argument) && parameterDescriptor.type().isArray()) {
-				//noinspection unchecked
-				argument = (O) (parameterDescriptor.uniqueChildren() ? createEmptyWrapperObject() : createEmptyListObject());
+			if (argument == null && parameterDescriptor.type().isArray()) {
+				argument = parameterDescriptor.uniqueChildren() ? createEmptyWrapperObject() : createEmptyListObject();
 			}
 
-			if (parameterDescriptor.required() && isNullValue(argument)) {
+			if (parameterDescriptor.required() && argument == null) {
 				throw createInvalidArgumentException(
-					"Constraint `" + parsedKey.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-null."
+					"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-null."
 				);
 			}
 		} else if (constraintValueStructure == ConstraintValueStructure.CHILD) {
 			argument = value;
 
-			if (parameterDescriptor.required() && isNullValue(argument)) {
+			if (parameterDescriptor.required() && argument == null) {
 				throw createInvalidArgumentException(
-					"Constraint `" + parsedKey.originalKey() + "` requires non-null children."
+					"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires non-null children."
 				);
 			}
 		} else {
 			throw createInvalidArgumentException(
-				"Constraint `" + parsedKey.originalKey() + "` requires child parameter but value isn't object nor child."
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires child parameter but value isn't object nor child."
 			);
 		}
 		return argument;
@@ -573,9 +526,11 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * Should extract raw children argument from wrapper object `value`.
 	 */
 	@Nullable
-	protected abstract O extractChildArgumentFromWrapperObject(@Nonnull ParsedKey parsedKey,
-	                                                           @Nullable O value,
-	                                                           @Nonnull ChildParameterDescriptor parameterDescriptor);
+	private Object extractChildArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+                                                         @Nullable Object value,
+                                                         @Nonnull ChildParameterDescriptor parameterDescriptor) {
+		return extractArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
+	}
 
 	/**
 	 * Converts extracted raw children parameter argument (children constraints) to target data type and structure
@@ -583,15 +538,15 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 */
 	@SuppressWarnings("unchecked")
 	@Nullable
-	private Object convertChildParameterArgumentToInstantiationArg(@Nonnull ResolveContext resolveContext,
-	                                                               @Nullable O argument,
-	                                                               @Nonnull ParsedKey parsedKey,
+	private Object convertChildParameterArgumentToInstantiationArg(@Nonnull ConstraintResolveContext resolveContext,
+	                                                               @Nullable Object argument,
+	                                                               @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                               @Nonnull ChildParameterDescriptor parameterDescriptor) {
-		if (isNullValue(argument)) {
+		if (argument == null) {
 			// we can return null if parameter isn't required
 			return null;
 		} else if (parameterDescriptor.type().isArray()) {
-			if (isBooleanValue(argument)) {
+			if (argument instanceof Boolean) {
 				// child containers doesn't have any usable children, therefore placeholder value is used
 				return convertConstraintStreamToSpecificArray((Class<C>) parameterDescriptor.type().getComponentType(), Stream.of());
 			}
@@ -602,21 +557,21 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 				// any wrapping container, thus we need to extract child constraints from the wrapping container
 				return convertConstraintStreamToSpecificArray(
 					(Class<C>) parameterDescriptor.type().getComponentType(),
-					resolveContainerInnerConstraints(resolveContext, parsedKey, argument)
+					resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, argument)
 				);
 			} else {
-				final List<O> children = convertInputListToJavaList(argument, parsedKey);
+				final List<Object> children = convertInputListToJavaList(argument, parsedConstraintDescriptor);
 				return convertConstraintStreamToSpecificArray(
 					(Class<C>) parameterDescriptor.type().getComponentType(),
 					children.stream()
 						// there is additional wrapper object to be able to handle all constraints inside the container,
 						// but this object is implicit "and" container, therefore we need to resolve it manually to "and"
 						// constraint
-						.map(ch -> resolveWrapperContainer(resolveContext, parsedKey, ch))
+						.map(ch -> resolveWrapperContainer(resolveContext, parsedConstraintDescriptor, ch))
 				);
 			}
 		} else {
-			if (isBooleanValue(argument)) {
+			if (argument instanceof Boolean) {
 				// child container doesn't have any usable children, therefore placeholder value is used
 				Assert.isPremiseValid(
 					!parameterDescriptor.required(),
@@ -630,71 +585,173 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 			if (isChildrenUnique(parameterDescriptor)) {
 				// if unique children are needed we can't return wrapping container because single concrete container is
 				// expected in constructor args. We need to extract the container from the wrapping container.
-				final List<C> children = resolveContainerInnerConstraints(resolveContext, parsedKey, argument).toList();
+				final List<C> children = resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, argument).toList();
 				if (children.isEmpty() && parameterDescriptor.required()) {
 					throw createInvalidArgumentException(
-						"Constraint `" + parsedKey.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-empty."
+						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-empty."
 					);
 				}
 				if (children.size() > 1) {
 					throw createInvalidArgumentException(
-						"Constraint `" + parsedKey.originalKey() + "` support only one child but there were multiple specified."
+						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` support only one child but there were multiple specified."
 					);
 				}
 
 				return !children.isEmpty() ? children.get(0) : null;
 			} else {
-				return resolveWrapperContainer(resolveContext, parsedKey, argument);
+				return resolveWrapperContainer(resolveContext, parsedConstraintDescriptor, argument);
 			}
 		}
 	}
 
-	/**
-	 * Checks if argument is of boolean type which would indicate placeholder `none` value.
-	 */
-	protected abstract boolean isBooleanValue(@Nonnull O argument);
 
 	/**
-	 * Checks if argument is `NULL` value, or it's representation is equal to `NULL`.
+	 * Tries to resolve {@link AdditionalChildParameterDescriptor} to single constraint instantiation arg.
+	 *
+	 * @param resolveContext context for resolving
+	 * @param additionalChildParameterDescriptor descriptor of additional child parameter to resolve
+	 * @param constraintValueStructure structure of input value to parse
+	 * @param parsedConstraintDescriptor key representing original constraint
+	 * @param value client value to parse arg from
+	 * @return instantiation arg if possible
 	 */
-	protected abstract boolean isNullValue(@Nullable O argument);
+	@Nullable
+	private Object resolveAdditionalChildParameter(@Nonnull ConstraintResolveContext resolveContext,
+	                                               @Nonnull AdditionalChildParameterDescriptor additionalChildParameterDescriptor,
+	                                               @Nonnull ConstraintValueStructure constraintValueStructure,
+	                                               @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                               @Nullable Object value) {
+		final Object argument = extractAdditionalChildParameterFromValue(
+			parsedConstraintDescriptor,
+			value,
+			constraintValueStructure,
+			additionalChildParameterDescriptor
+		);
+
+		final DataLocator childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, additionalChildParameterDescriptor.domain());
+		final ConstraintResolveContext childResolveContext = resolveContext.toBuilder()
+			.dataLocator(childDataLocator)
+			.build();
+		return convertAdditionalChildParameterArgumentToInstantiationArg(childResolveContext, argument, additionalChildParameterDescriptor);
+	}
+
+	/**
+	 * Tries to extract raw argument for additional child descriptor from client value
+	 */
+	@Nullable
+	private Object extractAdditionalChildParameterFromValue(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                        @Nullable Object value,
+	                                                        @Nonnull ConstraintValueStructure constraintValueStructure,
+	                                                        @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
+		if (constraintValueStructure != ConstraintValueStructure.WRAPPER_OBJECT) {
+			throw createInvalidArgumentException(
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires additional child parameter but value isn't object."
+			);
+		}
+
+		final Object argument = extractAdditionalChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor);
+		if (parameterDescriptor.required() && argument == null) {
+			throw createInvalidArgumentException(
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-null."
+			);
+		}
+		return argument;
+	}
+
+	/**
+	 * Should extract raw children argument from wrapper object `value`.
+	 */
+	@Nullable
+	private Object extractAdditionalChildArgumentFromWrapperObject(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                               @Nullable Object value,
+	                                                               @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
+		return extractArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
+	}
+
+	/**
+	 * Converts extracted raw additional child parameter argument (children constraints) to target data type and structure
+	 * needed by children parameter descriptor.
+	 * <b>Note: </b> currently, we assume that the type of child parameter is generic container with only one direct child
+	 * parameter. Otherwise, there would have to be logic for another nested implicit container which currently doesn't make
+	 * sense.
+	 */
+	@Nullable
+	private Object convertAdditionalChildParameterArgumentToInstantiationArg(@Nonnull ConstraintResolveContext resolveContext,
+	                                                                         @Nullable Object argument,
+	                                                                         @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
+		if (argument == null) {
+			// we can return null if parameter isn't required
+			return null;
+		}
+
+		final AtomicReference<? extends ConstraintResolver<?>> resolver = additionalResolvers.get(parameterDescriptor.constraintType());
+		Assert.isPremiseValid(
+			resolver != null,
+			() -> createQueryResolvingInternalError("Missing resolver for constraint type `" + parameterDescriptor.constraintType() + "`.")
+		);
+
+		// because we don't have direct access to descriptor of additional child constraint, we assume that additional
+		// child parameter has some generic constraint with single creator with single direct child parameter only
+		//noinspection unchecked
+		final ConstraintDescriptor additionalChildRootDescriptor = ConstraintDescriptorProvider.getConstraint(
+			(Class<? extends Constraint<?>>) parameterDescriptor.type()
+		);
+		final String additionalChildRootKey = keyBuilder.build(additionalChildRootDescriptor, null);
+
+		return resolver.get().resolve(new ConstraintResolveContext(resolveContext.dataLocator()), additionalChildRootKey, argument);
+	}
 
 	/**
 	 * Creates empty wrapper object
-	 * @return
 	 */
 	@Nonnull
-	protected abstract Object createEmptyWrapperObject();
+	private Object createEmptyWrapperObject() {
+		return Map.of();
+	}
 
 	/**
 	 * Creates empty list object (object representing list)
-	 * @return
 	 */
 	@Nonnull
-	protected abstract Object createEmptyListObject();
+	private Object createEmptyListObject() {
+		return List.of();
+	}
 
 	/**
 	 * Resolves constraint container represented by JSON object and containing inner child constraints
 	 * to the {@link #getWrapperContainer()} wrapping constraint container.
 	 */
 	@Nonnull
-	private C resolveWrapperContainer(@Nonnull ResolveContext resolveContext, @Nonnull ParsedKey parsedKey, @Nonnull O value) {
+	private C resolveWrapperContainer(@Nonnull ConstraintResolveContext resolveContext, @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor, @Nonnull Object value) {
 		final C[] innerConstraints = convertConstraintStreamToSpecificArray(
 			getConstraintClass(),
-			resolveContainerInnerConstraints(resolveContext, parsedKey, value)
+			resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, value)
 		);
 		// expects that default container has constructor with only array of children
 		//noinspection unchecked
-		return (C) getWrapperContainer().creator().instantiateConstraint(new Object[] { innerConstraints }, parsedKey.originalKey());
+		return (C) getWrapperContainer().creator().instantiateConstraint(new Object[] { innerConstraints }, parsedConstraintDescriptor.originalKey());
 	}
 
 	/**
 	 * Tries to extract child constraints from constraint container represented by JSON object
 	 */
 	@Nonnull
-	protected abstract Stream<C> resolveContainerInnerConstraints(@Nonnull ResolveContext resolveContext,
-	                                                              @Nonnull ParsedKey parsedKey,
-	                                                              @Nonnull O value);
+	private Stream<C> resolveContainerInnerConstraints(@Nonnull ConstraintResolveContext resolveContext,
+	                                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                     @Nonnull Object value) {
+		if (!(value instanceof Map<?, ?>)) {
+			throw createQueryResolvingInternalError(
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` expected to has container with nested constraints."
+			);
+		}
+
+		//noinspection unchecked
+		final Map<String, Object> innerConstraints = (Map<String, Object>) value;
+		return innerConstraints.entrySet()
+			.stream()
+			.map(c -> resolve(resolveContext, c.getKey(), c.getValue()))
+			.filter(Objects::nonNull);
+	}
 
 	@SuppressWarnings("unchecked")
 	@Nonnull
@@ -707,16 +764,20 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	 * Should convert input-specific list to Java-specific lis of inner raw input item.
 	 */
 	@Nonnull
-	protected abstract List<O> convertInputListToJavaList(@Nonnull O argument, @Nonnull ParsedKey parsedKey);
-
-	@Nonnull
-	protected Optional<EntitySchemaContract> findEntitySchema(@Nonnull DataLocator dataLocator) {
-		return catalogSchema.getEntitySchema(dataLocator.entityType());
+	private List<Object> convertInputListToJavaList(@Nonnull Object argument, @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor) {
+		try {
+			//noinspection unchecked
+			return (List<Object>) argument;
+		} catch (ClassCastException e) {
+			throw createQueryResolvingInternalError(
+				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` expected list value but found `" + argument + "`."
+			);
+		}
 	}
 
 	@Nonnull
-	protected Optional<EntitySchemaContract> findReferencedEntitySchema(@Nonnull DataLocator dataLocator) {
-		return findEntitySchema(dataLocator)
+	private Optional<EntitySchemaContract> findReferencedEntitySchema(@Nonnull DataLocator dataLocator) {
+		return catalogSchema.getEntitySchema(dataLocator.entityType())
 			.flatMap(entitySchema -> {
 				final String referenceName;
 				if (dataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
@@ -726,7 +787,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 				}
 				if (referenceName == null) {
 					// we do not reference any other collection, thus the main one is used as fall back
-					return findEntitySchema(dataLocator);
+					return Optional.of(entitySchema);
 				}
 
 				return entitySchema.getReference(referenceName)
@@ -735,48 +796,83 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 			});
 	}
 
+	/**
+	 * Tries to resolve or switch domain of current constraint to desired domain for child constraints.
+	 *
+	 * @param resolveContext current context with current domain (data locator)
+	 * @param parsedConstraintDescriptor current constraint descriptor
+	 * @param desiredChildDomain desired domain for child constraints
+	 */
 	@Nonnull
-	private ResolveContext resolveChildrenContext(@Nonnull ResolveContext resolveContext,
-	                                              @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                              @Nullable String originalClassifier,
-	                                              @Nonnull ParsedKey parsedKey) {
-		if (constraintDescriptor.constraintClass().equals(getRootConstraintContainerDescriptor().constraintClass())) {
-			return new ResolveContext(getRootDataLocator());
+	private DataLocator resolveChildDataLocator(@Nonnull ConstraintResolveContext resolveContext,
+	                                            @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                            @Nonnull ConstraintDomain desiredChildDomain) {
+		final ConstraintDescriptor constraintDescriptor = parsedConstraintDescriptor.constraintDescriptor();
+		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
+			return resolveContext.dataLocator();
 		}
 
-		final DataLocator dataLocator = resolveContext.dataLocator();
-		final DataLocator childDataLocator = switch (constraintDescriptor.propertyType()) {
-			case GENERIC -> dataLocator;
-			case ENTITY -> {
-				if (dataLocator instanceof EntityDataLocator || dataLocator instanceof GenericDataLocator) {
-					yield new EntityDataLocator(dataLocator.entityType());
-				} else {
-					final EntitySchemaContract referencedEntitySchema = findReferencedEntitySchema(dataLocator)
-						.orElseThrow(() -> createQueryResolvingInternalError("Missing entity schema for locator `" + dataLocator + "`."));
-					yield new EntityDataLocator(referencedEntitySchema.getName());
-				}
-			}
-			case REFERENCE -> {
-				Assert.isPremiseValid(
-					originalClassifier != null,
-					() -> createQueryResolvingInternalError(
-						"Reference constraint with children `" + parsedKey.originalKey() + "`  must have classifier."
-					)
-				);
-				yield new ReferenceDataLocator(dataLocator.entityType(), originalClassifier);
-			}
-			case HIERARCHY -> new HierarchyDataLocator(dataLocator.entityType(), originalClassifier);
-			case FACET -> new FacetDataLocator(dataLocator.entityType(), originalClassifier);
-			default -> new GenericDataLocator(dataLocator.entityType()); // other domains doesn't support children, thus generic domain is used as the default
-		};
+		final DataLocator parentDataLocator = resolveContext.dataLocator();
+		final DataLocator childDataLocator;
+		if (desiredChildDomain == ConstraintDomain.DEFAULT) {
+			childDataLocator = parentDataLocator;
+		} else if (Set.of(ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.HIERARCHY_TARGET, ConstraintDomain.FACET).contains(desiredChildDomain)) {
+			Assert.isPremiseValid(
+				parentDataLocator instanceof DataLocatorWithReference,
+				() -> createQueryResolvingInternalError("Cannot switch to `" + desiredChildDomain + "` domain because parent domain doesn't contain any reference.")
+			);
 
-		return new ResolveContext(childDataLocator);
+			final String childEntityType = parentDataLocator.entityType();
+			final String childReferenceName = ((DataLocatorWithReference) parentDataLocator).referenceName();
+			childDataLocator = switch (desiredChildDomain) {
+				case REFERENCE -> {
+					Assert.isPremiseValid(
+						childReferenceName != null,
+						() -> createQueryResolvingInternalError("Child domain `" + ConstraintDomain.REFERENCE + "` requires explicit reference name.")
+					);
+					yield new ReferenceDataLocator(childEntityType, childReferenceName);
+				}
+				case HIERARCHY -> new HierarchyDataLocator(childEntityType, childReferenceName);
+				case HIERARCHY_TARGET -> {
+					if (childReferenceName == null) {
+						yield new EntityDataLocator(childEntityType);
+					} else {
+						yield new ReferenceDataLocator(childEntityType, childReferenceName);
+					}
+				}
+				case FACET -> new FacetDataLocator(childEntityType, childReferenceName);
+				default -> createQueryResolvingInternalError("Unsupported domain `" + desiredChildDomain + "`.");
+			};
+		} else {
+			final String childEntityType;
+			if (parentDataLocator instanceof DataLocatorWithReference) {
+				childEntityType = findReferencedEntitySchema(parentDataLocator)
+					.map(EntitySchemaContract::getName)
+					.orElseThrow(() -> createQueryResolvingInternalError("Could not find referenced entity schema for parent `" + parentDataLocator + "`."));
+			} else {
+				childEntityType = parentDataLocator.entityType();
+			}
+
+			childDataLocator = switch (desiredChildDomain) {
+				case GENERIC -> new GenericDataLocator(childEntityType);
+				case ENTITY -> new EntityDataLocator(childEntityType);
+				default -> createQueryResolvingInternalError("Unsupported domain `" + desiredChildDomain + "`.");
+			};
+		}
+
+		return childDataLocator;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Nonnull
-	protected EntitySchemaContract findRequiredEntitySchema(@Nonnull DataLocator dataLocator) {
-		return findEntitySchema(dataLocator)
-			.orElseThrow(() -> createQueryResolvingInternalError("Entity schema `" + dataLocator.entityType() + "` is required."));
+	private <V extends Serializable> V[] convertApiListToSpecificArray(@Nonnull Class<V> targetComponentType,
+	                                                                      @Nonnull List<Object> graphQLList) {
+		try {
+			//noinspection SuspiciousToArrayCall
+			return graphQLList.toArray(size -> (V[]) Array.newInstance(targetComponentType, size));
+		} catch (ClassCastException e) {
+			throw createQueryResolvingInternalError("Could not cast REST list to array of type `" + targetComponentType.getName() + "`");
+		}
 	}
 
 	@Nonnull
@@ -785,19 +881,4 @@ public abstract class ConstraintResolver<C extends Constraint<?>, O> {
 	@Nonnull
 	protected abstract <T extends ExternalApiInvalidUsageException>  T createInvalidArgumentException(@Nonnull String message);
 
-	/**
-	 * Local context for constraint resolving. It is passed down the constraint tree. Each node can create new
-	 * context for its children if received context from parent is not relevant
-	 *
-	 * @param dataLocator specifies how to get schemas for resolving data
-	 */
-	protected record ResolveContext(@Nonnull DataLocator dataLocator) {}
-
-	/**
-	 * Parsed client key for finding original constraint descriptor.
-	 */
-	protected record ParsedKey(@Nonnull String originalKey,
-	                         @Nonnull ConstraintPropertyType propertyType,
-	                         @Nullable String classifier,
-	                         @Nonnull String fullName) {}
 }

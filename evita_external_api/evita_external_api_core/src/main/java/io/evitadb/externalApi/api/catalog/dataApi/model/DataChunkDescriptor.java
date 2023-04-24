@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.dataType.DataChunk;
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -38,13 +37,6 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public interface DataChunkDescriptor {
-
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*DataChunk")
-		.description("""
-			Returns either `page` or `strip` of records according to pagination rules in input query.
-			""")
-		.build();
 
 	PropertyDescriptor DATA = PropertyDescriptor.builder()
 		.name("data")

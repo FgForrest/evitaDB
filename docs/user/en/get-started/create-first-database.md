@@ -1,9 +1,11 @@
 ---
 title: Create first database
+perex: |
+    This article will guide you through the basics of the evitaDB API for creating, updating, querying and 
+    deleting entities in the catalog.  
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 We assume you already have the following snippet of the code from the [previous chapter](run-evitadb.md):
@@ -16,6 +18,7 @@ So the web API server is up and running and ready to communicate.
 
 ## Define a new catalog with a schema
 
+<LanguageSpecific to="java">
 Now you can use <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> to define a new 
 catalog and create predefined schemas for multiple collections: `brand`, `category` and `product`. Each collection 
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms 
@@ -88,7 +91,7 @@ apply changes to it. The fetched entity is immutable, so you need to open it for
 builder that wraps the original immutable object and allows the changes to be captured. These changes are eventually
 collected and passed to the server in the `upsertVia` method.
 
-For more information, see the [write API description](../use/write-api.md). 
+For more information, see the [write API description](../use/api/write-data.md#upsert). 
 
 ## Delete any of existing entities
 
@@ -110,11 +113,18 @@ When you delete a hierarchical entity, you can choose whether or not to delete i
 [Example of deleting hierarchical entity](docs/user/en/get-started/example/delete-hierarchical-entity.java)
 </SourceCodeTabs>
 
-For more complex examples and explanations, see the [write API chapter](../use/write-api.md).
+For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
+
+</LanguageSpecific>
+<LanguageSpecific to="evitaql,graphql,rest,csharp">
+
+Creating new catalog in other APIs than Java is being prepared.
+
+</LanguageSpecific>
 
 ## What's next?
 
 If you don't want to fiddle with your own data, you [can play with our dataset](query-our-dataset.md).
 You can also go into detail in the following chapters on how to use specific parts of
-our [query API](../use/query-api.md), [write API](../use/write-api.md), or [schema API](../use/schema.md).
-You can also familiarize yourself with the [entity Data Structure](../use/entity.md) or other aspects of our database.
+our [query API](../use/api/query-data.md), [write API](../use/api/write-data.md), or [schema API](../use/schema.md).
+You can also familiarize yourself with the [entity Data Structure](../use/data-model.md) or other aspects of our database.

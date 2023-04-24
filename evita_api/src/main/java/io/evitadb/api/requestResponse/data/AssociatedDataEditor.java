@@ -112,7 +112,7 @@ public interface AssociatedDataEditor<W extends AssociatedDataEditor<W>> extends
 	/**
 	 * Interface that simply combines writer and builder contracts together.
 	 */
-	interface AssociatedDataBuilder extends AssociatedDataEditor<AssociatedDataBuilder>, Builder<AssociatedData> {
+	interface AssociatedDataBuilder extends AssociatedDataEditor<AssociatedDataBuilder>, BuilderContract<AssociatedData> {
 
 		@Nonnull
 		@Override

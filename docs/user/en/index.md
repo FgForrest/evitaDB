@@ -3,7 +3,6 @@ title: Introduction
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 evitaDB helps developers to create fast product catalog applications, which are the heart of every e-commerce site.
@@ -28,25 +27,23 @@ time trying to create an alternative to general-purpose databases, that would me
 and results of our research](https://evitadb.io/research/introduction) happening between 2019 and 2022 are documented 
 in the separate part of this site.
 
-<UsedTerms>
-    <h4>Used terms</h4>
-   <dl>
-      <dt>catalog</dt>
-      <dd>
-         A catalog isolates one data-set from another. In relational database world a catalog would represent a single 
-         database schema. It represents a physical container for set of logically interconnected entity collections.
-         evitaDB usually contains multiple catalogs. If you need to take care of data for multiple customers 
-         (multi-tenant application) it's a good idea to dedicate separate catalog to each of them.
-      </dd>
-      <dt>entity collection</dt>
-      <dd>
-         An entity collection encompass all entities sharing the same schema (structure). In relational database world
-         an entity collection would represent a one or tables that contain data of one logical entity. An entity is
-         closer to a "document" term used in NoSQL databases or "object" 
-         in [OOP terminology](https://en.wikipedia.org/wiki/Object-oriented_programming) than to a "table record".
-      </dd>
-   </dl>
-</UsedTerms>
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Use at your own risk and responsibility
+</NoteTitle>
+
+evitaDB is currently in alpha version and a lot of development is going on right now. We plan to stabilize the first 
+generally available version at the beginning of 2024. Until that time, the storage format may change at any time, which 
+will require all existing data to be dropped and re-indexed from the primary storage.
+
+**Please do not use evitaDB to store your primary data for the reasons mentioned above.**
+
+In the fall of 2023, we plan to release a beta version and deploy it first to our own customers to gain first-hand 
+experience using it ourselves. When we can be sure that the database engine is stable and reliable, we will release 
+the first version to the general public.
+</Note>
 
 ## Get started
 
@@ -58,7 +55,7 @@ in the separate part of this site.
 
 ## Use
 
-1. [Data model](use/entity.md)
+1. [Data model](use/data-model.md)
    1. [Data types](use/data-types.md)
    2. [Schema](use/schema.md)
 2. **Connectors**

@@ -27,9 +27,9 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -43,7 +43,7 @@ import java.io.Serializable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "having",
 	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
 		"match inner filtering constraints. This container resembles the SQL inner join clauses where the `entityHaving`" +
@@ -55,8 +55,8 @@ public class EntityHaving extends AbstractFilterConstraintContainer implements E
 
 	private EntityHaving() {}
 
-	@ConstraintCreatorDef
-	public EntityHaving(@Nonnull @ConstraintChildrenParamDef FilterConstraint children) {
+	@Creator
+	public EntityHaving(@Nonnull @Child FilterConstraint children) {
 		super(children);
 	}
 
@@ -73,8 +73,8 @@ public class EntityHaving extends AbstractFilterConstraintContainer implements E
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length == 0 ? new EntityHaving() : new EntityHaving((FilterConstraint) children[0]);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length == 0 ? new EntityHaving() : new EntityHaving(children[0]);
 	}
 
 	@Nonnull

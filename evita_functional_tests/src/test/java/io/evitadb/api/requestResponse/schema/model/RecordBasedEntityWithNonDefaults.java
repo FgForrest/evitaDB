@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.annotation.SellingPrice;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
 /**
  * Example interface for ClassSchemaAnalyzerTest.
@@ -128,10 +129,10 @@ public record RecordBasedEntityWithNonDefaults(
 	Brand[] licensingBrands
 ) {
 
-	record ReferencedFiles(@Nonnull int... fileId) {
+	record ReferencedFiles(@Nonnull int... fileId) implements Serializable {
 	}
 
-	record LocalizedTexts(@Nonnull String... texts) {
+	record LocalizedTexts(@Nonnull String... texts) implements Serializable {
 	}
 
 	record Brand(

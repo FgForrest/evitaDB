@@ -73,25 +73,31 @@ public interface GrpcFacetGroupStatisticsOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getGroupEntityOrBuilder();
 
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>int32 count = 4;</code>
+   * @return The count.
+   */
+  int getCount();
+
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics> 
       getFacetStatisticsList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics getFacetStatistics(int index);
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   int getFacetStatisticsCount();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder> 
       getFacetStatisticsOrBuilderList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics facetStatistics = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder getFacetStatisticsOrBuilder(
       int index);

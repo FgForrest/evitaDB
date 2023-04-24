@@ -31,6 +31,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
@@ -70,13 +71,12 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 
 	private static final int SEED = 40;
 
-	private static final String PRODUCT_LIST_PATH = "data.list_product";
-	private static final String ERRORS_PATH = "errors";
+	private static final String PRODUCT_LIST_PATH = "data.listProduct";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key")
-	void shouldReturnProductsByPrimaryKey(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKey(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_CODE) != null
@@ -98,13 +98,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            entity_primaryKey_inSet: [%d, %d]
+	                            entityPrimaryKeyInSet: [%d, %d]
 	                        }
 	                    ) {
 	                        __typename
@@ -131,7 +131,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by non-localized attribute")
-	void shouldReturnProductsByNonLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByNonLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null &&
@@ -154,13 +154,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -186,19 +186,19 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatted big decimal is missing locale")
-	void shouldReturnErrorWhenFormattedBigDecimalIsMissingLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattedBigDecimalIsMissingLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
                         ) {
 	                        primaryKey
@@ -220,7 +220,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return big decimal attribute variants for products")
-	void shouldReturnBigDecimalAttributeVariantsForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnBigDecimalAttributeVariantsForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null
@@ -242,14 +242,14 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"],
-	                            entity_locale_equals: cs_CZ
+	                            attributeCodeInSet: ["%s", "%s"],
+	                            entityLocaleEquals: cs_CZ
 	                        }
 	                    ) {
 	                        primaryKey
@@ -276,7 +276,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by localized attribute")
-	void shouldReturnProductsByLocalizedAttribute(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null &&
@@ -298,14 +298,14 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_url_inSet: ["%s", "%s"]
-	                            entity_locale_equals: en
+	                            attributeUrlInSet: ["%s", "%s"]
+	                            entityLocaleEquals: en
 	                        }
 	                    ) {
 	                        primaryKey
@@ -331,16 +331,16 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid products fields")
-	void shouldReturnErrorForInvalidProductsFields(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForInvalidProductsFields(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 2);
 		final String codeAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE, 5);
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -359,12 +359,12 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid argument in products query")
-	void shouldReturnErrorForInvalidArgumentInProductsQuery(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidArgumentInProductsQuery(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(code: "product") {
+	                    listProduct(code: "product") {
 	                        primaryKey
 	                        type
 	                    }
@@ -379,22 +379,22 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
-	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithPriceForSale)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic"
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
 	                        primaryKey
@@ -421,18 +421,18 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter products by non-existent price")
-	void shouldFilterProductsByNonExistentPrice(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFilterProductsByNonExistentPrice(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "nonexistent"
+	                            attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "nonexistent"
 	                        }
                         ) {
 	                        primaryKey
@@ -452,18 +452,18 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for filtering products by unknown currency")
-	void shouldReturnErrorForFilteringProductsByUnknownCurrency(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForFilteringProductsByUnknownCurrency(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: AAA,
-		                        price_inPriceLists: "basic"
+	                            attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: AAA,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
 	                        primaryKey
@@ -483,20 +483,20 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
-	void shouldReturnCustomPriceForSaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnCustomPriceForSaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String,Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithPriceForSale)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            entity_primaryKey_inSet: [%d, %d]
+	                            entityPrimaryKeyInSet: [%d, %d]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -522,23 +522,23 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale by entity locale")
-	void shouldReturnFormattedPriceForSaleByEntityLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceForSaleByEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithFormattedPriceForSale)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic",
-		                        entity_locale_equals: cs_CZ
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic",
+		                        entityLocaleEquals: cs_CZ
 	                        }
                         ) {
 	                        priceForSale(locale: cs_CZ) {
@@ -559,22 +559,22 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale by custom locale")
-	void shouldReturnFormattedPriceForSaleByCustomLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceForSaleByCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithFormattedPriceForSale)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic"
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
                             priceForSale(locale: cs_CZ) {
@@ -595,18 +595,18 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatting price for sale without locale")
-	void shouldReturnErrorWhenFormattingPriceForSaleWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPriceForSaleWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-		                        attribute_code_inSet: ["%s", "%s"]
-		                        price_inCurrency: CZK,
-		                        price_inPriceLists: "basic"
+		                        attributeCodeInSet: ["%s", "%s"]
+		                        priceInCurrency: CZK,
+		                        priceInPriceLists: "basic"
 	                        }
                         ) {
                             priceForSale {
@@ -626,22 +626,22 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products with filter inheritance")
-	void shouldReturnPriceForProductsWithFilterInheritance(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForProductsWithFilterInheritance(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithPrice)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-	                            price_inCurrency: CZK
-	                            price_inPriceLists: "basic"
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            priceInCurrency: CZK
+	                            priceInPriceLists: "basic"
 	                        }
                         ) {
 	                        primaryKey
@@ -667,20 +667,20 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products")
-	void shouldReturnPriceForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithPrice)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -706,21 +706,21 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price with entity locale")
-	void shoudReturnFormattedPriceWithEntityLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shoudReturnFormattedPriceWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithFormattedPrice)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"],
-	                            entity_locale_equals: cs_CZ
+	                            attributeCodeInSet: ["%s", "%s"],
+	                            entityLocaleEquals: cs_CZ
 	                        }
 	                    ) {
                             price(priceList: "basic", currency: CZK) {
@@ -741,16 +741,16 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatting price without locale")
-	void shoudReturnErrorWhenFormattingPriceWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shoudReturnErrorWhenFormattingPriceWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -773,19 +773,19 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all prices for products")
-	void shouldReturnAllPricesForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAllPricesForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntities(
 			originalProductEntities,
 			it -> !it.getPrices().isEmpty()
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -810,7 +810,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for products")
-	void shouldReturnFilteredPricesForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFilteredPricesForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
@@ -830,13 +830,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
 	                        primaryKey
@@ -862,7 +862,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for multiple price lists for products")
-	void shouldReturnFilteredPricesForMultiplePriceListsForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFilteredPricesForMultiplePriceListsForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, PRICE_LIST_BASIC, PRICE_LIST_VIP);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
@@ -880,13 +880,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
                             prices(priceLists: ["basic", "vip"], currency: CZK) {
@@ -907,21 +907,21 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted prices with entity locale")
-	void shouldReturnFormattedPricesWithEntityLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPricesWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithFormattedPrices)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d],
-		                        entity_locale_equals: cs_CZ
+		                        entityPrimaryKeyInSet: [%d, %d],
+		                        entityLocaleEquals: cs_CZ
 		                    }
 	                    ) {
                             prices(priceLists: "basic", currency: CZK) {
@@ -942,20 +942,20 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted prices with entity locale")
-	void shouldReturnFormattedPricesWithCustomLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPricesWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithFormattedPrices)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
                             prices(priceLists: "basic", currency: CZK, locale: cs_CZ) {
@@ -976,20 +976,20 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatting prices without locale")
-	void shouldReturnErrorWhenFormattingPricesWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPricesWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
 			.map(this::createEntityDtoWithFormattedPrices)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 		                    filterBy: {
-		                        entity_primaryKey_inSet: [%d, %d]
+		                        entityPrimaryKeyInSet: [%d, %d]
 		                    }
 	                    ) {
 	                        primaryKey
@@ -1011,7 +1011,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with inherited locale for products")
-	void shouldReturnAssociatedDataWithInheritedLocaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithInheritedLocaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
@@ -1022,14 +1022,14 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithAssociatedData)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
-	                            entity_locale_equals: en
+	                            attributeCodeInSet: ["%s", "%s"]
+	                            entityLocaleEquals: en
 	                        }
                         ) {
 	                        primaryKey
@@ -1053,7 +1053,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with custom locale for products")
-	void shouldReturnAssociatedDataWithCustomLocaleForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithCustomLocaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
@@ -1063,13 +1063,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.map(this::createEntityDtoWithAssociatedData)
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -1093,7 +1093,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single reference for products")
-	void shouldReturnSingleReferenceForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleReferenceForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.PARAMETER).size() == 1 &&
@@ -1146,13 +1146,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			})
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -1195,7 +1195,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference list for products")
-	void shouldReturnReferenceListForProducts(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferenceListForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() > 1
@@ -1221,13 +1221,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			})
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
-	                            attribute_code_inSet: ["%s", "%s"]
+	                            attributeCodeInSet: ["%s", "%s"]
 	                        }
 	                    ) {
 	                        primaryKey
@@ -1252,7 +1252,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should find product by complex query")
-	void shouldFindProductByComplexQuery(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldFindProductByComplexQuery(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final Random rnd = new Random(SEED);
 		final List<SealedEntity> withTrueAlias = originalProductEntities.stream()
 			.filter(it -> Objects.equals(Boolean.TRUE, it.getAttribute(ATTRIBUTE_ALIAS)) && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
@@ -1313,28 +1313,28 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 
 		assertTrue(expectedEntities.length > 0);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
-	                    list_product(
+	                    listProduct(
 	                        filterBy: {
 	                            or: [
 	                                {
-	                                    attribute_alias_equals: %b
-	                                    attribute_priority_equals: "%s"
+	                                    attributeAliasEquals: %b
+	                                    attributePriorityEquals: "%s"
 	                                },
 	                                {
-	                                    attribute_alias_equals: %b
-	                                    attribute_priority_equals: "%s"
+	                                    attributeAliasEquals: %b
+	                                    attributePriorityEquals: "%s"
 	                                },
 	                                {
-	                                    attribute_alias_equals: false
-	                                    attribute_priority_inSet: ["%s", "%s", "%s", "%s"]
+	                                    attributeAliasEquals: false
+	                                    attributePriorityInSet: ["%s", "%s", "%s", "%s"]
 	                                }
 	                            ]
 	                            not: {
-	                                attribute_code_equals: "%s"
+	                                attributeCodeEquals: "%s"
 	                            }
 	                        }
 	                        limit: %d
@@ -1363,7 +1363,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should order entities by complex query")
-	void shouldOrderEntitiesByComplexQuery(Evita evita) {
+	void shouldOrderEntitiesByComplexQuery(Evita evita, GraphQLTester tester) {
 		final Integer[] expectedEntities = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1390,17 +1390,17 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			}
 		);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                list_product(
+		                listProduct(
 		                    filterBy: {
-		                        attribute_priority_lessThan: "35000"
+		                        attributePriorityLessThan: "35000"
 		                    }
 		                    orderBy: {
-		                        attribute_created_natural: DESC,
-		                        attribute_manufactured_natural: ASC
+		                        attributeCreatedNatural: DESC,
+		                        attributeManufacturedNatural: ASC
 		                    }
 		                    limit: 30
 		                ) {
@@ -1418,7 +1418,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should limit returned entities")
-	void shouldLimitReturnedEntities(Evita evita) {
+	void shouldLimitReturnedEntities(Evita evita, GraphQLTester tester) {
 		final List<Integer> expectedEntities = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1442,13 +1442,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 		);
 		assertTrue(expectedEntities.size() > 5);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 		            query {
-		                list_product(
+		                listProduct(
 		                    filterBy: {
-		                        attribute_priority_lessThan: "35000"
+		                        attributePriorityLessThan: "35000"
 		                    }
 		                    limit: 5
 		                ) {

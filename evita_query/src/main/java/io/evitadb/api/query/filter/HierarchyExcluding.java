@@ -23,16 +23,18 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * If you use {@link HierarchyExcludingRoot} sub-query in {@link HierarchyWithin} parent, you can specify one or more
@@ -59,49 +61,52 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "excluding",
 	shortDescription = "The constraint narrows hierarchy within parent constraint to exclude specified hierarchy subtrees from search.",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
-public class HierarchyExcluding extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {
+public class HierarchyExcluding extends AbstractFilterConstraintContainer implements HierarchySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -6950287451642746676L;
+	private static final String CONSTRAINT_NAME = "excluding";
 
-	private HierarchyExcluding(Serializable... arguments) {
-		super(arguments);
-	}
-
-	@ConstraintCreatorDef
-	public HierarchyExcluding(@Nonnull @ConstraintValueParamDef Integer... primaryKey) {
-		super(primaryKey);
+	@Creator
+	public HierarchyExcluding(@Nonnull @Child(domain = ConstraintDomain.HIERARCHY_TARGET) FilterConstraint... filterConstraint) {
+		super(CONSTRAINT_NAME, NO_ARGS, filterConstraint);
 	}
 
 	/**
-	 * Returns primary keys of entities which trees should be excluded from {@link HierarchyWithin} query.
+	 * Returns filtering constraints that return entities whose trees should be excluded from {@link HierarchyWithin}
+	 * query.
 	 */
 	@Nonnull
-	public int[] getPrimaryKeys() {
-		return Arrays.stream(getArguments())
-			.mapToInt(Integer.class::cast)
-			.toArray();
+	public FilterConstraint[] getFiltering() {
+		return getChildren();
+	}
+
+	@Override
+	public boolean isNecessary() {
+		return getChildren().length > 0;
 	}
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 0;
-	}
-
-	@Nonnull
-	@Override
-	public String getName() {
-		// because this query can be used only within some other hierarchy query, it would be
-		// unnecessary to duplicate the hierarchy prefix
-		return "excluding";
+		return getChildren().length > 0;
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new HierarchyExcluding(newArguments);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		Assert.isTrue(
+			ArrayUtils.isEmpty(additionalChildren),
+			"Constraint HierarchyExcluding doesn't accept other than filtering constraints!"
+		);
+		return new HierarchyExcluding(children);
 	}
 }

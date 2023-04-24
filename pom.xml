@@ -27,7 +27,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>0.5-SNAPSHOT</version>
+	<version>0.6-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -218,6 +218,12 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-params</artifactId>
+			<version>${junit.jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-junit-jupiter</artifactId>
 			<version>4.6.1</version>
@@ -299,6 +305,8 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<excludedGroups>integration,functional,longRunning</excludedGroups>
+							<parallel>all</parallel>
+							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -313,6 +321,8 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<excludedGroups>integration,longRunning</excludedGroups>
+							<parallel>all</parallel>
+							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -327,6 +337,8 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<groups>functional</groups>
+							<parallel>all</parallel>
+							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -355,6 +367,8 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<groups>longRunning</groups>
+							<parallel>all</parallel>
+							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
 					</plugin>
 				</plugins>

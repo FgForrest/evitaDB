@@ -59,7 +59,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -115,7 +115,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @DisplayName("Evita entity filtering by facets functionality")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityByFacetFilteringFunctionalTest {
 	private static final String THOUSAND_PRODUCTS_WITH_FACETS = "ThousandsProductsWithFacets";
@@ -175,6 +175,31 @@ public class EntityByFacetFilteringFunctionalTest {
 				)
 			);
 
+		// group facets by their entity type / group and compute sum per group
+		final Map<GroupReference, Integer> groupCount = filteredEntities
+			.stream()
+			.flatMap(entity -> entity.getReferences()
+				.stream()
+				.map(it ->
+					new GroupReferenceWithEntityId(
+						it.getReferenceName(),
+						it.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null),
+						entity.getPrimaryKey()
+					)
+				))
+			.distinct()
+			.collect(
+				groupingBy(
+					entry -> new GroupReference(
+						schema.getReference(entry.referenceName()).orElseThrow(),
+						entry.groupId()
+					),
+					TreeMap::new,
+					summingInt(entry -> 1)
+				)
+			);
+
+
 		// filter entities by facets in input query (even if part of user filter) - use AND for different entity types, and OR for facet ids
 		final Set<Integer> facetFilteredEntityIds = filteredEntities
 			.stream()
@@ -220,6 +245,7 @@ public class EntityByFacetFilteringFunctionalTest {
 										return session.getEntity(entityType, gId, groupEntityRequirement.getRequirements()).orElseThrow();
 									})
 									.orElse(null),
+								groupCount.get(it.getKey()),
 								it.getValue()
 									.entrySet()
 									.stream()
@@ -280,7 +306,7 @@ public class EntityByFacetFilteringFunctionalTest {
 		);
 	}
 
-	@DataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@DataSet(value = THOUSAND_PRODUCTS_WITH_FACETS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> {
@@ -831,7 +857,7 @@ public class EntityByFacetFilteringFunctionalTest {
 					collection(Entities.PRODUCT),
 					filterBy(
 						and(
-							hierarchyWithin(Entities.CATEGORY, 1, excluding(excludedSubTrees)),
+							hierarchyWithin(Entities.CATEGORY, 1, excluding(entityPrimaryKeyInSet(excludedSubTrees))),
 							userFilter(
 								facetInSet(Entities.BRAND, 1),
 								facetInSet(Entities.STORE, 5, 6, 7, 8),
@@ -1778,6 +1804,12 @@ public class EntityByFacetFilteringFunctionalTest {
 			return first == 0 ? ofNullable(groupId).map(it -> ofNullable(o.groupId).map(it::compareTo).orElse(-1)).orElseGet(() -> o.groupId != null ? 1 : 0) : first;
 		}
 	}
+
+	private record GroupReferenceWithEntityId(
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		int entityId
+	) {}
 
 	private record FacetSummaryWithResultCount(int entityCount, FacetSummary facetSummary) {
 	}

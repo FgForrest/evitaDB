@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
@@ -56,7 +56,7 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
  */
 @DisplayName("Evita entity filtering by prices functionality - find first")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES = "HundredProductsWithFindFirstPrices";
@@ -64,7 +64,7 @@ public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityBy
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator(faker -> PriceInnerRecordHandling.FIRST_OCCURRENCE);
 
-	@DataSet(HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES)
+	@DataSet(value = HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES, destroyAfterClass = true)
 	List<SealedEntity> setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> null;

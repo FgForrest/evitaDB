@@ -25,8 +25,8 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -85,34 +85,29 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "excludingRoot",
 	shortDescription = "The constraint limits hierarchy within parent constraint to exclude the entities directly related to the searched root node.",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyExcludingRoot extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = 3965082821350063527L;
+	private static final String CONSTRAINT_NAME = "excludingRoot";
 
-	private HierarchyExcludingRoot(Serializable... arguments) {
-		super(arguments);
+	private HierarchyExcludingRoot(@Nonnull Serializable... arguments) {
+		// because this query can be used only within some other hierarchy query, it would be
+		// unnecessary to duplicate the hierarchy prefix
+		super(CONSTRAINT_NAME, arguments);
 	}
 
-	@ConstraintCreatorDef
+	@Creator
 	public HierarchyExcludingRoot() {
-		super();
+		super(CONSTRAINT_NAME);
 	}
 
 	@Override
 	public boolean isApplicable() {
 		return true;
-	}
-
-	@Nonnull
-	@Override
-	public String getName() {
-		// because this query can be used only within some other hierarchy query, it would be
-		// unnecessary to duplicate the hierarchy prefix
-		return "excludingRoot";
 	}
 
 	@Nonnull

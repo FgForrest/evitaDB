@@ -8,7 +8,6 @@ module evita.external.api.core {
 	opens io.evitadb.externalApi.configuration;
 	opens io.evitadb.externalApi.api.catalog.dataApi.dto to com.fasterxml.jackson.databind;
 
-	exports io.evitadb.externalApi;
 	exports io.evitadb.externalApi.api;
 	exports io.evitadb.externalApi.configuration;
 	exports io.evitadb.externalApi.exception;

@@ -25,9 +25,9 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -50,7 +50,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@ConstraintDef(
+@ConstraintDefinition(
 	name = "strip",
 	shortDescription = "The constraint specifies which strip (subset) of found entities will be returned."
 )
@@ -61,9 +61,8 @@ public class Strip extends AbstractRequireConstraintLeaf implements GenericConst
 		super(arguments);
 	}
 
-	@ConstraintCreatorDef
-	public Strip(@ConstraintValueParamDef Integer offset,
-	             @ConstraintValueParamDef Integer limit) {
+	@Creator
+	public Strip(@Value Integer offset, @Value Integer limit) {
 		super(
 			Optional.ofNullable(offset).orElse(0),
 			Optional.ofNullable(limit).orElse(20)

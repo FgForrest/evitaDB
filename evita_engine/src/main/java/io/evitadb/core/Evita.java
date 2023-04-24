@@ -37,6 +37,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -61,6 +62,7 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
+import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.openhft.hashing.LongHashFunction;
@@ -70,10 +72,12 @@ import org.jboss.threads.JBossExecutors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.ServiceLoader.Provider;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -82,6 +86,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.utils.Assert.isTrue;
+import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
@@ -157,6 +163,11 @@ public final class Evita implements EvitaContract {
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
 	private boolean active;
+	/**
+	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
+	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
+	 */
+	@Getter private boolean readOnly;
 
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this.configuration = configuration;
@@ -186,24 +197,47 @@ public final class Evita implements EvitaContract {
 					CopyOnWriteArrayList::new
 				)
 			);
-		this.catalogs = new ConcurrentHashMap<>(
-			Arrays.stream(FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault()))
-				.map(it -> {
-					final String catalogName = it.toFile().getName();
-					try {
-						final CatalogContract catalog = new Catalog(
-							catalogName, it, cacheSupervisor, configuration.storage());
-						log.info("Catalog {} fully loaded.", catalogName);
-						return catalog;
-					} catch (Throwable ex) {
-						log.error("Catalog {} is corrupted!", catalogName);
-						return new CorruptedCatalog(catalogName, it, ex);
-					}
-				})
-				.collect(Collectors.toMap(CatalogContract::getName, Function.identity()))
-		);
 
-		this.active = true;
+		final Path[] directories = FileUtils.listDirectories(configuration.storage().storageDirectoryOrDefault());
+		this.catalogs = CollectionUtils.createConcurrentHashMap(directories.length);
+		final CountDownLatch startUpLatch = new CountDownLatch(directories.length);
+		for (Path directory : directories) {
+			final String catalogName = directory.toFile().getName();
+			scheduler.execute(() -> {
+				CatalogContract catalog;
+				try {
+					final long start = System.nanoTime();
+					catalog = new Catalog(
+						catalogName, directory, cacheSupervisor, configuration.storage());
+					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+				} catch (Throwable ex) {
+					log.error("Catalog {} is corrupted!", catalogName);
+					catalog = new CorruptedCatalog(catalogName, directory, ex);
+				}
+				this.catalogs.put(catalogName, catalog);
+				startUpLatch.countDown();
+			});
+		}
+
+		try {
+			startUpLatch.await();
+			this.active = true;
+			this.readOnly = this.configuration.server().readOnly();
+		} catch (InterruptedException ex) {
+			// terminate evitaDB - it has not properly started
+			this.executor.shutdown();
+			for (CatalogContract catalog : this.catalogs.values()) {
+				catalog.terminate();
+			}
+		}
+	}
+
+	/**
+	 * Method for internal use. Can switch Evita from read-write to read-only one time only.
+	 */
+	public void setReadOnly() {
+		Assert.isTrue(!readOnly, "Only read-write evita can be switched to read-only instance!");
+		this.readOnly = true;
 	}
 
 	/**
@@ -246,7 +280,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	@Nonnull
 	public EvitaSessionContract createSession(@Nonnull SessionTraits traits) {
-		Assert.notNull(traits.catalogName(), "Catalog name is mandatory information.");
+		notNull(traits.catalogName(), "Catalog name is mandatory information.");
 		return createEvitaSession(traits);
 	}
 
@@ -292,7 +326,7 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
-	public void replaceCatalog(@Nonnull String catalogNameToBeReplaced, @Nonnull String catalogNameToBeReplacedWith) {
+	public void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
 		assertActive();
 		update(new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
 	}
@@ -311,6 +345,9 @@ public final class Evita implements EvitaContract {
 	@Override
 	public void update(@Nonnull TopLevelCatalogSchemaMutation... catalogMutations) {
 		assertActive();
+		if (readOnly) {
+			throw new ReadOnlyException();
+		}
 		// TOBEDONE JNO - append mutation to the WAL and execute asynchronously
 		for (CatalogSchemaMutation catalogMutation : catalogMutations) {
 			if (catalogMutation instanceof CreateCatalogSchemaMutation createCatalogSchema) {
@@ -356,6 +393,9 @@ public final class Evita implements EvitaContract {
 	@Override
 	public <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags... flags) {
 		assertActive();
+		if (readOnly && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
+			throw new ReadOnlyException();
+		}
 		final SessionTraits traits = new SessionTraits(
 			catalogName,
 			flags == null ?
@@ -485,7 +525,7 @@ public final class Evita implements EvitaContract {
 	private void renameCatalogInternal(@Nonnull ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
 		final String currentName = modifyCatalogSchemaName.getCatalogName();
 		final String newName = modifyCatalogSchemaName.getNewCatalogName();
-		Assert.isTrue(!catalogs.containsKey(newName), () -> new CatalogAlreadyPresentException(newName, catalogs.get(newName).getSchema()));
+		isTrue(!catalogs.containsKey(newName), () -> new CatalogAlreadyPresentException(newName, catalogs.get(newName).getSchema()));
 		final CatalogContract catalogToBeRenamed = getCatalogInstanceOrThrowException(currentName);
 
 		closeAllActiveSessionsTo(currentName);
@@ -553,8 +593,9 @@ public final class Evita implements EvitaContract {
 		if (catalogToRemove == null) {
 			throw new CatalogNotFoundException(catalogName);
 		} else {
-			catalogToRemove.delete();
 			structuralChangeObservers.forEach(it -> doWithPretendingCatalogStillPresent(catalogToRemove, () -> it.onCatalogDelete(catalogName)));
+			catalogToRemove.terminate();
+			catalogToRemove.delete();
 		}
 	}
 
@@ -563,7 +604,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	private CatalogContract replaceCatalogReference(@Nonnull CatalogContract catalog) {
-		Assert.notNull(catalog, "Sanity check.");
+		notNull(catalog, "Sanity check.");
 		final String catalogName = catalog.getName();
 		// catalog indexes are ConcurrentHashMap - we can do it safely here
 		final AtomicReference<CatalogContract> originalCatalog = new AtomicReference<>();
@@ -658,6 +699,10 @@ public final class Evita implements EvitaContract {
 		final NonTransactionalCatalogDescriptor nonTransactionalCatalogDescriptor =
 			catalog.getCatalogState() == CatalogState.WARMING_UP && sessionTraits.isReadWrite() && !sessionTraits.isDryRun() ?
 				new NonTransactionalCatalogDescriptor(catalog, structuralChangeObservers) : null;
+
+		if (readOnly) {
+			isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
+		}
 
 		final EvitaSessionTerminationCallback terminationCallback = session -> {
 			sessionRegistry.removeSession(session);

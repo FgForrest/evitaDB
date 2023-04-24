@@ -41,7 +41,7 @@ import io.evitadb.dataType.PaginatedList;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -88,7 +88,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Evita entity filtering by prices functionality")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityByPriceFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS_WITH_PRICES = "HundredProductsWithPrices";
@@ -96,7 +96,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
-	@DataSet(HUNDRED_PRODUCTS_WITH_PRICES)
+	@DataSet(value = HUNDRED_PRODUCTS_WITH_PRICES, destroyAfterClass = true)
 	List<SealedEntity> setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = (entityType, faker) -> null;

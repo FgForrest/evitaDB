@@ -24,9 +24,11 @@
 package io.evitadb.api.query.descriptor;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.AttributeNatural;
+import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.order.Random;
@@ -55,7 +57,7 @@ class RegisteredConstraintProvider {
 	/**
 	 * List to register annotated constraints for later descriptor processing.
 	 * <p>
-	 * Also, constraints have to be annotated with {@link io.evitadb.api.query.descriptor.annotation.ConstraintDef} in
+	 * Also, constraints have to be annotated with {@link ConstraintDefinition} in
 	 * order to be truly processed.
 	 */
 	static final Set<Class<? extends Constraint<?>>> REGISTERED_CONSTRAINTS = Set.of(
@@ -106,6 +108,8 @@ class RegisteredConstraintProvider {
 		// generic
 		OrderBy.class,
 		Random.class,
+		// entity
+		EntityProperty.class,
 		// attribute
 		AttributeNatural.class,
 		// price
@@ -135,10 +139,20 @@ class RegisteredConstraintProvider {
 		// references
 		ReferenceContent.class,
 		// hierarchy
-		HierarchyStatisticsOfSelf.class,
-		HierarchyStatisticsOfReference.class,
+//		HierarchyChildren.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
+		HierarchyDistance.class,
+//		HierarchyFromNode.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
+//		HierarchyFromRoot.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
+		HierarchyLevel.class,
+		HierarchyNode.class,
+		HierarchyOfReference.class,
+		HierarchyOfSelf.class,
+//		HierarchyParents.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
 		HierarchyParentsOfSelf.class,
 		HierarchyParentsOfReference.class,
+//		HierarchySiblings.class, // todo lho we want this constructor to be a creator but we need support for multiple child parameters
+		HierarchyStatistics.class,
+		HierarchyStopAt.class,
 		// facet
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,

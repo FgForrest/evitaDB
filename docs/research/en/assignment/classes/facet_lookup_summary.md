@@ -1,13 +1,17 @@
 ---
 title: Facet lookup summary
-perex:
+perex: |
+    Facet lookup summary is a data structure containing information on facet groups and facets in a given 
+    hierarchy section or entity set. It outlines the object structure, including FacetGroupStatistics and 
+    FacetStatistics, and provides details on their respective components and the Impact section, which contains 
+    projected entity statistics for modified facet requirements.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
 
-The facet lookup summary contains list of <Term document="docs/research/en/assignment/index.md" name="facet group">facet groups</Term> and
-<Term document="docs/research/en/assignment/index.md" name="facet">facets</Term> inside them, that are present on entities in the current hierarchy
+The facet lookup summary contains list of <Term location="docs/research/en/assignment/index.md" name="facet group">facet groups</Term> and
+<Term location="docs/research/en/assignment/index.md" name="facet">facets</Term> inside them, that are present on entities in the current hierarchy
 section or the entire entity set. The structure of the object is as follows:
 
 - **[List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) of [FacetGroupStatistics](#facet-group-statistics)**

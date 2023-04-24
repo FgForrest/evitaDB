@@ -28,7 +28,8 @@ message GrpcFacetGroupStatistics {
   string referenceName = 1;
   GrpcEntityReference groupEntityReference = 2;
   GrpcSealedEntity groupEntity = 3;
-  repeated GrpcFacetStatistics facetStatistics = 4;
+  int32 count = 4;
+  repeated GrpcFacetStatistics facetStatistics = 5;
 }
 
 message GrpcFacetStatistics {

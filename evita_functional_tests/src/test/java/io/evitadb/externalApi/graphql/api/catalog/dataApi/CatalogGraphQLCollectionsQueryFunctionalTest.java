@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,17 +42,16 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class CatalogGraphQLCollectionsQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
 	private static final String COLLECTIONS_PATH = "data.collections";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should returns all collections")
-	void shouldReturnAllCollections(Evita evita) {
+	void shouldReturnAllCollections(Evita evita, GraphQLTester tester) {
 		final String[] expectedCollections = evita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getAllEntityTypes)
 			.toArray(String[]::new);
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
 			.document(
 				"""
 					query {

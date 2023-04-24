@@ -176,7 +176,7 @@ price range predicate.
 
 ## Product variants extension
 
-<Term document="docs/research/en/assignment/index.md" name="product-with-variants">Product with variants</Term> must contain prices of all of its
+<Term location="docs/research/en/assignment/index.md" name="product-with-variants">Product with variants</Term> must contain prices of all of its
 variants. Variant prices needs to be differentiated by the inner entity id property (see interface
 <SourceClass>[PriceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceContract.java)</SourceClass>.
 The product with variants must have a price inner entity reference handling mode
@@ -271,7 +271,7 @@ not selected as the selling price, and thus cannot be considered in the price ra
 
 ## Product sets extension
 
-<Term document="docs/research/en/assignment/index.md" name="product set">Product set</Term> must contain prices of all its components. Component
+<Term location="docs/research/en/assignment/index.md" name="product set">Product set</Term> must contain prices of all its components. Component
 prices needs to be differentiated by the inner entity id property (see interface
 <SourceClass>[PriceContract.java](https://github.com/FgForrest/evitaDB-research/blob/master/evita_api/src/main/java/io/evitadb/api/data/PriceContract.java)</SourceClass>. The product set
 must have the price inner entity reference handling mode

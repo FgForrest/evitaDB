@@ -27,8 +27,7 @@ import io.evitadb.api.query.filter.Or;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 
@@ -46,15 +45,7 @@ public class OrTranslator implements FilteringConstraintTranslator<Or> {
 	public Formula translate(@Nonnull Or orConstraint, @Nonnull FilterByVisitor filterByVisitor) {
 		return FutureNotFormula.postProcess(
 			filterByVisitor.getCollectedFormulasOnCurrentLevel(),
-			formulas -> {
-				if (formulas.length == 0) {
-					return EmptyFormula.INSTANCE;
-				} else if (formulas.length == 1) {
-					return formulas[0];
-				} else {
-					return new OrFormula(formulas);
-				}
-			}
+			FormulaFactory::or
 		);
 	}
 

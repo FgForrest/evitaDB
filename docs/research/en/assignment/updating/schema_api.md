@@ -1,6 +1,8 @@
 ---
 title: Schema API design
-perex:
+perex: |
+    The article contains basic concepts around evitaDB entity schemas and an example of how to define them from Java 
+    code.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'

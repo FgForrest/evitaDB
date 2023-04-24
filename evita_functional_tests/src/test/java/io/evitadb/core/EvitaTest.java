@@ -60,29 +60,34 @@ import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
-import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
+import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.grpc.GrpcProvider;
+import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.http.ExternalApiServer;
-import io.evitadb.externalApi.rest.RESTProvider;
+import io.evitadb.externalApi.rest.RestProvider;
+import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.test.Entities;
-import io.evitadb.test.TestFileSupport;
+import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.PortManager;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -107,7 +112,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class EvitaTest implements TestFileSupport {
+class EvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
 	public static final String ATTRIBUTE_DESCRIPTION = "description";
@@ -117,7 +122,7 @@ class EvitaTest implements TestFileSupport {
 	public static final String ATTRIBUTE_BRAND_DESCRIPTION = "brandDescription";
 	public static final String ATTRIBUTE_BRAND_EAN = "brandEan";
 	public static final String ATTRIBUTE_CATEGORY_PRIORITY = "categoryPriority";
-	private static final String TEST_CATALOG = "testCatalog";
+	public static final String DIR_EVITA_TEST = "evitaTest";
 	private static final Locale LOCALE_CZ = new Locale("cs", "CZ");
 	private static final Currency CURRENCY_CZK = Currency.getInstance("CZK");
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
@@ -152,13 +157,18 @@ class EvitaTest implements TestFileSupport {
 	}
 
 	@BeforeEach
-	void setUp() throws IOException {
-		SequenceService.reset();
-		cleanTestDirectory();
+	void setUp() {
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 		evita = new Evita(
 			getEvitaConfiguration()
 		);
 		evita.defineCatalog(TEST_CATALOG);
+	}
+
+	@AfterEach
+	void tearDown() {
+		evita.close();
+		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 	}
 
 	@Test
@@ -1810,7 +1820,7 @@ class EvitaTest implements TestFileSupport {
 		final long start = System.currentTimeMillis();
 		do {
 			assertNotNull(sessionActive.getCatalogSchema());
-		} while (System.currentTimeMillis() - start < 2001);
+		} while (!(System.currentTimeMillis() - start > 5000 || !sessionInactive.isActive()));
 
 		assertFalse(sessionInactive.isActive());
 		assertTrue(sessionActive.isActive());
@@ -1909,7 +1919,7 @@ class EvitaTest implements TestFileSupport {
 
 		evita.defineCatalog("newCatalog");
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getCatalogCreated("newCatalog"));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getOrInitializeCollectionMonitor("newCatalog"));
 	}
 
 	@Test
@@ -2102,7 +2112,7 @@ class EvitaTest implements TestFileSupport {
 	void shouldCreateAndRenameCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getTestDirectory()
+		final File theCollectionFile = getEvitaTestDirectory()
 			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
@@ -2131,7 +2141,7 @@ class EvitaTest implements TestFileSupport {
 	void shouldFailToRenameCollectionToExistingCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getTestDirectory()
+		final File theCollectionFile = getEvitaTestDirectory()
 			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
@@ -2148,7 +2158,7 @@ class EvitaTest implements TestFileSupport {
 	void shouldCreateAndReplaceCollection() {
 		setupCatalogWithProductAndCategory();
 
-		final File theCollectionFile = getTestDirectory()
+		final File theCollectionFile = getEvitaTestDirectory()
 			.resolve(TEST_CATALOG + File.separator + Entities.PRODUCT.toLowerCase() + ENTITY_COLLECTION_FILE_SUFFIX)
 			.toFile();
 		assertTrue(theCollectionFile.exists());
@@ -2561,7 +2571,7 @@ class EvitaTest implements TestFileSupport {
 
 		// damage the TEST_CATALOG_1 contents
 		try {
-			final Path productCollectionFile = getTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -2571,32 +2581,95 @@ class EvitaTest implements TestFileSupport {
 			getEvitaConfiguration()
 		);
 
-		final ExternalApiServer externalApiServer = new ExternalApiServer(
-			evita,
-			ApiOptions.builder()
-				.enable(GraphQLProvider.CODE)
-				.enable(GrpcProvider.CODE)
-				.enable(RESTProvider.CODE)
-				.build()
-		);
+		final PortManager portManager = getPortManager();
+		final String dataSetName = "evitaTest";
+		final int[] ports = portManager.allocatePorts(dataSetName, 3);
 		try {
-			externalApiServer.start();
+			try (ExternalApiServer externalApiServer = new ExternalApiServer(
+				evita,
+				ApiOptions.builder()
+					.certificate(
+						CertificateSettings.builder()
+							.folderPath(getEvitaTestDirectory() + "-certificates")
+							.build()
+					)
+					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
+					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.build()
+			)) {
+				externalApiServer.start();
+			}
+
+			final Set<String> catalogNames = evita.getCatalogNames();
+			assertEquals(3, catalogNames.size());
+
+			assertThrows(
+				CatalogCorruptedException.class,
+				() -> {
+					evita.updateCatalog(
+						TEST_CATALOG + "_1",
+						session -> {
+							session.getAllEntityTypes();
+						}
+					);
+				}
+			);
 		} finally {
-			externalApiServer.close();
+			portManager.releasePorts(dataSetName);
 		}
+	}
 
-		final Set<String> catalogNames = evita.getCatalogNames();
-		assertEquals(3, catalogNames.size());
+	@Test
+	void shouldProperlyHandleFetchingOfNotYetKnownEntities() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+					.updateVia(session);
 
-		assertThrows(
-			CatalogCorruptedException.class,
-			() -> {
-				evita.updateCatalog(
-					TEST_CATALOG + "_1",
-					session -> {
-						session.getAllEntityTypes();
-					}
-				);
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable())
+					.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ONE_OR_MORE)
+					.withReferenceTo(Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE)
+					.updateVia(session);
+
+				session.createNewEntity(Entities.BRAND, 1)
+					.setAttribute(ATTRIBUTE_NAME, "Siemens")
+					.upsertVia(session);
+
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, "Mixer")
+					.setReference(Entities.BRAND, 1)
+					.setReference(Entities.BRAND, 2)
+					.setReference(Entities.PARAMETER, 3)
+					.upsertVia(session);
+
+				final SealedEntity fullEntity = session.getEntity(
+						Entities.PRODUCT, 1,
+						entityFetchAllContentAnd(
+							referenceContent(Entities.BRAND, entityFetchAll()),
+							referenceContent(Entities.PARAMETER, entityFetchAll())
+						)
+					)
+					.orElseThrow();
+
+				// we get only single brand because when brand with PK=2 was fetched it was not found, yet it should
+				// be present since entity maps to evita managed entity
+				assertEquals(2, fullEntity.getReferences(Entities.BRAND).size());
+				assertEquals(1, fullEntity.getReferences(Entities.PARAMETER).size());
+
+				assertTrue(fullEntity.getReference(Entities.BRAND, 1).orElseThrow().getReferencedEntity().isPresent());
+				assertFalse(fullEntity.getReference(Entities.BRAND, 2).orElseThrow().getReferencedEntity().isPresent());
+
+				final SealedEntity shortEntity = session.getEntity(Entities.PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow();
+
+				// we get both brands because their bodies were not fetched and we had no chance to find out that
+				// the brand with PK=2 is not (yet) present in the evita storage
+				assertEquals(2, shortEntity.getReferences(Entities.BRAND).size());
+				assertEquals(1, shortEntity.getReferences(Entities.PARAMETER).size());
 			}
 		);
 	}
@@ -2703,7 +2776,7 @@ class EvitaTest implements TestFileSupport {
 			);
 		}
 
-		evita.replaceCatalog(TEST_CATALOG, temporaryCatalogName);
+		evita.replaceCatalog(temporaryCatalogName, TEST_CATALOG);
 
 		assertFalse(evita.getCatalogNames().contains(temporaryCatalogName));
 		assertTrue(evita.getCatalogNames().contains(TEST_CATALOG));
@@ -2827,12 +2900,21 @@ class EvitaTest implements TestFileSupport {
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
 		return EvitaConfiguration.builder()
 			.server(
-				ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds).build()
+				ServerOptions.builder()
+					.closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds)
+					.build()
 			)
 			.storage(
-				StorageOptions.builder().storageDirectory(getTestDirectory()).build()
+				StorageOptions.builder()
+					.storageDirectory(getEvitaTestDirectory())
+					.build()
 			)
 			.build();
+	}
+
+	@Nonnull
+	private Path getEvitaTestDirectory() {
+		return getTestDirectory().resolve(DIR_EVITA_TEST);
 	}
 
 }

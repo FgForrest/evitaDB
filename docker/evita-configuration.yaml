@@ -4,6 +4,7 @@ server:
   threadPriority: ${server.threadPriority:5}
   queueSize: ${server.queueSize:100}
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
+  readOnly: ${server.readOnly:false}
 
 storage:
   storageDirectory: ${storage.storageDirectory:null}
@@ -35,9 +36,11 @@ api:
     graphQL:
       enabled: ${api.endpoints.graphQL.enabled:true}
       host: ${api.endpoints.graphQL.host:localhost:5555}
+      allowedOrigins: ${api.endpoints.graphQL.allowedOrigins:null}
     rest:
       enabled: ${api.endpoints.rest.enabled:true}
       host: ${api.endpoints.rest.host:localhost:5555}
+      allowedOrigins: ${api.endpoints.rest.allowedOrigins:null}
     gRPC:
       enabled: ${api.endpoints.gRPC.enabled:true}
       host: ${api.endpoints.gRPC.host:localhost:5556}
@@ -47,3 +50,4 @@ api:
     system:
       enabled: ${api.endpoints.system.enabled:true}
       host: ${api.endpoints.system.host:localhost:5557}
+      allowedOrigins: ${api.endpoints.system.allowedOrigins:null}

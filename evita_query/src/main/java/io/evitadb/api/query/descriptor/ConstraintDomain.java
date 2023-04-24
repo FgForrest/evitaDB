@@ -23,16 +23,29 @@
 
 package io.evitadb.api.query.descriptor;
 
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import lombok.Getter;
 
 /**
  * Domain is primarily used to be able to define which constraints are supported in particular domain.
- * To define those constraints one should use {@link ConstraintDef#supportedIn()} to specify in which domains particular
+ * To define those constraints one should use {@link ConstraintDefinition#supportedIn()} to specify in which domains particular
  * query is supported.
  *
  * @author Lukáš Hornych, FG Forrest a.s. 2022
  */
+@Getter
 public enum ConstraintDomain {
+
+	/**
+	 * Virtual domain that doesn't declare any specific domain, but rather the default specified for particular context.
+	 * Such domain is usually inherited from parent constraint.
+	 */
+	DEFAULT(true),
+	/**
+	 * Virtual domain that must be resolved into either {@link #ENTITY} or {@link #REFERENCE}. It targets the hierarchical
+	 * entity collection without knowing beforehand if it is self hierarchy or referenced hierarchy.
+	 */
+	HIERARCHY_TARGET(true),
 
 	/**
 	 * Domain that does not belong to any specific data.
@@ -57,5 +70,19 @@ public enum ConstraintDomain {
 	 * Facet domain should contain all constraints that can filter or order by facet reference properties.
 	 * Usually linked to {@link ConstraintPropertyType#FACET}.
 	 */
-	FACET
+	FACET;
+
+	/**
+	 * Dynamic domain should be used directly because it doesn't point to any specific data until a context is known.
+	 * Rather is a placeholder for a domain which changes depending on current constraint context.
+	 */
+	private final boolean dynamic;
+
+	ConstraintDomain() {
+		this(false);
+	}
+
+	ConstraintDomain(boolean dynamic) {
+		this.dynamic = dynamic;
+	}
 }

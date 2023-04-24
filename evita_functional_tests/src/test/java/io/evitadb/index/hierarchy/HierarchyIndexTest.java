@@ -23,8 +23,11 @@
 
 package io.evitadb.index.hierarchy;
 
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -51,9 +54,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of {@link HierarchyIndex} class.
@@ -106,75 +107,152 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
-	void shouldTraverseRootNodes() {
-		final StringBuilder sb = new StringBuilder("|");
-		hierarchyIndex.traverseHierarchy(
-			(node, childrenTraverser) -> sb.append(node.entityPrimaryKey()).append("|")
+	void shouldComputeAllHierarchyNodesExceptOrphans() {
+		hierarchyIndex.setHierarchyFor(100, 1000, 0);
+		hierarchyIndex.setHierarchyFor(101, 1000, 1);
+		hierarchyIndex.setHierarchyFor(103, 999, 0);
+
+		final Formula allNodesFormula = hierarchyIndex.getAllHierarchyNodesFormula();
+		assertArrayEquals(
+			new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+			allNodesFormula.compute().getArray()
 		);
-		assertEquals("|6|7|", sb.toString());
+	}
+
+	@Test
+	void shouldFindParentNode() {
+		assertEquals(6, hierarchyIndex.getParentNode(3).getAsInt());
+		assertTrue(hierarchyIndex.getParentNode(6).isEmpty());
+		assertThrows(EvitaInvalidUsageException.class, () -> hierarchyIndex.getParentNode(99));
+	}
+
+	@Test
+	void shouldTraverseRootNodes() {
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
+		hierarchyIndex.traverseHierarchy(
+			(node, level, distance, childrenTraverser) -> {
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
+			}
+		);
+		assertEquals("|6|7|", nodeIds.toString());
+		assertEquals("|1|1|", levels.toString());
+		assertEquals("|1|1|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseEntireTreeTopDown() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchy(
-			(node, childrenTraverser) -> {
-				sb.append(node.entityPrimaryKey()).append("|");
+			(node, level, distance, childrenTraverser) -> {
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 				childrenTraverser.run();
 			}
 		);
-		assertEquals("|6|8|9|12|11|10|3|2|1|7|4|5|0|", sb.toString());
+		assertEquals("|6|8|9|12|11|10|3|2|1|7|4|5|0|", nodeIds.toString());
+		assertEquals("|1|2|3|4|4|4|2|3|3|1|2|2|3|", levels.toString());
+		assertEquals("|1|2|3|4|4|4|2|3|3|1|2|2|3|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseEntireTreeBottomUp() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchy(
-			(node, childrenTraverser) -> {
+			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
-				sb.append(node.entityPrimaryKey()).append("|");
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 			}
 		);
-		assertEquals("|12|11|10|9|8|2|1|3|6|4|0|5|7|", sb.toString());
+		assertEquals("|12|11|10|9|8|2|1|3|6|4|0|5|7|", nodeIds.toString());
+		assertEquals("|4|4|4|3|2|3|3|2|1|2|3|2|1|", levels.toString());
+		assertEquals("|4|4|4|3|2|3|3|2|1|2|3|2|1|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseSubTreeExcludingInnerSubTree() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchyFromNode(
-			(node, childrenTraverser) -> {
+			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
-				sb.append(node.entityPrimaryKey()).append("|");
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 			},
-			6, false, 9
+			6, false, new MatchNodeIdHierarchyFilteringPredicate(9)
 		);
-		assertEquals("|8|2|1|3|6|", sb.toString());
+		assertEquals("|8|2|1|3|6|", nodeIds.toString());
+		assertEquals("|2|3|3|2|1|", levels.toString());
+		assertEquals("|1|2|2|1|0|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseEntireTreeFromParent() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchyFromNode(
-			(node, childrenTraverser) -> {
+			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
-				sb.append(node.entityPrimaryKey()).append("|");
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 			},
 			9, false
 		);
-		assertEquals("|12|11|10|9|", sb.toString());
+		assertEquals("|12|11|10|9|", nodeIds.toString());
+		assertEquals("|4|4|4|3|", levels.toString());
+		assertEquals("|1|1|1|0|", distances.toString());
+	}
+
+	@Test
+	void shouldTraverseEntireTreeToRoot() {
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
+		hierarchyIndex.traverseHierarchyToRoot(
+			(node, level, distance, childrenTraverser) -> {
+				childrenTraverser.run();
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
+			},
+			12
+		);
+		assertEquals("|6|8|9|12|", nodeIds.toString());
+		assertEquals("|1|2|3|4|", levels.toString());
+		assertEquals("|3|2|1|0|", distances.toString());
 	}
 
 	@Test
 	void shouldTraverseEntireTreeFromParentExcludingIt() {
-		final StringBuilder sb = new StringBuilder("|");
+		final StringBuilder nodeIds = new StringBuilder("|");
+		final StringBuilder levels = new StringBuilder("|");
+		final StringBuilder distances = new StringBuilder("|");
 		hierarchyIndex.traverseHierarchyFromNode(
-			(node, childrenTraverser) -> {
+			(node, level, distance, childrenTraverser) -> {
 				childrenTraverser.run();
-				sb.append(node.entityPrimaryKey()).append("|");
+				nodeIds.append(node.entityPrimaryKey()).append("|");
+				levels.append(level).append("|");
+				distances.append(distance).append("|");
 			},
 			9, true
 		);
-		assertEquals("|12|11|10|", sb.toString());
+		assertEquals("|12|11|10|", nodeIds.toString());
+		assertEquals("|3|3|3|", levels.toString());
+		assertEquals("|1|1|1|", distances.toString());
 	}
 
 	@Test
@@ -200,7 +278,10 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListEntireTreeExcludingParts() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromRoot(9, 5);
+		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromRoot(
+			new MatchNodeIdHierarchyFilteringPredicate(9)
+				.or(new MatchNodeIdHierarchyFilteringPredicate(5))
+		);
 		assertArrayEquals(
 			new int[]{1, 2, 3, 4, 6, 7, 8},
 			nodeIds.getArray()
@@ -218,7 +299,11 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListSubTreeIncludingItselfExcludingSubTrees() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(6, 3, 9);
+		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParentIncludingItself(
+			6,
+			new MatchNodeIdHierarchyFilteringPredicate(3)
+				.or(new MatchNodeIdHierarchyFilteringPredicate(9))
+		);
 		assertArrayEquals(
 			new int[]{6, 8},
 			nodeIds.getArray()
@@ -236,7 +321,10 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldListSubTreeExcludingSubTrees() {
-		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParent(6, 3, 9);
+		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParent(
+			6,
+			new MatchNodeIdHierarchyFilteringPredicate(3).or(new MatchNodeIdHierarchyFilteringPredicate(9))
+		);
 		assertArrayEquals(
 			new int[]{8},
 			nodeIds.getArray()

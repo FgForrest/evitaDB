@@ -37,8 +37,6 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.FIELD_NAME_NAMING_CONVENTION;
-
 /**
  * Transforms API-independent {@link EndpointDescriptor} to GraphQL field definition.
  *
@@ -58,20 +56,17 @@ public class EndpointDescriptorToGraphQLFieldTransformer implements EndpointDesc
 
 	@Override
 	public GraphQLFieldDefinition.Builder apply(@Nonnull EndpointDescriptor endpointDescriptor) {
-		final String operation = endpointDescriptor.operation(FIELD_NAME_NAMING_CONVENTION);
-		final String staticClassifier = endpointDescriptor.classifier(FIELD_NAME_NAMING_CONVENTION);
-
 		final String fieldName;
-		if (staticClassifier != null) {
+		if (endpointDescriptor.hasClassifier()) {
 			Assert.isPremiseValid(
 				entitySchema == null,
 				() -> new GraphQLSchemaBuildingError("Classifier in endpoint `" + endpointDescriptor + "` has static classifier but dynamic one was provided.")
 			);
-			fieldName = operation + "_" + staticClassifier;
+			fieldName = endpointDescriptor.operation();
 		} else if (entitySchema != null) {
-			fieldName = operation + "_" + entitySchema.getNameVariant(FIELD_NAME_NAMING_CONVENTION);
+			fieldName = endpointDescriptor.operation(entitySchema);
 		} else {
-			fieldName = operation;
+			fieldName = endpointDescriptor.operation();
 		}
 
 		final GraphQLFieldDefinition.Builder fieldBuilder = GraphQLFieldDefinition.newFieldDefinition()

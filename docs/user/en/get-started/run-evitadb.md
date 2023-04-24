@@ -1,9 +1,9 @@
 ---
 title: Run evitaDB
+perex: If you are new to evitaDB, try these baby steps to get your own server up and running.
 date: '1.3.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 evitaDB is a [Java application](https://openjdk.org/), and you can run it as an
@@ -62,14 +62,14 @@ To integrate evitaDB into your project, use the following steps:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_db</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:0.5-SNAPSHOT'
+implementation 'io.evitadb:evita_db:0.6-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -107,14 +107,14 @@ exception when you enable the corresponding API in evitaDB's configuration.
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:0.5-SNAPSHOT'
+implementation 'io.evitadb:evita_external_api_grpc:0.6-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -127,14 +127,14 @@ implementation 'io.evitadb:evita_external_api_grpc:0.5-SNAPSHOT'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:0.5-SNAPSHOT'
+implementation 'io.evitadb:evita_external_api_graphql:0.6-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -147,14 +147,14 @@ implementation 'io.evitadb:evita_external_api_graphql:0.5-SNAPSHOT'
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:0.5-SNAPSHOT'
+implementation 'io.evitadb:evita_external_api_rest:0.6-SNAPSHOT'
 ```
 </CodeTabsBlock>
 </CodeTabs>

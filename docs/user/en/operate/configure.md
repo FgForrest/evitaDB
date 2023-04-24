@@ -1,10 +1,9 @@
 ---
 title: Configuration
-perex:
+perex: This article is a complete configuration guide for evitaDB instance.
 date: '1.3.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
-published: false
 ---
 
 The evitaDB server is configured in YAML format and its default settings are best described by the following code
@@ -17,6 +16,7 @@ server:                                           # [see Server configuration](#
   threadPriority: 5
   queueSize: 100
   closeSessionsAfterSecondsOfInactivity: 60
+  readOnly: false
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: null
@@ -48,9 +48,11 @@ api:                                              # [see API configuration](#api
     graphQL:                                      # [see GraphQL API configuration](#graphql-api-configuration)
       enabled: true
       host: localhost:5555
+      allowedOrigins: null
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: true
       host: localhost:5555
+      allowedOrigins: null
     gRPC:                                         # [see gRPC API configuration](#grpc-api-configuration)
       enabled: true
       host: localhost:5556
@@ -60,6 +62,7 @@ api:                                              # [see API configuration](#api
     system:                                       # [see System API configuration](#system-api-configuration)
       enabled: true
       host: localhost:5557
+      allowedOrigins: null
 ```
 
 <Note type="info">
@@ -235,6 +238,12 @@ This section contains general settings for the evitaDB server. It allows configu
         <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> inactivity before 
         it is forcibly closed by the server side.</p>
     </dd>
+    <dt>readOnly</dt>
+    <dd>
+        <p>**Default: `false`**</p>
+        <p>It switches the evitaDB server into read-only mode, where no updates are allowed and the server only provides 
+           read access to the data of the catalogs present in the data directory at the start of the server instance.</p>
+    </dd>
 </dl>
 
 ## Storage configuration
@@ -370,9 +379,9 @@ It allows configuring these settings:
   <dt>generateAndUseSelfSigned</dt>
   <dd>
     <p>**Default:** `true`</p>
-    <p>When set to `true`, a self-signed <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
-    <Term document="docs/user/en/operate/tls.md">certificate</Term> and its 
-    <Term document="docs/user/en/operate/tls.md">private key</Term> are automatically generated on server startup 
+    <p>When set to `true`, a self-signed <Term location="docs/user/en/operate/tls.md">certificate authority</Term> 
+    <Term location="docs/user/en/operate/tls.md">certificate</Term> and its 
+    <Term location="docs/user/en/operate/tls.md">private key</Term> are automatically generated on server startup 
     and used to communicate with clients.</p>
   </dd>
   <dt>folderPath</dt>
@@ -383,7 +392,7 @@ It allows configuring these settings:
   </dd>
   <dt>custom</dt>
   <dd>
-    <p>This section allows you to configure an externally supplied <Term document="docs/user/en/operate/tls.md">certificate</Term>. 
+    <p>This section allows you to configure an externally supplied <Term location="docs/user/en/operate/tls.md">certificate</Term>. 
     It is only used if the `generateAndUseSelfSigned` is set to `false`.</p>
     <p>The section requires these nested settings:</p>
       - **`certificate`**: path to the public part of the certificate file (*.crt)
@@ -408,8 +417,8 @@ It allows configuring these settings:
     </NoteTitle>
 
     Yes there is. You can use standardized way importing the 
-    <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
-    <Term document="docs/user/en/operate/tls.md">certificate</Term> to the Java trust store. This procedure is
+    <Term location="docs/user/en/operate/tls.md">certificate authority</Term> 
+    <Term location="docs/user/en/operate/tls.md">certificate</Term> to the Java trust store. This procedure is
     described in great detail in [this article](https://medium.com/expedia-group-tech/how-to-import-public-certificates-into-javas-truststore-from-a-browser-a35e49a806dc).
 
     </Note>
@@ -433,6 +442,13 @@ provide an unsecured connection for security reasons.
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the REST 
         API, but not to the gRPC or System API.</p>
     </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
+        allowed automatically.</p>
+    </dd>
 </dl>
 
 ### REST API configuration
@@ -448,6 +464,13 @@ provide an unsecured connection for security reasons.
         <p>**Default:** `localhost:5555`</p>
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the GraphQL 
         API, but not to the gRPC or System API.</p>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
+        allowed automatically.</p>
     </dd>
 </dl>
 
@@ -478,7 +501,7 @@ provide an unsecured connection for security reasons.
     <dt>allowedClientCertificatePaths</dt>
     <dd>
         <p>**Default:** `null`</p>
-        <p>It allows you to define zero or more file paths pointing to public <Term document="docs/user/en/operate/tls.md" name="certificate">client certificates</Term>.
+        <p>It allows you to define zero or more file paths pointing to public <Term location="docs/user/en/operate/tls.md" name="certificate">client certificates</Term>.
         Only clients that present the correct certificate will be allowed to communicate with the gRPC web API.</p>
     </dd>
 </dl>
@@ -490,7 +513,7 @@ only exposed endpoint on the unsecured http protocol, it must run on a separate 
 download the public part of the server certificate.
 
 It also allows downloading the default client private/public key pair if `api.certificate.generateAndUseSelfSigned` and
-`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour--not-secure-) for
+`api.gRPC.mTLS` are both set to `true`. See [default unsecure mTLS behaviour](tls.md#default-mtls-behaviour-not-secure) for
 more information.
 
 <dl>
@@ -504,8 +527,15 @@ more information.
         <p>**Default:** `localhost:5557`</p>
         <p>It specifies the host and port on which the system API should listen. The value must be different from all 
         other APIs because the system API needs to run on the insecure HTTP protocol while the other APIs use the secure one.</p>
-        <p>The system endpoint allows anyone to view public <Term document="docs/user/en/operate/tls.md">certificate authority</Term> 
-        <Term document="docs/user/en/operate/tls.md">certificate</Term> and it also provides information for 
-        [default `mTLS` implementation](tls.md#default-mtls-behaviour--not-secure-).</p>
+        <p>The system endpoint allows anyone to view public <Term location="docs/user/en/operate/tls.md">certificate authority</Term> 
+        <Term location="docs/user/en/operate/tls.md">certificate</Term> and it also provides information for 
+        [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure).</p>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
+        allowed automatically.</p>
     </dd>
 </dl>

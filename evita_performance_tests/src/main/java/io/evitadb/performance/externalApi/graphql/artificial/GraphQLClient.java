@@ -26,10 +26,13 @@ package io.evitadb.performance.externalApi.graphql.artificial;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 
 import javax.annotation.Nonnull;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -37,6 +40,7 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.X509Certificate;
 import java.util.Map;
 
 /**
@@ -44,10 +48,30 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class GraphQLClient {
 
 	private static final ObjectMapper objectMapper = new ObjectMapper();
+
+	@SneakyThrows
+	public GraphQLClient() {
+		// Create a trust manager that does not validate certificate chains
+		final TrustManager[] trustAllCerts = new TrustManager[] {
+			new X509TrustManager() {
+				public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+					return null;
+				}
+				public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+				public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+			}
+		};
+		// Install the all-trusting trust manager
+		SSLContext sc = SSLContext.getInstance("SSL");
+		sc.init(null, trustAllCerts, new java.security.SecureRandom());
+		HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+		// Install the all-trusting host verifier
+		HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
+	}
 
 	@SneakyThrows
 	public JsonNode call(@Nonnull String document) {
@@ -56,7 +80,7 @@ public class GraphQLClient {
 		);
 		final String requestBodyJson = objectMapper.writeValueAsString(requestBody);
 
-		final URL url = new URL("http://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/gql/test-catalog");
+		final URL url = new URL("https://" + InetAddress.getByName("localhost").getHostAddress() + ":5555/gql/test-catalog");
 		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 		connection.setRequestMethod("POST");
 		connection.setRequestProperty("Content-Type", "application/json");

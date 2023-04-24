@@ -1,18 +1,21 @@
 ---
 title: License
-perex:
+perex: |
+    evitaDB is licensed under the Business Source License 1.1. Technically, it is not an open source license, but 
+    is an open source friendly license, because it automatically converts to one after a period of time specified in the 
+    license.
 date: '22.2.2023'
 author: 'Ing. Jan Novotný'
-published: false
+proofreading: 'needed'
 ---
-evitaDB is licensed under the [Business Source License 1.1](LICENSE). Technically, it is not
+evitaDB is licensed under the [Business Source License 1.1](https://github.com/FgForrest/evitaDB/blob/dev/LICENSE). Technically, it is not
 an open source license, but is an [open source friendly](https://itsfoss.com/making-the-business-source-license-open-source-compliant/) 
 license, because it automatically converts to one after a period of time specified in the license. 
 
 We're fans of open source, and we've benefited a lot from open source software (even the database engine uses some of it).
 The database implementation has taken thousands of man-days and, if successful, will take several thousand more. We were
 lucky to get an [EU grant](https://evitadb.io/project-info) that partially funded the initial implementation, but we
-need to build a self-sustaining project in the long run. [Our company](https://www.fg.cz) uses evitaDB for its own
+need to build a self-sustaining project in the long run. [Our company](https://www.fg.cz/en) uses evitaDB for its own
 commercial projects, so the development of the database is guaranteed, but without additional income the development 
 would be limited. That's why we have chosen this type of license, but in the end we allow you - our users - almost any 
 use.

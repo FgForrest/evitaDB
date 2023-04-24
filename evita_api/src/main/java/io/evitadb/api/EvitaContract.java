@@ -145,10 +145,10 @@ public interface EvitaContract extends AutoCloseable {
 	 * In case exception occurs, the original catalog (`catalogNameToBeReplaced`) is guaranteed to be untouched, the
 	 * state of `catalogNameToBeReplacedWith` is however unknown and should be treated as damaged.
 	 *
-	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced and dropped
-	 * @param catalogNameToBeReplacedWith name of the catalog that will become the successor of the original catalog
+	 * @param catalogNameToBeReplacedWith name of the catalog that will become the successor of the original catalog (old name)
+	 * @param catalogNameToBeReplaced     name of the catalog that will be replaced and dropped (new name)
 	 */
-	void replaceCatalog(@Nonnull String catalogNameToBeReplaced, @Nonnull String catalogNameToBeReplacedWith);
+	void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced);
 
 	/**
 	 * Deletes catalog with name `catalogName` along with its contents on disk.

@@ -36,11 +36,13 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityFetchRequireBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UpsertEntityMutationHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +52,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Optional;
 
 /**
  * Mutating data fetcher that firstly applies entity mutations to selected entity and then returns updated entity to client.
@@ -61,22 +63,25 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
 
-	private final GraphQLEntityUpsertMutationConverter entityUpsertMutationResolver;
 
-	@Nonnull
-	private EntitySchemaContract entitySchema;
 	/**
-	 * Function to fetch specific entity schema based on its name.
+	 * Schema of collection to which this fetcher is mapped to.
 	 */
-	@Nonnull
-	private final Function<String, EntitySchemaContract> entitySchemaFetcher;
+	@Nonnull private EntitySchemaContract entitySchema;
+
+	@Nonnull private final GraphQLEntityUpsertMutationConverter entityUpsertMutationResolver;
+	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
 	public UpsertEntityMutatingDataFetcher(@Nonnull ObjectMapper objectMapper,
 										   @Nonnull CatalogSchemaContract catalogSchema,
 	                                       @Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
-		this.entitySchemaFetcher = catalogSchema::getEntitySchemaOrThrowException;
 		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationConverter(objectMapper, entitySchema);
+		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
+			catalogSchema::getEntitySchemaOrThrowException,
+			new FilterConstraintResolver(catalogSchema),
+			new OrderConstraintResolver(catalogSchema)
+		);
 	}
 
 	@Nonnull
@@ -84,7 +89,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
 
-		final EntityMutation entityMutation = entityUpsertMutationResolver.resolve(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations());
+		final EntityMutation entityMutation = entityUpsertMutationResolver.convert(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations());
 		final EntityContentRequire[] contentRequires = buildEnrichingRequires(environment);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
@@ -99,13 +104,14 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 
 	@Nonnull
 	private EntityContentRequire[] buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment) {
-		final EntityFetch entityFetch = EntityFetchRequireBuilder.buildEntityRequirement(
+		final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
 			SelectionSetWrapper.from(environment.getSelectionSet()),
 			null,
-			entitySchema,
-			entitySchemaFetcher
+			entitySchema
 		);
-		return entityFetch == null ? new EntityContentRequire[0] : entityFetch.getRequirements();
+		return entityFetch
+			.map(EntityFetch::getRequirements)
+			.orElse(new EntityContentRequire[0]);
 	}
 
 	/**

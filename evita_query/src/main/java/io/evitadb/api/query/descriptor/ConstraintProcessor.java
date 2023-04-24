@@ -24,6 +24,8 @@
 package io.evitadb.api.query.descriptor;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainer;
+import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
@@ -32,12 +34,13 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.ParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.SilentImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor.SupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintChildrenParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintClassifierParamDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintCreatorDef;
-import io.evitadb.api.query.descriptor.annotation.ConstraintDef;
+import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
-import io.evitadb.api.query.descriptor.annotation.ConstraintValueParamDef;
+import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -75,13 +78,13 @@ class ConstraintProcessor {
 		final Set<ConstraintDescriptor> constraintDescriptors = createHashSet(constraintClasses.size());
 
 		constraintClasses.forEach(constraintClass -> {
-			final ConstraintDef constraintDef = findConstraintDefAnnotation(constraintClass);
+			final ConstraintDefinition constraintDefinition = findConstraintDefAnnotation(constraintClass);
 
 			final ConstraintType type = resolveConstraintType(constraintClass);
 			final ConstraintPropertyType propertyType = resolveConstraintPropertyType(constraintClass);
 
-			final SupportedValues supportedValues = resolveSupportedValues(constraintDef);
-			final Map<String, ConstraintCreator> creators = resolveCreators(constraintClass, constraintDef);
+			final SupportedValues supportedValues = resolveSupportedValues(constraintDefinition);
+			final Map<String, ConstraintCreator> creators = resolveCreators(constraintClass, constraintDefinition);
 
 			creators.forEach((fullName, creator) -> {
 				final ConstraintDescriptor descriptor = new ConstraintDescriptor(
@@ -89,8 +92,8 @@ class ConstraintProcessor {
 					type,
 					propertyType,
 					fullName,
-					constraintDef.shortDescription(),
-					Set.of(constraintDef.supportedIn()),
+					constraintDefinition.shortDescription(),
+					Set.of(constraintDefinition.supportedIn()),
 					supportedValues,
 					creator
 				);
@@ -106,14 +109,14 @@ class ConstraintProcessor {
 	 * Tries to find annotation defining passed constraint.
 	 */
 	@Nonnull
-	private  ConstraintDef findConstraintDefAnnotation(@Nonnull Class<? extends Constraint<?>> constraintClass) {
-		final ConstraintDef constraintDef = constraintClass.getAnnotation(ConstraintDef.class);
-		if (constraintDef == null) {
+	private ConstraintDefinition findConstraintDefAnnotation(@Nonnull Class<? extends Constraint<?>> constraintClass) {
+		final ConstraintDefinition constraintDefinition = constraintClass.getAnnotation(ConstraintDefinition.class);
+		if (constraintDefinition == null) {
 			throw new EvitaInternalError(
 				"Constraint `" + constraintClass.getName() + "` has been registered but there is no definition specified."
 			);
 		}
-		return constraintDef;
+		return constraintDefinition;
 	}
 
 	/**
@@ -146,10 +149,10 @@ class ConstraintProcessor {
 	 * Resolves supported values defining annotation to descriptor record.
 	 */
 	@Nullable
-	private SupportedValues resolveSupportedValues(@Nonnull ConstraintDef constraintDef) {
+	private SupportedValues resolveSupportedValues(@Nonnull ConstraintDefinition constraintDefinition) {
 		final SupportedValues supportedValues;
 
-		final ConstraintSupportedValues constraintSupportedValues = constraintDef.supportedValues();
+		final ConstraintSupportedValues constraintSupportedValues = constraintDefinition.supportedValues();
 		if (!constraintSupportedValues.allTypesSupported() && constraintSupportedValues.supportedTypes().length == 0) {
 			supportedValues = null;
 		} else {
@@ -157,7 +160,7 @@ class ConstraintProcessor {
 				constraintSupportedValues.supportedTypes().length > 0 ?
 					Set.of(constraintSupportedValues.supportedTypes()) :
 					EvitaDataTypes.getSupportedDataTypes(),
-				constraintDef.supportedValues().arraysSupported()
+				constraintDefinition.supportedValues().arraysSupported()
 			);
 		}
 		return supportedValues;
@@ -169,17 +172,17 @@ class ConstraintProcessor {
 	 */
 	@Nonnull
 	private Map<String, ConstraintCreator> resolveCreators(@Nonnull Class<? extends Constraint<?>> constraintClass,
-	                                                       @Nonnull ConstraintDef constraintDef) {
+	                                                       @Nonnull ConstraintDefinition constraintDefinition) {
 		final Map<String, ConstraintCreator> creators = createHashMap(4);
 
 		findCreatorConstructors(constraintClass).forEach(creatorConstructor -> {
-			final ConstraintCreatorDef creatorDef = findCreatorDefAnnotation(creatorConstructor);
+			final Creator creatorDef = findCreatorDefAnnotation(creatorConstructor);
 
 			final String fullName;
 			if (creatorDef.suffix().isEmpty()) {
-				fullName = constraintDef.name();
+				fullName = constraintDefinition.name();
 			} else {
-				fullName = constraintDef.name() + StringUtils.capitalize(creatorDef.suffix());
+				fullName = constraintDefinition.name() + StringUtils.capitalize(creatorDef.suffix());
 			}
 
 			final List<ParameterDescriptor> parameterDescriptors = resolveCreatorParameters(creatorConstructor);
@@ -217,7 +220,7 @@ class ConstraintProcessor {
 	@Nonnull
 	private Set<Constructor<?>> findCreatorConstructors(@Nonnull Class<? extends Constraint<?>> constraintClass) {
 		final Set<Constructor<?>> creatorConstructors = Arrays.stream(constraintClass.getDeclaredConstructors())
-			.filter(constructor -> constructor.getAnnotation(ConstraintCreatorDef.class) != null)
+			.filter(constructor -> constructor.getAnnotation(Creator.class) != null)
 			.collect(Collectors.toUnmodifiableSet());
 		Assert.isPremiseValid(
 			!creatorConstructors.isEmpty(),
@@ -230,8 +233,8 @@ class ConstraintProcessor {
 	 * Tries to find creator definition on constructor.
 	 */
 	@Nonnull
-	private ConstraintCreatorDef findCreatorDefAnnotation(@Nonnull Constructor<?> creatorConstructor) {
-		final ConstraintCreatorDef creatorDef = creatorConstructor.getAnnotation(ConstraintCreatorDef.class);
+	private Creator findCreatorDefAnnotation(@Nonnull Constructor<?> creatorConstructor) {
+		final Creator creatorDef = creatorConstructor.getAnnotation(Creator.class);
 		if (creatorDef == null) {
 			throw new EvitaInternalError(
 				"Constraint `" + creatorConstructor.getDeclaringClass().getName() + "` has been registered, creator constructor found but there is no creator definition specified."
@@ -273,6 +276,15 @@ class ConstraintProcessor {
 				continue;
 			}
 
+			final AdditionalChildParameterDescriptor additionalChildParameter = resolveAdditionalChildParameter(
+				parameter,
+				creatorConstructor.getDeclaringClass()
+			);
+			if (additionalChildParameter != null) {
+				parameterDescriptors.add(additionalChildParameter);
+				continue;
+			}
+
 			throw new EvitaInternalError(
 				"Constraint `" + creatorConstructor.getDeclaringClass().getName() + "` has creator parameter without supported annotation."
 			);
@@ -286,8 +298,8 @@ class ConstraintProcessor {
 	@Nullable
 	private ClassifierParameterDescriptor resolveClassifierParameter(@Nonnull Parameter parameter,
                                                                      @Nonnull Class<?> constraintClass) {
-		final ConstraintClassifierParamDef classifierDef = parameter.getAnnotation(ConstraintClassifierParamDef.class);
-		if (classifierDef == null) {
+		final Classifier classifier = parameter.getAnnotation(Classifier.class);
+		if (classifier == null) {
 			return null;
 		}
 
@@ -307,8 +319,8 @@ class ConstraintProcessor {
 	 */
 	@Nullable
 	private ValueParameterDescriptor resolveValueParameter(@Nonnull Parameter parameter) {
-		final ConstraintValueParamDef valueDef = parameter.getAnnotation(ConstraintValueParamDef.class);
-		if (valueDef == null) {
+		final Value value = parameter.getAnnotation(Value.class);
+		if (value == null) {
 			return null;
 		}
 
@@ -317,18 +329,23 @@ class ConstraintProcessor {
 			parameter.getName(),
 			(Class<? extends Serializable>) parameter.getType(),
 			isParameterRequired(parameter),
-			valueDef.requiresPlainType()
+			value.requiresPlainType()
 		);
 	}
 
 	/**
-	 * Tries to resolve constructor parameter as children parameter.
+	 * Tries to resolve constructor parameter as direct child parameter.
 	 */
 	@Nullable
 	private ChildParameterDescriptor resolveChildParameter(@Nonnull Parameter parameter,
 	                                                       @Nonnull Class<?> constraintClass) {
-		final ConstraintChildrenParamDef childrenDef = parameter.getAnnotation(ConstraintChildrenParamDef.class);
-		if (childrenDef == null) {
+		Assert.isPremiseValid(
+			ConstraintContainer.class.isAssignableFrom(constraintClass),
+			"Constraint `" + constraintClass.getName() + "` have child but it is not a container."
+		);
+
+		final Child child = parameter.getAnnotation(Child.class);
+		if (child == null) {
 			return null;
 		}
 
@@ -336,7 +353,7 @@ class ConstraintProcessor {
 		Assert.isPremiseValid(
 			Constraint.class.isAssignableFrom(parameterType) ||
 				(parameterType.isArray() && Constraint.class.isAssignableFrom(parameterType.getComponentType())),
-			"Constraint `" + constraintClass.getName() + "` have children that are not constraints."
+			"Constraint `" + constraintClass.getName() + "` have child that is not a constraint."
 		);
 
 		//noinspection unchecked
@@ -344,13 +361,50 @@ class ConstraintProcessor {
 			parameter.getName(),
 			parameterType,
 			isParameterRequired(parameter),
-			childrenDef.uniqueChildren(),
-			Arrays.stream(childrenDef.allowed())
+			child.domain(),
+			child.uniqueChildren(),
+			Arrays.stream(child.allowed())
 				.map(c -> (Class<Constraint<?>>) c)
 				.collect(Collectors.toUnmodifiableSet()),
-			Arrays.stream(childrenDef.forbidden())
+			Arrays.stream(child.forbidden())
 				.map(c -> (Class<Constraint<?>>) c)
 				.collect(Collectors.toUnmodifiableSet())
+		);
+	}
+
+	/**
+	 * Tries to resolve constructor parameter as additional child parameter.
+	 */
+	@Nullable
+	private AdditionalChildParameterDescriptor resolveAdditionalChildParameter(@Nonnull Parameter parameter,
+	                                                                           @Nonnull Class<?> constraintClass) {
+		Assert.isPremiseValid(
+			ConstraintContainer.class.isAssignableFrom(constraintClass),
+			"Constraint `" + constraintClass.getName() + "` have additional child but it is not a container."
+		);
+
+		final AdditionalChild additionalChild = parameter.getAnnotation(AdditionalChild.class);
+		if (additionalChild == null) {
+			return null;
+		}
+
+		final Class<?> parameterType = parameter.getType();
+		Assert.isPremiseValid(
+			// Because the additional child constraint is usually another separate container, it is possible that it has
+			// its own array of constraints, that's why we don't support arrays of the actual container. Also, if it would
+			// be just basic constraint instead of container we would have to have logic additional implicit containers in place
+			// which currently doesn't make sense.
+			!parameterType.isArray() && ConstraintContainer.class.isAssignableFrom(parameterType),
+			"Constraint `" + constraintClass.getName() + "` have additional child that is not a constraint container or is an array of constraints."
+		);
+
+		//noinspection unchecked
+		return new AdditionalChildParameterDescriptor(
+			resolveConstraintType((Class<? extends Constraint<?>>) parameterType),
+			parameter.getName(),
+			parameterType,
+			isParameterRequired(parameter),
+			additionalChild.domain()
 		);
 	}
 

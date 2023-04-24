@@ -106,6 +106,11 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	 */
 	private final Formula filterFormula;
 	/**
+	 * Filter formula produces all entity ids that are going to be returned by current query (excluding user-defined
+	 * filter).
+	 */
+	private final Formula filterFormulaWithoutUserFilter;
+	/**
 	 * Contains references to all {@link FacetIndex#getFacetingEntities()} that were involved in query resolution.
 	 */
 	private final List<Map<String, FacetReferenceIndex>> facetIndexes;
@@ -129,11 +134,13 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	public FacetSummaryProducer(
 		@Nonnull QueryContext queryContext,
 		@Nonnull Formula filterFormula,
+		@Nonnull Formula filterFormulaWithoutUserFilter,
 		@Nonnull List<Map<String, FacetReferenceIndex>> facetIndexes,
 		@Nonnull Map<String, IntSet> requestedFacets
 	) {
 		this.queryContext = queryContext;
 		this.filterFormula = filterFormula;
+		this.filterFormulaWithoutUserFilter = filterFormulaWithoutUserFilter;
 		this.facetIndexes = facetIndexes;
 		this.requestedFacets = requestedFacets;
 	}
@@ -184,7 +191,9 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 	@Override
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
 		// create facet calculators - in reaction to requested depth level
-		final MemoizingFacetCalculator universalCalculator = new MemoizingFacetCalculator(queryContext, filterFormula);
+		final MemoizingFacetCalculator universalCalculator = new MemoizingFacetCalculator(
+			queryContext, filterFormula, filterFormulaWithoutUserFilter
+		);
 		// fabrication is a little transformation hell
 		return new FacetSummary(
 			facetIndexes
@@ -409,10 +418,21 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 								groupEntity = new EntityReference(Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupAcc.getGroupId());
 							}
 
+							// compute overall count for group
+							final Formula entityMatchingAnyOfGroupFacetFormula = countCalculator.createGroupCountFormula(
+								referenceSchema, groupAcc.getGroupId(),
+								groupAcc.getFacetStatistics()
+									.values()
+									.stream()
+									.flatMap(it -> it.getFacetEntityIds().stream())
+									.toArray(Bitmap[]::new)
+							);
+
 							return new FacetGroupStatistics(
 								// translate Facet#type to EntitySchema#reference#groupType
 								referenceSchema,
 								groupEntity,
+								entityMatchingAnyOfGroupFacetFormula.compute().size(),
 								facetStatistics
 							);
 						}

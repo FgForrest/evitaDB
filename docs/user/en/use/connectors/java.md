@@ -3,7 +3,6 @@ title: Java
 perex:
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-published: false
 ---
 
 **Work in progress**
@@ -27,7 +26,7 @@ is thread safe and only single instance of it is expected to be used in the appl
 <Note type="info">
 The client instance is created regardless of whether the server is available. In order to verify that the server can be
 reached you need to call some method on it. The usual scenario would be [opening a new session](#open-session-to-catalog)
-to existing <Term document="docs/user/en/index.md">catalog</Term>.
+to existing <Term location="docs/user/en/index.md">catalog</Term>.
 </Note>
 
 <Note type="warning">

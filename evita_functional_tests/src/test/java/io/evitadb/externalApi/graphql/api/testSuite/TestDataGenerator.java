@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.test.Entities;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.Data;
 
@@ -92,7 +93,7 @@ public class TestDataGenerator {
 	}
 
 	@Nullable
-	public static List<SealedEntity> generateMainCatalogEntities(@Nonnull Evita evita) {
+	public static DataCarrier generateMainCatalogEntities(@Nonnull Evita evita, int productCount) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			session.getCatalogSchema()
 				.openForWrite()
@@ -119,7 +120,7 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(100)
+				.limit(Math.min(Math.max(10, productCount / 10), 100))
 				.forEach(session::upsertEntity);
 
 			dataGenerator.generateEntities(
@@ -130,13 +131,14 @@ public class TestDataGenerator {
 				.limit(4)
 				.forEach(session::upsertEntity);
 
-			dataGenerator.generateEntities(
+			final List<EntityReference> storedStores = dataGenerator.generateEntities(
 					dataGenerator.getSampleStoreSchema(session),
 					randomEntityPicker,
 					SEED
 				)
 				.limit(12)
-				.forEach(session::upsertEntity);
+				.map(session::upsertEntity)
+				.toList();
 
 			dataGenerator.generateEntities(
 					dataGenerator.getSampleParameterGroupSchema(session),
@@ -151,7 +153,7 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(200)
+				.limit(Math.min(Math.max(10, productCount / 5), 100))
 				.forEach(session::upsertEntity);
 
 			dataGenerator.generateEntities(
@@ -159,7 +161,7 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(100)
+				.limit(Math.min(Math.max(10, productCount / 10), 100))
 				.forEach(session::upsertEntity);
 
 			dataGenerator.generateEntities(
@@ -167,7 +169,7 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(100)
+				.limit(Math.min(Math.max(10, productCount / 10), 100))
 				.forEach(session::upsertEntity);
 
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
@@ -246,13 +248,22 @@ public class TestDataGenerator {
 					randomEntityPicker,
 					SEED
 				)
-				.limit(1000)
+				.limit(productCount)
 				.map(session::upsertEntity)
 				.toList();
 
-			return storedProducts.stream()
+
+			final List<SealedEntity> products = storedProducts.stream()
 				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
 				.collect(Collectors.toList());
+			final List<SealedEntity> stores = storedStores.stream()
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+				.collect(Collectors.toList());
+
+			return new DataCarrier(
+				"originalProductEntities", products,
+				"originalStoreEntities", stores
+			);
 		});
 	}
 

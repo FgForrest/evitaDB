@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
@@ -38,7 +37,10 @@ import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Set;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Implementation of {@link ConstraintResolver} for resolving {@link OrderConstraint} usually with {@link OrderBy}
@@ -52,8 +54,20 @@ import java.util.Set;
  */
 public class OrderConstraintResolver extends GraphQLConstraintResolver<OrderConstraint> {
 
-	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull String rootEntityType) {
-		super(catalogSchema, rootEntityType);
+	public OrderConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
+		super(
+			catalogSchema,
+			createHashMap(0) // currently, we don't support any order constraint with additional children
+		);
+	}
+
+	@Nullable
+	public OrderConstraint resolve(@Nonnull String rootEntityType, @Nonnull String key, @Nullable Object value) {
+		return resolve(
+			new EntityDataLocator(rootEntityType),
+			key,
+			value
+		);
 	}
 
 	@Override
@@ -75,25 +89,8 @@ public class OrderConstraintResolver extends GraphQLConstraintResolver<OrderCons
 
 	@Nonnull
 	@Override
-	protected DataLocator getRootDataLocator() {
-		return new EntityDataLocator(rootEntityType);
-	}
-
-	@Nonnull
-	@Override
-	protected ConstraintDescriptor getRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(OrderBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new GraphQLSchemaBuildingError("Could not find `orderBy` order query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new GraphQLSchemaBuildingError(
-				"There multiple variants of `orderBy` order query, cannot decide which to choose."
-			)
-		);
-		return descriptors.iterator().next();
+	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
+		return ConstraintDescriptorProvider.getConstraint(OrderBy.class);
 	}
 
 	@Override

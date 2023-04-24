@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.performance.setup.CatalogSetup;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.Getter;
@@ -48,7 +49,7 @@ import java.util.function.BiFunction;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public abstract class ClientDataState implements CatalogSetup, TestConstants {
+public abstract class ClientDataState implements CatalogSetup, TestConstants, EvitaTestSupport {
 	/**
 	 * Fixed seed allows to replay the same randomized data multiple times.
 	 */

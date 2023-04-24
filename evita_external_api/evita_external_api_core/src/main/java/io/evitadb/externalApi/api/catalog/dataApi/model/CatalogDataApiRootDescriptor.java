@@ -56,14 +56,16 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
 
     EndpointDescriptor COLLECTIONS = EndpointDescriptor.builder()
         .operation("collections")
+        .urlPathItem("collections")
         .description("""
             Returns all present collection entity types in this catalog.
             """)
         .type(nonNull(String[].class))
         .build();
 
-    EndpointDescriptor UNKNOWN_ENTITY_GET = EndpointDescriptor.builder()
+    EndpointDescriptor GET_UNKNOWN_ENTITY = EndpointDescriptor.builder()
         .operation("get")
+        .urlPathItem("get")
         .classifier("entity")
         .description("""
             Finds and returns single entity from unspecified collection by shared arguments between collections.
@@ -71,8 +73,9 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
         .type(nullableRef(EntityDescriptor.THIS_INTERFACE))
         .build();
 
-    EndpointDescriptor UNKNOWN_ENTITY_LIST = EndpointDescriptor.builder()
+    EndpointDescriptor LIST_UNKNOWN_ENTITY = EndpointDescriptor.builder()
         .operation("list")
+        .urlPathItem("list")
         .classifier("entity")
         .description("""
             Finds and returns list of entities from unspecified collections by shared arguments between collections.
@@ -80,48 +83,54 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
         .type(nullableListRef(EntityDescriptor.THIS_INTERFACE))
         .build();
 
-    EndpointDescriptor ENTITY_GET = EndpointDescriptor.builder()
+    EndpointDescriptor GET_ENTITY = EndpointDescriptor.builder()
         .operation("get")
+        .urlPathItem("get")
         .description("""
             Finds and returns single entity from `%s` collection by simplified collection-specific arguments.
             """)
         // type is expected to be a collection-specific `Entity` object
         .build();
 
-    EndpointDescriptor ENTITY_LIST = EndpointDescriptor.builder()
+    EndpointDescriptor LIST_ENTITY = EndpointDescriptor.builder()
         .operation("list")
+        .urlPathItem("list")
         .description("""
             Finds and returns list of entities from `%s` collection by complex query.
             """)
         // type is expected to be a collection of collection-specific `Entity` objects
         .build();
 
-    EndpointDescriptor ENTITY_QUERY = EndpointDescriptor.builder()
+    EndpointDescriptor QUERY_ENTITY = EndpointDescriptor.builder()
         .operation("query")
+        .urlPathItem("query")
         .description("""
             Finds and returns entities and extra results from `%s` collection by complex query.
             """)
         // type is expected to be a collection-specific `Response` object
         .build();
 
-    EndpointDescriptor COLLECTION_SIZE = EndpointDescriptor.builder()
+    EndpointDescriptor COUNT_COLLECTION = EndpointDescriptor.builder()
         .operation("count")
+        .urlPathItem("count")
         .description("""
             Returns number of all entities stored in `%s` collection.
             """)
         .type(nonNull(Integer.class))
         .build();
 
-    EndpointDescriptor ENTITY_UPSERT = EndpointDescriptor.builder()
+    EndpointDescriptor UPSERT_ENTITY = EndpointDescriptor.builder()
         .operation("upsert")
+        .urlPathItem("")
         .description("""
             Updates existing or inserts new entity to `%s` collection.
             """)
         // type is expected to be a specific collection-specific `Entity` object
         .build();
 
-    EndpointDescriptor ENTITY_DELETE = EndpointDescriptor.builder()
+    EndpointDescriptor DELETE_ENTITY = EndpointDescriptor.builder()
         .operation("delete")
+        .urlPathItem("")
         .description("""
             Deletes existing entities from `%s` collection that conforms with passed query and returns deletion info.
             """)

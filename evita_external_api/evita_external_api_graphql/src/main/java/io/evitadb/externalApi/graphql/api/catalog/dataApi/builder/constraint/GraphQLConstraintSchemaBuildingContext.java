@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint;
 
-import graphql.schema.GraphQLType;
+import graphql.schema.GraphQLInputType;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
@@ -36,7 +36,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class GraphQLConstraintSchemaBuildingContext extends ConstraintSchemaBuildingContext<GraphQLType> {
+public class GraphQLConstraintSchemaBuildingContext extends ConstraintSchemaBuildingContext<GraphQLInputType, GraphQLInputType> {
 
 	@Nonnull
 	@Getter

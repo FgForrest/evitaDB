@@ -35,9 +35,10 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescrip
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemasDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemasDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.SchemaNameVariantsDescriptor;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.utils.NamingConvention;
@@ -70,8 +71,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
 
-	private static final String ERRORS_PATH = "errors";
-	private static final String PRODUCT_SCHEMA_PATH = "data.get_product";
+	private static final String PRODUCT_SCHEMA_PATH = "data.getProductSchema";
 	private static final Function<String, EntitySchemaContract> FAIL_ON_CALL = s -> {
 		fail("Should not be called!");
 		return null;
@@ -80,7 +80,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return basic properties from product schema")
-	void shouldReturnBasicPropertiesFromProductSchema(Evita evita) {
+	void shouldReturnBasicPropertiesFromProductSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -88,11 +88,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			}
 		).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							__typename
 							version
 							name
@@ -128,12 +129,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 						.e(EntitySchemaDescriptor.VERSION.name(), productSchema.getVersion())
 						.e(EntitySchemaDescriptor.NAME.name(), productSchema.getName())
 						.e(EntitySchemaDescriptor.NAME_VARIANTS.name(), map()
-							.e(TYPENAME_FIELD, SchemaNameVariantsDescriptor.THIS.name())
-							.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), productSchema.getNameVariant(NamingConvention.CAMEL_CASE))
-							.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), productSchema.getNameVariant(NamingConvention.PASCAL_CASE))
-							.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), productSchema.getNameVariant(NamingConvention.SNAKE_CASE))
-							.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), productSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-							.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), productSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+							.e(TYPENAME_FIELD, NameVariantsDescriptor.THIS.name())
+							.e(NameVariantsDescriptor.CAMEL_CASE.name(), productSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+							.e(NameVariantsDescriptor.PASCAL_CASE.name(), productSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+							.e(NameVariantsDescriptor.SNAKE_CASE.name(), productSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+							.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), productSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+							.e(NameVariantsDescriptor.KEBAB_CASE.name(), productSchema.getNameVariant(NamingConvention.KEBAB_CASE))
 							.build())
 						.e(EntitySchemaDescriptor.DESCRIPTION.name(), productSchema.getDescription())
 						.e(EntitySchemaDescriptor.DEPRECATION_NOTICE.name(), productSchema.getDeprecationNotice())
@@ -152,12 +153,13 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid basic property")
-	void shouldReturnErrorForInvalidBasicProperty(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidBasicProperty(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							reference
 						}
 					}
@@ -171,7 +173,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific attribute schema")
-	void shouldReturnSpecificAttributeSchema(Evita evita) {
+	void shouldReturnSpecificAttributeSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -183,11 +185,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final AttributeSchemaContract quantitySchema = productSchema.getAttribute(ATTRIBUTE_QUANTITY).orElseThrow();
 		final AttributeSchemaContract deprecatedSchema = productSchema.getAttribute(ATTRIBUTE_DEPRECATED).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							attributes {
 								__typename
 								url {
@@ -244,11 +247,11 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 							.e(ATTRIBUTE_QUANTITY, map()
 								.e(AttributeSchemaDescriptor.NAME.name(), quantitySchema.getName())
 								.e(AttributeSchemaDescriptor.NAME_VARIANTS.name(), map()
-									.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), quantitySchema.getNameVariant(NamingConvention.CAMEL_CASE))
-									.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), quantitySchema.getNameVariant(NamingConvention.PASCAL_CASE))
-									.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), quantitySchema.getNameVariant(NamingConvention.SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), quantitySchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), quantitySchema.getNameVariant(NamingConvention.KEBAB_CASE))
+									.e(NameVariantsDescriptor.CAMEL_CASE.name(), quantitySchema.getNameVariant(NamingConvention.CAMEL_CASE))
+									.e(NameVariantsDescriptor.PASCAL_CASE.name(), quantitySchema.getNameVariant(NamingConvention.PASCAL_CASE))
+									.e(NameVariantsDescriptor.SNAKE_CASE.name(), quantitySchema.getNameVariant(NamingConvention.SNAKE_CASE))
+									.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), quantitySchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+									.e(NameVariantsDescriptor.KEBAB_CASE.name(), quantitySchema.getNameVariant(NamingConvention.KEBAB_CASE))
 									.build())
 								.e(AttributeSchemaDescriptor.DESCRIPTION.name(), quantitySchema.getDescription())
 								.e(AttributeSchemaDescriptor.DEPRECATION_NOTICE.name(), quantitySchema.getDeprecationNotice())
@@ -273,7 +276,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return correctly global attribute schema inside entity schema")
-	void shoudReturnCorrectlyGlobalAttributeSchemaInsideEntitySchema(Evita evita) {
+	void shoudReturnCorrectlyGlobalAttributeSchemaInsideEntitySchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -283,11 +286,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 
 		final GlobalAttributeSchemaContract codeSchema = (GlobalAttributeSchemaContract) productSchema.getAttribute(ATTRIBUTE_CODE).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							attributes {
 								__typename
 								code {
@@ -330,11 +334,11 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(TYPENAME_FIELD, GlobalAttributeSchemaDescriptor.THIS.name())
 								.e(GlobalAttributeSchemaDescriptor.NAME.name(), codeSchema.getName())
 								.e(GlobalAttributeSchemaDescriptor.NAME_VARIANTS.name(), map()
-									.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), codeSchema.getNameVariant(NamingConvention.CAMEL_CASE))
-									.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), codeSchema.getNameVariant(NamingConvention.PASCAL_CASE))
-									.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), codeSchema.getNameVariant(NamingConvention.SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), codeSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), codeSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+									.e(NameVariantsDescriptor.CAMEL_CASE.name(), codeSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+									.e(NameVariantsDescriptor.PASCAL_CASE.name(), codeSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+									.e(NameVariantsDescriptor.SNAKE_CASE.name(), codeSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+									.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), codeSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+									.e(NameVariantsDescriptor.KEBAB_CASE.name(), codeSchema.getNameVariant(NamingConvention.KEBAB_CASE))
 									.build())
 								.e(GlobalAttributeSchemaDescriptor.DESCRIPTION.name(), codeSchema.getDescription())
 								.e(GlobalAttributeSchemaDescriptor.DEPRECATION_NOTICE.name(), codeSchema.getDeprecationNotice())
@@ -357,7 +361,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attribute schemas")
-	void shouldReturnAllAttributeSchemas(Evita evita) {
+	void shouldReturnAllAttributeSchemas(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -385,11 +389,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			})
 			.toList();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							allAttributes {
 								... on AttributeSchema {
 									__typename
@@ -421,7 +426,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific associated data schema")
-	void shouldReturnSpecificAssociatedDataSchema(Evita evita) {
+	void shouldReturnSpecificAssociatedDataSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -432,11 +437,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final AssociatedDataSchemaContract labelsSchema = productSchema.getAssociatedData(ASSOCIATED_DATA_LABELS).orElseThrow();
 		final AssociatedDataSchemaContract localizationSchema = productSchema.getAssociatedData(ASSOCIATED_DATA_LOCALIZATION).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							associatedData {
 								__typename
 								labels {
@@ -477,12 +483,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(TYPENAME_FIELD, AssociatedDataSchemaDescriptor.THIS.name())
 								.e(AssociatedDataSchemaDescriptor.NAME.name(), labelsSchema.getName())
 								.e(AssociatedDataSchemaDescriptor.NAME_VARIANTS.name(), map()
-									.e(TYPENAME_FIELD, SchemaNameVariantsDescriptor.THIS.name())
-									.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), labelsSchema.getNameVariant(NamingConvention.CAMEL_CASE))
-									.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), labelsSchema.getNameVariant(NamingConvention.PASCAL_CASE))
-									.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), labelsSchema.getNameVariant(NamingConvention.SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), labelsSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), labelsSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+									.e(TYPENAME_FIELD, NameVariantsDescriptor.THIS.name())
+									.e(NameVariantsDescriptor.CAMEL_CASE.name(), labelsSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+									.e(NameVariantsDescriptor.PASCAL_CASE.name(), labelsSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+									.e(NameVariantsDescriptor.SNAKE_CASE.name(), labelsSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+									.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), labelsSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+									.e(NameVariantsDescriptor.KEBAB_CASE.name(), labelsSchema.getNameVariant(NamingConvention.KEBAB_CASE))
 									.build())
 								.e(AssociatedDataSchemaDescriptor.DESCRIPTION.name(), labelsSchema.getDescription())
 								.e(AssociatedDataSchemaDescriptor.DEPRECATION_NOTICE.name(), labelsSchema.getDeprecationNotice())
@@ -502,7 +508,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all associated data schemas")
-	void shouldReturnAllAssociatedDataSchemas(Evita evita) {
+	void shouldReturnAllAssociatedDataSchemas(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -511,11 +517,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getAssociatedData().isEmpty());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							allAssociatedData {
 								__typename
 								name
@@ -540,7 +547,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific reference schema")
-	void shouldReturnSpecificReferenceSchema(Evita evita) {
+	void shouldReturnSpecificReferenceSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -558,11 +565,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			}
 		).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							references {
 								__typename
 								brand {
@@ -638,22 +646,22 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(TYPENAME_FIELD, ReferenceSchemaDescriptor.THIS_SPECIFIC.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
 								.e(ReferenceSchemaDescriptor.NAME.name(), brandReferenceSchema.getName())
 								.e(ReferenceSchemaDescriptor.NAME_VARIANTS.name(), map()
-									.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.CAMEL_CASE))
-									.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.PASCAL_CASE))
-									.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+									.e(NameVariantsDescriptor.CAMEL_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+									.e(NameVariantsDescriptor.PASCAL_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+									.e(NameVariantsDescriptor.SNAKE_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+									.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+									.e(NameVariantsDescriptor.KEBAB_CASE.name(), brandReferenceSchema.getNameVariant(NamingConvention.KEBAB_CASE))
 									.build())
 								.e(ReferenceSchemaDescriptor.DESCRIPTION.name(), brandReferenceSchema.getDescription())
 								.e(ReferenceSchemaDescriptor.DEPRECATION_NOTICE.name(), brandReferenceSchema.getDeprecationNotice())
 								.e(ReferenceSchemaDescriptor.CARDINALITY.name(), brandReferenceSchema.getCardinality().toString())
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE.name(), brandReferenceSchema.getReferencedEntityType())
 								.e(ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS.name(), map()
-									.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), brandSchema.getNameVariant(NamingConvention.CAMEL_CASE))
-									.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), brandSchema.getNameVariant(NamingConvention.PASCAL_CASE))
-									.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), brandSchema.getNameVariant(NamingConvention.SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), brandSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), brandSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+									.e(NameVariantsDescriptor.CAMEL_CASE.name(), brandSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+									.e(NameVariantsDescriptor.PASCAL_CASE.name(), brandSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+									.e(NameVariantsDescriptor.SNAKE_CASE.name(), brandSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+									.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), brandSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+									.e(NameVariantsDescriptor.KEBAB_CASE.name(), brandSchema.getNameVariant(NamingConvention.KEBAB_CASE))
 									.build())
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), brandReferenceSchema.isReferencedEntityTypeManaged())
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), null)
@@ -666,20 +674,20 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 								.e(ReferenceSchemaDescriptor.DEPRECATION_NOTICE.name(), obsoleteBrandReferenceSchema.getDeprecationNotice())
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE.name(), obsoleteBrandReferenceSchema.getReferencedEntityType())
 								.e(ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS.name(), map()
-									.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.CAMEL_CASE))
-									.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.PASCAL_CASE))
-									.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.UPPER_SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.KEBAB_CASE))
+									.e(NameVariantsDescriptor.CAMEL_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.CAMEL_CASE))
+									.e(NameVariantsDescriptor.PASCAL_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.PASCAL_CASE))
+									.e(NameVariantsDescriptor.SNAKE_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.SNAKE_CASE))
+									.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.UPPER_SNAKE_CASE))
+									.e(NameVariantsDescriptor.KEBAB_CASE.name(), obsoleteBrandReferenceSchema.getEntityTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.KEBAB_CASE))
 									.build())
 								.e(ReferenceSchemaDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), obsoleteBrandReferenceSchema.isReferencedEntityTypeManaged())
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE.name(), obsoleteBrandReferenceSchema.getReferencedGroupType())
 								.e(ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS.name(), map()
-									.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.CAMEL_CASE))
-									.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.PASCAL_CASE))
-									.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.UPPER_SNAKE_CASE))
-									.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.KEBAB_CASE))
+									.e(NameVariantsDescriptor.CAMEL_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.CAMEL_CASE))
+									.e(NameVariantsDescriptor.PASCAL_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.PASCAL_CASE))
+									.e(NameVariantsDescriptor.SNAKE_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.SNAKE_CASE))
+									.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.UPPER_SNAKE_CASE))
+									.e(NameVariantsDescriptor.KEBAB_CASE.name(), obsoleteBrandReferenceSchema.getGroupTypeNameVariants(FAIL_ON_CALL).get(NamingConvention.KEBAB_CASE))
 									.build())
 								.e(ReferenceSchemaDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), obsoleteBrandReferenceSchema.isReferencedGroupTypeManaged())
 								.build())
@@ -692,7 +700,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return specific attribute schema for specific reference schema")
-	void shouldReturnSpecificAttributeSchemaForSpecificReferenceSchema(Evita evita) {
+	void shouldReturnSpecificAttributeSchemaForSpecificReferenceSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -703,11 +711,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final ReferenceSchemaContract brandReferenceSchema = productSchema.getReference(Entities.BRAND).orElseThrow();
 		final AttributeSchemaContract brandVisibleForB2CAttributeSchema = brandReferenceSchema.getAttribute(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C).orElseThrow();
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							references {
 								brand {
 									attributes {
@@ -755,11 +764,11 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 										.e(TYPENAME_FIELD, AttributeSchemaDescriptor.THIS.name())
 										.e(AttributeSchemaDescriptor.NAME.name(), brandVisibleForB2CAttributeSchema.getName())
 										.e(AttributeSchemaDescriptor.NAME_VARIANTS.name(), map()
-											.e(SchemaNameVariantsDescriptor.CAMEL_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.CAMEL_CASE))
-											.e(SchemaNameVariantsDescriptor.PASCAL_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.PASCAL_CASE))
-											.e(SchemaNameVariantsDescriptor.SNAKE_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.SNAKE_CASE))
-											.e(SchemaNameVariantsDescriptor.UPPER_SNAKE_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-											.e(SchemaNameVariantsDescriptor.KEBAB_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.KEBAB_CASE))
+											.e(NameVariantsDescriptor.CAMEL_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.CAMEL_CASE))
+											.e(NameVariantsDescriptor.PASCAL_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.PASCAL_CASE))
+											.e(NameVariantsDescriptor.SNAKE_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.SNAKE_CASE))
+											.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+											.e(NameVariantsDescriptor.KEBAB_CASE.name(), brandVisibleForB2CAttributeSchema.getNameVariant(NamingConvention.KEBAB_CASE))
 											.build())
 										.e(AttributeSchemaDescriptor.DESCRIPTION.name(), brandVisibleForB2CAttributeSchema.getDescription())
 										.e(AttributeSchemaDescriptor.DEPRECATION_NOTICE.name(), brandVisibleForB2CAttributeSchema.getDeprecationNotice())
@@ -783,7 +792,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attribute schemas for specific reference schema")
-	void shouldReturnAllAttributeSchemasForSpecificReferenceSchema(Evita evita) {
+	void shouldReturnAllAttributeSchemasForSpecificReferenceSchema(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -794,11 +803,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		final ReferenceSchemaContract brandReferenceSchema = productSchema.getReference(Entities.BRAND).orElseThrow();
 		assertFalse(brandReferenceSchema.getAttributes().isEmpty());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							references {
 								brand {
 									allAttributes {
@@ -827,7 +837,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all reference schemas")
-	void shouldReturnAllReferenceSchemas(Evita evita) {
+	void shouldReturnAllReferenceSchemas(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -836,11 +846,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getReferences().isEmpty());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							allReferences {
 								__typename
 								name
@@ -865,7 +876,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all attribute schemas for all reference schemas")
-	void shouldReturnAllAttributeSchemasForAllReferenceSchemas(Evita evita) {
+	void shouldReturnAllAttributeSchemasForAllReferenceSchemas(Evita evita, GraphQLTester tester) {
 		final EntitySchemaContract productSchema = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -885,11 +896,12 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 				.toList())
 			.collect(Collectors.toList());
 
-		testGraphQLCall()
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							allReferences {
 								allAttributes {
 									__typename
@@ -912,12 +924,13 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid field in all reference schemas")
-	void shouldReturnErrorForInvalidFieldInAllReferenceSchemas(Evita evita) {
-		testGraphQLCall()
+	void shouldReturnErrorForInvalidFieldInAllReferenceSchemas(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
 			.document(
 				"""
 					query {
-						get_product {
+						getProductSchema {
 							allReferences {
 								attributes {
 									brandVisibleForB2C {

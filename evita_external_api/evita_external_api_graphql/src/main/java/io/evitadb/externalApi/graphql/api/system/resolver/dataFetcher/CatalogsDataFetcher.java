@@ -27,7 +27,7 @@ import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.externalApi.EvitaSystemDataProvider;
+import io.evitadb.core.Evita;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -41,12 +41,12 @@ import java.util.Collection;
 @RequiredArgsConstructor
 public class CatalogsDataFetcher implements DataFetcher<DataFetcherResult<Collection<CatalogContract>>> {
 
-    private final EvitaSystemDataProvider evitaSystemDataProvider;
+    private final Evita evita;
 
     @Override
     public DataFetcherResult<Collection<CatalogContract>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         return DataFetcherResult.<Collection<CatalogContract>>newResult()
-            .data(evitaSystemDataProvider.getCatalogs())
+            .data(evita.getCatalogs())
             .build();
     }
 }

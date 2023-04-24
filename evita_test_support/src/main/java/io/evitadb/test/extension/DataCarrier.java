@@ -23,10 +23,14 @@
 
 package io.evitadb.test.extension;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import static java.util.Optional.ofNullable;
 
@@ -44,6 +48,18 @@ public class DataCarrier {
 		for (Object valueItem : value) {
 			valuesByType.put(valueItem.getClass(), valueItem);
 		}
+	}
+
+	public DataCarrier(@Nonnull Set<Entry<String, Object>> entrySet) {
+		entrySet.forEach(entry -> {
+			this.valuesByName.put(entry.getKey(), entry.getValue());
+			this.valuesByType.putIfAbsent(entry.getValue().getClass(), entry.getValue());
+		});
+	}
+
+	public DataCarrier(String name, Object value) {
+		this.valuesByName.put(name, value);
+		this.valuesByType.put(value.getClass(), value);
 	}
 
 	public DataCarrier(String name, Object value, String name2, Object value2) {
@@ -93,6 +109,16 @@ public class DataCarrier {
 	@Nullable
 	public Object getValueByName(String name) {
 		return valuesByName.get(name);
+	}
+
+	@Nonnull
+	public Set<Entry<String, Object>> entrySet() {
+		return valuesByName.entrySet();
+	}
+
+	@Nonnull
+	public Collection<Object> anonymousValues() {
+		return valuesByName.isEmpty() ? valuesByType.values() : Collections.emptySet();
 	}
 
 }
