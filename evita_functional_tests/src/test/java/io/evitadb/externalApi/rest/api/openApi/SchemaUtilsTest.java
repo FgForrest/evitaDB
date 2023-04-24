@@ -31,7 +31,7 @@ import io.evitadb.externalApi.rest.configuration.RestConfig;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.PathItem;
@@ -62,7 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 class SchemaUtilsTest {
 	private static final String urlPathToProductList = "/product/list";

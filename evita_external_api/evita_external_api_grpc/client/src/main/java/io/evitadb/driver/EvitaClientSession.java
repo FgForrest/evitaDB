@@ -113,10 +113,11 @@ import static java.util.Optional.ofNullable;
 
 /**
  * The EvitaClientSession implements {@link EvitaSessionContract} interface and aims to behave identically as if the
- * evitaDB is used as an embedded engine.
+ * evitaDB is used as an embedded engine. The EvitaClientSession is not thread-safe. It keeps a gRPC session opened,
+ * but it doesn't mean that the session on the server side is still alive. Server can close the session due to
+ * the timeout and the client will realize this on the next server call attempt.
  *
- * TODO JNO - extend the documentation once the client is fully completed
- *
+ * @see EvitaSessionContract
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @NotThreadSafe
@@ -132,9 +133,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 	private static final EntityMutationConverter<EntityMutation, GrpcEntityMutation> ENTITY_MUTATION_CONVERTER =
 		new DelegatingEntityMutationConverter();
 
+	/**
+	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
+	 */
 	private final ReflectionLookup reflectionLookup;
+	/**
+	 * Reference to the {@link EvitaEntitySchemaCache} that keeps the deserialized schemas on the client side so that
+	 * we avoid frequent re-fetching from the server side. See {@link EvitaEntitySchemaCache} for more details.
+	 */
 	private final EvitaEntitySchemaCache schemaCache;
-	/*
+	/**
 	 * Contains reference to the channel pool that is used for retrieving a channel and applying wanted login onto it.
 	 */
 	private final ChannelPool channelPool;
@@ -185,7 +193,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final ManagedChannel managedChannel = this.channelPool.getChannel();
 		try {
 			return evitaSessionServiceBlockingStub.apply(EvitaSessionServiceGrpc.newBlockingStub(managedChannel));
-
 		} finally {
 			this.channelPool.releaseChannel(managedChannel);
 		}

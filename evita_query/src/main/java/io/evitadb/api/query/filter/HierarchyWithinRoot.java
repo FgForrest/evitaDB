@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -104,22 +105,36 @@ import java.util.Arrays;
 public class HierarchyWithinRoot extends AbstractFilterConstraintContainer implements HierarchyFilterConstraint {
 	@Serial private static final long serialVersionUID = -4396541048481960654L;
 
-	private HierarchyWithinRoot(Serializable[] argument, FilterConstraint[] fineGrainedConstraints) {
-		super(argument, fineGrainedConstraints);
-		checkInnerConstraintValidity(fineGrainedConstraints);
+	private HierarchyWithinRoot(@Nonnull Serializable[] argument, @Nonnull FilterConstraint[] fineGrainedConstraints, @Nonnull Constraint<?>... additionalChildren) {
+		super(argument, fineGrainedConstraints, additionalChildren);
+		for (FilterConstraint filterConstraint : fineGrainedConstraints) {
+			Assert.isTrue(
+				filterConstraint instanceof HierarchyExcluding ||
+					(filterConstraint instanceof HierarchyDirectRelation && getReferenceName() == null),
+				() -> "Constraint hierarchyWithinRoot accepts only Excluding, or DirectRelation " +
+					(getReferenceName() == null ? "when it targets same entity type" : "") + " as inner query!"
+			);
+		}
+		Assert.isPremiseValid(
+			ArrayUtils.isEmpty(additionalChildren),
+			() -> "Constraint hierarchyWithinRoot accepts only Excluding, or DirectRelation " +
+				(getReferenceName() == null ? "when it targets same entity type" : "") + " as inner query!"
+		);
 	}
 
 	@Creator(suffix = "self", silentImplicitClassifier = true)
-	public HierarchyWithinRoot(@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
-		super(with);
-		checkInnerConstraintValidity(with);
+	public HierarchyWithinRoot(
+		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
+	) {
+		this(NO_ARGS, with);
 	}
 
 	@Creator
-	public HierarchyWithinRoot(@Nonnull @Classifier String entityType,
-	                           @Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with) {
-		super(entityType, with);
-		checkInnerConstraintValidity(with);
+	public HierarchyWithinRoot(
+		@Nonnull @Classifier String entityType,
+		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
+	) {
+		this(new Serializable[]{entityType}, with);
 	}
 
 	@Override
@@ -140,16 +155,16 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 	}
 
 	/**
-	 * Returns ids of child entities which hierarchies should be excluded from search.
+	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
 	 */
 	@Override
 	@Nonnull
-	public int[] getExcludedChildrenIds() {
+	public FilterConstraint[] getExcludedChildrenFilter() {
 		return Arrays.stream(getChildren())
 			.filter(HierarchyExcluding.class::isInstance)
-			.map(it -> ((HierarchyExcluding) it).getPrimaryKeys())
+			.map(it -> ((HierarchyExcluding) it).getFiltering())
 			.findFirst()
-			.orElseGet(() -> new int[0]);
+			.orElseGet(() -> new FilterConstraint[0]);
 	}
 
 	@Override
@@ -164,26 +179,14 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final FilterConstraint[] filterChildren = Arrays.stream(children)
-				.map(c -> (FilterConstraint) c)
-				.toArray(FilterConstraint[]::new);
-		return new HierarchyWithinRoot(getArguments(), filterChildren);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new HierarchyWithinRoot(getArguments(), children, additionalChildren);
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new HierarchyWithinRoot(newArguments, getChildren());
+		return new HierarchyWithinRoot(newArguments, getChildren(), getAdditionalChildren());
 	}
 
-	private void checkInnerConstraintValidity(@Nonnull FilterConstraint[] fineGrainedConstraints) {
-		for (FilterConstraint filterConstraint : fineGrainedConstraints) {
-			Assert.isTrue(
-				filterConstraint instanceof HierarchyExcluding ||
-					(filterConstraint instanceof HierarchyDirectRelation && getReferenceName() == null),
-				"Constraint hierarchyWithinRoot accepts only Excluding, or DirectRelation when it targets same entity type as inner query!"
-			);
-		}
-	}
 }

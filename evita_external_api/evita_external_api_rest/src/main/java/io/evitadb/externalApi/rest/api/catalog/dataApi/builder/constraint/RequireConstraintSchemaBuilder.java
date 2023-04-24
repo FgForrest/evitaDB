@@ -127,18 +127,7 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new OpenApiBuildingError("Could not find `require` require query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new OpenApiBuildingError(
-				"There multiple variants of `require` require query, cannot decide which to choose."
-			)
-		);
-		return descriptors.iterator().next();
+		return ConstraintDescriptorProvider.getConstraint(Require.class);
 	}
 
 	@Nonnull

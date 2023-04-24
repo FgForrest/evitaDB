@@ -87,8 +87,8 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Creator
 	public ReferenceHaving(@Nonnull @Classifier String referenceName,
-	                       @Nonnull @Child FilterConstraint children) {
-		super(referenceName, children);
+	                       @Nonnull @Child FilterConstraint... children) {
+		super(new Serializable[]{referenceName}, children);
 	}
 
 	/**
@@ -99,14 +99,6 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 		return (String) getArguments()[0];
 	}
 
-	/**
-	 * Returns query connected with this reference query (it must be exactly one).
-	 */
-	@Nonnull
-	public FilterConstraint getConstraint() {
-		return getChildren()[0];
-	}
-
 	@Override
 	public boolean isNecessary() {
 		return getArguments().length == 1 && getChildren().length == 1;
@@ -114,8 +106,8 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length == 0 ? new ReferenceHaving(getReferenceName()) : new ReferenceHaving(getReferenceName(), (FilterConstraint) children[0]);
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length == 0 ? new ReferenceHaving(getReferenceName()) : new ReferenceHaving(getReferenceName(), children);
 	}
 
 	@Nonnull

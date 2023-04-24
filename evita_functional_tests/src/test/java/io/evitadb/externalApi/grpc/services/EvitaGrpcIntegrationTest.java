@@ -42,7 +42,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
@@ -64,7 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("Evita gRPC integration test")
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Tag(INTEGRATION_TEST)
 @Slf4j
 public class EvitaGrpcIntegrationTest {

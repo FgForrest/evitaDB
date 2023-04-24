@@ -32,6 +32,7 @@ import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -1020,113 +1021,118 @@ class EvitaQLRequireConstraintVisitorTest {
 	}
 
 	@Test
-	void shouldParseHierarchyStatisticsOfSelfConstraint() {
-		final RequireConstraint constraint6 = parseRequireConstraint("hierarchyStatisticsOfSelf(entityFetch(priceContent()))");
-		assertEquals(hierarchyStatisticsOfSelf(entityFetch(priceContent())), constraint6);
+	@Disabled("TODO LHO: will be reimplemented")
+	void shouldParseHierarchyOfSelfConstraint() {
+		final RequireConstraint constraint6 = parseRequireConstraint("hierarchyOfSelf(entityFetch(priceContent()))");
+		assertEquals(hierarchyOfSelf(fromRoot("megaMenu", entityFetch(priceContent()))), constraint6);
 
-		final RequireConstraint constraint7 = parseRequireConstraint("hierarchyStatisticsOfSelf (   entityFetch(   priceContent()  ) )");
-		assertEquals(hierarchyStatisticsOfSelf(entityFetch(priceContent())), constraint7);
+		final RequireConstraint constraint7 = parseRequireConstraint("hierarchyOfSelf (   entityFetch(   priceContent()  ) )");
+		assertEquals(hierarchyOfSelf(fromRoot("megaMenu", entityFetch(priceContent()))), constraint7);
 
-		final RequireConstraint constraint8 = parseRequireConstraint("hierarchyStatisticsOfSelf()");
-		assertEquals(hierarchyStatisticsOfSelf(), constraint8);
+		final RequireConstraint constraint8 = parseRequireConstraint("hierarchyOfSelf()");
+		assertEquals(hierarchyOfSelf(), constraint8);
 
-		final RequireConstraint constraint9 = parseRequireConstraint("hierarchyStatisticsOfSelf  (  )");
-		assertEquals(hierarchyStatisticsOfSelf(), constraint9);
+		final RequireConstraint constraint9 = parseRequireConstraint("hierarchyOfSelf  (  )");
+		assertEquals(hierarchyOfSelf(), constraint9);
 
 		final RequireConstraint constraint10 = parseRequireConstraint(
-			"hierarchyStatisticsOfSelf(entityFetch(attributeContent(?)))",
+			"hierarchyOfSelf(entityFetch(attributeContent(?)))",
 			"code"
 		);
 		assertEquals(
-			hierarchyStatisticsOfSelf(entityFetch(attributeContent("code"))),
+			hierarchyOfSelf(fromRoot("megaMenu", entityFetch(attributeContent("code")))),
 			constraint10
 		);
 	}
 
 	@Test
-	void shouldNotParseHierarchyStatisticsOfSelfConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("hierarchyStatisticsOfSelf"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyStatisticsOfSelf('a','b')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyStatisticsOfSelf('a')"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyStatisticsOfSelf('a', attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyStatisticsOfSelf(attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyStatisticsOfSelf('a',priceType(WITH_TAX))"));
+	void shouldNotParseHierarchyOfSelfConstraint() {
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("hierarchyOfSelf"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf('a','b')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf('a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf('a', attributeContent())"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf(attributeContent())"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfSelf('a',priceType(WITH_TAX))"));
 	}
 
 	@Test
-	void shouldParseHierarchyStatisticsOfReferenceConstraint() {
-		final RequireConstraint constraint1 = parseRequireConstraint("hierarchyStatisticsOfReference('a')");
+	@Disabled("TODO LHO: will be reimplemented")
+	void shouldParseHierarchyOfReferenceConstraint() {
+		final RequireConstraint constraint1 = parseRequireConstraint("hierarchyOfReference('a')");
 		assertEquals(
-			hierarchyStatisticsOfReference("a"),
+			hierarchyOfReference("a"),
 			constraint1
 		);
 
-		final RequireConstraint constraint2 = parseRequireConstraint("hierarchyStatisticsOfReference( 'a' )");
+		final RequireConstraint constraint2 = parseRequireConstraint("hierarchyOfReference( 'a' )");
 		assertEquals(
-			hierarchyStatisticsOfReference("a"),
+			hierarchyOfReference("a"),
 			constraint2
 		);
 
-		final RequireConstraint constraint3 = parseRequireConstraint("hierarchyStatisticsOfReference('a',entityFetch(attributeContent()))");
+		final RequireConstraint constraint3 = parseRequireConstraint("hierarchyOfReference('a',entityFetch(attributeContent()))");
 		assertEquals(
-			hierarchyStatisticsOfReference(
+			hierarchyOfReference(
 				"a",
-				entityFetch(attributeContent())
+				fromRoot("megaMenu", entityFetch(attributeContent()))
 			),
 			constraint3
 		);
 
-		final RequireConstraint constraint4 = parseRequireConstraint("hierarchyStatisticsOfReference('a',entityFetch(priceContent()))");
+		final RequireConstraint constraint4 = parseRequireConstraint("hierarchyOfReference('a',entityFetch(priceContent()))");
 		assertEquals(
-			hierarchyStatisticsOfReference(
+			hierarchyOfReference(
 				"a",
-				entityFetch(priceContent())
+				fromRoot("megaMenu", entityFetch(priceContent()))
 			),
 			constraint4
 		);
 
-		final RequireConstraint constraint5 = parseRequireConstraint("hierarchyStatisticsOfReference (  'a'  , entityFetch(   priceContent()  ) )");
+		final RequireConstraint constraint5 = parseRequireConstraint("hierarchyOfReference (  'a'  , entityFetch(   priceContent()  ) )");
 		assertEquals(
-			hierarchyStatisticsOfReference(
+			hierarchyOfReference(
 				"a",
-				entityFetch(priceContent())
+				fromRoot("megaMenu", entityFetch(priceContent()))
 			),
 			constraint5
 		);
 
-		final RequireConstraint constraint6 = parseRequireConstraint("hierarchyStatisticsOfReference('a','b')");
+		final RequireConstraint constraint6 = parseRequireConstraint("hierarchyOfReference('a','b')");
 		assertEquals(
-			hierarchyStatisticsOfReference("a", "b"),
+			hierarchyOfReference(new String[] {"a", "b"}),
 			constraint6
 		);
 
-		final RequireConstraint constraint7 = parseRequireConstraint("hierarchyStatisticsOfReference('a','b',entityFetch(priceContent()))");
+		final RequireConstraint constraint7 = parseRequireConstraint("hierarchyOfReference('a','b',entityFetch(priceContent()))");
 		assertEquals(
-			hierarchyStatisticsOfReference(
+			hierarchyOfReference(
 				new String[] {"a", "b"},
-				entityFetch(priceContent())
+				fromRoot("megaMenu", entityFetch(priceContent()))
 			),
 			constraint7
 		);
 
 
 		final RequireConstraint constraint10 = parseRequireConstraint(
-			"hierarchyStatisticsOfReference(?,entityFetch(attributeContent(?)))",
+			"hierarchyOfReference(?,entityFetch(attributeContent(?)))",
 			"category",
 			"code"
 		);
 		assertEquals(
-			hierarchyStatisticsOfReference("category",  entityFetch(attributeContent("code"))),
+			hierarchyOfReference(
+				"category",
+				fromRoot("megaMenu", entityFetch(attributeContent("code")))
+			),
 			constraint10
 		);
 	}
 
 	@Test
-	void shouldNotParseHierarchyStatisticsOfReferenceConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("hierarchyStatisticsOfReference"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyStatisticsOfReference(attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyStatisticsOfReference('a',attributeContent())"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyStatisticsOfReference('a',priceType(WITH_TAX))"));
+	void shouldNotParseHierarchyOfReferenceConstraint() {
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("hierarchyOfReference"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference(attributeContent())"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference('a',attributeContent())"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("hierarchyOfReference('a',priceType(WITH_TAX))"));
 	}
 
 	@Test

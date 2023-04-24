@@ -40,7 +40,7 @@ import java.util.function.Supplier;
  */
 public class DeferredFormula extends AbstractFormula {
 	private static final long CLASS_ID = 8831456737770154017L;
-	private final BitmapSupplier retrieveLambda;
+	protected final BitmapSupplier retrieveLambda;
 
 	public DeferredFormula(@Nonnull BitmapSupplier retrieveLambda) {
 		super();
@@ -50,7 +50,7 @@ public class DeferredFormula extends AbstractFormula {
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
-		throw new UnsupportedOperationException("Hierarchy formula is a terminal formula and cannot have children!");
+		throw new UnsupportedOperationException("Deferred formula is a terminal formula and cannot have children!");
 	}
 
 	@Override
@@ -92,7 +92,12 @@ public class DeferredFormula extends AbstractFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return retrieveLambda.computeHash(hashFunction);
+		return hashFunction.hashLongs(
+			new long[] {
+				CLASS_ID,
+				retrieveLambda.computeHash(hashFunction)
+			}
+		);
 	}
 
 	@Override

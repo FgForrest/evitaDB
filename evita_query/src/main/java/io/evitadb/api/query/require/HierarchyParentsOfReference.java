@@ -114,22 +114,14 @@ public class HierarchyParentsOfReference extends AbstractRequireConstraintContai
 	}
 
 	@Override
-	public boolean isNecessary() {
-		return getArguments().length > 0;
-	}
-
-	@Override
 	public boolean isApplicable() {
-		return true;
+		return getArguments().length > 0;
 	}
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull Constraint<?>[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		final RequireConstraint[] requireChildren = Arrays.stream(children)
-				.map(c -> (RequireConstraint) c)
-				.toArray(RequireConstraint[]::new);
-		return new HierarchyParentsOfReference(getReferenceNames(), requireChildren);
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return new HierarchyParentsOfReference(getReferenceNames(), children);
 	}
 
 	@Nonnull

@@ -46,8 +46,8 @@ import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -71,12 +71,13 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.CollectionUtils;
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -104,7 +105,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("EvitaSessionService gRPC functional test")
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 @Tag(FUNCTIONAL_TEST)
 @Slf4j
 class EvitaSessionServiceFunctionalTest {
@@ -367,6 +368,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return one entity when using queryOne and only one matches")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnOneEntityWhenUsingQueryOneAndProperlySpecified(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -416,6 +418,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should throw when trying to get hierarchy statistics of non-hierarchical entity collection")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldFailWhenTryingToGetHierarchyStatisticsOnNotHierarchicalCollection(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -438,7 +441,7 @@ class EvitaSessionServiceFunctionalTest {
 				),
 				require(
 					page(?, ?),
-					hierarchyStatisticsOfSelf()
+					hierarchyOfSelf()
 				)
 			)
 			""";
@@ -1367,6 +1370,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of entity references with applied within hierarchy filter with computed hierarchy statistics and parents trees consisting of entity primary keys")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithHierarchyStatisticsAndParentsOfIntegers(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -1385,7 +1389,7 @@ class EvitaSessionServiceFunctionalTest {
 				),
 				require(
 					page(?, ?),
-					hierarchyStatisticsOfSelf(),
+					hierarchyOfSelf(),
 					hierarchyParentsOfSelf()
 				)
 			)
@@ -1408,12 +1412,12 @@ class EvitaSessionServiceFunctionalTest {
 
 		final EvitaResponse<EntityReference> referenceResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, EntityReference.class);
 
-		final HierarchyStatistics hierarchyStatisticsOfSelf = referenceResponse.getExtraResult(HierarchyStatistics.class);
+		final Hierarchy hierarchyOfSelf = referenceResponse.getExtraResult(Hierarchy.class);
 		final HierarchyParents hierarchyParentsOfSelf = referenceResponse.getExtraResult(HierarchyParents.class);
 
-		if (hierarchyStatisticsOfSelf != null) {
+		if (hierarchyOfSelf != null) {
 			GrpcAssertions.assertStatistics(
-				hierarchyStatisticsOfSelf.getSelfStatistics(),
+				hierarchyOfSelf.getSelfStatistics(),
 				response.get().getExtraResults().getSelfHierarchyStatistics()
 			);
 		}
@@ -1436,6 +1440,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities with computed hierarchy statistics and parents trees consisting of enriched entities")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithHierarchyStatisticsAndParentsOfEntities(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -1451,7 +1456,7 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					entityFetch(),
-					hierarchyStatisticsOfSelf(entityFetch(attributeContent())),
+					hierarchyOfSelf(entityFetch(attributeContent())),
 					hierarchyParentsOfSelf(entityFetch(attributeContent()))
 				)
 			)
@@ -1475,7 +1480,7 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
 
 		assertStatistics(
-			Objects.requireNonNull(entityResponse.getExtraResult(HierarchyStatistics.class)).getSelfStatistics(),
+			Objects.requireNonNull(entityResponse.getExtraResult(Hierarchy.class)).getSelfStatistics(),
 			response.get().getExtraResults().getSelfHierarchyStatistics()
 		);
 

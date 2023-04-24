@@ -28,20 +28,18 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
@@ -50,7 +48,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
@@ -60,6 +58,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -1429,6 +1428,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should pass locale to hierarchy statistics entities")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldPassLocaleToHierarchyStatisticsEntities(Evita evita, RestTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
@@ -1444,7 +1444,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_NAME)))
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot(
+									"megaMenu",
+									entityFetch(attributeContent(ATTRIBUTE_NAME)),
+									statistics()
+								)
+							)
 						)
 					),
 					EntityReference.class
@@ -1453,9 +1460,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = response.getExtraResult(HierarchyStatistics.class)
+		final var expectedBody = response.getExtraResult(Hierarchy.class)
 			.getStatistics(Entities.CATEGORY)
+			.entrySet()
 			.stream()
+			// TODO LHO - this needs to be corrected probably
+			.flatMap(it -> it.getValue().stream())
 			.map(it -> ((SealedEntity) it.entity()).getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
 			.toList();
 
@@ -1487,8 +1497,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.executeAndThen()
 			.statusCode(200)
 			.body(
-				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category."
-					+ HierarchyStatisticsLevelInfoDescriptor.ENTITY.name() + "." + EntityDescriptor.ATTRIBUTES.name() + "."
+				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name() + ".category."
+					+ LevelInfoDescriptor.ENTITY.name() + "." + EntityDescriptor.ATTRIBUTES.name() + "."
 					+ SectionedAttributesDescriptor.LOCALIZED.name() + "." + CZECH_LOCALE.toLanguageTag() + "." + ATTRIBUTE_NAME,
 				equalTo(expectedBody)
 			);
@@ -1497,6 +1507,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should get hierarchy statistics with entities reference only")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldGetHierarchyStatisticsWithEntitiesReferenceOnly(Evita evita, RestTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
@@ -1511,7 +1522,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							hierarchyStatisticsOfReference(Entities.CATEGORY)
+							hierarchyOfReference(Entities.CATEGORY)
 						)
 					),
 					EntityReference.class
@@ -1520,9 +1531,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = response.getExtraResult(HierarchyStatistics.class)
+		final var expectedBody = response.getExtraResult(Hierarchy.class)
 			.getStatistics(Entities.CATEGORY)
+			.entrySet()
 			.stream()
+			// TODO LHO - this needs to be corrected probably
+			.flatMap(it -> it.getValue().stream())
 			.map(it -> {
 				return map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), it.entity().getPrimaryKey())
@@ -1553,8 +1567,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.executeAndThen()
 			.statusCode(200)
 			.body(
-				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category."
-					+ HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(),
+				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name() + ".category."
+					+ LevelInfoDescriptor.ENTITY.name(),
 				equalTo(expectedBody)
 			);
 	}

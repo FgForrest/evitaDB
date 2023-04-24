@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query;
 
-import io.evitadb.api.query.require.CombinableEntityContentRequire;
+import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula.PrefetchFormulaVisitor;
@@ -91,7 +91,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	}
 
 	@Override
-	public void addRequirementToPrefetch(@Nonnull CombinableEntityContentRequire require) {
+	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
 		if (prefetchFormulaVisitor != null) {
 			prefetchFormulaVisitor.addRequirement(require);
 		}
@@ -103,6 +103,14 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	@Nonnull
 	public String getDescription() {
 		return targetIndexes.getIndexDescription();
+	}
+
+	/**
+	 * Returns description of the variant of this builder (source index).
+	 */
+	@Nonnull
+	public String getDescriptionWithCosts() {
+		return targetIndexes.toStringWithCosts(getEstimatedCost());
 	}
 
 	/**

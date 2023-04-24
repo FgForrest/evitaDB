@@ -48,10 +48,10 @@ public class InconsistentResultsException extends EvitaInternalError {
 		@Nonnull EvitaResponse<EntityClassifier> alternativeResult
 	) {
 		super(
-			"Results for `" + mainBuilder.getDescription() + "` and `" + alternativeBuilder.getDescription() + "` differ!",
 			"Results for `" + mainBuilder.getDescription() + "` and `" + alternativeBuilder.getDescription() + "` differ!"
 				+ "\n\n" +
-				mainResult + "\nvs.\n" + alternativeResult
+				mainResult + "\nvs.\n" + alternativeResult,
+			"Results for `" + mainBuilder.getDescription() + "` and `" + alternativeBuilder.getDescription() + "` differ!"
 		);
 	}
 }

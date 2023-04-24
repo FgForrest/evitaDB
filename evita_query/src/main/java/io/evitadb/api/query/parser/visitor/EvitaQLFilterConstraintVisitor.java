@@ -527,14 +527,12 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 	public FilterConstraint visitHierarchyExcludingConstraint(@Nonnull EvitaQLParser.HierarchyExcludingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> {
-				if (ctx.args == null) {
-					return new HierarchyExcluding();
-				}
-				return new HierarchyExcluding(
-					ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
-				);
-			}
+			() -> new HierarchyExcluding(
+				ctx.args.constraints
+					.stream()
+					.map(fc -> fc.accept(this))
+					.toArray(FilterConstraint[]::new)
+			)
 		);
 	}
 

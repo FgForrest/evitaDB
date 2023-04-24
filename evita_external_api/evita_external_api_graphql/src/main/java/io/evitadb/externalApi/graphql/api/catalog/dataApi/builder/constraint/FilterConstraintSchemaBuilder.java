@@ -69,16 +69,7 @@ public class FilterConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilde
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(FilterBy.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new GraphQLSchemaBuildingError("Could not find `filterBy` filter query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new GraphQLSchemaBuildingError("There multiple variants of `filterBy` filter query, cannot decide which to choose.")
-		);
-		return descriptors.iterator().next();
+		return ConstraintDescriptorProvider.getConstraint(FilterBy.class);
 	}
 
 	@Nonnull

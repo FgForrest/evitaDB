@@ -26,8 +26,8 @@ package io.evitadb.index.hierarchy;
 import javax.annotation.Nonnull;
 
 /**
- * HierarchyVisitor interface allows to {@link HierarchyIndex#traverseHierarchy(HierarchyVisitor) traverse} hierarchical
- * structure in {@link HierarchyIndex} data structure.
+ * HierarchyVisitor interface allows to {@link HierarchyIndex#traverseHierarchy(HierarchyVisitor, int...) traverse}
+ * hierarchical structure in {@link HierarchyIndex} data structure.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -35,9 +35,14 @@ public interface HierarchyVisitor {
 
 	/**
 	 * Method is called on each node in the hierarchical tree of the {@link HierarchyIndex}. The visitor itself controls
-	 * the traversal by calling `childrenTraverser.run()` at the place it needs to be called on current `node` children.
+	 * the traversal by calling `traverser.run()` at the place it needs to be called on current `node` children.
 	 * ChildrenTraverser might be also completely ignored when subtree should not be traversed at all.
+	 *
+	 * @param node      the visited hierarchy node
+	 * @param level     the depth level of visited hierarchy node
+	 * @param distance  the distance from the top node the visitor started to traversing
+	 * @param traverser the lambda to traverse hierarchy of the visited hierarchy node
 	 */
-	void visit(@Nonnull HierarchyNode node, @Nonnull Runnable childrenTraverser);
+	void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable traverser);
 
 }

@@ -39,7 +39,11 @@ import java.io.Serializable;
 abstract class AbstractFilterConstraintLeaf extends ConstraintLeaf<FilterConstraint> implements FilterConstraint {
 	@Serial private static final long serialVersionUID = -474943967147232148L;
 
-	protected AbstractFilterConstraintLeaf(Serializable... arguments) {
+	public AbstractFilterConstraintLeaf(@Nonnull String name, @Nonnull Serializable... arguments) {
+		super(name, arguments);
+	}
+
+	protected AbstractFilterConstraintLeaf(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

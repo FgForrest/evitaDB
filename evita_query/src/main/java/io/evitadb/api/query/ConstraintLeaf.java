@@ -25,6 +25,7 @@ package io.evitadb.api.query;
 
 import io.evitadb.exception.EvitaInvalidUsageException;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -38,7 +39,14 @@ import java.util.Arrays;
 public abstract class ConstraintLeaf<T extends Constraint<T>> extends BaseConstraint<T> {
 	@Serial private static final long serialVersionUID = 3842640572690004094L;
 
-	protected ConstraintLeaf(Serializable... arguments) {
+	protected ConstraintLeaf(@Nonnull String name, @Nonnull Serializable... arguments) {
+		super(name, arguments);
+		if (Arrays.stream(arguments).anyMatch(Constraint.class::isInstance)) {
+			throw new EvitaInvalidUsageException("Constraint argument is not allowed for leaf query (" + getName() + ").");
+		}
+	}
+
+	protected ConstraintLeaf(@Nonnull Serializable... arguments) {
 		super(arguments);
 		if (Arrays.stream(arguments).anyMatch(Constraint.class::isInstance)) {
 			throw new EvitaInvalidUsageException("Constraint argument is not allowed for leaf query (" + getName() + ").");

@@ -285,7 +285,7 @@ public class QueryPlanner {
 			if (result.isEmpty()) {
 				queryContext.popStep("No index selected!");
 			} else {
-				queryContext.popStep("Selected index: " + result.get(0).getDescription());
+				queryContext.popStep("Selected index: " + result.get(0).getDescriptionWithCosts());
 			}
 		}
 	}
@@ -417,7 +417,7 @@ public class QueryPlanner {
 		@Nonnull QueryPlanBuilder mainBuilder,
 		@Nonnull QueryPlan mainPlan
 	) {
-		queryContext.doWithFrozenRandom(() -> {
+		queryContext.executeInDryRun(() -> {
 			final EvitaResponse<EntityClassifier> mainResponse = mainPlan.execute();
 			for (int i = 1; i < queryPlanBuilders.size(); i++) {
 				final QueryPlanBuilder alternativeBuilder = queryPlanBuilders.get(i);

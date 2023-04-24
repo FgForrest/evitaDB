@@ -508,7 +508,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 		final boolean referencesHierarchicalEntity = isReferencingHierarchicalEntity(referenceSchema);
-		final Bitmap referencedRecordIds = computeReferencedRecordIds(referenceSchema, new FilterBy(referenceHaving.getConstraint()));
+		final Bitmap referencedRecordIds = computeReferencedRecordIds(referenceSchema, new FilterBy(referenceHaving.getChildren()));
 		final List<EntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
 			ofNullable(getReferencedEntityIndex(referenceName, referencesHierarchicalEntity, referencedRecordId))

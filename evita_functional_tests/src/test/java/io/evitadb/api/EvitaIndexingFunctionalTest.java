@@ -28,7 +28,7 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
-import io.evitadb.test.extension.DbInstanceParameterResolver;
+import io.evitadb.test.extension.EvitaParameterResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -51,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 @DisplayName("Evita indexing API")
 @Tag(FUNCTIONAL_TEST)
-@ExtendWith(DbInstanceParameterResolver.class)
+@ExtendWith(EvitaParameterResolver.class)
 public class EvitaIndexingFunctionalTest {
 
 	public static final String ATTRIBUTE_CODE = "code";

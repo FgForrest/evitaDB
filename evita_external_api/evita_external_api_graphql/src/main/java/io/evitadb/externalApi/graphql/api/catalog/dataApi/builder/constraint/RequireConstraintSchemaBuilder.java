@@ -40,7 +40,9 @@ import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -73,6 +75,16 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 		);
 	}
 
+	public RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
+	                                      @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
+		super(
+			constraintSchemaBuildingCtx,
+			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
+			Set.of(),
+			Set.of()
+		);
+	}
+
 	@Nonnull
 	public GraphQLInputType build(@Nonnull String rootEntityType) {
 		return build(new GenericDataLocator(rootEntityType));
@@ -87,18 +99,7 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
-		final Set<ConstraintDescriptor> descriptors = ConstraintDescriptorProvider.getConstraints(Require.class);
-		Assert.isPremiseValid(
-			!descriptors.isEmpty(),
-			() -> new GraphQLSchemaBuildingError("Could not find `require` require query.")
-		);
-		Assert.isPremiseValid(
-			descriptors.size() == 1,
-			() -> new GraphQLSchemaBuildingError(
-				"There multiple variants of `require` require query, cannot decide which to choose."
-			)
-		);
-		return descriptors.iterator().next();
+		return ConstraintDescriptorProvider.getConstraint(Require.class);
 	}
 
 	@Nonnull

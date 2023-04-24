@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
+import io.evitadb.exception.EvitaInternalError;
 import org.junit.jupiter.api.Test;
 
 import java.util.Comparator;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -45,11 +47,22 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldHaveProcessedConstraints() {
-		assertEquals(67, ConstraintDescriptorProvider.getAllConstraints().size());
+		assertEquals(72, ConstraintDescriptorProvider.getAllConstraints().size());
 	}
 
 	@Test
 	void shouldCorrectlyFindCorrectDescriptorForSpecificConstraint() {
+		final ConstraintDescriptor containerDescriptor = ConstraintDescriptorProvider.getConstraint(And.class);
+		assertEquals(And.class, containerDescriptor.constraintClass());
+
+		final ConstraintDescriptor leafDescriptor = ConstraintDescriptorProvider.getConstraint(AttributeStartsWith.class);
+		assertEquals(AttributeStartsWith.class, leafDescriptor.constraintClass());
+
+		assertThrows(EvitaInternalError.class, () -> ConstraintDescriptorProvider.getConstraint(HierarchyWithin.class));
+	}
+
+	@Test
+	void shouldCorrectlyFindCorrectDescriptorsForSpecificConstraint() {
 		final Set<ConstraintDescriptor> containerDescriptors = ConstraintDescriptorProvider.getConstraints(And.class);
 		assertEquals(1, containerDescriptors.size());
 		assertEquals(And.class, containerDescriptors.iterator().next().constraintClass());
