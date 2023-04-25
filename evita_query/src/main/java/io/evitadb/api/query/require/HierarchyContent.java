@@ -63,7 +63,7 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "content",
+	name = "hierarchy",
 	shortDescription = "The constraint triggers fetching referenced hierarchy entity parent chain and its bodies into returned main entities.",
 	supportedIn = ConstraintDomain.ENTITY
 )

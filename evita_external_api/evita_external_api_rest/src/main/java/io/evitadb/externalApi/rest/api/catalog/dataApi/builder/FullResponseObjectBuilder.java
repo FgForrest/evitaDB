@@ -37,13 +37,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
@@ -429,23 +422,23 @@ public class FullResponseObjectBuilder {
 		return hierarchyExtraResultProperties;
 	}
 
-	@Nonnull
-	private OpenApiTypeReference buildHierarchyStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                            @Nonnull List<ReferenceSchemaContract> referenceSchemas,
-	                                                            boolean localized) {
-		final OpenApiObject.Builder hierarchyStatisticsObjectBuilder = HierarchyStatisticsDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(constructHierarchyStatisticsObjectName(entitySchema, localized));
-
-		if (entitySchema.isWithHierarchy()) {
-			hierarchyStatisticsObjectBuilder.property(buildSelfLevelInfoProperty(entitySchema, localized));
-		}
-
-		referenceSchemas.forEach(referenceSchema ->
-			hierarchyStatisticsObjectBuilder.property(buildLevelInfoProperty(entitySchema, referenceSchema, localized)));
-
-		return buildingContext.registerType(hierarchyStatisticsObjectBuilder.build());
-	}
+//	@Nonnull
+//	private OpenApiTypeReference buildHierarchyStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
+//	                                                            @Nonnull List<ReferenceSchemaContract> referenceSchemas,
+//	                                                            boolean localized) {
+//		final OpenApiObject.Builder hierarchyStatisticsObjectBuilder = HierarchyDescriptor.THIS
+//			.to(objectBuilderTransformer)
+//			.name(constructHierarchyStatisticsObjectName(entitySchema, localized));
+//
+//		if (entitySchema.isWithHierarchy()) {
+//			hierarchyStatisticsObjectBuilder.property(buildSelfLevelInfoProperty(entitySchema, localized));
+//		}
+//
+//		referenceSchemas.forEach(referenceSchema ->
+//			hierarchyStatisticsObjectBuilder.property(buildLevelInfoProperty(entitySchema, referenceSchema, localized)));
+//
+//		return buildingContext.registerType(hierarchyStatisticsObjectBuilder.build());
+//	}
 
 //	@Nonnull
 //	private OpenApiTypeReference buildSelfLevelInfoObject(@Nonnull EntitySchemaContract entitySchema,

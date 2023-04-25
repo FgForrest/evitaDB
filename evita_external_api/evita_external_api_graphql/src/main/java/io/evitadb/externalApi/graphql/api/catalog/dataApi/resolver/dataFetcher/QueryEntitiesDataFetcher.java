@@ -55,11 +55,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesQueryHeaderDescriptor;
@@ -81,7 +77,15 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Currency;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -488,7 +492,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	@Nonnull
 	private List<RequireConstraint> buildHierarchyStatisticsRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
 	                                                                 @Nullable FilterBy filterBy) {
-		final List<SelectedField> hierarchyStatisticsFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY_STATISTICS.name());
+		final List<SelectedField> hierarchyStatisticsFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY.name());
 		if (hierarchyStatisticsFields.isEmpty()) {
 			return List.of();
 		}
@@ -512,7 +516,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 				final List<DataFetchingFieldSelectionSet> fields = hierarchyStatisticsContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
 				fields.addAll(
 					f.getSelectionSet()
-						.getFields(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name())
+						.getFields(LevelInfoDescriptor.ENTITY.name())
 						.stream()
 						.map(SelectedField::getSelectionSet)
 						.toList()
