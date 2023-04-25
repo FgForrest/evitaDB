@@ -23,21 +23,22 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity;
 
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutation}.
+ * Descriptor representing {@link RemoveParentMutation}.
  *
  * Note: this descriptor has static structure.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface RemoveHierarchicalPlacementMutationDescriptor {
+public interface RemoveParentMutationDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("RemoveHierarchicalPlacementMutation")
+		.name("RemoveParentMutation")
 		.description("""
-			This mutation allows to remove `hierarchicalPlacement` in the `entity`.
+			This mutation allows to remove `parent` from the `entity`.
 			""")
 		.build();
 }

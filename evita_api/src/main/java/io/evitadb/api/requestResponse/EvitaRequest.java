@@ -83,6 +83,8 @@ public class EvitaRequest {
 	private Boolean priceValidInTimeSet;
 	private OffsetDateTime priceValidInTime;
 	private Boolean requiresEntity;
+	private Boolean requiresParent;
+	private HierarchyContent parentContent;
 	private EntityFetch entityRequirement;
 	private Boolean entityAttributes;
 	private Set<String> entityAttributeSet;
@@ -154,6 +156,8 @@ public class EvitaRequest {
 		this.facetGroupDisjunction = evitaRequest.facetGroupDisjunction;
 		this.facetGroupNegation = evitaRequest.facetGroupNegation;
 		this.requiresEntity = evitaRequest.requiresEntity;
+		this.requiresParent = evitaRequest.requiresParent;
+		this.parentContent = evitaRequest.parentContent;
 		this.entityRequirement = evitaRequest.entityRequirement;
 	}
 
@@ -181,6 +185,8 @@ public class EvitaRequest {
 		this.queryPriceMode = evitaRequest.queryPriceMode;
 		this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
 		this.priceValidInTime = evitaRequest.priceValidInTime;
+		this.requiresParent = null;
+		this.parentContent = null;
 		this.entityAttributes = null;
 		this.entityAttributeSet = null;
 		this.entityAssociatedData = null;
@@ -236,6 +242,8 @@ public class EvitaRequest {
 		this.locale = evitaRequest.getLocale();
 		this.requiredLocales = null;
 		this.requiredLocaleSet = null;
+		this.requiresParent = null;
+		this.parentContent = null;
 		this.entityAttributes = null;
 		this.entityAttributeSet = null;
 		this.entityAssociatedData = null;
@@ -388,6 +396,23 @@ public class EvitaRequest {
 			isRequiresEntity();
 		}
 		return this.entityRequirement;
+	}
+
+	/**
+	 * Method will determine if parent body is required for main entities.
+	 */
+	public boolean isRequiresParent() {
+		if (this.requiresParent == null) {
+			final EntityFetch entityFetch = getEntityRequirement();
+			if (entityFetch == null) {
+				this.parentContent = null;
+				this.requiresParent = false;
+			} else {
+				this.parentContent = QueryUtils.findConstraint(entityFetch, HierarchyContent.class, SeparateEntityContentRequireContainer.class);
+				this.requiresParent = this.parentContent != null;
+			}
+		}
+		return this.requiresParent;
 	}
 
 	/**

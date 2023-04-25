@@ -27,7 +27,6 @@ import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.data.structure.Reference;
@@ -77,7 +76,6 @@ public class EntityStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(Reference.class, new SerialVersionBasedSerializer<>(new ReferenceSerializer(), Reference.class), index++);
 		kryo.register(Prices.class, new SerialVersionBasedSerializer<>(new PricesSerializer(), Prices.class), index++);
 		kryo.register(Price.class, new SerialVersionBasedSerializer<>(new PriceSerializer(keyCompressor), Price.class), index++);
-		kryo.register(HierarchicalPlacement.class, new SerialVersionBasedSerializer<>(new HierarchicalPlacementSerializer(), HierarchicalPlacement.class), index++);
 		kryo.register(EntityReference.class, new SerialVersionBasedSerializer<>(new EntityReferenceSerializer(), EntityReference.class), index++);
 		kryo.register(AttributesSetKey.class, new SerialVersionBasedSerializer<>(new AttributesSetKeySerializer(), AttributesSetKey.class), index++);
 

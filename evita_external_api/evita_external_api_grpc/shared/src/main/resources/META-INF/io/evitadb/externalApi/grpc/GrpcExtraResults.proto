@@ -64,7 +64,7 @@ message GrpcExtraResults {
   map<string, GrpcHistogram> attributeHistogram = 2;
   GrpcHistogram priceHistogram = 3;
   repeated GrpcFacetGroupStatistics facetGroupStatistics = 4;
-  GrpcLevelInfos selfHierarchyStatistics = 5;
-  map<string, GrpcLevelInfos> hierarchyStatistics = 6;
+  GrpcLevelInfos selfHierarchy = 5;
+  map<string, GrpcLevelInfos> hierarchy = 6;
   GrpcQueryTelemetry queryTelemetry = 7;
 }

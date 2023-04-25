@@ -99,14 +99,14 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 42: {
-            io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.Builder subBuilder = null;
-            if (hierarchicalPlacement_ != null) {
-              subBuilder = hierarchicalPlacement_.toBuilder();
+            com.google.protobuf.Int32Value.Builder subBuilder = null;
+            if (parent_ != null) {
+              subBuilder = parent_.toBuilder();
             }
-            hierarchicalPlacement_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.parser(), extensionRegistry);
+            parent_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom(hierarchicalPlacement_);
-              hierarchicalPlacement_ = subBuilder.buildPartial();
+              subBuilder.mergeFrom(parent_);
+              parent_ = subBuilder.buildPartial();
             }
 
             break;
@@ -339,30 +339,30 @@ private static final long serialVersionUID = 0L;
     return schemaVersion_;
   }
 
-  public static final int HIERARCHICALPLACEMENT_FIELD_NUMBER = 5;
-  private io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement_;
+  public static final int PARENT_FIELD_NUMBER = 5;
+  private com.google.protobuf.Int32Value parent_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
-   * @return Whether the hierarchicalPlacement field is set.
+   * <code>.google.protobuf.Int32Value parent = 5;</code>
+   * @return Whether the parent field is set.
    */
   @java.lang.Override
-  public boolean hasHierarchicalPlacement() {
-    return hierarchicalPlacement_ != null;
+  public boolean hasParent() {
+    return parent_ != null;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
-   * @return The hierarchicalPlacement.
+   * <code>.google.protobuf.Int32Value parent = 5;</code>
+   * @return The parent.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement getHierarchicalPlacement() {
-    return hierarchicalPlacement_ == null ? io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.getDefaultInstance() : hierarchicalPlacement_;
+  public com.google.protobuf.Int32Value getParent() {
+    return parent_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : parent_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
+   * <code>.google.protobuf.Int32Value parent = 5;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacementOrBuilder getHierarchicalPlacementOrBuilder() {
-    return getHierarchicalPlacement();
+  public com.google.protobuf.Int32ValueOrBuilder getParentOrBuilder() {
+    return getParent();
   }
 
   public static final int GLOBALATTRIBUTES_FIELD_NUMBER = 6;
@@ -880,8 +880,8 @@ private static final long serialVersionUID = 0L;
     if (schemaVersion_ != 0) {
       output.writeInt32(4, schemaVersion_);
     }
-    if (hierarchicalPlacement_ != null) {
-      output.writeMessage(5, getHierarchicalPlacement());
+    if (parent_ != null) {
+      output.writeMessage(5, getParent());
     }
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
@@ -946,9 +946,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(4, schemaVersion_);
     }
-    if (hierarchicalPlacement_ != null) {
+    if (parent_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(5, getHierarchicalPlacement());
+        .computeMessageSize(5, getParent());
     }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> entry
          : internalGetGlobalAttributes().getMap().entrySet()) {
@@ -1033,10 +1033,10 @@ private static final long serialVersionUID = 0L;
         != other.getVersion()) return false;
     if (getSchemaVersion()
         != other.getSchemaVersion()) return false;
-    if (hasHierarchicalPlacement() != other.hasHierarchicalPlacement()) return false;
-    if (hasHierarchicalPlacement()) {
-      if (!getHierarchicalPlacement()
-          .equals(other.getHierarchicalPlacement())) return false;
+    if (hasParent() != other.hasParent()) return false;
+    if (hasParent()) {
+      if (!getParent()
+          .equals(other.getParent())) return false;
     }
     if (!internalGetGlobalAttributes().equals(
         other.internalGetGlobalAttributes())) return false;
@@ -1077,9 +1077,9 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getVersion();
     hash = (37 * hash) + SCHEMAVERSION_FIELD_NUMBER;
     hash = (53 * hash) + getSchemaVersion();
-    if (hasHierarchicalPlacement()) {
-      hash = (37 * hash) + HIERARCHICALPLACEMENT_FIELD_NUMBER;
-      hash = (53 * hash) + getHierarchicalPlacement().hashCode();
+    if (hasParent()) {
+      hash = (37 * hash) + PARENT_FIELD_NUMBER;
+      hash = (53 * hash) + getParent().hashCode();
     }
     if (!internalGetGlobalAttributes().getMap().isEmpty()) {
       hash = (37 * hash) + GLOBALATTRIBUTES_FIELD_NUMBER;
@@ -1293,11 +1293,11 @@ private static final long serialVersionUID = 0L;
 
       schemaVersion_ = 0;
 
-      if (hierarchicalPlacementBuilder_ == null) {
-        hierarchicalPlacement_ = null;
+      if (parentBuilder_ == null) {
+        parent_ = null;
       } else {
-        hierarchicalPlacement_ = null;
-        hierarchicalPlacementBuilder_ = null;
+        parent_ = null;
+        parentBuilder_ = null;
       }
       internalGetMutableGlobalAttributes().clear();
       internalGetMutableLocalizedAttributes().clear();
@@ -1360,10 +1360,10 @@ private static final long serialVersionUID = 0L;
       result.primaryKey_ = primaryKey_;
       result.version_ = version_;
       result.schemaVersion_ = schemaVersion_;
-      if (hierarchicalPlacementBuilder_ == null) {
-        result.hierarchicalPlacement_ = hierarchicalPlacement_;
+      if (parentBuilder_ == null) {
+        result.parent_ = parent_;
       } else {
-        result.hierarchicalPlacement_ = hierarchicalPlacementBuilder_.build();
+        result.parent_ = parentBuilder_.build();
       }
       result.globalAttributes_ = internalGetGlobalAttributes();
       result.globalAttributes_.makeImmutable();
@@ -1467,8 +1467,8 @@ private static final long serialVersionUID = 0L;
       if (other.getSchemaVersion() != 0) {
         setSchemaVersion(other.getSchemaVersion());
       }
-      if (other.hasHierarchicalPlacement()) {
-        mergeHierarchicalPlacement(other.getHierarchicalPlacement());
+      if (other.hasParent()) {
+        mergeParent(other.getParent());
       }
       internalGetMutableGlobalAttributes().mergeFrom(
           other.internalGetGlobalAttributes());
@@ -1761,123 +1761,123 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement_;
+    private com.google.protobuf.Int32Value parent_;
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement, io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacementOrBuilder> hierarchicalPlacementBuilder_;
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> parentBuilder_;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
-     * @return Whether the hierarchicalPlacement field is set.
+     * <code>.google.protobuf.Int32Value parent = 5;</code>
+     * @return Whether the parent field is set.
      */
-    public boolean hasHierarchicalPlacement() {
-      return hierarchicalPlacementBuilder_ != null || hierarchicalPlacement_ != null;
+    public boolean hasParent() {
+      return parentBuilder_ != null || parent_ != null;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
-     * @return The hierarchicalPlacement.
+     * <code>.google.protobuf.Int32Value parent = 5;</code>
+     * @return The parent.
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement getHierarchicalPlacement() {
-      if (hierarchicalPlacementBuilder_ == null) {
-        return hierarchicalPlacement_ == null ? io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.getDefaultInstance() : hierarchicalPlacement_;
+    public com.google.protobuf.Int32Value getParent() {
+      if (parentBuilder_ == null) {
+        return parent_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : parent_;
       } else {
-        return hierarchicalPlacementBuilder_.getMessage();
+        return parentBuilder_.getMessage();
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
+     * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
-    public Builder setHierarchicalPlacement(io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement value) {
-      if (hierarchicalPlacementBuilder_ == null) {
+    public Builder setParent(com.google.protobuf.Int32Value value) {
+      if (parentBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        hierarchicalPlacement_ = value;
+        parent_ = value;
         onChanged();
       } else {
-        hierarchicalPlacementBuilder_.setMessage(value);
+        parentBuilder_.setMessage(value);
       }
 
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
+     * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
-    public Builder setHierarchicalPlacement(
-        io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.Builder builderForValue) {
-      if (hierarchicalPlacementBuilder_ == null) {
-        hierarchicalPlacement_ = builderForValue.build();
+    public Builder setParent(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (parentBuilder_ == null) {
+        parent_ = builderForValue.build();
         onChanged();
       } else {
-        hierarchicalPlacementBuilder_.setMessage(builderForValue.build());
+        parentBuilder_.setMessage(builderForValue.build());
       }
 
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
+     * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
-    public Builder mergeHierarchicalPlacement(io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement value) {
-      if (hierarchicalPlacementBuilder_ == null) {
-        if (hierarchicalPlacement_ != null) {
-          hierarchicalPlacement_ =
-            io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.newBuilder(hierarchicalPlacement_).mergeFrom(value).buildPartial();
+    public Builder mergeParent(com.google.protobuf.Int32Value value) {
+      if (parentBuilder_ == null) {
+        if (parent_ != null) {
+          parent_ =
+            com.google.protobuf.Int32Value.newBuilder(parent_).mergeFrom(value).buildPartial();
         } else {
-          hierarchicalPlacement_ = value;
+          parent_ = value;
         }
         onChanged();
       } else {
-        hierarchicalPlacementBuilder_.mergeFrom(value);
+        parentBuilder_.mergeFrom(value);
       }
 
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
+     * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
-    public Builder clearHierarchicalPlacement() {
-      if (hierarchicalPlacementBuilder_ == null) {
-        hierarchicalPlacement_ = null;
+    public Builder clearParent() {
+      if (parentBuilder_ == null) {
+        parent_ = null;
         onChanged();
       } else {
-        hierarchicalPlacement_ = null;
-        hierarchicalPlacementBuilder_ = null;
+        parent_ = null;
+        parentBuilder_ = null;
       }
 
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
+     * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.Builder getHierarchicalPlacementBuilder() {
+    public com.google.protobuf.Int32Value.Builder getParentBuilder() {
       
       onChanged();
-      return getHierarchicalPlacementFieldBuilder().getBuilder();
+      return getParentFieldBuilder().getBuilder();
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
+     * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacementOrBuilder getHierarchicalPlacementOrBuilder() {
-      if (hierarchicalPlacementBuilder_ != null) {
-        return hierarchicalPlacementBuilder_.getMessageOrBuilder();
+    public com.google.protobuf.Int32ValueOrBuilder getParentOrBuilder() {
+      if (parentBuilder_ != null) {
+        return parentBuilder_.getMessageOrBuilder();
       } else {
-        return hierarchicalPlacement_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.getDefaultInstance() : hierarchicalPlacement_;
+        return parent_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : parent_;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
+     * <code>.google.protobuf.Int32Value parent = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement, io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacementOrBuilder> 
-        getHierarchicalPlacementFieldBuilder() {
-      if (hierarchicalPlacementBuilder_ == null) {
-        hierarchicalPlacementBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement, io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacementOrBuilder>(
-                getHierarchicalPlacement(),
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        getParentFieldBuilder() {
+      if (parentBuilder_ == null) {
+        parentBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getParent(),
                 getParentForChildren(),
                 isClean());
-        hierarchicalPlacement_ = null;
+        parent_ = null;
       }
-      return hierarchicalPlacementBuilder_;
+      return parentBuilder_;
     }
 
     private com.google.protobuf.MapField<

@@ -27,25 +27,25 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation}
  */
-public final class GrpcRemoveHierarchicalPlacementMutation extends
+public final class GrpcRemoveParentMutation extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation)
-    GrpcRemoveHierarchicalPlacementMutationOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation)
+    GrpcRemoveParentMutationOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcRemoveHierarchicalPlacementMutation.newBuilder() to construct.
-  private GrpcRemoveHierarchicalPlacementMutation(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcRemoveParentMutation.newBuilder() to construct.
+  private GrpcRemoveParentMutation(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcRemoveHierarchicalPlacementMutation() {
+  private GrpcRemoveParentMutation() {
   }
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcRemoveHierarchicalPlacementMutation();
+    return new GrpcRemoveParentMutation();
   }
 
   @java.lang.Override
@@ -53,7 +53,7 @@ private static final long serialVersionUID = 0L;
   getUnknownFields() {
     return this.unknownFields;
   }
-  private GrpcRemoveHierarchicalPlacementMutation(
+  private GrpcRemoveParentMutation(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -92,15 +92,15 @@ private static final long serialVersionUID = 0L;
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.class, io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.class, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder.class);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -136,10 +136,10 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation other = (io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation other = (io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) obj;
 
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
@@ -157,69 +157,69 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -232,7 +232,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -248,26 +248,26 @@ private static final long serialVersionUID = 0L;
     return builder;
   }
   /**
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation)
-      io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutationOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation)
+      io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.class, io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.class, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -291,17 +291,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEntityMutations.internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation build() {
-      io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation build() {
+      io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -309,8 +309,8 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation result = new io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation(this);
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation result = new io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation(this);
       onBuilt();
       return result;
     }
@@ -349,16 +349,16 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.getDefaultInstance()) return this;
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.getDefaultInstance()) return this;
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
       return this;
@@ -374,11 +374,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation parsedMessage = null;
+      io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) e.getUnfinishedMessage();
+        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -400,41 +400,41 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcRemoveHierarchicalPlacementMutation>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcRemoveHierarchicalPlacementMutation>() {
+  private static final com.google.protobuf.Parser<GrpcRemoveParentMutation>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcRemoveParentMutation>() {
     @java.lang.Override
-    public GrpcRemoveHierarchicalPlacementMutation parsePartialFrom(
+    public GrpcRemoveParentMutation parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new GrpcRemoveHierarchicalPlacementMutation(input, extensionRegistry);
+      return new GrpcRemoveParentMutation(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcRemoveHierarchicalPlacementMutation> parser() {
+  public static com.google.protobuf.Parser<GrpcRemoveParentMutation> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcRemoveHierarchicalPlacementMutation> getParserForType() {
+  public com.google.protobuf.Parser<GrpcRemoveParentMutation> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

@@ -26,7 +26,6 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -37,7 +36,6 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
@@ -1517,18 +1515,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())
 			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
 			.build();
-	}
-
-	private static Map<String, Object> createHierarchicalPlacementDto(SealedEntity parentEntity) {
-		final Optional<HierarchicalPlacementContract> hierarchicalPlacement = parentEntity.getHierarchicalPlacement();
-		if (hierarchicalPlacement.isPresent()) {
-			return map()
-				.e(HierarchicalPlacementDescriptor.PARENT_PRIMARY_KEY.name(), hierarchicalPlacement.get().getParentPrimaryKey())
-				.e(HierarchicalPlacementDescriptor.ORDER_AMONG_SIBLINGS.name(), hierarchicalPlacement.get().getOrderAmongSiblings())
-				.build();
-		} else {
-			return map().build();
-		}
 	}
 
 	@Nonnull

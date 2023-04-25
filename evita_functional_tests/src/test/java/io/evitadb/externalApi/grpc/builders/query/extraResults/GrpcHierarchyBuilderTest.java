@@ -142,7 +142,7 @@ class GrpcHierarchyBuilderTest {
 			// TODO LHO - alter structure
 			integerGrpcLevelInfos.put(
 				entry.getKey(),
-				GrpcHierarchyStatisticsBuilder.buildHierarchyStatistics(entry.getValue())
+				GrpcHierarchyStatisticsBuilder.buildHierarchy(entry.getValue())
 			);
 		}
 
@@ -153,7 +153,7 @@ class GrpcHierarchyBuilderTest {
 			// TODO LHO - alter structure
 			entityGrpcLevelInfos.put(
 				entry.getKey(),
-				GrpcHierarchyStatisticsBuilder.buildHierarchyStatistics(entry.getValue())
+				GrpcHierarchyStatisticsBuilder.buildHierarchy(entry.getValue())
 			);
 		}
 

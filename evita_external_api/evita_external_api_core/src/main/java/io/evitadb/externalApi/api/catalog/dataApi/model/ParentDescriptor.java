@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity;
+package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -29,40 +29,35 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Descriptor representing {@link io.evitadb.api.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutation}.
+ * Represents hierarchical placement (parent).
  *
  * Note: this descriptor has static structure.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface SetHierarchicalPlacementMutationDescriptor {
+public interface ParentDescriptor {
 
 	PropertyDescriptor PARENT_PRIMARY_KEY = PropertyDescriptor.builder()
 		.name("parentPrimaryKey")
 		.description("""
-			Optional new primary key of parent entity. If null, this entity is at the root of hierarchy.
-			""")
-		.type(nullable(Integer.class))
-		.build();
-	PropertyDescriptor ORDER_AMONG_SIBLINGS = PropertyDescriptor.builder()
-		.name("orderAmongSiblings")
-		.description("""
-			Represents order of this entity among other entities under the same parent. It's recommended to be unique, but
-			it isn't enforced so it could behave like reversed priority where lower number is better (i.e. Integer.MIN is
-			the first entity under the parent, Integer.MAX is the last entity under the same parent).
+			Reference to primary key of the parent entity.
+			Null parent primary key means, that the entity is root entity with no parent (there may be multiple root entities).
 			""")
 		.type(nonNull(Integer.class))
 		.build();
 
-
+	/* TODO LHO - this could be flattened even more?! */
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("SetHierarchicalPlacementMutation")
+		.name("HierarchicalPlacement")
 		.description("""
-			This mutation allows to set `hierarchicalPlacement` in the `entity`.
+			Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
+			referred by multiple child entities. Hierarchy is always composed of entities of same type.
+			Each entity must be part of at most single hierarchy (tree).
+			Hierarchy can limit returned entities by using filtering constraints `hierarchy_{hierarchy name}_within`. It's also used for
+			computation of extra data - such as `hierarchyOfSelf`.
 			""")
-		.staticFields(List.of(PARENT_PRIMARY_KEY, ORDER_AMONG_SIBLINGS))
+		.staticFields(List.of(PARENT_PRIMARY_KEY))
 		.build();
 }

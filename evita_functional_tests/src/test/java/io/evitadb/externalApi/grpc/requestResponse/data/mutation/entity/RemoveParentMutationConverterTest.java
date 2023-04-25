@@ -23,27 +23,25 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class SetHierarchicalPlacementMutationConverterTest {
+class RemoveParentMutationConverterTest {
 
-	private static SetHierarchicalPlacementMutationConverter converter;
+	private static RemoveParentMutationConverter converter;
 
 	@BeforeAll
 	static void setup() {
-		converter = new SetHierarchicalPlacementMutationConverter();
+		converter = new RemoveParentMutationConverter();
 	}
 
 	@Test
 	void shouldConvertMutation() {
-		final SetHierarchicalPlacementMutation mutation1 = new SetHierarchicalPlacementMutation(10);
+		final RemoveParentMutation mutation1 = new RemoveParentMutation();
 		assertEquals(mutation1, converter.convert(converter.convert(mutation1)));
-
-		final SetHierarchicalPlacementMutation mutation2 = new SetHierarchicalPlacementMutation(1, 10);
-		assertEquals(mutation2, converter.convert(converter.convert(mutation2)));
 	}
+
 }

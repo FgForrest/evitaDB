@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveHierarchicalPlacementMutationDescriptor;
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
@@ -34,31 +34,31 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link LocalMutationConverter} for resolving {@link RemoveHierarchicalPlacementMutation}.
+ * Implementation of {@link LocalMutationConverter} for resolving {@link RemoveParentMutation}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class RemoveHierarchicalPlacementMutationConverter extends LocalMutationConverter<RemoveHierarchicalPlacementMutation> {
+public class RemoveParentMutationConverter extends LocalMutationConverter<RemoveParentMutation> {
 
-	public RemoveHierarchicalPlacementMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                    @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public RemoveParentMutationConverter(@Nonnull MutationObjectParser objectParser,
+	                                     @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
 	protected String getMutationName() {
-		return RemoveHierarchicalPlacementMutationDescriptor.THIS.name();
+		return RemoveParentMutationDescriptor.THIS.name();
 	}
 
 	@Nonnull
 	@Override
-	protected RemoveHierarchicalPlacementMutation convert(@Nonnull InputMutation inputMutation) {
+	protected RemoveParentMutation convert(@Nonnull InputMutation inputMutation) {
 		final boolean isMutationEnabled = inputMutation.getRequiredValue(Boolean.class);
 		Assert.isTrue(
 			isMutationEnabled,
 			() -> getExceptionFactory().createInvalidArgumentException("Mutation `" + getMutationName() + "` supports only `true` value.")
 		);
-		return new RemoveHierarchicalPlacementMutation();
+		return new RemoveParentMutation();
 	}
 }

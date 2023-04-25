@@ -24,11 +24,9 @@
 package io.evitadb.api.requestResponse.data.mutation.entity;
 
 import io.evitadb.api.exception.InvalidMutationException;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.SchemaEvolvingLocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
-import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -39,21 +37,22 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.OptionalInt;
 
 /**
- * Base mutation class for mutations that work with {@link Reference} of the {@link Entity}.
+ * Base mutation class for mutations that work with parent (hierarchical placement) of the {@link Entity}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 @EqualsAndHashCode
-public abstract class HierarchicalPlacementMutation implements SchemaEvolvingLocalMutation<HierarchicalPlacementContract, HierarchicalPlacementContract> {
+public abstract class ParentMutation implements SchemaEvolvingLocalMutation<OptionalInt, Integer> {
 	@Serial private static final long serialVersionUID = -4870057553122671488L;
 
 	@Nonnull
 	@Override
 	public Serializable getSkipToken(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
-		return HierarchicalPlacement.class;
+		return EntityContract.class;
 	}
 
 	@Override

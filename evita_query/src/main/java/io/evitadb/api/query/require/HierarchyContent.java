@@ -69,7 +69,6 @@ import java.util.stream.Stream;
 )
 public class HierarchyContent extends AbstractRequireConstraintContainer implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
-	public static final HierarchyContent ALL_hierarchyContent = new HierarchyContent();
 
 	private HierarchyContent(@Nonnull String[] referencedEntityType,
 	                         @Nonnull RequireConstraint[] requirements,

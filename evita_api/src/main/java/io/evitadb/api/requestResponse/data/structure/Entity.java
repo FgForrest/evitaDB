@@ -42,7 +42,6 @@ import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -51,7 +50,7 @@ import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.HierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -59,7 +58,6 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.HierarchicalContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -143,7 +141,7 @@ public class Entity implements SealedEntity {
 	 * computation of extra data - such as {@link HierarchyContent}. It can also invert type of returned entities in
 	 * case requirement {@link HierarchyOfSelf} is used.
 	 */
-	@Nullable final HierarchicalPlacementContract hierarchicalPlacement;
+	@Nullable final Integer parent;
 	/**
 	 * The reference refers to other entities (of same or different entity type).
 	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
@@ -223,7 +221,7 @@ public class Entity implements SealedEntity {
 		@Nullable Integer primaryKey,
 		@Nullable Integer version,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable HierarchicalPlacementContract hierarchicalPlacement,
+		@Nullable Integer parent,
 		@Nonnull Collection<ReferenceContract> references,
 		@Nonnull Attributes attributes,
 		@Nonnull AssociatedData associatedData,
@@ -234,7 +232,7 @@ public class Entity implements SealedEntity {
 			ofNullable(version).orElse(1),
 			entitySchema,
 			primaryKey,
-			hierarchicalPlacement,
+			parent,
 			references,
 			attributes,
 			associatedData,
@@ -255,7 +253,7 @@ public class Entity implements SealedEntity {
 		int version,
 		int primaryKey,
 		@Nonnull EntitySchemaContract schema,
-		@Nullable HierarchicalPlacementContract hierarchicalPlacement,
+		@Nullable Integer parent,
 		@Nonnull Collection<ReferenceContract> references,
 		@Nonnull Attributes attributes,
 		@Nonnull AssociatedData associatedData,
@@ -265,7 +263,7 @@ public class Entity implements SealedEntity {
 	) {
 		return new Entity(
 			version, schema, primaryKey,
-			hierarchicalPlacement, references,
+			parent, references,
 			attributes, associatedData, prices,
 			locales, dropped
 		);
@@ -283,7 +281,7 @@ public class Entity implements SealedEntity {
 		int version,
 		int primaryKey,
 		@Nonnull EntitySchemaContract schema,
-		@Nullable HierarchicalPlacementContract hierarchicalPlacement,
+		@Nullable Integer parent,
 		@Nullable Collection<ReferenceContract> references,
 		@Nullable Attributes attributes,
 		@Nullable AssociatedData associatedData,
@@ -293,7 +291,7 @@ public class Entity implements SealedEntity {
 	) {
 		return new Entity(
 			version, schema, primaryKey,
-			ofNullable(hierarchicalPlacement).orElse(entity.hierarchicalPlacement),
+			ofNullable(parent).orElse(entity.parent),
 			ofNullable(references).orElse(entity.references.values()),
 			ofNullable(attributes).orElse(entity.attributes),
 			ofNullable(associatedData).orElse(entity.associatedData),
@@ -316,7 +314,8 @@ public class Entity implements SealedEntity {
 	) {
 		final Optional<Entity> possibleEntity = ofNullable(entity);
 
-		HierarchicalPlacementContract newPlacement = null;
+		final Integer oldParent = ofNullable(entity).map(it -> it.parent).orElse(null);
+		Integer newParent = oldParent;
 		PriceInnerRecordHandling newPriceInnerRecordHandling = null;
 		final Map<AttributeKey, AttributeValue> newAttributes = CollectionUtils.createHashMap(localMutations.size());
 		final Map<AssociatedDataKey, AssociatedDataValue> newAssociatedData = CollectionUtils.createHashMap(localMutations.size());
@@ -324,8 +323,8 @@ public class Entity implements SealedEntity {
 		final Map<PriceKey, PriceContract> newPrices = CollectionUtils.createHashMap(localMutations.size());
 
 		for (LocalMutation<?, ?> localMutation : localMutations) {
-			if (localMutation instanceof HierarchicalPlacementMutation hierarchicalPlacementMutation) {
-				newPlacement = mutateHierarchyPlacement(entitySchema, possibleEntity, hierarchicalPlacementMutation);
+			if (localMutation instanceof ParentMutation parentMutation) {
+				newParent = mutateHierarchyPlacement(entitySchema, possibleEntity, parentMutation);
 			} else if (localMutation instanceof AttributeMutation attributeMutation) {
 				mutateAttributes(entitySchema, possibleEntity, newAttributes, attributeMutation);
 			} else if (localMutation instanceof AssociatedDataMutation associatedDataMutation) {
@@ -355,13 +354,18 @@ public class Entity implements SealedEntity {
 		final Set<Locale> entityLocales = new HashSet<>(newAttributeContainer.getAttributeLocales());
 		entityLocales.addAll(newAssociatedDataContainer.getAssociatedDataLocales());
 
-		if (newPlacement != null || newPriceInnerRecordHandling != null ||
-			!newAttributes.isEmpty() || !newAssociatedData.isEmpty() || !newPrices.isEmpty() || !newReferences.isEmpty()) {
+		if (!Objects.equals(newParent, oldParent) ||
+			newPriceInnerRecordHandling != null ||
+			!newAttributes.isEmpty() ||
+			!newAssociatedData.isEmpty() ||
+			!newPrices.isEmpty() ||
+			!newReferences.isEmpty()
+		) {
 			return new Entity(
 				possibleEntity.map(it -> it.getVersion() + 1).orElse(1),
 				entitySchema,
 				possibleEntity.map(Entity::getPrimaryKey).orElse(null),
-				ofNullable(newPlacement).orElseGet(() -> possibleEntity.flatMap(Entity::getHierarchicalPlacement).orElse(null)),
+				newParent,
 				mergedReferences,
 				newAttributeContainer,
 				newAssociatedDataContainer,
@@ -383,8 +387,8 @@ public class Entity implements SealedEntity {
 	public static EntityDecorator decorate(
 		@Nonnull Entity entity,
 		@Nonnull EntitySchema entitySchema,
+		@Nullable SealedEntity parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchicalContractSerializablePredicate hierarchicalPlacementPredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
@@ -392,8 +396,8 @@ public class Entity implements SealedEntity {
 		@Nonnull OffsetDateTime alignedNow
 	) {
 		return new EntityDecorator(
-			entity, entitySchema,
-			localePredicate, hierarchicalPlacementPredicate,
+			entity, entitySchema, parentEntity,
+			localePredicate,
 			attributePredicate, associatedDataValuePredicate,
 			referencePredicate, pricePredicate,
 			alignedNow
@@ -406,8 +410,8 @@ public class Entity implements SealedEntity {
 	 */
 	public static EntityDecorator decorate(
 		@Nonnull EntityDecorator entityDecorator,
+		@Nullable SealedEntity parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchicalContractSerializablePredicate hierarchicalPlacementPredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
@@ -415,8 +419,8 @@ public class Entity implements SealedEntity {
 		@Nonnull OffsetDateTime alignedNow
 	) {
 		return new EntityDecorator(
-			entityDecorator,
-			localePredicate, hierarchicalPlacementPredicate,
+			entityDecorator, parentEntity,
+			localePredicate,
 			attributePredicate, associatedDataValuePredicate,
 			referencePredicate, pricePredicate,
 			alignedNow
@@ -430,8 +434,8 @@ public class Entity implements SealedEntity {
 	public static EntityDecorator decorate(
 		@Nonnull Entity entity,
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable SealedEntity parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchicalContractSerializablePredicate hierarchicalPlacementPredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
@@ -441,18 +445,16 @@ public class Entity implements SealedEntity {
 	) {
 		return referenceFetcher == null || referenceFetcher == ReferenceFetcher.NO_IMPLEMENTATION ?
 			new EntityDecorator(
-				entity,
-				entitySchema,
-				localePredicate, hierarchicalPlacementPredicate,
+				entity, entitySchema, parentEntity,
+				localePredicate,
 				attributePredicate, associatedDataValuePredicate,
 				referencePredicate, pricePredicate,
 				alignedNow
 			)
 			:
 			new EntityDecorator(
-				entity,
-				entitySchema,
-				localePredicate, hierarchicalPlacementPredicate,
+				entity, entitySchema, parentEntity,
+				localePredicate,
 				attributePredicate, associatedDataValuePredicate,
 				referencePredicate, pricePredicate,
 				alignedNow,
@@ -691,20 +693,17 @@ public class Entity implements SealedEntity {
 	 */
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	@Nullable
-	private static HierarchicalPlacementContract mutateHierarchyPlacement(
+	private static Integer mutateHierarchyPlacement(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Optional<Entity> possibleEntity,
-		@Nonnull HierarchicalPlacementMutation hierarchicalPlacementMutation
+		@Nonnull ParentMutation parentMutation
 	) {
-		HierarchicalPlacementContract newPlacement;
-		final HierarchicalPlacementContract existingPlacement = possibleEntity
-			.flatMap(Entity::getHierarchicalPlacement)
-			.orElse(null);
-		newPlacement = returnIfChanged(
-			existingPlacement,
-			hierarchicalPlacementMutation.mutateLocal(entitySchema, existingPlacement)
-		);
-		return newPlacement;
+		OptionalInt newParent;
+		final OptionalInt existingPlacement = possibleEntity
+			.map(Entity::getParent)
+			.orElse(OptionalInt.empty());
+		newParent = parentMutation.mutateLocal(entitySchema, existingPlacement);
+		return newParent.stream().boxed().findAny().orElse(null);
 	}
 
 	/**
@@ -728,7 +727,7 @@ public class Entity implements SealedEntity {
 		int version,
 		@Nonnull EntitySchemaContract schema,
 		@Nullable Integer primaryKey,
-		@Nullable HierarchicalPlacementContract hierarchicalPlacement,
+		@Nullable Integer parent,
 		@Nonnull Collection<ReferenceContract> references,
 		@Nonnull Attributes attributes,
 		@Nonnull AssociatedData associatedData,
@@ -740,7 +739,7 @@ public class Entity implements SealedEntity {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = primaryKey;
-		this.hierarchicalPlacement = hierarchicalPlacement;
+		this.parent = parent;
 		this.references = references
 			.stream()
 			.collect(
@@ -761,7 +760,7 @@ public class Entity implements SealedEntity {
 		this.type = type;
 		this.schema = EntitySchema._internalBuild(type);
 		this.primaryKey = primaryKey;
-		this.hierarchicalPlacement = null;
+		this.parent = null;
 		this.references = Collections.emptyMap();
 		this.attributes = new Attributes(this.schema);
 		this.associatedData = new AssociatedData(this.schema);
@@ -772,8 +771,14 @@ public class Entity implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public Optional<HierarchicalPlacementContract> getHierarchicalPlacement() {
-		return ofNullable(hierarchicalPlacement);
+	public OptionalInt getParent() {
+		return parent == null ? OptionalInt.empty() : OptionalInt.of(parent);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SealedEntity> getParentEntity() {
+		return empty();
 	}
 
 	@Nonnull

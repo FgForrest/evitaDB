@@ -128,52 +128,52 @@ public interface GrpcExtraResultsOrBuilder extends
       int index);
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchyStatistics = 5;</code>
-   * @return Whether the selfHierarchyStatistics field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+   * @return Whether the selfHierarchy field is set.
    */
-  boolean hasSelfHierarchyStatistics();
+  boolean hasSelfHierarchy();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchyStatistics = 5;</code>
-   * @return The selfHierarchyStatistics.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+   * @return The selfHierarchy.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getSelfHierarchyStatistics();
+  io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getSelfHierarchy();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchyStatistics = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcLevelInfosOrBuilder getSelfHierarchyStatisticsOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcLevelInfosOrBuilder getSelfHierarchyOrBuilder();
 
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
    */
-  int getHierarchyStatisticsCount();
+  int getHierarchyCount();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
    */
-  boolean containsHierarchyStatistics(
+  boolean containsHierarchy(
       java.lang.String key);
   /**
-   * Use {@link #getHierarchyStatisticsMap()} instead.
+   * Use {@link #getHierarchyMap()} instead.
    */
   @java.lang.Deprecated
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
-  getHierarchyStatistics();
+  getHierarchy();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
-  getHierarchyStatisticsMap();
+  getHierarchyMap();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
    */
 
-  io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyStatisticsOrDefault(
+  io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyOrDefault(
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcLevelInfos defaultValue);
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchyStatistics = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
    */
 
-  io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyStatisticsOrThrow(
+  io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyOrThrow(
       java.lang.String key);
 
   /**

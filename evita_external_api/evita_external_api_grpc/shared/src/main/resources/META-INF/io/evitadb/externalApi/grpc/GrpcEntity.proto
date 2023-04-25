@@ -21,7 +21,7 @@ message GrpcSealedEntity {
   int32 primaryKey = 2;
   int32 version = 3;
   int32 schemaVersion = 4;
-  GrpcHierarchicalPlacement hierarchicalPlacement = 5;
+  google.protobuf.Int32Value parent = 5;
   map<string, GrpcEvitaValue> globalAttributes = 6;
   map<string, GrpcLocalizedAttribute> localizedAttributes = 7;
   repeated GrpcPrice prices = 8;
@@ -31,12 +31,6 @@ message GrpcSealedEntity {
   map<string, GrpcEvitaAssociatedDataValue> globalAssociatedData = 12;
   map<string, GrpcLocalizedAssociatedData> localizedAssociatedData = 13;
   repeated GrpcLocale locales = 14;
-}
-
-message GrpcHierarchicalPlacement {
-  int32 version = 3;
-  int32 orderAmongSiblings = 13;
-  google.protobuf.Int32Value parentPrimaryKey = 14;
 }
 
 message GrpcBinaryEntity {

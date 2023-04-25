@@ -26,7 +26,7 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcRemoveHierarchicalPlacementMutationOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation)
+public interface GrpcRemoveParentMutationOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation)
     com.google.protobuf.MessageOrBuilder {
 }

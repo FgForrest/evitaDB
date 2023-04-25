@@ -46,6 +46,13 @@ import java.util.OptionalInt;
 public interface HierarchyIndexContract {
 
 	/**
+	 * Method initializes all existing nodes as root nodes. This method should be called at the moment the index is
+	 * created for the first time and all existing entities which are already present but have no parent relation set
+	 * should become as initial root nodes, so that all that are added after that could use them as their parents.
+	 */
+	void initRootNodes(@Nonnull Bitmap rootNodes);
+
+	/**
 	 * Method indexes `entityPrimaryKey` placement in the hierarchy tree using information about its `parentPrimaryKey`
 	 * and `orderAmongSiblings`.
 	 *
@@ -53,13 +60,13 @@ public interface HierarchyIndexContract {
 	 * are collected in the {@link #getOrphanHierarchyNodes()} array until their parent dependency is fulfilled. When the time comes they
 	 * are moved from {@link #getOrphanHierarchyNodes()} to {@link #getRootHierarchyNodes()} (recursively).
 	 */
-	void setHierarchyFor(int entityPrimaryKey, @Nullable Integer parentPrimaryKey, int orderAmongSiblings);
+	void addNode(int entityPrimaryKey, @Nullable Integer parentPrimaryKey);
 
 	/**
 	 * Method removes information about `entityPrimaryKey` placement from the index. It doesn't matter whether the key
 	 * is inside {@link #getOrphanHierarchyNodes()} or places in the living tree {@link #getRootHierarchyNodes()}.
 	 */
-	void removeHierarchyFor(int entityPrimaryKey);
+	void removeNode(int entityPrimaryKey);
 
 	/**
 	 * Method returns result of {@link #listHierarchyNodesFromRoot(HierarchyFilteringPredicate)}  wrapped as lazy lambda

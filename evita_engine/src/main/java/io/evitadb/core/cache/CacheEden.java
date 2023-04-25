@@ -26,7 +26,6 @@ package io.evitadb.core.cache;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.api.requestResponse.data.structure.predicate.HierarchicalContractSerializablePredicate;
 import io.evitadb.core.cache.model.CacheRecordAdept;
 import io.evitadb.core.cache.model.CachedRecord;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
@@ -455,8 +454,8 @@ public class CacheEden {
 		final EntityDecorator cachedEntity = new EntityDecorator(
 			cachedPayload.entity(),
 			entityWrapper.getEntitySchema(),
+			null,
 			cachedPayload.localePredicate(),
-			HierarchicalContractSerializablePredicate.DEFAULT_INSTANCE,
 			cachedPayload.attributePredicate(),
 			cachedPayload.associatedDataPredicate(),
 			cachedPayload.referencePredicate(),

@@ -61,19 +61,19 @@ public interface GrpcSealedEntityOrBuilder extends
   int getSchemaVersion();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
-   * @return Whether the hierarchicalPlacement field is set.
+   * <code>.google.protobuf.Int32Value parent = 5;</code>
+   * @return Whether the parent field is set.
    */
-  boolean hasHierarchicalPlacement();
+  boolean hasParent();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
-   * @return The hierarchicalPlacement.
+   * <code>.google.protobuf.Int32Value parent = 5;</code>
+   * @return The parent.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement getHierarchicalPlacement();
+  com.google.protobuf.Int32Value getParent();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacement hierarchicalPlacement = 5;</code>
+   * <code>.google.protobuf.Int32Value parent = 5;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcHierarchicalPlacementOrBuilder getHierarchicalPlacementOrBuilder();
+  com.google.protobuf.Int32ValueOrBuilder getParentOrBuilder();
 
   /**
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>

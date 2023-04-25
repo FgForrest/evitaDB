@@ -23,29 +23,33 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutation;
-import io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.LocalMutationConverter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Converts between {@link RemoveHierarchicalPlacementMutation} and {@link GrpcRemoveHierarchicalPlacementMutation} in both directions.
+ * Converts between {@link SetParentMutation} and {@link GrpcSetParentMutation} in both directions.
  *
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class RemoveHierarchicalPlacementMutationConverter implements LocalMutationConverter<RemoveHierarchicalPlacementMutation, GrpcRemoveHierarchicalPlacementMutation> {
+public class SetParentMutationConverter implements LocalMutationConverter<SetParentMutation, GrpcSetParentMutation> {
 
 	@Override
 	@Nonnull
-	public RemoveHierarchicalPlacementMutation convert(@Nonnull GrpcRemoveHierarchicalPlacementMutation mutation) {
-		return new RemoveHierarchicalPlacementMutation();
+	public SetParentMutation convert(@Nonnull GrpcSetParentMutation mutation) {
+		return new SetParentMutation(
+			mutation.getPrimaryKey()
+		);
 	}
 
-	@Override
 	@Nonnull
-	public GrpcRemoveHierarchicalPlacementMutation convert(@Nonnull RemoveHierarchicalPlacementMutation mutation) {
-		return GrpcRemoveHierarchicalPlacementMutation.newBuilder().build();
+	@Override
+	public GrpcSetParentMutation convert(@Nonnull SetParentMutation mutation) {
+		return GrpcSetParentMutation.newBuilder()
+			.setPrimaryKey(mutation.getParentPrimaryKey())
+			.build();
 	}
 }

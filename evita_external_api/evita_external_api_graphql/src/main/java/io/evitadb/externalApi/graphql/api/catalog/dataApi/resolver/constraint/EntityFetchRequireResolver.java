@@ -129,7 +129,7 @@ public class EntityFetchRequireResolver {
 	}
 
 	private boolean needsEntityBody(@Nonnull SelectionSetWrapper selectionSetWrapper, @Nonnull EntitySchemaContract currentEntitySchema) {
-		return selectionSetWrapper.contains(EntityDescriptor.HIERARCHICAL_PLACEMENT.name()) ||
+		return selectionSetWrapper.contains(EntityDescriptor.PARENT.name()) ||
 			selectionSetWrapper.contains(EntityDescriptor.LOCALES.name()) ||
 			selectionSetWrapper.contains(EntityDescriptor.ALL_LOCALES.name()) ||
 			needsAttributes(selectionSetWrapper) ||

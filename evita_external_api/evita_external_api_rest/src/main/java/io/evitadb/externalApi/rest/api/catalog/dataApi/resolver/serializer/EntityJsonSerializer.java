@@ -129,8 +129,8 @@ public class EntityJsonSerializer {
 		rootNode.putIfAbsent(EntityDescriptor.LOCALES.name(), objectJsonSerializer.serializeObject(entity.getLocales()));
 		rootNode.putIfAbsent(EntityDescriptor.ALL_LOCALES.name(), objectJsonSerializer.serializeObject(entity.getAllLocales()));
 
-		entity.getHierarchicalPlacement()
-			.ifPresent(it -> rootNode.putIfAbsent(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), objectJsonSerializer.serializeObject(it)));
+		entity.getParent()
+			.ifPresent(it -> rootNode.putIfAbsent(EntityDescriptor.PARENT.name(), objectJsonSerializer.serializeObject(it)));
 		rootNode.putIfAbsent(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), objectJsonSerializer.serializeObject(entity.getPriceInnerRecordHandling()));
 	}
 
@@ -266,6 +266,7 @@ public class EntityJsonSerializer {
 	/**
 	 * Gets name of referenced entity type.
 	 */
+	/* TODO LHO - unused method */
 	@Nonnull
 	private String getReferencedEntityName(ReferenceContract firstReference) {
 		return restHandlingContext.getEntitySchema(firstReference.getReferencedEntityType()).getNameVariant(NamingConvention.CAMEL_CASE);

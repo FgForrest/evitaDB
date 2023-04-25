@@ -33,7 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.Apply
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetHierarchicalPlacementMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
@@ -71,7 +71,7 @@ public class LocalMutationAggregateObjectBuilder {
 		buildingContext.registerType(ApplyDeltaAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(RemoveAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(UpsertAttributeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
-		buildingContext.registerType(SetHierarchicalPlacementMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(SetParentMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetPriceInnerRecordHandlingMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(RemovePriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(UpsertPriceMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
@@ -109,9 +109,9 @@ public class LocalMutationAggregateObjectBuilder {
 		if (entitySchema.isWithHierarchy() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_HIERARCHY)) {
 			hasAnyMutations = true;
 			localMutationAggregateObjectBuilder
-				.field(LocalMutationAggregateDescriptor.REMOVE_HIERARCHICAL_PLACEMENT_MUTATION.to(inputFieldBuilderTransformer)
+				.field(LocalMutationAggregateDescriptor.REMOVE_PARENT_MUTATION.to(inputFieldBuilderTransformer)
 					.type(BOOLEAN))
-				.field(LocalMutationAggregateDescriptor.SET_HIERARCHICAL_PLACEMENT_MUTATION.to(inputFieldBuilderTransformer));
+				.field(LocalMutationAggregateDescriptor.SET_PARENT_MUTATION.to(inputFieldBuilderTransformer));
 		}
 
 		if (entitySchema.isWithPrice() || entitySchema.getEvolutionMode().contains(EvolutionMode.ADDING_PRICES)) {

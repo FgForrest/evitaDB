@@ -21,26 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.data.structure.predicate;
+package io.evitadb.externalApi.grpc.requestResponse.data.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
-import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
+import io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation;
+import io.evitadb.externalApi.grpc.requestResponse.data.mutation.LocalMutationConverter;
 
 import javax.annotation.Nonnull;
-import java.io.Serial;
 
 /**
- * This predicate allows limiting hierarchical placement to the client based on query constraints.
+ * Converts between {@link RemoveParentMutation} and {@link GrpcRemoveParentMutation} in both directions.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Tomáš Pozler, 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class HierarchicalContractSerializablePredicate implements SerializablePredicate<HierarchicalPlacementContract> {
-	public static final HierarchicalContractSerializablePredicate DEFAULT_INSTANCE = new HierarchicalContractSerializablePredicate();
-	@Serial private static final long serialVersionUID = 4001952278899420860L;
+public class RemoveParentMutationConverter implements LocalMutationConverter<RemoveParentMutation, GrpcRemoveParentMutation> {
 
 	@Override
-	public boolean test(@Nonnull HierarchicalPlacementContract hierarchicalPlacementContract) {
-		return hierarchicalPlacementContract.exists();
+	@Nonnull
+	public RemoveParentMutation convert(@Nonnull GrpcRemoveParentMutation mutation) {
+		return new RemoveParentMutation();
 	}
 
+	@Override
+	@Nonnull
+	public GrpcRemoveParentMutation convert(@Nonnull RemoveParentMutation mutation) {
+		return GrpcRemoveParentMutation.newBuilder().build();
+	}
 }

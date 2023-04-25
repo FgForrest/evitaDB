@@ -38,15 +38,15 @@ public final class GrpcEntityMutations {
         (com.google.protobuf.ExtensionRegistryLite) registry);
   }
   static final com.google.protobuf.Descriptors.Descriptor
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetHierarchicalPlacementMutation_descriptor;
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetParentMutation_descriptor;
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetHierarchicalPlacementMutation_fieldAccessorTable;
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetParentMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_descriptor;
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_descriptor;
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
-      internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_fieldAccessorTable;
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -58,28 +58,26 @@ public final class GrpcEntityMutations {
     java.lang.String[] descriptorData = {
       "\n\031GrpcEntityMutations.proto\022%io.evitadb." +
       "externalApi.grpc.generated\032\036google/proto" +
-      "buf/wrappers.proto\"s\n$GrpcSetHierarchica" +
-      "lPlacementMutation\022/\n\nprimaryKey\030\001 \001(\0132\033" +
-      ".google.protobuf.Int32Value\022\032\n\022orderAmon" +
-      "gSiblings\030\002 \001(\005\")\n\'GrpcRemoveHierarchica" +
-      "lPlacementMutationB\002P\001b\006proto3"
+      "buf/wrappers.proto\"+\n\025GrpcSetParentMutat" +
+      "ion\022\022\n\nprimaryKey\030\001 \001(\005\"\032\n\030GrpcRemovePar" +
+      "entMutationB\002P\001b\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
         new com.google.protobuf.Descriptors.FileDescriptor[] {
           com.google.protobuf.WrappersProto.getDescriptor(),
         });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetHierarchicalPlacementMutation_descriptor =
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetParentMutation_descriptor =
       getDescriptor().getMessageTypes().get(0);
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetHierarchicalPlacementMutation_fieldAccessorTable = new
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetParentMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetHierarchicalPlacementMutation_descriptor,
-        new java.lang.String[] { "PrimaryKey", "OrderAmongSiblings", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_descriptor =
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetParentMutation_descriptor,
+        new java.lang.String[] { "PrimaryKey", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_descriptor =
       getDescriptor().getMessageTypes().get(1);
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_fieldAccessorTable = new
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
-        internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveHierarchicalPlacementMutation_descriptor,
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_descriptor,
         new java.lang.String[] { });
     com.google.protobuf.WrappersProto.getDescriptor();
   }

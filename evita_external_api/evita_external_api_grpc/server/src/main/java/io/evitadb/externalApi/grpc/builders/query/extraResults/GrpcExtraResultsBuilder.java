@@ -69,7 +69,7 @@ public class GrpcExtraResultsBuilder {
 			} else if (extraResult instanceof FacetSummary erFacetSummary) {
 				GrpcFacetSummaryBuilder.buildFacetSummary(extraResults, erFacetSummary);
 			} else if (extraResult instanceof Hierarchy erHierarchy) {
-				GrpcHierarchyStatisticsBuilder.buildHierarchyStatistics(extraResults, erHierarchy);
+				GrpcHierarchyStatisticsBuilder.buildHierarchy(extraResults, erHierarchy);
 			} else if (extraResult instanceof QueryTelemetry erQueryTelemetry) {
 				extraResults.setQueryTelemetry(GrpcQueryTelemetryBuilder.buildQueryTelemetry(erQueryTelemetry));
 			}

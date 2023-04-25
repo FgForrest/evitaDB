@@ -24,51 +24,47 @@
 package io.evitadb.api.requestResponse.data.mutation.entity;
 
 import io.evitadb.api.exception.InvalidMutationException;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
-import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.util.OptionalInt;
+
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This test verifies contract of {@link RemoveHierarchicalPlacementMutation} mutation.
+ * This test verifies contract of {@link RemoveParentMutation} mutation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class RemoveHierarchicalPlacementMutationTest extends AbstractMutationTest {
+class RemoveParentMutationTest extends AbstractMutationTest {
 
 	@Test
-	void shouldRemoveExistingHierarchicalPlacement() {
-		final RemoveHierarchicalPlacementMutation mutation = new RemoveHierarchicalPlacementMutation();
-		final HierarchicalPlacementContract hierarchyPlacement = mutation.mutateLocal(
+	void shouldRemoveExistingParent() {
+		final RemoveParentMutation mutation = new RemoveParentMutation();
+		final OptionalInt hierarchyPlacement = mutation.mutateLocal(
 			productSchema,
-			new HierarchicalPlacement(2, 3)
+			OptionalInt.of(10)
 		);
 		assertNotNull(hierarchyPlacement);
-		assertEquals(2, hierarchyPlacement.getVersion());
-		assertEquals(2, hierarchyPlacement.getParentPrimaryKey());
-		assertEquals(3, hierarchyPlacement.getOrderAmongSiblings());
-		assertTrue(hierarchyPlacement.isDropped());
+		assertTrue(hierarchyPlacement.isEmpty());
 	}
 
 	@Test
 	void shouldFailToRemoveNonexistingHierarchicalPlacement() {
-		final RemoveHierarchicalPlacementMutation mutation = new RemoveHierarchicalPlacementMutation();
+		final RemoveParentMutation mutation = new RemoveParentMutation();
 		assertThrows(InvalidMutationException.class, () -> mutation.mutateLocal(productSchema, null));
 	}
 
 	@Test
-	void shouldFailToRemoveNonexistingPriceWhenAcceptingDroppedObject() {
-		final RemoveHierarchicalPlacementMutation mutation = new RemoveHierarchicalPlacementMutation();
+	void shouldFailToRemoveNonexistingPriceWhenAcceptingEmptyObject() {
+		final RemoveParentMutation mutation = new RemoveParentMutation();
 		assertThrows(
 			InvalidMutationException.class,
 			() -> mutation.mutateLocal(
 				productSchema,
-				new HierarchicalPlacement(2, 2, 3, true)
+				OptionalInt.empty()
 			)
 		);
 	}

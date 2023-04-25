@@ -144,7 +144,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	S withoutGeneratedPrimaryKey();
 
 	/**
-	 * Enables hierarchy structure for this type of entity. Entities may have {@link Entity#getHierarchicalPlacement()}
+	 * Enables hierarchy structure for this type of entity. Entities may have {@link Entity#getParent()}
 	 * defined on them. That means that entity may refer to single parent entity and may be
 	 * referred by multiple child entities. Hierarchy is always composed of entities of same type.
 	 * Each entity must be part of at most single hierarchy (tree).

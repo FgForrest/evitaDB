@@ -184,28 +184,28 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 74: {
-            io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.Builder subBuilder = null;
+            io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder subBuilder = null;
             if (mutationCase_ == 9) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_).toBuilder();
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_).toBuilder();
             }
             mutation_ =
-                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.parser(), extensionRegistry);
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_);
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_);
               mutation_ = subBuilder.buildPartial();
             }
             mutationCase_ = 9;
             break;
           }
           case 82: {
-            io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.Builder subBuilder = null;
+            io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder subBuilder = null;
             if (mutationCase_ == 10) {
-              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_).toBuilder();
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_).toBuilder();
             }
             mutation_ =
-                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.parser(), extensionRegistry);
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.parser(), extensionRegistry);
             if (subBuilder != null) {
-              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_);
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_);
               mutation_ = subBuilder.buildPartial();
             }
             mutationCase_ = 10;
@@ -326,8 +326,8 @@ private static final long serialVersionUID = 0L;
     UPSERTPRICEMUTATION(6),
     REMOVEPRICEMUTATION(7),
     SETPRICEINNERRECORDHANDLINGMUTATION(8),
-    SETHIERARCHICALPLACEMENTMUTATION(9),
-    REMOVEHIERARCHICALPLACEMENTMUTATION(10),
+    SETPARENTMUTATION(9),
+    REMOVEPARENTMUTATION(10),
     INSERTREFERENCEMUTATION(11),
     REMOVEREFERENCEMUTATION(12),
     SETREFERENCEGROUPMUTATION(13),
@@ -358,8 +358,8 @@ private static final long serialVersionUID = 0L;
         case 6: return UPSERTPRICEMUTATION;
         case 7: return REMOVEPRICEMUTATION;
         case 8: return SETPRICEINNERRECORDHANDLINGMUTATION;
-        case 9: return SETHIERARCHICALPLACEMENTMUTATION;
-        case 10: return REMOVEHIERARCHICALPLACEMENTMUTATION;
+        case 9: return SETPARENTMUTATION;
+        case 10: return REMOVEPARENTMUTATION;
         case 11: return INSERTREFERENCEMUTATION;
         case 12: return REMOVEREFERENCEMUTATION;
         case 13: return SETREFERENCEGROUPMUTATION;
@@ -628,66 +628,66 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation.getDefaultInstance();
   }
 
-  public static final int SETHIERARCHICALPLACEMENTMUTATION_FIELD_NUMBER = 9;
+  public static final int SETPARENTMUTATION_FIELD_NUMBER = 9;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
-   * @return Whether the setHierarchicalPlacementMutation field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
+   * @return Whether the setParentMutation field is set.
    */
   @java.lang.Override
-  public boolean hasSetHierarchicalPlacementMutation() {
+  public boolean hasSetParentMutation() {
     return mutationCase_ == 9;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
-   * @return The setHierarchicalPlacementMutation.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
+   * @return The setParentMutation.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation getSetHierarchicalPlacementMutation() {
+  public io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation getSetParentMutation() {
     if (mutationCase_ == 9) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_;
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_;
     }
-    return io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.getDefaultInstance();
+    return io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.getDefaultInstance();
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutationOrBuilder getSetHierarchicalPlacementMutationOrBuilder() {
+  public io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder getSetParentMutationOrBuilder() {
     if (mutationCase_ == 9) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_;
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_;
     }
-    return io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.getDefaultInstance();
+    return io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.getDefaultInstance();
   }
 
-  public static final int REMOVEHIERARCHICALPLACEMENTMUTATION_FIELD_NUMBER = 10;
+  public static final int REMOVEPARENTMUTATION_FIELD_NUMBER = 10;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
-   * @return Whether the removeHierarchicalPlacementMutation field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
+   * @return Whether the removeParentMutation field is set.
    */
   @java.lang.Override
-  public boolean hasRemoveHierarchicalPlacementMutation() {
+  public boolean hasRemoveParentMutation() {
     return mutationCase_ == 10;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
-   * @return The removeHierarchicalPlacementMutation.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
+   * @return The removeParentMutation.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation getRemoveHierarchicalPlacementMutation() {
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation getRemoveParentMutation() {
     if (mutationCase_ == 10) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_;
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_;
     }
-    return io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.getDefaultInstance();
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.getDefaultInstance();
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutationOrBuilder getRemoveHierarchicalPlacementMutationOrBuilder() {
+  public io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder getRemoveParentMutationOrBuilder() {
     if (mutationCase_ == 10) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_;
+       return (io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_;
     }
-    return io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.getDefaultInstance();
+    return io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.getDefaultInstance();
   }
 
   public static final int INSERTREFERENCEMUTATION_FIELD_NUMBER = 11;
@@ -884,10 +884,10 @@ private static final long serialVersionUID = 0L;
       output.writeMessage(8, (io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutation) mutation_);
     }
     if (mutationCase_ == 9) {
-      output.writeMessage(9, (io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_);
+      output.writeMessage(9, (io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_);
     }
     if (mutationCase_ == 10) {
-      output.writeMessage(10, (io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_);
+      output.writeMessage(10, (io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_);
     }
     if (mutationCase_ == 11) {
       output.writeMessage(11, (io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation) mutation_);
@@ -947,11 +947,11 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 9) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(9, (io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_);
+        .computeMessageSize(9, (io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_);
     }
     if (mutationCase_ == 10) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(10, (io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_);
+        .computeMessageSize(10, (io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_);
     }
     if (mutationCase_ == 11) {
       size += com.google.protobuf.CodedOutputStream
@@ -1023,12 +1023,12 @@ private static final long serialVersionUID = 0L;
             .equals(other.getSetPriceInnerRecordHandlingMutation())) return false;
         break;
       case 9:
-        if (!getSetHierarchicalPlacementMutation()
-            .equals(other.getSetHierarchicalPlacementMutation())) return false;
+        if (!getSetParentMutation()
+            .equals(other.getSetParentMutation())) return false;
         break;
       case 10:
-        if (!getRemoveHierarchicalPlacementMutation()
-            .equals(other.getRemoveHierarchicalPlacementMutation())) return false;
+        if (!getRemoveParentMutation()
+            .equals(other.getRemoveParentMutation())) return false;
         break;
       case 11:
         if (!getInsertReferenceMutation()
@@ -1098,12 +1098,12 @@ private static final long serialVersionUID = 0L;
         hash = (53 * hash) + getSetPriceInnerRecordHandlingMutation().hashCode();
         break;
       case 9:
-        hash = (37 * hash) + SETHIERARCHICALPLACEMENTMUTATION_FIELD_NUMBER;
-        hash = (53 * hash) + getSetHierarchicalPlacementMutation().hashCode();
+        hash = (37 * hash) + SETPARENTMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetParentMutation().hashCode();
         break;
       case 10:
-        hash = (37 * hash) + REMOVEHIERARCHICALPLACEMENTMUTATION_FIELD_NUMBER;
-        hash = (53 * hash) + getRemoveHierarchicalPlacementMutation().hashCode();
+        hash = (37 * hash) + REMOVEPARENTMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getRemoveParentMutation().hashCode();
         break;
       case 11:
         hash = (37 * hash) + INSERTREFERENCEMUTATION_FIELD_NUMBER;
@@ -1346,17 +1346,17 @@ private static final long serialVersionUID = 0L;
         }
       }
       if (mutationCase_ == 9) {
-        if (setHierarchicalPlacementMutationBuilder_ == null) {
+        if (setParentMutationBuilder_ == null) {
           result.mutation_ = mutation_;
         } else {
-          result.mutation_ = setHierarchicalPlacementMutationBuilder_.build();
+          result.mutation_ = setParentMutationBuilder_.build();
         }
       }
       if (mutationCase_ == 10) {
-        if (removeHierarchicalPlacementMutationBuilder_ == null) {
+        if (removeParentMutationBuilder_ == null) {
           result.mutation_ = mutation_;
         } else {
-          result.mutation_ = removeHierarchicalPlacementMutationBuilder_.build();
+          result.mutation_ = removeParentMutationBuilder_.build();
         }
       }
       if (mutationCase_ == 11) {
@@ -1476,12 +1476,12 @@ private static final long serialVersionUID = 0L;
           mergeSetPriceInnerRecordHandlingMutation(other.getSetPriceInnerRecordHandlingMutation());
           break;
         }
-        case SETHIERARCHICALPLACEMENTMUTATION: {
-          mergeSetHierarchicalPlacementMutation(other.getSetHierarchicalPlacementMutation());
+        case SETPARENTMUTATION: {
+          mergeSetParentMutation(other.getSetParentMutation());
           break;
         }
-        case REMOVEHIERARCHICALPLACEMENTMUTATION: {
-          mergeRemoveHierarchicalPlacementMutation(other.getRemoveHierarchicalPlacementMutation());
+        case REMOVEPARENTMUTATION: {
+          mergeRemoveParentMutation(other.getRemoveParentMutation());
           break;
         }
         case INSERTREFERENCEMUTATION: {
@@ -2681,71 +2681,71 @@ private static final long serialVersionUID = 0L;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation, io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutationOrBuilder> setHierarchicalPlacementMutationBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder> setParentMutationBuilder_;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
-     * @return Whether the setHierarchicalPlacementMutation field is set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
+     * @return Whether the setParentMutation field is set.
      */
     @java.lang.Override
-    public boolean hasSetHierarchicalPlacementMutation() {
+    public boolean hasSetParentMutation() {
       return mutationCase_ == 9;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
-     * @return The setHierarchicalPlacementMutation.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
+     * @return The setParentMutation.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation getSetHierarchicalPlacementMutation() {
-      if (setHierarchicalPlacementMutationBuilder_ == null) {
+    public io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation getSetParentMutation() {
+      if (setParentMutationBuilder_ == null) {
         if (mutationCase_ == 9) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_;
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_;
         }
-        return io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.getDefaultInstance();
+        return io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.getDefaultInstance();
       } else {
         if (mutationCase_ == 9) {
-          return setHierarchicalPlacementMutationBuilder_.getMessage();
+          return setParentMutationBuilder_.getMessage();
         }
-        return io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.getDefaultInstance();
+        return io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.getDefaultInstance();
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
      */
-    public Builder setSetHierarchicalPlacementMutation(io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation value) {
-      if (setHierarchicalPlacementMutationBuilder_ == null) {
+    public Builder setSetParentMutation(io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation value) {
+      if (setParentMutationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         mutation_ = value;
         onChanged();
       } else {
-        setHierarchicalPlacementMutationBuilder_.setMessage(value);
+        setParentMutationBuilder_.setMessage(value);
       }
       mutationCase_ = 9;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
      */
-    public Builder setSetHierarchicalPlacementMutation(
-        io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.Builder builderForValue) {
-      if (setHierarchicalPlacementMutationBuilder_ == null) {
+    public Builder setSetParentMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder builderForValue) {
+      if (setParentMutationBuilder_ == null) {
         mutation_ = builderForValue.build();
         onChanged();
       } else {
-        setHierarchicalPlacementMutationBuilder_.setMessage(builderForValue.build());
+        setParentMutationBuilder_.setMessage(builderForValue.build());
       }
       mutationCase_ = 9;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
      */
-    public Builder mergeSetHierarchicalPlacementMutation(io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation value) {
-      if (setHierarchicalPlacementMutationBuilder_ == null) {
+    public Builder mergeSetParentMutation(io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation value) {
+      if (setParentMutationBuilder_ == null) {
         if (mutationCase_ == 9 &&
-            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.getDefaultInstance()) {
-          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_)
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_)
               .mergeFrom(value).buildPartial();
         } else {
           mutation_ = value;
@@ -2753,18 +2753,18 @@ private static final long serialVersionUID = 0L;
         onChanged();
       } else {
         if (mutationCase_ == 9) {
-          setHierarchicalPlacementMutationBuilder_.mergeFrom(value);
+          setParentMutationBuilder_.mergeFrom(value);
         }
-        setHierarchicalPlacementMutationBuilder_.setMessage(value);
+        setParentMutationBuilder_.setMessage(value);
       }
       mutationCase_ = 9;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
      */
-    public Builder clearSetHierarchicalPlacementMutation() {
-      if (setHierarchicalPlacementMutationBuilder_ == null) {
+    public Builder clearSetParentMutation() {
+      if (setParentMutationBuilder_ == null) {
         if (mutationCase_ == 9) {
           mutationCase_ = 0;
           mutation_ = null;
@@ -2775,118 +2775,118 @@ private static final long serialVersionUID = 0L;
           mutationCase_ = 0;
           mutation_ = null;
         }
-        setHierarchicalPlacementMutationBuilder_.clear();
+        setParentMutationBuilder_.clear();
       }
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.Builder getSetHierarchicalPlacementMutationBuilder() {
-      return getSetHierarchicalPlacementMutationFieldBuilder().getBuilder();
+    public io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder getSetParentMutationBuilder() {
+      return getSetParentMutationFieldBuilder().getBuilder();
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutationOrBuilder getSetHierarchicalPlacementMutationOrBuilder() {
-      if ((mutationCase_ == 9) && (setHierarchicalPlacementMutationBuilder_ != null)) {
-        return setHierarchicalPlacementMutationBuilder_.getMessageOrBuilder();
+    public io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder getSetParentMutationOrBuilder() {
+      if ((mutationCase_ == 9) && (setParentMutationBuilder_ != null)) {
+        return setParentMutationBuilder_.getMessageOrBuilder();
       } else {
         if (mutationCase_ == 9) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_;
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_;
         }
-        return io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.getDefaultInstance();
+        return io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.getDefaultInstance();
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation, io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutationOrBuilder> 
-        getSetHierarchicalPlacementMutationFieldBuilder() {
-      if (setHierarchicalPlacementMutationBuilder_ == null) {
+        io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder> 
+        getSetParentMutationFieldBuilder() {
+      if (setParentMutationBuilder_ == null) {
         if (!(mutationCase_ == 9)) {
-          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.getDefaultInstance();
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.getDefaultInstance();
         }
-        setHierarchicalPlacementMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation, io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutationOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation) mutation_,
+        setParentMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation) mutation_,
                 getParentForChildren(),
                 isClean());
         mutation_ = null;
       }
       mutationCase_ = 9;
       onChanged();;
-      return setHierarchicalPlacementMutationBuilder_;
+      return setParentMutationBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutationOrBuilder> removeHierarchicalPlacementMutationBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder> removeParentMutationBuilder_;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
-     * @return Whether the removeHierarchicalPlacementMutation field is set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
+     * @return Whether the removeParentMutation field is set.
      */
     @java.lang.Override
-    public boolean hasRemoveHierarchicalPlacementMutation() {
+    public boolean hasRemoveParentMutation() {
       return mutationCase_ == 10;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
-     * @return The removeHierarchicalPlacementMutation.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
+     * @return The removeParentMutation.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation getRemoveHierarchicalPlacementMutation() {
-      if (removeHierarchicalPlacementMutationBuilder_ == null) {
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation getRemoveParentMutation() {
+      if (removeParentMutationBuilder_ == null) {
         if (mutationCase_ == 10) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_;
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_;
         }
-        return io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.getDefaultInstance();
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.getDefaultInstance();
       } else {
         if (mutationCase_ == 10) {
-          return removeHierarchicalPlacementMutationBuilder_.getMessage();
+          return removeParentMutationBuilder_.getMessage();
         }
-        return io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.getDefaultInstance();
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.getDefaultInstance();
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
      */
-    public Builder setRemoveHierarchicalPlacementMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation value) {
-      if (removeHierarchicalPlacementMutationBuilder_ == null) {
+    public Builder setRemoveParentMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation value) {
+      if (removeParentMutationBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
         mutation_ = value;
         onChanged();
       } else {
-        removeHierarchicalPlacementMutationBuilder_.setMessage(value);
+        removeParentMutationBuilder_.setMessage(value);
       }
       mutationCase_ = 10;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
      */
-    public Builder setRemoveHierarchicalPlacementMutation(
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.Builder builderForValue) {
-      if (removeHierarchicalPlacementMutationBuilder_ == null) {
+    public Builder setRemoveParentMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder builderForValue) {
+      if (removeParentMutationBuilder_ == null) {
         mutation_ = builderForValue.build();
         onChanged();
       } else {
-        removeHierarchicalPlacementMutationBuilder_.setMessage(builderForValue.build());
+        removeParentMutationBuilder_.setMessage(builderForValue.build());
       }
       mutationCase_ = 10;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
      */
-    public Builder mergeRemoveHierarchicalPlacementMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation value) {
-      if (removeHierarchicalPlacementMutationBuilder_ == null) {
+    public Builder mergeRemoveParentMutation(io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation value) {
+      if (removeParentMutationBuilder_ == null) {
         if (mutationCase_ == 10 &&
-            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.getDefaultInstance()) {
-          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_)
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_)
               .mergeFrom(value).buildPartial();
         } else {
           mutation_ = value;
@@ -2894,18 +2894,18 @@ private static final long serialVersionUID = 0L;
         onChanged();
       } else {
         if (mutationCase_ == 10) {
-          removeHierarchicalPlacementMutationBuilder_.mergeFrom(value);
+          removeParentMutationBuilder_.mergeFrom(value);
         }
-        removeHierarchicalPlacementMutationBuilder_.setMessage(value);
+        removeParentMutationBuilder_.setMessage(value);
       }
       mutationCase_ = 10;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
      */
-    public Builder clearRemoveHierarchicalPlacementMutation() {
-      if (removeHierarchicalPlacementMutationBuilder_ == null) {
+    public Builder clearRemoveParentMutation() {
+      if (removeParentMutationBuilder_ == null) {
         if (mutationCase_ == 10) {
           mutationCase_ = 0;
           mutation_ = null;
@@ -2916,50 +2916,50 @@ private static final long serialVersionUID = 0L;
           mutationCase_ = 0;
           mutation_ = null;
         }
-        removeHierarchicalPlacementMutationBuilder_.clear();
+        removeParentMutationBuilder_.clear();
       }
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.Builder getRemoveHierarchicalPlacementMutationBuilder() {
-      return getRemoveHierarchicalPlacementMutationFieldBuilder().getBuilder();
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder getRemoveParentMutationBuilder() {
+      return getRemoveParentMutationFieldBuilder().getBuilder();
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutationOrBuilder getRemoveHierarchicalPlacementMutationOrBuilder() {
-      if ((mutationCase_ == 10) && (removeHierarchicalPlacementMutationBuilder_ != null)) {
-        return removeHierarchicalPlacementMutationBuilder_.getMessageOrBuilder();
+    public io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder getRemoveParentMutationOrBuilder() {
+      if ((mutationCase_ == 10) && (removeParentMutationBuilder_ != null)) {
+        return removeParentMutationBuilder_.getMessageOrBuilder();
       } else {
         if (mutationCase_ == 10) {
-          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_;
+          return (io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_;
         }
-        return io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.getDefaultInstance();
+        return io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.getDefaultInstance();
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutationOrBuilder> 
-        getRemoveHierarchicalPlacementMutationFieldBuilder() {
-      if (removeHierarchicalPlacementMutationBuilder_ == null) {
+        io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder> 
+        getRemoveParentMutationFieldBuilder() {
+      if (removeParentMutationBuilder_ == null) {
         if (!(mutationCase_ == 10)) {
-          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.getDefaultInstance();
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.getDefaultInstance();
         }
-        removeHierarchicalPlacementMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutationOrBuilder>(
-                (io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation) mutation_,
+        removeParentMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation) mutation_,
                 getParentForChildren(),
                 isClean());
         mutation_ = null;
       }
       mutationCase_ = 10;
       onChanged();;
-      return removeHierarchicalPlacementMutationBuilder_;
+      return removeParentMutationBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<

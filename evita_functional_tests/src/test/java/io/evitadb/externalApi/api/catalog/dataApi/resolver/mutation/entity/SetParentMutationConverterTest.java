@@ -24,9 +24,9 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetHierarchicalPlacementMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,35 +39,33 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link SetHierarchicalPlacementMutationConverter}.
+ * Tests for {@link SetParentConverter}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-class SetHierarchicalPlacementMutationConverterTest {
+class SetParentMutationConverterTest {
 
-	private SetHierarchicalPlacementMutationConverter converter;
+	private SetParentConverter converter;
 
 	@BeforeEach
 	void init() {
-		converter =  new SetHierarchicalPlacementMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		converter =  new SetParentConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final SetHierarchicalPlacementMutation expectedMutation = new SetHierarchicalPlacementMutation(1, 10);
+		final SetParentMutation expectedMutation = new SetParentMutation(1);
 
 		final LocalMutation<?, ?> localMutation = converter.convert(
 			map()
-				.e(SetHierarchicalPlacementMutationDescriptor.PARENT_PRIMARY_KEY.name(), 1)
-				.e(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS.name(), 10)
+				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 1)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
 		final LocalMutation<?, ?> localMutation2 = converter.convert(
 			map()
-				.e(SetHierarchicalPlacementMutationDescriptor.PARENT_PRIMARY_KEY.name(), "1")
-				.e(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS.name(), "10")
+				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), "1")
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation2);
@@ -77,11 +75,11 @@ class SetHierarchicalPlacementMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final LocalMutation<?, ?> localMutation = converter.convert(
 			map()
-				.e(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS.name(), 10)
+				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 10)
 				.build()
 		);
 		assertEquals(
-			new SetHierarchicalPlacementMutation(10),
+			new SetParentMutation(10),
 			localMutation
 		);
 	}

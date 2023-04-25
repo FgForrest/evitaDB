@@ -52,22 +52,21 @@ public class GrpcHierarchyStatisticsBuilder {
 	/**
 	 * This method is used to build {@link GrpcLevelInfos} from provided {@link Hierarchy}.
 	 *
-	 * @param extraResults        the builder where the built result should be placed in
-	 * @param hierarchy {@link Hierarchy} returned by evita response
+	 * @param extraResults the builder where the built result should be placed in
+	 * @param hierarchy    {@link Hierarchy} returned by evita response
 	 */
-	public static void buildHierarchyStatistics(@Nonnull Builder extraResults,
-	                                                                     @Nonnull Hierarchy hierarchy) {
-		final Map<String, List<LevelInfo>> statistics = hierarchy.getSelfStatistics();
-		if (!statistics.isEmpty()) {
-			extraResults.setSelfHierarchyStatistics(
-				buildHierarchyStatistics(statistics)
+	public static void buildHierarchy(@Nonnull Builder extraResults, @Nonnull Hierarchy hierarchy) {
+		final Map<String, List<LevelInfo>> hierarchyIndex = hierarchy.getSelfStatistics();
+		if (!hierarchyIndex.isEmpty()) {
+			extraResults.setSelfHierarchy(
+				buildHierarchy(hierarchyIndex)
 			);
 		}
 
-		for (Map.Entry<String, Map<String, List<LevelInfo>>> hierarchyStatisticsOfReference : hierarchy.getStatistics().entrySet()) {
-			extraResults.putHierarchyStatistics(
-				hierarchyStatisticsOfReference.getKey(),
-				buildHierarchyStatistics(hierarchyStatisticsOfReference.getValue())
+		for (Map.Entry<String, Map<String, List<LevelInfo>>> hierarchyIndexOfReference : hierarchy.getStatistics().entrySet()) {
+			extraResults.putHierarchy(
+				hierarchyIndexOfReference.getKey(),
+				buildHierarchy(hierarchyIndexOfReference.getValue())
 			);
 		}
 	}
@@ -79,7 +78,7 @@ public class GrpcHierarchyStatisticsBuilder {
 	 * @return map of all hierarchy statistics specified by their entity type
 	 */
 	@Nonnull
-	public static GrpcLevelInfos buildHierarchyStatistics(@Nonnull Map<String, List<LevelInfo>> hierarchyStatistics) {
+	public static GrpcLevelInfos buildHierarchy(@Nonnull Map<String, List<LevelInfo>> hierarchyStatistics) {
 		final List<GrpcLevelInfo> children = new LinkedList<>();
 
 		/*
@@ -102,7 +101,7 @@ public class GrpcHierarchyStatisticsBuilder {
 	 * Method used to recursively find and build all {@link GrpcLevelInfo}. Entities on each level could be either represented by {@link Integer} or
 	 * by {@link SealedEntity}, those entities are here converted to {@link GrpcSealedEntity} with richness specified in query.
 	 *
-	 * @param levelInfo          to be converted to {@link GrpcLevelInfo}
+	 * @param levelInfo to be converted to {@link GrpcLevelInfo}
 	 * @return list of built {@link GrpcLevelInfo} consisting af all children (and recursively found their progeny) of the given {@link LevelInfo}
 	 */
 	@Nonnull

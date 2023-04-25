@@ -25,7 +25,7 @@ package io.evitadb.externalApi.rest.api.catalog.builder;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ParentDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.rest.api.model.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
@@ -76,12 +76,12 @@ class PropertyDescriptorToOpenApiPropertyTransformerTest {
 
 	@Test
 	void shouldTransformPropertyWithReference() {
-		final OpenApiProperty property = transformer.apply(EntityDescriptor.HIERARCHICAL_PLACEMENT).build();
-		assertEquals(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), property.getName());
-		assertEquals(EntityDescriptor.HIERARCHICAL_PLACEMENT.description(), property.getDescription());
+		final OpenApiProperty property = transformer.apply(EntityDescriptor.PARENT).build();
+		assertEquals(EntityDescriptor.PARENT.name(), property.getName());
+		assertEquals(EntityDescriptor.PARENT.description(), property.getDescription());
 
 		final OpenApiSimpleType type = property.getType();
-		assertEquals(typeRefTo(HierarchicalPlacementDescriptor.THIS.name()), type);
+		assertEquals(typeRefTo(ParentDescriptor.THIS.name()), type);
 		verify(context, never()).registerType(any());
 	}
 

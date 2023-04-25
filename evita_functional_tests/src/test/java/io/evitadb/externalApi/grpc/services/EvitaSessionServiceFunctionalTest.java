@@ -1144,8 +1144,8 @@ class EvitaSessionServiceFunctionalTest {
 					),
 					attributeHistogram(?, ?, ?),
 					priceHistogram(?),
-					facetSummary(?),				
-					hierarchyStatisticsOfReference(?, entityFetch(attributeContent()))
+					facetSummary(?),
+					hierarchyOfReference(?, entityFetch(attributeContent()))
 				)
 			)
 			""";
@@ -1368,7 +1368,7 @@ class EvitaSessionServiceFunctionalTest {
 		if (hierarchyOfSelf != null) {
 			GrpcAssertions.assertStatistics(
 				hierarchyOfSelf.getSelfStatistics(),
-				response.get().getExtraResults().getSelfHierarchyStatistics()
+				response.get().getExtraResults().getSelfHierarchy()
 			);
 		}
 
@@ -1423,7 +1423,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertStatistics(
 			Objects.requireNonNull(entityResponse.getExtraResult(Hierarchy.class)).getSelfStatistics(),
-			response.get().getExtraResults().getSelfHierarchyStatistics()
+			response.get().getExtraResults().getSelfHierarchy()
 		);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
@@ -2099,11 +2099,11 @@ class EvitaSessionServiceFunctionalTest {
 		final String entityType = Entities.CATEGORY;
 
 		final SealedEntity categoryWithoutHierarchyPlacement = originalCategoryEntities.stream().filter(e -> e.getType().equals(entityType) &&
-				e.getHierarchicalPlacement().isEmpty() || e.getHierarchicalPlacement().orElseThrow().getParentPrimaryKey() == null)
+				e.getParent().isEmpty())
 			.findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable category not found!"));
 
 		final SealedEntity categoryWithHierarchyPlacement = originalCategoryEntities.stream().filter(e -> e.getType().equals(entityType) &&
-				e.getHierarchicalPlacement().isPresent() && e.getHierarchicalPlacement().orElseThrow().getParentPrimaryKey() != null)
+				e.getParent().isPresent())
 			.findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable category not found!"));
 
 		//noinspection ConstantConditions
@@ -2121,7 +2121,6 @@ class EvitaSessionServiceFunctionalTest {
 		//noinspection ConstantConditions
 		final int parentPrimaryKey = originalCategoryEntities.stream().filter(e -> !Objects.equals(e.getPrimaryKey(), categoryWithoutHierarchyPlacement.getPrimaryKey()))
 			.findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable category not found!")).getPrimaryKey();
-		final int orderAmongSibling = 5;
 
 		//adding hierarchy to non-hierarchical entity
 		final GrpcEntityResponse originalToAddHierarchyEntity = evitaSessionBlockingStub.getEntity(toAddHierarchyEntityRequest);
@@ -2147,10 +2146,9 @@ class EvitaSessionServiceFunctionalTest {
 										.setEntityPrimaryKey(Int32Value.of(originalToAddHierarchyEntity.getEntity().getPrimaryKey()))
 										.addMutations(
 											GrpcLocalMutation.newBuilder()
-												.setSetHierarchicalPlacementMutation(
-													GrpcSetHierarchicalPlacementMutation.newBuilder()
-														.setPrimaryKey(Int32Value.of(parentPrimaryKey))
-														.setOrderAmongSiblings(orderAmongSibling)
+												.setSetParentMutation(
+													GrpcSetParentMutation.newBuilder()
+														.setPrimaryKey(parentPrimaryKey)
 												)
 												.build()
 										)
@@ -2165,14 +2163,10 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(addHierarchyExecutable);
 
-		final GrpcHierarchicalPlacement hierarchicalPlacement = originalToAddHierarchyEntity.getEntity().getHierarchicalPlacement();
-		final GrpcHierarchicalPlacement returnedHierarchicalPlacement = upsertToAddHierarchyEntityResponse.get().getEntity().getHierarchicalPlacement();
-		assertTrue(
-			hierarchicalPlacement.getOrderAmongSiblings() != returnedHierarchicalPlacement.getOrderAmongSiblings() ||
-				hierarchicalPlacement.hasParentPrimaryKey() != returnedHierarchicalPlacement.hasParentPrimaryKey()
-		);
-		assertFalse(hierarchicalPlacement.hasParentPrimaryKey());
-		assertTrue(returnedHierarchicalPlacement.hasParentPrimaryKey());
+		final Int32Value parent = originalToAddHierarchyEntity.getEntity().getParent();
+		final Int32Value returnedParent = upsertToAddHierarchyEntityResponse.get().getEntity().getParent();
+		assertFalse(parent.isInitialized());
+		assertTrue(returnedParent.isInitialized());
 
 		//removing hierarchy from hierarchical entity
 		final GrpcEntityResponse originalToRemoveHierarchyEntity = evitaSessionBlockingStub.getEntity(toRemoveHierarchyEntityRequest);
@@ -2188,8 +2182,8 @@ class EvitaSessionServiceFunctionalTest {
 									.setEntityPrimaryKey(Int32Value.of(originalToRemoveHierarchyEntity.getEntity().getPrimaryKey()))
 									.addMutations(
 										GrpcLocalMutation.newBuilder()
-											.setRemoveHierarchicalPlacementMutation(
-												GrpcRemoveHierarchicalPlacementMutation.newBuilder().build()
+											.setRemoveParentMutation(
+												GrpcRemoveParentMutation.newBuilder().build()
 											)
 											.build()
 									)
@@ -2203,14 +2197,10 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(removeHierarchyExecutable);
 
-		final GrpcHierarchicalPlacement hierarchicalPlacementAgain = originalToRemoveHierarchyEntity.getEntity().getHierarchicalPlacement();
-		final GrpcHierarchicalPlacement returnedHierarchicalPlacementAgain = upsertToRemoveHierarchyEntityResponse.get().getEntity().getHierarchicalPlacement();
-		assertTrue(
-			hierarchicalPlacementAgain.getOrderAmongSiblings() != returnedHierarchicalPlacementAgain.getOrderAmongSiblings() ||
-				hierarchicalPlacementAgain.hasParentPrimaryKey() != returnedHierarchicalPlacementAgain.hasParentPrimaryKey()
-		);
-		assertTrue(hierarchicalPlacementAgain.hasParentPrimaryKey());
-		assertFalse(returnedHierarchicalPlacementAgain.hasParentPrimaryKey());
+		final Int32Value parentAgain = originalToRemoveHierarchyEntity.getEntity().getParent();
+		final Int32Value returnedParentAgain = upsertToRemoveHierarchyEntityResponse.get().getEntity().getParent();
+		assertTrue(parentAgain.isInitialized());
+		assertFalse(returnedParentAgain.isInitialized());
 	}
 
 	@Test

@@ -29,11 +29,11 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -41,9 +41,9 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.HierarchicalPlacementMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
@@ -55,7 +55,6 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate.ExistsPredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.HierarchicalContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -80,7 +79,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -99,10 +97,6 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	 * This predicate filters out non-fetched locales.
 	 */
 	@Getter private final LocaleSerializablePredicate localePredicate;
-	/**
-	 * This predicate filters out invalid hierarchy placements.
-	 */
-	@Getter private final HierarchicalContractSerializablePredicate hierarchicalPlacementPredicate;
 	/**
 	 * This predicate filters out attributes that were not fetched in query.
 	 */
@@ -129,7 +123,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	private final ExistingPricesBuilder pricesBuilder;
 	private final Map<ReferenceKey, List<ReferenceMutation<?>>> referenceMutations;
 	private final Set<ReferenceKey> removedReferences = new HashSet<>();
-	private HierarchicalPlacementMutation hierarchyMutation;
+	private ParentMutation hierarchyMutation;
 
 	private static void assertPricesFetched(PriceContractSerializablePredicate pricePredicate) {
 		Assert.isTrue(
@@ -145,7 +139,6 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate());
 		this.referenceMutations = new HashMap<>();
 		this.localePredicate = baseEntity.getLocalePredicate();
-		this.hierarchicalPlacementPredicate = baseEntity.getHierarchicalPlacementPredicate();
 		this.attributePredicate = baseEntity.getAttributePredicate();
 		this.associatedDataPredicate = baseEntity.getAssociatedDataPredicate();
 		this.pricePredicate = baseEntity.getPricePredicate();
@@ -166,7 +159,6 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
 		this.referenceMutations = new HashMap<>();
 		this.localePredicate = LocaleSerializablePredicate.DEFAULT_INSTANCE;
-		this.hierarchicalPlacementPredicate = HierarchicalContractSerializablePredicate.DEFAULT_INSTANCE;
 		this.attributePredicate = AttributeValueSerializablePredicate.DEFAULT_INSTANCE;
 		this.associatedDataPredicate = AssociatedDataValueSerializablePredicate.DEFAULT_INSTANCE;
 		this.pricePredicate = PriceContractSerializablePredicate.DEFAULT_INSTANCE;
@@ -181,7 +173,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	}
 
 	public void addMutation(@Nonnull LocalMutation<?, ?> localMutation) {
-		if (localMutation instanceof HierarchicalPlacementMutation hierarchicalPlacementMutation) {
+		if (localMutation instanceof ParentMutation hierarchicalPlacementMutation) {
 			this.hierarchyMutation = hierarchicalPlacementMutation;
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
 			this.attributesBuilder.addMutation(attributeMutation);
@@ -231,14 +223,16 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Nonnull
 	@Override
-	public Optional<HierarchicalPlacementContract> getHierarchicalPlacement() {
-		final Optional<HierarchicalPlacementContract> placement = baseEntity.getHierarchicalPlacement()
-			.map(it -> ofNullable(hierarchyMutation)
-				.map(hp -> hp.mutateLocal(this.baseEntity.schema, it))
-				.filter(mutatedIt -> mutatedIt.differsFrom(it))
-				.or(() -> of(it)))
-			.orElseGet(() -> ofNullable(hierarchyMutation).map(hp -> hp.mutateLocal(this.baseEntity.schema, null)));
-		return placement.filter(hierarchicalPlacementPredicate);
+	public OptionalInt getParent() {
+		return ofNullable(hierarchyMutation)
+			.map(it -> it.mutateLocal(this.baseEntity.schema, this.baseEntity.getParent()))
+			.orElseGet(this.baseEntity::getParent);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SealedEntity> getParentEntity() {
+		return Optional.empty();
 	}
 
 	@Nonnull
@@ -465,21 +459,16 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
-	public EntityBuilder setHierarchicalPlacement(int orderAmongSiblings) {
-		this.hierarchyMutation = new SetHierarchicalPlacementMutation(orderAmongSiblings);
+	public EntityBuilder setParent(int parentPrimaryKey) {
+		this.hierarchyMutation = !Objects.equals(this.baseEntity.getParent(), OptionalInt.of(parentPrimaryKey)) ?
+			new SetParentMutation(parentPrimaryKey) : null;
 		return this;
 	}
 
 	@Override
-	public EntityBuilder setHierarchicalPlacement(int parentPrimaryKey, int orderAmongSiblings) {
-		this.hierarchyMutation = new SetHierarchicalPlacementMutation(parentPrimaryKey, orderAmongSiblings);
-		return this;
-	}
-
-	@Override
-	public EntityBuilder removeHierarchicalPlacement() {
-		Assert.notNull(baseEntity.getHierarchicalPlacement(), "Cannot remove hierarchy placement that doesn't exist!");
-		this.hierarchyMutation = new RemoveHierarchicalPlacementMutation();
+	public EntityBuilder removeParent() {
+		Assert.notNull(baseEntity.getParent(), "Cannot remove parent that is not present!");
+		this.hierarchyMutation = this.baseEntity.getParent().isPresent() ? new RemoveParentMutation() : null;
 		return this;
 	}
 
@@ -663,18 +652,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Optional<EntityMutation> toMutation() {
-		final Stream<? extends LocalMutation<?, ? extends Comparable<?>>> mutation = hierarchyMutation == null ?
-			Stream.empty() :
-			Stream.of(hierarchyMutation)
-				.filter(
-					it -> baseEntity.getHierarchicalPlacement()
-						.map(existingHierarchy -> hierarchyMutation.mutateLocal(getSchema(), existingHierarchy).getVersion() > existingHierarchy.getVersion())
-						.orElse(true)
-				);
-
 		final Map<ReferenceKey, ReferenceContract> builtReferences = new HashMap<>(baseEntity.references);
 		final List<? extends LocalMutation<?, ? extends Comparable<?>>> mutations = Stream.of(
-				mutation,
+				Stream.of(hierarchyMutation).filter(Objects::nonNull),
 				attributesBuilder.buildChangeSet(),
 				associatedDataBuilder.buildChangeSet(),
 				pricesBuilder.buildChangeSet(),
@@ -733,7 +713,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		@Serial private static final long serialVersionUID = 3153392405996708805L;
 
 		@Override
-		public boolean test(@Nonnull String referenceName, @Nonnull String attributeName) {
+		public boolean test(String referenceName, String attributeName) {
 			return getReferences()
 				.stream()
 				.filter(it -> Objects.equals(referenceName, it.getReferenceName()))

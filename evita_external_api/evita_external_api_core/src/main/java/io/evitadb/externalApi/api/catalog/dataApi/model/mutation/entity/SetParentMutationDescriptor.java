@@ -21,52 +21,38 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.model;
+package io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity;
 
+import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * Represents {@link io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement}
+ * Descriptor representing {@link SetParentMutation}.
  *
  * Note: this descriptor has static structure.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface HierarchicalPlacementDescriptor {
+public interface SetParentMutationDescriptor {
 
 	PropertyDescriptor PARENT_PRIMARY_KEY = PropertyDescriptor.builder()
 		.name("parentPrimaryKey")
 		.description("""
-			Reference to primary key of the parent entity.
-			Null parent primary key means, that the entity is root entity with no parent (there may be multiple root entities).
-			""")
-		.type(nullable(Integer.class))
-		.build();
-	PropertyDescriptor ORDER_AMONG_SIBLINGS = PropertyDescriptor.builder()
-		.name("orderAmongSiblings")
-		.description("""
-			Represents order of this entity among other entities under the same parent. It's recommended to be unique, but
-			it isn't enforced so it could behave like reversed priority where lower number is better.
+			Optional new primary key of parent entity. If null, this entity is at the root of hierarchy.
 			""")
 		.type(nonNull(Integer.class))
 		.build();
 
-
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("HierarchicalPlacement")
+		.name("SetParentMutation")
 		.description("""
-			Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and may be
-			referred by multiple child entities. Hierarchy is always composed of entities of same type.
-			Each entity must be part of at most single hierarchy (tree).
-			Hierarchy can limit returned entities by using filtering constraints `hierarchy_{hierarchy name}_within`. It's also used for
-			computation of extra data - such as `hierarchyOfSelf`.
+			This mutation allows to set `parent` in the `entity`.
 			""")
-		.staticFields(List.of(PARENT_PRIMARY_KEY, ORDER_AMONG_SIBLINGS))
+		.staticFields(List.of(PARENT_PRIMARY_KEY))
 		.build();
 }

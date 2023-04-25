@@ -38,7 +38,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocato
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ParentDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -51,7 +51,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFiel
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.*;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.*;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
@@ -105,7 +105,7 @@ public class EntityObjectBuilder {
 			new EntityDtoTypeResolver(buildingContext.getEntityTypeToEntityObject())
 		);
 
-		buildingContext.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ParentDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildPriceObject());
 	}
 
@@ -128,7 +128,7 @@ public class EntityObjectBuilder {
 
 		// build hierarchy placement field
 		if (entitySchema.isWithHierarchy()) {
-			entityObjectBuilder.field(EntityDescriptor.HIERARCHICAL_PLACEMENT.to(fieldBuilderTransformer));
+			entityObjectBuilder.field(EntityDescriptor.PARENT.to(fieldBuilderTransformer));
 		}
 
 		// build price fields

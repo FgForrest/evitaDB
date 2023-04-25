@@ -63,8 +63,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * Class used for building suitable form of entity based on {@link SealedEntity}. The main methods here are
  * {@link #toGrpcSealedEntity(SealedEntity)} and {@link #toGrpcBinaryEntity(BinaryEntity)}, which are used for building
@@ -90,7 +88,7 @@ public class EntityConverter {
 				grpcEntity.getPrimaryKey(),
 				grpcEntity.getVersion(),
 				entitySchema,
-				grpcEntity.hasHierarchicalPlacement() ? toHierarchicalPlacement(grpcEntity.getHierarchicalPlacement()) : null,
+				grpcEntity.hasParent() ? grpcEntity.getParent().getValue() : null,
 				grpcEntity.getReferencesList()
 					.stream()
 					.map(it -> toReference(entitySchema, entitySchemaFetcher, evitaRequest, it))
@@ -121,20 +119,6 @@ public class EntityConverter {
 			),
 			entitySchema,
 			evitaRequest
-		);
-	}
-
-	/**
-	 * Method converts {@link GrpcHierarchicalPlacement} to the {@link HierarchicalPlacement} that can be used on the client side.
-	 */
-	@Nonnull
-	public static HierarchicalPlacement toHierarchicalPlacement(
-		@Nonnull GrpcHierarchicalPlacement hierarchicalPlacement
-	) {
-		return new HierarchicalPlacement(
-			hierarchicalPlacement.getVersion(),
-			hierarchicalPlacement.hasParentPrimaryKey() ? hierarchicalPlacement.getParentPrimaryKey().getValue() : null,
-			hierarchicalPlacement.getOrderAmongSiblings()
 		);
 	}
 
@@ -294,18 +278,8 @@ public class EntityConverter {
 				.putAllGlobalAssociatedData(globalAssociatedData);
 		}
 
-		entity.getHierarchicalPlacement()
-			.ifPresent(hierarchicalPlacement -> {
-				final GrpcHierarchicalPlacement.Builder builder = GrpcHierarchicalPlacement.newBuilder()
-					.setOrderAmongSiblings(hierarchicalPlacement.getOrderAmongSiblings());
-
-				ofNullable(hierarchicalPlacement.getParentPrimaryKey())
-					.ifPresent(it -> builder.setParentPrimaryKey(Int32Value.newBuilder().setValue(it).build()));
-
-				entityBuilder.setHierarchicalPlacement(
-					builder.build()
-				);
-			});
+		entity.getParent()
+			.ifPresent(parent -> entityBuilder.setParent(Int32Value.of(parent)));
 
 		entityBuilder.addAllLocales(
 			entity.getAllLocales()

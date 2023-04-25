@@ -23,8 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity;
 
-import io.evitadb.api.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetHierarchicalPlacementMutationDescriptor;
+import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.InputMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
@@ -33,32 +33,27 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExc
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link LocalMutationConverter} for resolving {@link SetHierarchicalPlacementMutation}.
+ * Implementation of {@link LocalMutationConverter} for resolving {@link SetParentMutation}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class SetHierarchicalPlacementMutationConverter extends LocalMutationConverter<SetHierarchicalPlacementMutation> {
+public class SetParentConverter extends LocalMutationConverter<SetParentMutation> {
 
-	public SetHierarchicalPlacementMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                 @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public SetParentConverter(@Nonnull MutationObjectParser objectParser,
+	                          @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
 	protected String getMutationName() {
-		return SetHierarchicalPlacementMutationDescriptor.THIS.name();
+		return SetParentMutationDescriptor.THIS.name();
 	}
 
 	@Nonnull
 	@Override
-	protected SetHierarchicalPlacementMutation convert(@Nonnull InputMutation inputMutation) {
-		final Integer parentPrimaryKey = inputMutation.getOptionalField(SetHierarchicalPlacementMutationDescriptor.PARENT_PRIMARY_KEY);
-		final int orderAmongSiblings = inputMutation.getRequiredField(SetHierarchicalPlacementMutationDescriptor.ORDER_AMONG_SIBLINGS);
-		if (parentPrimaryKey == null) {
-			return new SetHierarchicalPlacementMutation(orderAmongSiblings);
-		} else {
-			return new SetHierarchicalPlacementMutation(parentPrimaryKey, orderAmongSiblings);
-		}
+	protected SetParentMutation convert(@Nonnull InputMutation inputMutation) {
+		final Integer parentPrimaryKey = inputMutation.getRequiredField(SetParentMutationDescriptor.PARENT_PRIMARY_KEY);
+		return new SetParentMutation(parentPrimaryKey);
 	}
 }

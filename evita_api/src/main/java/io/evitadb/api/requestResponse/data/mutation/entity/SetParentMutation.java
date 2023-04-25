@@ -23,53 +23,52 @@
 
 package io.evitadb.api.requestResponse.data.mutation.entity;
 
-import io.evitadb.api.exception.InvalidMutationException;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.OptionalInt;
 
 /**
- * This mutation allows to remove {@link HierarchicalPlacement} from the {@link Entity}.
+ * This mutation allows to set parent in the {@link Entity}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(callSuper = true)
-public class RemoveHierarchicalPlacementMutation extends HierarchicalPlacementMutation {
-	private static final HierarchicalPlacementContract REMOVAL_CONSTANT = new HierarchicalPlacement(Integer.MIN_VALUE, Integer.MIN_VALUE);
-	@Serial private static final long serialVersionUID = 1740874836848423328L;
+public class SetParentMutation extends ParentMutation {
+	@Serial private static final long serialVersionUID = 8277337397634643354L;
+	/**
+	 * The parent primary key that needs to be set to the entity.
+	 */
+	@Getter private final int parentPrimaryKey;
+
+	public SetParentMutation(int parentPrimaryKey) {
+		this.parentPrimaryKey = parentPrimaryKey;
+	}
 
 	@Nonnull
 	@Override
-	public HierarchicalPlacementContract mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable HierarchicalPlacementContract existingValue) {
-		Assert.isTrue(
-			existingValue != null && existingValue.exists(),
-			() -> new InvalidMutationException("Cannot remove hierarchical placement that doesn't exists!")
-		);
-		return new HierarchicalPlacement(
-			existingValue.getVersion() + 1, existingValue.getParentPrimaryKey(), existingValue.getOrderAmongSiblings(), true
-		);
+	public OptionalInt mutateLocal(@Nonnull EntitySchemaContract entitySchema, @Nullable OptionalInt existingValue) {
+		return OptionalInt.of(parentPrimaryKey);
 	}
 
 	@Override
 	public long getPriority() {
-		return PRIORITY_REMOVAL;
+		return PRIORITY_UPSERT;
 	}
 
 	@Override
-	public HierarchicalPlacementContract getComparableKey() {
-		return REMOVAL_CONSTANT;
+	public Integer getComparableKey() {
+		return parentPrimaryKey;
 	}
 
 	@Override
 	public String toString() {
-		return "remove hierarchical placement";
+		return "set parent to: `" + parentPrimaryKey + "`";
 	}
 
 }

@@ -54,7 +54,6 @@ import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.HierarchicalContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -70,6 +69,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryContext;
@@ -400,10 +400,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final PriceContractSerializablePredicate newPricePredicate = new PriceContractSerializablePredicate(evitaRequest, widerEntity.getPricePredicate());
 		return Entity.decorate(
 			widerEntity,
+			// show / hide parent entity
+			evitaRequest.isRequiresParent() ? widerEntity.getParentEntity().orElse(null) : null,
 			// show / hide locales the entity is fetched in
 			newLocalePredicate,
-			// show / hide hierarchical placement information
-			widerEntity.getHierarchicalPlacementPredicate(),
 			// show / hide attributes information
 			newAttributePredicate,
 			// show / hide associated data information
@@ -604,6 +604,13 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		EntitySchemaContract updatedSchema = currentSchema;
 		for (EntitySchemaMutation theMutation : schemaMutation) {
 			updatedSchema = theMutation.mutate(catalogSchema, updatedSchema);
+			/* TOBEDONE JNO - this should be diverted to separate class and handle all necessary DDL operations */
+			if (theMutation instanceof SetEntitySchemaWithHierarchyMutation setHierarchy) {
+				if (setHierarchy.isWithHierarchy()) {
+					getGlobalIndexIfExists()
+						.ifPresent(it -> it.initRootNodes(it.getAllPrimaryKeys()));
+				}
+			}
 		}
 
 		final EntitySchemaContract nextSchema = updatedSchema;
@@ -723,10 +730,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				),
 				// use original schema
 				getInternalSchema(),
+				// fetch parents if requested
+				evitaRequest.isRequiresParent() && partiallyLoadedEntity.getParentEntity().isEmpty() ?
+					/* TODO JNO - fetch the entity */
+					null : null,
 				// show / hide locales the entity is fetched in
 				newLocalePredicate,
-				// show / hide hierarchical placement information
-				partiallyLoadedEntity.getHierarchicalPlacementPredicate(),
 				// show / hide attributes information
 				newAttributePredicate,
 				// show / hide associated data information
@@ -778,10 +787,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 					),
 					// use original schema
 					getInternalSchema(),
+					partiallyLoadedEntity.getParentEntity().orElse(null),
 					// show / hide locales the entity is fetched in
 					partiallyLoadedEntity.getLocalePredicate(),
-					// show / hide hierarchical placement information
-					partiallyLoadedEntity.getHierarchicalPlacementPredicate(),
 					// show / hide attributes information
 					partiallyLoadedEntity.getAttributePredicate(),
 					// show / hide associated data information
@@ -848,6 +856,19 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		Assert.isPremiseValid(globalIndex instanceof GlobalEntityIndex, "Global index not found in entity collection of `" + getSchema().getName() + "`.");
 		return (GlobalEntityIndex) globalIndex;
+	}
+
+	/**
+	 * Method returns {@link GlobalEntityIndex} or throws an exception if it hasn't yet exist.
+	 */
+	@Nonnull
+	public Optional<GlobalEntityIndex> getGlobalIndexIfExists() {
+		final Optional<EntityIndex> globalIndex = ofNullable(getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL)));
+		return globalIndex.map(it -> {
+			Assert.isPremiseValid(it instanceof GlobalEntityIndex, "Global index not found in entity collection of `" + getSchema().getName() + "`.");
+			return ofNullable((GlobalEntityIndex) it);
+		})
+			.orElse(empty());
 	}
 
 	/**
@@ -1158,8 +1179,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		return Entity.decorate(
 			fullEntity,
 			getInternalSchema(),
+			// fetch parents if requested
+			evitaRequest.isRequiresParent() ?
+				/* TODO JNO - fetch the entity */
+				null : null,
 			new LocaleSerializablePredicate(evitaRequest),
-			new HierarchicalContractSerializablePredicate(),
 			new AttributeValueSerializablePredicate(evitaRequest),
 			new AssociatedDataValueSerializablePredicate(evitaRequest),
 			new ReferenceContractSerializablePredicate(evitaRequest),

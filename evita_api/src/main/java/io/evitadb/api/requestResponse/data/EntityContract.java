@@ -23,6 +23,10 @@
 
 package io.evitadb.api.requestResponse.data;
 
+import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.HierarchyOfReference;
+import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -36,6 +40,7 @@ import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -68,9 +73,25 @@ public interface EntityContract extends EntityClassifier, ContentComparator<Enti
 	 * of entities of the same type. Referenced entity is always entity of the same type. Referenced entity must be
 	 * already present in the evitaDB and must also have hierarchy placement set. Root `parentPrimaryKey` (i.e. parent
 	 * for top-level hierarchical placements) is null.
+	 *
+	 * Entities may be organized in hierarchical fashion. That means that entity may refer to single parent entity and
+	 * may be referred by multiple child entities. Hierarchy is always composed of entities of same type.
+	 * Each entity must be part of at most single hierarchy (tree).
+	 * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
+	 * computation of extra data - such as {@link HierarchyOfSelf}. It can also invert type of returned entities in case
+	 * requirement {@link HierarchyOfReference} is used.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
 	 */
 	@Nonnull
-	Optional<HierarchicalPlacementContract> getHierarchicalPlacement();
+	OptionalInt getParent();
+
+	/**
+	 * Returns parent entity body. The entity fetch needs to be triggered using {@link HierarchyContent} requirement.
+	 * The property allows to fetch entire parent axis of the entity to the root if requested.
+	 */
+	@Nonnull
+	Optional<SealedEntity> getParentEntity();
 
 	/**
 	 * Returns collection of {@link Reference} of this entity. The references represent relations to other evitaDB
@@ -126,7 +147,7 @@ public interface EntityContract extends EntityClassifier, ContentComparator<Enti
 			// type - we should assume the key is stored in memory only once (should be enum or String)
 			MemoryMeasuringConstants.REFERENCE_SIZE +
 			// hierarchical placement
-			getHierarchicalPlacement().map(HierarchicalPlacementContract::estimateSize).orElse(0) +
+			getParent().stream().mapToObj(it -> MemoryMeasuringConstants.INT_SIZE).findAny().orElse(0) +
 			// locales
 			getLocales().stream().mapToInt(it -> MemoryMeasuringConstants.REFERENCE_SIZE).sum() +
 			// attributes
@@ -154,8 +175,8 @@ public interface EntityContract extends EntityClassifier, ContentComparator<Enti
 		if (getVersion() != otherEntity.getVersion()) return true;
 		if (isDropped() != otherEntity.isDropped()) return true;
 		if (!getType().equals(otherEntity.getType())) return true;
-		if (getHierarchicalPlacement().map(it -> it.differsFrom(otherEntity.getHierarchicalPlacement().orElse(null))).orElseGet(() -> otherEntity.getHierarchicalPlacement().isPresent()))
-			return true;
+		if (getParent().isPresent() != otherEntity.getParent().isPresent()) return true;
+		if (getParent().isPresent() && getParent().getAsInt() != otherEntity.getParent().getAsInt()) return true;
 		if (AttributesContract.anyAttributeDifferBetween(this, otherEntity)) return true;
 		if (AssociatedDataContract.anyAssociatedDataDifferBetween(this, otherEntity)) return true;
 		if (getPriceInnerRecordHandling() != otherEntity.getPriceInnerRecordHandling()) return true;
@@ -187,7 +208,7 @@ public interface EntityContract extends EntityClassifier, ContentComparator<Enti
 		final Set<Locale> locales = getLocales();
 		return (isDropped() ? "❌ " : "") +
 			"Entity " + getType() + " ID=" + getPrimaryKey() +
-			getHierarchicalPlacement().map(it -> ", with " + it).orElse("") +
+			getParent().stream().mapToObj(it -> ", with " + it).findAny().orElse("") +
 			(references.isEmpty() ? "" : ", " + references.stream().map(ReferenceContract::toString).collect(Collectors.joining(", "))) +
 			(attributeValues.isEmpty() ? "" : ", " + attributeValues.stream().map(AttributeValue::toString).collect(Collectors.joining(", "))) +
 			(associatedDataValues.isEmpty() ? "" : ", " + associatedDataValues.stream().map(AssociatedDataValue::toString).collect(Collectors.joining(", "))) +

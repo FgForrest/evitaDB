@@ -23,18 +23,15 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ParentDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
-import io.evitadb.test.tester.GraphQLTester;
-import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -404,13 +401,13 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			}
 		).orElseThrow();
 
-		assertTrue(entityInTree.getHierarchicalPlacement().isPresent());
+		assertTrue(entityInTree.getParent().isPresent());
 
-		final HierarchicalPlacementContract hierarchicalPlacementContract = entityInTree.getHierarchicalPlacement().orElseThrow();
+		final int parent = entityInTree.getParent().orElseThrow();
 		final Map<String, Object> expectedBodyWithHierarchicalPlacement = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
-			.e(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), map()
-				.e(HierarchicalPlacementDescriptor.ORDER_AMONG_SIBLINGS.name(), hierarchicalPlacementContract.getOrderAmongSiblings() + 10)
+			.e(EntityDescriptor.PARENT.name(), map()
+				.e(ParentDescriptor.PARENT_PRIMARY_KEY.name(), parent + 10)
 				.build())
 			.build();
 
@@ -437,7 +434,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                }
 					""",
 				entityInTree.getPrimaryKey(),
-				hierarchicalPlacementContract.getOrderAmongSiblings() + 10
+				parent + 10
 			)
 			.executeAndThen()
 			.statusCode(200)
@@ -452,7 +449,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		final Map<String, Object> expectedBodyAfterRemoving = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
-			.e(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), null)
+			.e(EntityDescriptor.PARENT.name(), null)
 			.build();
 
 		tester.test(TEST_CATALOG)

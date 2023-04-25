@@ -75,7 +75,7 @@ class GrpcExtraResultsBuilderTest {
 
 		assertFalse(extraResults.hasPriceHistogram());
 		assertTrue(extraResults.getAttributeHistogramCount() > 0);
-		assertTrue(extraResults.getHierarchyStatisticsMap().isEmpty());
+		assertTrue(extraResults.getHierarchyMap().isEmpty());
 		assertTrue(extraResults.getFacetGroupStatisticsList().isEmpty());
 	}
 }

@@ -251,9 +251,9 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			.setAttribute(ATTRIBUTE_PRIORITY, (long) primaryKey);
 
 		if (parentPrimaryKey == null) {
-			builder.setHierarchicalPlacement(0);
+			builder.removeParent();
 		} else {
-			builder.setHierarchicalPlacement(parentPrimaryKey, 0);
+			builder.setParent(parentPrimaryKey);
 		}
 
 		return builder.upsertVia(session);
