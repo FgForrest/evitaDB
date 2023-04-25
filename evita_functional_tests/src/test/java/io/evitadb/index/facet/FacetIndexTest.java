@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.function.TriFunction;
+import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -72,7 +73,7 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 	public static final String BRAND_ENTITY = Entities.BRAND;
 	public static final String STORE_ENTITY = Entities.STORE;
 	public static final String CATEGORY_ENTITY = Entities.CATEGORY;
-	private final Function<String, TriFunction<Integer, int[], Bitmap[], FacetGroupFormula>> fct =
+	private final Function<String, TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula>> fct =
 		entityType -> (groupId, facetIds, bitmaps) -> new FacetGroupOrFormula(entityType, groupId, facetIds, bitmaps);
 	private FacetIndex facetIndex;
 
@@ -101,22 +102,22 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldReturnFacetingEntityIds() {
 		final List<FacetGroupFormula> brandReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			BRAND_ENTITY, fct.apply(BRAND_ENTITY), 1
+			BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
 		);
 
 		assertEquals(1, brandReferencingEntityIds.size());
 		assertArrayEquals(new int[]{1, 3}, brandReferencingEntityIds.get(0).compute().getArray());
 
 		final List<FacetGroupFormula> storeReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			STORE_ENTITY, fct.apply(STORE_ENTITY), 1
+			STORE_ENTITY, fct.apply(STORE_ENTITY), new ArrayBitmap(1)
 		);
 
 		assertEquals(1, storeReferencingEntityIds.size());
 		assertArrayEquals(new int[]{5}, storeReferencingEntityIds.get(0).compute().getArray());
 
-		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(BRAND_ENTITY, fct.apply(BRAND_ENTITY), 8).size());
-		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(STORE_ENTITY, fct.apply(STORE_ENTITY), 8).size());
-		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(CATEGORY_ENTITY, fct.apply(CATEGORY_ENTITY), 1).size());
+		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(8)).size());
+		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(STORE_ENTITY, fct.apply(STORE_ENTITY), new ArrayBitmap(8)).size());
+		assertEquals(0, facetIndex.getFacetReferencingEntityIdsFormula(CATEGORY_ENTITY, fct.apply(CATEGORY_ENTITY), new ArrayBitmap(1)).size());
 	}
 
 	@Test
@@ -148,7 +149,7 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 		facetIndex.addFacet(new ReferenceKey(Entities.BRAND, 2), 2, 8);
 
 		final List<FacetGroupFormula> brandReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			BRAND_ENTITY, fct.apply(BRAND_ENTITY), 2
+			BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(2)
 		);
 		assertArrayEquals(new int[]{2, 8}, FormulaFactory.and(brandReferencingEntityIds.toArray(Formula[]::new)).compute().getArray());
 		assertEquals(1, facetIndex.getModifiedStorageParts(1).size());
@@ -162,7 +163,7 @@ class FacetIndexTest implements TimeBoundedTestSupport {
 		facetIndex.removeFacet(new ReferenceKey(Entities.BRAND, 2), 2, 2);
 
 		final List<FacetGroupFormula> brandReferencingEntityIds = facetIndex.getFacetReferencingEntityIdsFormula(
-			BRAND_ENTITY, fct.apply(BRAND_ENTITY), 1
+			BRAND_ENTITY, fct.apply(BRAND_ENTITY), new ArrayBitmap(1)
 		);
 		assertArrayEquals(new int[]{1, 3}, FormulaFactory.and(brandReferencingEntityIds.toArray(Formula[]::new)).compute().getArray());
 		assertEquals(1, facetIndex.getModifiedStorageParts(1).size());

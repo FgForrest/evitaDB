@@ -42,7 +42,7 @@ import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
-import io.evitadb.core.query.filter.translator.facet.FacetInSetTranslator;
+import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -76,19 +76,19 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * input {@link EvitaRequest}.
 	 */
 	@Nonnull
-	protected final BiPredicate<String, Integer> isFacetGroupConjunction;
+	protected final BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupConjunction;
 	/**
 	 * Predicate returns TRUE when facet covered by {@link FacetGroupsDisjunction} require query in
 	 * input {@link EvitaRequest}.
 	 */
 	@Nonnull
-	protected final BiPredicate<String, Integer> isFacetGroupDisjunction;
+	protected final BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupDisjunction;
 	/**
 	 * Predicate returns TRUE when facet covered by {@link FacetGroupsNegation} require query in
 	 * input {@link EvitaRequest}.
 	 */
 	@Nonnull
-	protected final BiPredicate<String, Integer> isFacetGroupNegation;
+	protected final BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupNegation;
 	/**
 	 * Stack serves internally to collect the cloned tree of formulas.
 	 */
@@ -98,9 +98,9 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 */
 	protected Formula baseFormulaWithoutUserFilter;
 	/**
-	 * Contains {@link ReferenceSchema#getName()} of the facet entity.
+	 * Contains {@link ReferenceSchema} of the facet entity.
 	 */
-	protected String referenceName;
+	protected ReferenceSchemaContract referenceSchema;
 	/**
 	 * Contains primary key of the facet that is being computed.
 	 */
@@ -127,7 +127,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * Contains deferred lambda function that should be applied at the moment {@link NotFormula} processing is finished
 	 * by this visitor. This postponed mutator solves the situation when the facet formula needs to be applied above
 	 * NOT container and not within it. This is related to the internal mechanisms of {@link FutureNotFormula}
-	 * propagation and {@link FacetInSetTranslator} facet formula composition.
+	 * propagation and {@link FacetHavingTranslator} facet formula composition.
 	 */
 	protected BiFunction<Formula, Formula[], Formula> deferredMutator;
 	/**
@@ -147,7 +147,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			// initialize global variables for this execution
 			this.result = null;
 			this.baseFormulaWithoutUserFilter = baseFormulaWithoutUserFilter;
-			this.referenceName = referenceSchema.getName();
+			this.referenceSchema = referenceSchema;
 			this.facetId = facetId;
 			this.facetGroupId = facetGroupId;
 
@@ -171,7 +171,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			return getResult(baseFormula);
 		} finally {
 			// finally, clear all internal global variables in a safe manner
-			this.referenceName = null;
+			this.referenceSchema = null;
 			this.baseFormulaWithoutUserFilter = null;
 			this.facetId = -1;
 			this.facetGroupId = null;
@@ -276,9 +276,9 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 */
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
 		// should we treat passed facet as negated one?
-		final boolean isNewFacetNegation = isFacetGroupNegation.test(referenceName, facetGroupId);
+		final boolean isNewFacetNegation = isFacetGroupNegation.test(referenceSchema, facetGroupId);
 		// should we treat passed facet as a part of disjuncted group formula?
-		final boolean isNewFacetDisjunction = facetGroupId != null && isFacetGroupDisjunction.test(referenceName, facetGroupId);
+		final boolean isNewFacetDisjunction = facetGroupId != null && isFacetGroupDisjunction.test(referenceSchema, facetGroupId);
 		// create facet group formula
 		final Formula newFormula = createNewFacetGroupFormula();
 		// if we're inside NotFormula
@@ -357,9 +357,9 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 */
 	@Nonnull
 	protected Formula createNewFacetGroupFormula() {
-		return facetGroupId != null && isFacetGroupConjunction.test(referenceName, facetGroupId) ?
-			new FacetGroupAndFormula(referenceName, facetGroupId, new int[]{facetId}, facetEntityIds) :
-			new FacetGroupOrFormula(referenceName, facetGroupId, new int[]{facetId}, facetEntityIds);
+		return facetGroupId != null && isFacetGroupConjunction.test(referenceSchema, facetGroupId) ?
+			new FacetGroupAndFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIds) :
+			new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIds);
 	}
 
 	/**
@@ -368,7 +368,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * an account.
 	 */
 	@Nonnull
-	protected Formula[] alterFormula(@Nonnull Formula newFormula, boolean disjunction, boolean negation, @Nonnull Formula... children) {
+	protected static Formula[] alterFormula(@Nonnull Formula newFormula, boolean disjunction, boolean negation, @Nonnull Formula... children) {
 		// if newly added formula should represent OR join
 		if (disjunction) {
 			return addNewFormulaAsDisjunction(newFormula, children);
@@ -430,7 +430,8 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * occasion the above-mentioned composition is nested within OR containers that combine results from multiple
 	 * source indexes. That's why we use {@link FormulaCloner} internally that traverses the entire `children` structure.
 	 */
-	private Formula[] addNewFormulaAsDisjunction(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
+	@Nonnull
+	private static Formula[] addNewFormulaAsDisjunction(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
 		// iterate over existing children
 		final AtomicBoolean childrenAltered = new AtomicBoolean();
 		for (int i = 0; i < children.length; i++) {
@@ -531,7 +532,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * source indexes. That's why we use {@link FormulaCloner} internally that traverses the entire `children` structure.
 	 */
 	@Nonnull
-	private Formula[] addNewFormulaAsConjunction(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
+	private static Formula[] addNewFormulaAsConjunction(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
 		// if newly added formula should represent AND join
 		// iterate over existing children
 		final AtomicBoolean childrenAltered = new AtomicBoolean();
@@ -582,7 +583,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * filter and combines it with `newFormula` in NOT composition where `newFormula` represents subracted set.
 	 */
 	@Nonnull
-	private Formula[] addNewFormulaAsNegation(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
+	private static Formula[] addNewFormulaAsNegation(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
 		// if newly added formula should represent OR join
 		// combine existing children with new facet formula in NOT container - now is not yet created
 		// (otherwise this method would not be called at all)

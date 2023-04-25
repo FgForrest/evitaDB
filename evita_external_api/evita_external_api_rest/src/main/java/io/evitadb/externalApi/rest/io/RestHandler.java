@@ -40,7 +40,6 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
-import io.undertow.util.HttpString;
 import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
 
@@ -318,8 +317,6 @@ public abstract class RestHandler<CTX extends RestHandlingContext> implements Ht
     private void sendSuccessResponse(@Nonnull HttpServerExchange exchange, @Nonnull String data) {
         exchange.setStatusCode(StatusCodes.OK);
         exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, getSupportedContentType() + CONTENT_TYPE_CHARSET);
-        // todo lho value
-        exchange.getResponseHeaders().put(new HttpString("Access-Control-Allow-Origin"), "");
         exchange.getResponseSender().send(data);
     }
 }

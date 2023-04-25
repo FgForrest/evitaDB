@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.Sorter;
@@ -75,12 +75,12 @@ public class HierarchySet {
 	private static void collect(@Nonnull List<LevelInfo> unsortedResult, @Nonnull RoaringBitmapWriter<RoaringBitmap> writer) {
 		for (LevelInfo levelInfo : unsortedResult) {
 			writer.add(levelInfo.entity().getPrimaryKey());
-			collect(levelInfo.childrenStatistics(), writer);
+			collect(levelInfo.children(), writer);
 		}
 	}
 
 	/**
-	 * Method sorts `result` list deeply (it means also all its {@link LevelInfo#childrenStatistics()} along
+	 * Method sorts `result` list deeply (it means also all its {@link LevelInfo#children()} along
 	 * the position of their primary key in `sortedEntities` array.
 	 */
 	@Nonnull
@@ -88,8 +88,8 @@ public class HierarchySet {
 		final LevelInfo[] levelInfoToSort = result
 			.stream()
 			.map(levelInfo -> {
-				if (levelInfo.childrenStatistics().size() > 1) {
-					return new LevelInfo(levelInfo, sort(levelInfo.childrenStatistics(), sortedEntities));
+				if (levelInfo.children().size() > 1) {
+					return new LevelInfo(levelInfo, sort(levelInfo.children(), sortedEntities));
 				} else {
 					return levelInfo;
 				}

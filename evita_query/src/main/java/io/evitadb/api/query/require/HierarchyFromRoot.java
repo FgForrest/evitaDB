@@ -71,7 +71,7 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 		);
 	}
 
-	@Creator(silentImplicitClassifier = true)
+	@Creator
 	public HierarchyFromRoot(@Nonnull @Value String outputName,
 	                         @Nullable @Child EntityFetch entityFetch,
 	                         @Nonnull @Child(uniqueChildren = true) HierarchyOutputRequireConstraint... requirements) {
@@ -101,6 +101,7 @@ public class HierarchyFromRoot extends AbstractRequireConstraintContainer implem
 	 * Returns the key the computed extra result should be registered to.
 	 */
 	@Nonnull
+	@Override
 	public String getOutputName() {
 		return (String) getArguments()[0];
 	}

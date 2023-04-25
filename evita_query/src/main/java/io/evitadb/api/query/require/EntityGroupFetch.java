@@ -48,7 +48,7 @@ import java.util.stream.Stream;
 	shortDescription = "Returns richer group entities instead of just entity references (empty container returns only entity body).",
 	supportedIn = {ConstraintDomain.FACET}
 )
-public class EntityGroupFetch extends AbstractRequireConstraintContainer implements EntityFetchRequirements {
+public class EntityGroupFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {
 
 	@Serial private static final long serialVersionUID = -781235795350040285L;
 

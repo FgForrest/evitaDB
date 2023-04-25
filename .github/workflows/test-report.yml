@@ -24,6 +24,8 @@ jobs:
           report_paths: '**/TEST-*.xml'
           commit: ${{github.event.workflow_run.head_sha}}
           require_tests: true
+          fail_on_failure: true
+          include_passed: true
           summary: true
-          detailed_summary: true
+          job_summary: true
           annotate_notice: true

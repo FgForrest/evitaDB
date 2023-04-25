@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintType;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
@@ -68,9 +69,9 @@ public abstract class RestConstraintResolver<C extends Constraint<?>> extends Co
 
 	@Nullable
 	@Override
-	public C resolve(@Nonnull String key, @Nullable Object value) {
+	public C resolve(@Nonnull DataLocator dataLocator, @Nonnull String key, @Nullable Object value) {
 		final Object deserializedInputValue = deserializeInputValue(key, value);
-		return super.resolve(key, deserializedInputValue);
+		return super.resolve(dataLocator, key, deserializedInputValue);
 	}
 
 	@Nullable

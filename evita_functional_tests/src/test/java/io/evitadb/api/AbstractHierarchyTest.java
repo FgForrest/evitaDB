@@ -26,7 +26,7 @@ package io.evitadb.api;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.Assert;
 import one.edee.oss.pmptt.model.Hierarchy;

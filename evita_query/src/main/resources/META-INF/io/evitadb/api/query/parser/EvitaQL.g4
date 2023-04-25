@@ -69,7 +69,7 @@ filterConstraint
     | 'priceValidNow'                   emptyArgs                                               # priceValidNowConstraint
     | 'priceValidIn'                    (emptyArgs | args = valueArgs)                          # priceValidInConstraint
     | 'priceBetween'                    args = betweenValuesArgs                                # priceBetweenConstraint
-    | 'facetInSet'                      args = classifierWithValueListArgs                      # facetInSetConstraint
+    | 'facetHaving'                     args = classifierWithFilterConstraintArgs               # facetHavingConstraint
     | 'referenceHaving'                 args = classifierWithFilterConstraintArgs               # referenceHavingConstraint
     | 'hierarchyWithin'                 args = hierarchyWithinConstraintArgs                    # hierarchyWithinConstraint
     | 'hierarchyWithinSelf'             args = hierarchyWithinSelfConstraintArgs                # hierarchyWithinSelfConstraint
@@ -114,13 +114,13 @@ requireConstraint
     | 'dataInLocales'                   (emptyArgs | args = valueListArgs)                      # dataInLocalesConstraint
     | 'facetSummary'                    (emptyArgs | args = facetSummaryArgs)                   # facetSummaryConstraint
     | 'facetSummaryOfReference'         args = facetSummaryOfReferenceArgs                      # facetSummaryOfReferenceConstraint
-    | 'facetGroupsConjunction'          args = classifierWithValueListArgs                      # facetGroupsConjunctionConstraint
-    | 'facetGroupsDisjunction'          args = classifierWithValueListArgs                      # facetGroupsDisjunctionConstraint
-    | 'facetGroupsNegation'             args = classifierWithValueListArgs                      # facetGroupsNegationConstraint
+    | 'facetGroupsConjunction'          args = classifierWithFilterConstraintArgs               # facetGroupsConjunctionConstraint
+    | 'facetGroupsDisjunction'          args = classifierWithFilterConstraintArgs               # facetGroupsDisjunctionConstraint
+    | 'facetGroupsNegation'             args = classifierWithFilterConstraintArgs               # facetGroupsNegationConstraint
     | 'attributeHistogram'              args = valueWithClassifierListArgs                      # attributeHistogramConstraint
     | 'priceHistogram'                  args = valueArgs                                        # priceHistogramConstraint
-    | 'hierarchyStatisticsOfSelf'       (emptyArgs | args = requireConstraintArgs)              # hierarchyStatisticsOfSelfConstraint
-    | 'hierarchyStatisticsOfReference'  args = classifierListWithOptionalRequireConstraintArgs  # hierarchyStatisticsOfReferenceConstraint
+    | 'hierarchyOfSelf'                 (emptyArgs | args = requireConstraintArgs)              # hierarchyOfSelfConstraint
+    | 'hierarchyOfReference'            args = classifierListWithOptionalRequireConstraintArgs  # hierarchyOfReferenceConstraint
     | 'queryTelemetry'                  emptyArgs                                               # queryTelemetryConstraint
     ;
 

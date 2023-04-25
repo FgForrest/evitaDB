@@ -42,6 +42,7 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 
 import java.util.List;
@@ -99,35 +100,42 @@ public class HierarchyOfSelfTranslator
 				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
 					extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
-				final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
-					filter,
-					() -> createFilterFormula(
-						extraResultPlanner.getQueryContext(),
-						filter, globalIndex,
-						extraResultPlanner.getAttributeSchemaAccessor()
-					)
-				);
-
-				return FormulaFactory.and(
-					baseFormula,
-					globalIndex.getHierarchyNodesForParentFormula(nodeId)
-				);
+				if (filter == null || !filter.isApplicable()) {
+					return globalIndex.getHierarchyNodesForParentFormula(nodeId);
+				} else {
+					final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+						filter,
+						() -> createFilterFormula(
+							extraResultPlanner.getQueryContext(),
+							filter, globalIndex,
+							extraResultPlanner.getAttributeSchemaAccessor()
+						)
+					);
+					return FormulaFactory.and(
+						baseFormula,
+						globalIndex.getHierarchyNodesForParentFormula(nodeId)
+					);
+				}
 			},
 			statisticsBase -> {
 				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
 					extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
-				final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
-					filter,
-					() -> createFilterFormula(
-						extraResultPlanner.getQueryContext(),
-						filter, globalIndex,
-						extraResultPlanner.getAttributeSchemaAccessor()
-					)
-				);
-				return new FilteringFormulaHierarchyEntityPredicate(
-					filter, baseFormula
-				);
+				if (filter == null || !filter.isApplicable()) {
+					return HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
+				} else {
+					final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+						filter,
+						() -> createFilterFormula(
+							extraResultPlanner.getQueryContext(),
+							filter, globalIndex,
+							extraResultPlanner.getAttributeSchemaAccessor()
+						)
+					);
+					return new FilteringFormulaHierarchyEntityPredicate(
+						filter, baseFormula
+					);
+				}
 			},
 			EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,
 			sorter,

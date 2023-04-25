@@ -55,7 +55,7 @@ public class HierarchyStopAt extends AbstractRequireConstraintContainer implemen
 		super(CONSTRAINT_NAME, children);
 	}
 
-	@Creator(silentImplicitClassifier = true)
+	@Creator
 	public HierarchyStopAt(@Nonnull @Child HierarchyStopAtRequireConstraint genericHierarchyOutput) {
 		super(CONSTRAINT_NAME, genericHierarchyOutput);
 	}

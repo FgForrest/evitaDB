@@ -53,9 +53,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	private boolean foundTargetInUserFilter;
 
 	public ImpactFormulaGenerator(
-		@Nonnull BiPredicate<String, Integer> isFacetGroupConjunction,
-		@Nonnull BiPredicate<String, Integer> isFacetGroupDisjunction,
-		@Nonnull BiPredicate<String, Integer> isFacetGroupNegation
+		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupConjunction,
+		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupDisjunction,
+		@Nonnull BiPredicate<ReferenceSchemaContract, Integer> isFacetGroupNegation
 	) {
 		super(isFacetGroupConjunction, isFacetGroupDisjunction, isFacetGroupNegation);
 	}
@@ -83,7 +83,7 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	protected boolean handleFormula(@Nonnull Formula formula) {
 		// if the examined formula is facet group formula matching the same facet `entityType` and `facetGroupId`
 		if (isInsideUserFilter() && formula instanceof FacetGroupFormula &&
-			Objects.equals(referenceName, ((FacetGroupFormula) formula).getReferenceName()) &&
+			Objects.equals(referenceSchema.getName(), ((FacetGroupFormula) formula).getReferenceName()) &&
 			Objects.equals(facetGroupId, ((FacetGroupFormula) formula).getFacetGroupId())
 		) {
 			// we found the facet group formula - we need to enrich it with new facet

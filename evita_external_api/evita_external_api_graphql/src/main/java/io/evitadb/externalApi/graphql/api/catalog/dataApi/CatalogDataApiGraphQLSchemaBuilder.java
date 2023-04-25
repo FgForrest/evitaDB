@@ -123,7 +123,12 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			buildingContext,
 			argumentBuilderTransformer,
 			objectBuilderTransformer,
-			fieldBuilderTransformer
+			inputObjectBuilderTransformer,
+			fieldBuilderTransformer,
+			inputFieldBuilderTransformer,
+			constraintContext,
+			filterConstraintSchemaBuilder,
+			orderConstraintSchemaBuilder
 		);
 		this.localMutationAggregateObjectBuilder = new LocalMutationAggregateObjectBuilder(
 			buildingContext,

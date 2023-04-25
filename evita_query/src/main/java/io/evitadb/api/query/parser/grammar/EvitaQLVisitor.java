@@ -293,12 +293,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPriceBetweenConstraint(EvitaQLParser.PriceBetweenConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code facetInSetConstraint}
+	 * Visit a parse tree produced by the {@code facetHavingConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitFacetInSetConstraint(EvitaQLParser.FacetInSetConstraintContext ctx);
+	T visitFacetHavingConstraint(EvitaQLParser.FacetHavingConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code referenceHavingConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
@@ -601,19 +601,19 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitPriceHistogramConstraint(EvitaQLParser.PriceHistogramConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code hierarchyStatisticsOfSelfConstraint}
+	 * Visit a parse tree produced by the {@code hierarchyOfSelfConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitHierarchyStatisticsOfSelfConstraint(EvitaQLParser.HierarchyStatisticsOfSelfConstraintContext ctx);
+	T visitHierarchyOfSelfConstraint(EvitaQLParser.HierarchyOfSelfConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code hierarchyStatisticsOfReferenceConstraint}
+	 * Visit a parse tree produced by the {@code hierarchyOfReferenceConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitHierarchyStatisticsOfReferenceConstraint(EvitaQLParser.HierarchyStatisticsOfReferenceConstraintContext ctx);
+	T visitHierarchyOfReferenceConstraint(EvitaQLParser.HierarchyOfReferenceConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code queryTelemetryConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.

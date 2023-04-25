@@ -27,7 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.filter.AttributeContains;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.order.AttributeNatural;
@@ -349,7 +349,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	 * are preserved unless you make changes to them.
 	 *
 	 * The references refer to other entities (of same or different entity type).
-	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
 	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
 	 * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
 	 * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
@@ -372,7 +372,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	 * are preserved unless you make changes to them.
 	 *
 	 * The references refer to other entities (of same or different entity type).
-	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
 	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
 	 * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
 	 * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
@@ -404,7 +404,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	 * are preserved unless you make changes to them.
 	 *
 	 * The references refer to other entities (of same or different entity type).
-	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
 	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
 	 * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
 	 * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
@@ -429,7 +429,7 @@ public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>>
 	 * are preserved unless you make changes to them.
 	 *
 	 * The references refer to other entities (of same or different entity type).
-	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+	 * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
 	 * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
 	 * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
 	 * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.

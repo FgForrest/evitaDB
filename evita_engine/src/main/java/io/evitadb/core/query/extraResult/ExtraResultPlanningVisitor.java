@@ -41,7 +41,7 @@ import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
@@ -251,7 +251,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * {@link HierarchyWithinRoot} sub-constraints. Result of this method is cached so that additional calls introduce no
 	 * performance penalty.
 	 */
-	@Nonnull
+	@Nullable
 	public FilterBy getFilterByWithoutHierarchyFilter(@Nullable ReferenceSchemaContract referenceSchema) {
 		if (filterByWithoutHierarchyFilter == null) {
 			filterByWithoutHierarchyFilter = (FilterBy) ofNullable(getFilterBy())
@@ -277,10 +277,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						}
 					)
 				)
-				.orElse(null);
+				.orElseGet(FilterBy::new);
 
 		}
-		return filterByWithoutHierarchyFilter;
+		return filterByWithoutHierarchyFilter.isApplicable() ? filterByWithoutHierarchyFilter : null;
 	}
 
 	/**
@@ -288,7 +288,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * {@link HierarchyWithinRoot} constraints and {@link UserFilter} parts. Result of this method is cached so that
 	 * additional calls introduce no performance penalty.
 	 */
-	@Nonnull
+	@Nullable
 	public FilterBy getFilterByWithoutHierarchyAndUserFilter(@Nullable ReferenceSchemaContract referenceSchema) {
 		if (filteringFormulaWithoutHierarchyAndUserFilter == null) {
 			filteringFormulaWithoutHierarchyAndUserFilter = (FilterBy) ofNullable(getFilterBy())
@@ -316,10 +316,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						}
 					)
 				)
-				.orElse(null);
+				.orElseGet(FilterBy::new);
 
 		}
-		return filteringFormulaWithoutHierarchyAndUserFilter;
+		return filteringFormulaWithoutHierarchyAndUserFilter.isApplicable() ? filteringFormulaWithoutHierarchyAndUserFilter : null;
 	}
 
 	/**

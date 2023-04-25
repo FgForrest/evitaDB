@@ -29,8 +29,8 @@ import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -87,12 +87,12 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Creator
 	public ReferenceHaving(@Nonnull @Classifier String referenceName,
-	                       @Nonnull @Child FilterConstraint... children) {
-		super(new Serializable[]{referenceName}, children);
+	                       @Nonnull @Child FilterConstraint... filter) {
+		super(new Serializable[]{referenceName}, filter);
 	}
 
 	/**
-	 * Returns reference name of the facet that should be used for applying for filtering according to children constraints.
+	 * Returns reference name of the relation that should be used for applying for filtering according to children constraints.
 	 */
 	@Nonnull
 	public String getReferenceName() {

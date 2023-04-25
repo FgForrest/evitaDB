@@ -26,6 +26,9 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 /**
  * This interface marks all filtering constraints that can be used to further specify hierarchy statistics and that can
  * be used within {@link HierarchyOfSelf} or {@link HierarchyOfReference} containers.
@@ -33,4 +36,10 @@ import io.evitadb.api.query.RequireConstraint;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface HierarchyRequireConstraint extends RequireConstraint, ExtraResultRequireConstraint, HierarchyConstraint<RequireConstraint> {
+
+	/**
+	 * Returns the key the computed extra result should be registered to.
+	 */
+	@Nullable
+	String getOutputName();
 }

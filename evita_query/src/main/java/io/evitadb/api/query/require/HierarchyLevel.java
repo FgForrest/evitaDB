@@ -55,7 +55,7 @@ public class HierarchyLevel extends AbstractRequireConstraintLeaf implements Hie
 		super(CONSTRAINT_NAME, arguments);
 	}
 
-	@Creator(silentImplicitClassifier = true)
+	@Creator
 	public HierarchyLevel(@Value int level) {
 		super(CONSTRAINT_NAME, level);
 		Assert.isTrue(level > 0, () -> new EvitaInvalidUsageException("Level must be greater than zero. Level 1 represents root node."));

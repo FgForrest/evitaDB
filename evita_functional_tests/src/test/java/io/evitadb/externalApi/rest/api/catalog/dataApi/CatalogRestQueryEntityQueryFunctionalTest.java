@@ -33,6 +33,9 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
+import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
+import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
@@ -44,6 +47,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor.HierarchyStatisticsLevelInfoDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
@@ -1245,7 +1252,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = response.getExtraResult(HierarchyStatistics.class)
+		final var expectedBody = response.getExtraResult(Hierarchy.class)
 			.getStatistics(Entities.CATEGORY)
 			.entrySet()
 			.stream()
@@ -1282,8 +1289,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.executeAndThen()
 			.statusCode(200)
 			.body(
-				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category."
-					+ HierarchyStatisticsLevelInfoDescriptor.ENTITY.name() + "." + EntityDescriptor.ATTRIBUTES.name() + "."
+				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name() + ".category."
+					+ LevelInfoDescriptor.ENTITY.name() + "." + EntityDescriptor.ATTRIBUTES.name() + "."
 					+ SectionedAttributesDescriptor.LOCALIZED.name() + "." + CZECH_LOCALE.toLanguageTag() + "." + ATTRIBUTE_NAME,
 				equalTo(expectedBody)
 			);
@@ -1316,7 +1323,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 		assertFalse(response.getRecordData().isEmpty());
 
-		final var expectedBody = response.getExtraResult(HierarchyStatistics.class)
+		final var expectedBody = response.getExtraResult(Hierarchy.class)
 			.getStatistics(Entities.CATEGORY)
 			.entrySet()
 			.stream()
@@ -1352,8 +1359,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.executeAndThen()
 			.statusCode(200)
 			.body(
-				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_STATISTICS.name() + ".category."
-					+ HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(),
+				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name() + ".category."
+					+ LevelInfoDescriptor.ENTITY.name(),
 				equalTo(expectedBody)
 			);
 	}

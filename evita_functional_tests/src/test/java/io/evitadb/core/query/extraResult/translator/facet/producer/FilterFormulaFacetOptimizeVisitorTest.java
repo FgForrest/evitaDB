@@ -55,9 +55,9 @@ class FilterFormulaFacetOptimizeVisitorTest {
 					new ConstantFormula(new ArrayBitmap(1, 2)),
 					new ConstantFormula(new ArrayBitmap(2, 3)),
 					new AndFormula(
-						new FacetGroupOrFormula(Entities.PARAMETER, 2, new int[]{1}, new ArrayBitmap(7)),
-						new FacetGroupOrFormula(Entities.BRAND, 1, new int[]{1}, new ArrayBitmap(1)),
-						new FacetGroupOrFormula(Entities.STORE, 1, new int[]{1}, new ArrayBitmap(2))
+						new FacetGroupOrFormula(Entities.PARAMETER, 2, new ArrayBitmap(1), new ArrayBitmap(7)),
+						new FacetGroupOrFormula(Entities.BRAND, 1, new ArrayBitmap(1), new ArrayBitmap(1)),
+						new FacetGroupOrFormula(Entities.STORE, 1, new ArrayBitmap(1), new ArrayBitmap(2))
 					)
 				)
 			)
@@ -88,16 +88,16 @@ class FilterFormulaFacetOptimizeVisitorTest {
 				new UserFilterFormula(
 					new ConstantFormula(new ArrayBitmap(1, 2)),
 					new NotFormula(
-						new FacetGroupOrFormula(Entities.PARAMETER, 10, new int[]{1}, new ArrayBitmap(12)),
+						new FacetGroupOrFormula(Entities.PARAMETER, 10, new ArrayBitmap(1), new ArrayBitmap(12)),
 						new AndFormula(
 							new AndFormula(
-								new FacetGroupOrFormula(Entities.PARAMETER, 2, new int[]{1}, new ArrayBitmap(7)),
-								new FacetGroupOrFormula(Entities.BRAND, 1, new int[]{1}, new ArrayBitmap(1)),
-								new FacetGroupOrFormula(Entities.STORE, 1, new int[]{1}, new ArrayBitmap(2))
+								new FacetGroupOrFormula(Entities.PARAMETER, 2, new ArrayBitmap(1), new ArrayBitmap(7)),
+								new FacetGroupOrFormula(Entities.BRAND, 1, new ArrayBitmap(1), new ArrayBitmap(1)),
+								new FacetGroupOrFormula(Entities.STORE, 1, new ArrayBitmap(1), new ArrayBitmap(2))
 							),
 							new OrFormula(
-								new FacetGroupOrFormula(Entities.BRAND, 1, new int[]{2}, new ArrayBitmap(7)),
-								new FacetGroupOrFormula(Entities.STORE, 1, new int[]{3}, new ArrayBitmap(9))
+								new FacetGroupOrFormula(Entities.BRAND, 1, new ArrayBitmap(2), new ArrayBitmap(7)),
+								new FacetGroupOrFormula(Entities.STORE, 1, new ArrayBitmap(3), new ArrayBitmap(9))
 							)
 						)
 					),

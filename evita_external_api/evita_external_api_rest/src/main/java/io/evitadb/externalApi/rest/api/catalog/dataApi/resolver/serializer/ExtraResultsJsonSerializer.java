@@ -35,6 +35,10 @@ import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics;
 import io.evitadb.api.requestResponse.extraResult.HierarchyStatistics.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
+import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -44,6 +48,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.utils.NamingConvention;
@@ -94,8 +101,8 @@ public class ExtraResultsJsonSerializer {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name(), serializeAttributeHistogram(attributeHistogram));
 			} else if (extraResult instanceof PriceHistogram priceHistogram) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.PRICE_HISTOGRAM.name(), serializePriceHistogram(priceHistogram));
-			} else if (extraResult instanceof HierarchyStatistics hierarchyStats) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY_STATISTICS.name(), serializeHierarchyStatistics(hierarchyStats));
+			} else if (extraResult instanceof Hierarchy hierarchyStats) {
+				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchyStatistics(hierarchyStats));
 			} else if (extraResult instanceof FacetSummary facetSummary) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.FACET_SUMMARY.name(), serializeFacetSummary(facetSummary));
 			}
@@ -164,12 +171,12 @@ public class ExtraResultsJsonSerializer {
 	}
 
 	@Nonnull
-	private JsonNode serializeHierarchyStatistics(@Nonnull HierarchyStatistics statistics) {
+	private JsonNode serializeHierarchyStatistics(@Nonnull Hierarchy statistics) {
 		final ObjectNode statisticsNode = objectJsonSerializer.objectNode();
 
 		final Map<String, List<LevelInfo>> selfStatistics = statistics.getSelfStatistics();
 		if (!selfStatistics.isEmpty()) {
-			statisticsNode.putIfAbsent(HierarchyStatisticsDescriptor.SELF.name(), serializeLevelInfos(selfStatistics));
+			statisticsNode.putIfAbsent(HierarchyDescriptor.SELF.name(), serializeLevelInfos(selfStatistics));
 		}
 
 		statistics.getStatistics().forEach((key, value) ->

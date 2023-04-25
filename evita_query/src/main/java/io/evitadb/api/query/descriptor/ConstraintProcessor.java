@@ -361,6 +361,7 @@ class ConstraintProcessor {
 			parameter.getName(),
 			parameterType,
 			isParameterRequired(parameter),
+			child.domain(),
 			child.uniqueChildren(),
 			Arrays.stream(child.allowed())
 				.map(c -> (Class<Constraint<?>>) c)
@@ -402,7 +403,8 @@ class ConstraintProcessor {
 			resolveConstraintType((Class<? extends Constraint<?>>) parameterType),
 			parameter.getName(),
 			parameterType,
-			isParameterRequired(parameter)
+			isParameterRequired(parameter),
+			additionalChild.domain()
 		);
 	}
 

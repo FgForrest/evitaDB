@@ -23,7 +23,7 @@
 
 package io.evitadb.core.query.algebra.facet;
 
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -43,9 +43,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Optional.ofNullable;
 
@@ -60,7 +60,7 @@ import static java.util.Optional.ofNullable;
 public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupFormula {
 	private static final long CLASS_ID = 7601098585679511784L;
 	/**
-	 * Contains {@link FacetInSet#getReferenceName()} of the facet that is targeted by this formula.
+	 * Contains {@link FacetHaving#getReferenceName()} of the facet that is targeted by this formula.
 	 */
 	@Getter private final String referenceName;
 	/**
@@ -68,17 +68,17 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	 */
 	@Getter private final Integer facetGroupId;
 	/**
-	 * Contains array of requested facet ids from {@link FacetInSet#getFacetIds()} filtering query.
+	 * Contains array of requested facet ids from {@link FacetHaving} filtering query.
 	 */
-	@Getter private final int[] facetIds;
+	@Getter private final Bitmap facetIds;
 	/**
 	 * Contains array of bitmaps that represents the entity primary keys that match {@link #facetIds}.
 	 */
 	@Getter private final Bitmap[] bitmaps;
 
-	public FacetGroupAndFormula(@Nonnull String referenceName, @Nullable Integer facetGroupId, @Nonnull int[] facetIds, @Nonnull Bitmap... bitmaps) {
+	public FacetGroupAndFormula(@Nonnull String referenceName, @Nullable Integer facetGroupId, @Nonnull Bitmap facetIds, @Nonnull Bitmap... bitmaps) {
 		super();
-		Assert.isPremiseValid(facetIds.length == bitmaps.length, "Expected one bitmap for each facet.");
+		Assert.isPremiseValid(facetIds.size() == bitmaps.length, "Expected one bitmap for each facet.");
 		this.referenceName = referenceName;
 		this.facetGroupId = facetGroupId;
 		this.facetIds = facetIds;
@@ -100,11 +100,13 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	@Nonnull
 	@Override
 	public FacetGroupFormula getCloneWithFacet(int facetId, @Nonnull Bitmap... entityIds) {
-		Assert.isTrue(!ArrayUtils.contains(this.facetIds, facetId), "Formula already contains facet id `" + facetId + "`");
+		Assert.isTrue(!this.facetIds.contains(facetId), "Formula already contains facet id `" + facetId + "`");
+		final Bitmap clonedFacetIdsBitmap = new BaseBitmap(facetIds);
+		clonedFacetIdsBitmap.add(facetId);
 		return new FacetGroupAndFormula(
 			referenceName,
 			facetGroupId,
-			ArrayUtils.insertIntIntoArrayOnIndex(facetId, facetIds, facetIds.length),
+			clonedFacetIdsBitmap,
 			ArrayUtils.mergeArrays(bitmaps, entityIds)
 		);
 	}
@@ -122,11 +124,11 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " AND (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + Arrays.toString(facetIds) + "): ");
+		final StringBuilder sb = new StringBuilder("FACET " + referenceName + " AND (" + ofNullable(facetGroupId).map(Object::toString).orElse("-") + " - " + facetIds.toString() + "): ");
 		for (int i = 0; i < bitmaps.length; i++) {
 			final Bitmap bitmap = bitmaps[i];
 			sb.append(" ↦ ").append(bitmap.toString());
-			if (i + 1 < facetIds.length) {
+			if (i + 1 < facetIds.size()) {
 				sb.append(", ");
 			}
 		}
@@ -176,7 +178,7 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 			Stream.of(
 					LongStream.of(hashFunction.hashChars(referenceName)),
 					facetGroupId == null ? LongStream.empty() : LongStream.of(facetGroupId),
-					IntStream.of(facetIds).mapToLong(it -> it).sorted(),
+					StreamSupport.stream(facetIds.spliterator(), false).mapToLong(it -> it),
 					Arrays.stream(bitmaps)
 						.filter(it -> it instanceof TransactionalBitmap)
 						.mapToLong(it -> ((TransactionalBitmap) it).getId())

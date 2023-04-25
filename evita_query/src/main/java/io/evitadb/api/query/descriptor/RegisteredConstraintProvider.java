@@ -102,7 +102,7 @@ class RegisteredConstraintProvider {
 		HierarchyWithin.class,
 		HierarchyWithinRoot.class,
 		// facet
-		FacetInSet.class,
+		FacetHaving.class,
 
 		// --- order constraints ---
 		// generic
