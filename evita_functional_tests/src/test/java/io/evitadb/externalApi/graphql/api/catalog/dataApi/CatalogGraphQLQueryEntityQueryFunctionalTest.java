@@ -63,6 +63,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -114,19 +115,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private static final String REFERENCED_HIERARCHY_PATH = PRODUCT_HIERARCHY_PATH + ".category";
 	private static final String REFERENCED_MEGA_MENU_PATH = REFERENCED_HIERARCHY_PATH + ".megaMenu";
 	private static final String REFERENCED_ROOT_SIBLINGS_PATH = REFERENCED_HIERARCHY_PATH + ".rootSiblings";
-
-	private static final String LEVEL_INFO_FRAGMENT = """
-			parentId
-			entity {
-				primaryKey
-				attributes {
-					code
-				}
-			}
-			queriedEntityCount
-			childrenCount
-			hasChildren
-			""";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -3013,8 +3001,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3090,8 +3078,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3165,8 +3153,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3239,8 +3227,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3315,7 +3303,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 											hierarchyStopAt: {
 												hierarchyDistance: 2
 											}
-											%s
 										}
 										%s
 									) { %s }
@@ -3325,9 +3312,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3398,8 +3384,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3485,10 +3471,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT,
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType),
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3524,8 +3510,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				LEVEL_INFO_FRAGMENT,
-				LEVEL_INFO_FRAGMENT)
+				getLevelInfoFragment(),
+				getLevelInfoFragment())
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
@@ -3601,8 +3587,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3682,8 +3668,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3761,8 +3747,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3839,8 +3825,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -3919,7 +3905,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 											hierarchyStopAt: {
 												hierarchyDistance: 2
 											}
-											%s
 										}
 										%s
 									) { %s }
@@ -3929,9 +3914,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -4008,8 +3992,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -4101,10 +4085,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT,
-				getHierarchyStatisticsArgument(statisticsType, base),
-				LEVEL_INFO_FRAGMENT)
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType),
+				getHierarchyStatisticsBaseArgument(base),
+				getLevelInfoFragment(statisticsType))
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
@@ -4141,8 +4125,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					}
 				}
 				""",
-				LEVEL_INFO_FRAGMENT,
-				LEVEL_INFO_FRAGMENT)
+				getLevelInfoFragment(),
+				getLevelInfoFragment())
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
@@ -4480,29 +4464,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Nonnull
 	private List<Map<String, Object>> createFlattenedHierarchy(@Nonnull List<LevelInfo> hierarchy) {
 		final List<Map<String, Object>> flattenedHierarchy = new LinkedList<>();
-		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, null, levelInfo));
+		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, null, levelInfo, 1));
 		return flattenedHierarchy;
 	}
 
 	private void createFlattenedHierarchy(@Nonnull List<Map<String, Object>> flattenedHierarchy,
 	                                      @Nullable LevelInfo parentLevelInfo,
-	                                      @Nonnull LevelInfo levelInfo) {
-		final Map<String, Object> currentLevelInfoDto = map()
+	                                      @Nonnull LevelInfo levelInfo,
+	                                      int currentLevel) {
+		final MapBuilder currentLevelInfoDto = map()
 			.e(LevelInfoDescriptor.PARENT_ID.name(), parentLevelInfo != null
 				? parentLevelInfo.entity().getPrimaryKey()
 				: null)
+			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
 			.e(LevelInfoDescriptor.ENTITY.name(), map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
 				.e(EntityDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_CODE, ((SealedEntity) levelInfo.entity()).getAttribute(ATTRIBUTE_CODE))))
-			.e(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), levelInfo.queriedEntityCount())
-			.e(LevelInfoDescriptor.CHILDREN_COUNT.name(), levelInfo.childrenCount())
-			.e(LevelInfoDescriptor.HAS_CHILDREN.name(), !levelInfo.children().isEmpty())
-			.build();
-		flattenedHierarchy.add(currentLevelInfoDto);
+			.e(LevelInfoDescriptor.HAS_CHILDREN.name(), !levelInfo.children().isEmpty());
+
+		if (levelInfo.queriedEntityCount() != null) {
+			currentLevelInfoDto.e(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), levelInfo.queriedEntityCount());
+		}
+		if (levelInfo.childrenCount() != null) {
+			currentLevelInfoDto.e(LevelInfoDescriptor.CHILDREN_COUNT.name(), levelInfo.childrenCount());
+		}
+		flattenedHierarchy.add(currentLevelInfoDto.build());
 
 		levelInfo.children()
-			.forEach(childLevelInfo -> createFlattenedHierarchy(flattenedHierarchy, levelInfo, childLevelInfo));
+			.forEach(childLevelInfo -> createFlattenedHierarchy(flattenedHierarchy, levelInfo, childLevelInfo, currentLevel + 1));
 	}
 
 	@Nonnull
@@ -4586,14 +4576,33 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private static String getHierarchyStatisticsArgument(@Nonnull EnumSet<StatisticsType> statisticsType,
-	                                                     @Nonnull StatisticsBase base) {
-		return statisticsType.isEmpty()
-			? "hierarchyStatistics: { statisticsBase: " + base.name() + "}"
-			: "hierarchyStatistics: { statisticsBase: " + base.name() + ", statisticsType: [" +
-			statisticsType.stream()
-				.map(Enum::name)
-				.collect(Collectors.joining(",")) +
-			"]}";
+	private static String getHierarchyStatisticsBaseArgument(@Nonnull StatisticsBase base) {
+		return "statisticsBase: " + base.name();
+	}
+
+	@Nonnull
+	private static String getLevelInfoFragment() {
+		return getLevelInfoFragment(EnumSet.noneOf(StatisticsType.class));
+	}
+
+	@Nonnull
+	private static String getLevelInfoFragment(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
+		return String.format(
+            """
+				parentId
+				level
+				entity {
+					primaryKey
+					attributes {
+						code
+					}
+				}
+				%s
+				%s
+				hasChildren
+				""",
+			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name() : "",
+			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? LevelInfoDescriptor.CHILDREN_COUNT.name() : ""
+		);
 	}
 }

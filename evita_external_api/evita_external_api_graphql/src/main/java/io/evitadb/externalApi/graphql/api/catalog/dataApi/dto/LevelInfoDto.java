@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
  * @author Lukáš Hornych, 2023
  */
 public record LevelInfoDto(@Nullable Integer parentId,
+						   int level,
                            @Nonnull EntityClassifier entity,
                            @Nullable Integer queriedEntityCount,
                            @Nullable Integer childrenCount,
