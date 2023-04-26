@@ -77,9 +77,9 @@ public class ConstraintKeyBuilder {
 		// one that is expected when derived from child domain. These constraints are usually valid only in specific context
 		// and not globally available
 		if (!buildContext.isAtRoot() &&
-			buildContext.dataLocator().targetDomain().equals(buildContext.parentDataLocator().targetDomain()) && // we need same domain so that when resolving we can safely look at parent domain for finding constraint without prefix
+			buildContext.dataLocator().targetDomain().equals(buildContext.parentDataLocator().targetDomain()) &&
 			!creator.needsClassifier() &&
-			constraintDescriptor.propertyType().equals(ConstraintProcessingUtils.getPropertyTypeForDomain(buildContext.dataLocator().targetDomain()))) {
+			constraintDescriptor.propertyType().equals(ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(buildContext.dataLocator().targetDomain()))) {
 			return StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_NAMING_CONVENTION);
 		}
 
