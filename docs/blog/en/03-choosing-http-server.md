@@ -20,8 +20,8 @@ HTTP server, library or framework that would serve as a common foundation for al
 ##### The article updated as of April 2023
 </NoteTitle>
 
-Thanks to Francesco Nigro's comments in [Issue #1](https://github.com/FgForrest/HttpServerEvaluationTest/issues/1)
-we updated the versions of all tested web servers to the latest versions, fixed the problem in the Netty performance 
+Thanks to Francesco Nigro's from RedHat comments in [Issue #1](https://github.com/FgForrest/HttpServerEvaluationTest/issues/1)
+(thanks!) we updated the versions of all tested web servers to the latest versions, fixed the problem in the Netty performance 
 test implementation that erroneously closed an HTTP connection in every iteration, and re-measured all tests, isolating 
 the CPU for JMH tests and measuring the web server instance.
 

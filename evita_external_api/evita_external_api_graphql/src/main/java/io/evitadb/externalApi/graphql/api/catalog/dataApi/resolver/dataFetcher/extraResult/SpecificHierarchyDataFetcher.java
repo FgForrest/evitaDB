@@ -57,18 +57,20 @@ public class SpecificHierarchyDataFetcher implements DataFetcher<List<LevelInfoD
 		);
 
 		final List<LevelInfoDto> flattenedHierarchy = new LinkedList<>();
-		hierarchy.forEach(rootLevelInfo -> createLevelInfoDto(flattenedHierarchy, null, rootLevelInfo));
+		hierarchy.forEach(rootLevelInfo -> createLevelInfoDto(flattenedHierarchy, null, rootLevelInfo, 1));
 
 		return flattenedHierarchy;
 	}
 
 	private void createLevelInfoDto(@Nonnull List<LevelInfoDto> flattenedHierarchy,
 	                                @Nullable LevelInfo parentLevelInfo,
-	                                @Nonnull LevelInfo levelInfo) {
+	                                @Nonnull LevelInfo levelInfo,
+	                                int currentLevel) {
 		final LevelInfoDto currentLevelInfoDto = new LevelInfoDto(
 			parentLevelInfo != null
 				? parentLevelInfo.entity().getPrimaryKey()
 				: null,
+			currentLevel,
 			levelInfo.entity(),
 			levelInfo.queriedEntityCount(),
 			levelInfo.childrenCount(),
@@ -77,7 +79,7 @@ public class SpecificHierarchyDataFetcher implements DataFetcher<List<LevelInfoD
 		flattenedHierarchy.add(currentLevelInfoDto);
 
 		levelInfo.children()
-			.forEach(childLevelInfo -> createLevelInfoDto(flattenedHierarchy, levelInfo, childLevelInfo));
+			.forEach(childLevelInfo -> createLevelInfoDto(flattenedHierarchy, levelInfo, childLevelInfo, currentLevel + 1));
 	}
 
 }

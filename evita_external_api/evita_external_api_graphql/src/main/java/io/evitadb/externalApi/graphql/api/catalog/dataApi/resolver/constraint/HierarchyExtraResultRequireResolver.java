@@ -27,15 +27,7 @@ import graphql.schema.SelectedField;
 import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.HierarchyNode;
-import io.evitadb.api.query.require.HierarchyOfReference;
-import io.evitadb.api.query.require.HierarchyOfSelf;
-import io.evitadb.api.query.require.HierarchyRequireConstraint;
-import io.evitadb.api.query.require.HierarchySiblings;
-import io.evitadb.api.query.require.HierarchyStatistics;
-import io.evitadb.api.query.require.HierarchyStopAt;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
@@ -66,11 +58,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Custom constraint resolver which resolves additional constraints from output fields defined by client, rather
@@ -146,8 +140,9 @@ public class HierarchyExtraResultRequireResolver {
 			? entitySchemaFetcher.apply(referenceSchema.getReferencedEntityType())
 			: null;
 
-		final EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = (EmptyHierarchicalEntityBehaviour) field.getArguments()
-			.get(HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR.name());
+		final EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = Optional.ofNullable(field.getArguments().get(HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR.name()))
+			.map(it -> (EmptyHierarchicalEntityBehaviour) it)
+			.orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY);
 		final OrderBy orderBy;
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
 			orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfReferenceHeaderDescriptor.ORDER_BY.name()))
@@ -207,7 +202,7 @@ public class HierarchyExtraResultRequireResolver {
 
 		final String hierarchyType = field.getName();
 		final HierarchyStopAt stopAt = resolveChildHierarchyRequireFromArgument(field, hierarchyDataLocator, HierarchyRequireHeaderDescriptor.STOP_AT);
-		final HierarchyStatistics statistics = resolveChildHierarchyRequireFromArgument(field, hierarchyDataLocator, HierarchyRequireHeaderDescriptor.STATISTICS);
+		final HierarchyStatistics statistics = resolveHierarchyStatistics(field);
 		final EntityFetch entityFetch = resolveHierarchyEntityFetch(field, desiredLocale, currentEntitySchema);
 
 		final HierarchyRequireConstraint hierarchyRequire;
@@ -263,6 +258,31 @@ public class HierarchyExtraResultRequireResolver {
 	}
 
 	@Nullable
+	private HierarchyStatistics resolveHierarchyStatistics(@Nonnull SelectedField field) {
+		final SelectionSetWrapper levelInfoFields = SelectionSetWrapper.from(field.getSelectionSet());
+
+		final Set<StatisticsType> statisticsTypes = createHashSet(2);
+		if (levelInfoFields.contains(LevelInfoDescriptor.CHILDREN_COUNT.name())) {
+			statisticsTypes.add(StatisticsType.CHILDREN_COUNT);
+		}
+		if (levelInfoFields.contains(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name())) {
+			statisticsTypes.add(StatisticsType.QUERIED_ENTITY_COUNT);
+		}
+		if (levelInfoFields.isEmpty()) {
+			// no statistics were requested
+			return null;
+		}
+
+		final Optional<StatisticsBase> statisticsBase = Optional.ofNullable(field.getArguments().get(HierarchyRequireHeaderDescriptor.STATISTICS_BASE.name()))
+			.map(it -> (StatisticsBase) it);
+
+		return statistics(
+			statisticsBase.orElse(StatisticsBase.WITHOUT_USER_FILTER),
+			statisticsTypes.toArray(StatisticsType[]::new)
+		);
+	}
+
+	@Nullable
 	private HierarchySiblings resolveSiblingsOfParents(@Nonnull SelectedField field,
 	                                                   @Nonnull HierarchyDataLocator hierarchyDataLocator) {
 
@@ -276,10 +296,7 @@ public class HierarchyExtraResultRequireResolver {
 		final HierarchyStopAt stopAt = Optional.ofNullable(siblingsSpecification.get(HierarchyParentsSiblingsSpecification.STOP_AT.name()))
 			.map(it -> (HierarchyStopAt) requireConstraintResolver.resolve(hierarchyDataLocator, HierarchyParentsSiblingsSpecification.STOP_AT.name(), it))
 			.orElse(null);
-		final HierarchyStatistics statistics = Optional.ofNullable(siblingsSpecification.get(HierarchyParentsSiblingsSpecification.STATISTICS.name()))
-			.map(it -> (HierarchyStatistics) requireConstraintResolver.resolve(hierarchyDataLocator, HierarchyParentsSiblingsSpecification.STATISTICS.name(), it))
-			.orElse(null);
 
-		return new HierarchySiblings(null, stopAt, statistics);
+		return new HierarchySiblings(null, stopAt);
 	}
 }

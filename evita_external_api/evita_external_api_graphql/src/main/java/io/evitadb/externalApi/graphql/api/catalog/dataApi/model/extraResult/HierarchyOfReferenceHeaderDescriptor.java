@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * TODO lho docs
@@ -41,6 +41,6 @@ public interface HierarchyOfReferenceHeaderDescriptor extends HierarchyHeaderDes
 			The enumeration controls behaviour of hierarchy whether the hierarchical nodes that are not referred
 			by any of the queried entities should be part of the result hierarchy statistics tree.
 			""")
-		.type(nonNull(EmptyHierarchicalEntityBehaviour.class))
+		.type(nullable(EmptyHierarchicalEntityBehaviour.class))
 		.build();
 }

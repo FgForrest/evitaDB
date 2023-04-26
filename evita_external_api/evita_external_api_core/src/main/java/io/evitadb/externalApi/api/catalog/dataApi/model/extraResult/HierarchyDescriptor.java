@@ -164,6 +164,13 @@ public interface HierarchyDescriptor {
 				""")
 			.type(nullable(Integer.class))
 			.build();
+		PropertyDescriptor LEVEL = PropertyDescriptor.builder()
+			.name("level")
+			.description("""
+                Level on which this node is placed from root. Root is always on level 1.
+				""")
+			.type(nonNull(Integer.class))
+			.build();
 		PropertyDescriptor ENTITY = PropertyDescriptor.builder()
 			.name("entity")
 			.description("""
@@ -177,7 +184,7 @@ public interface HierarchyDescriptor {
 				Contains the number of queried entities that refer directly to this {@link #entity} or to any of its children
 				entities.
 				""")
-			.type(nullable(Integer.class))
+			.type(nonNull(Integer.class))
 			.build();
 		PropertyDescriptor CHILDREN_COUNT = PropertyDescriptor.builder()
 			.name("childrenCount")
@@ -187,7 +194,7 @@ public interface HierarchyDescriptor {
 				count empty children in case `REMOVE_EMPTY` is
 				used for computation.
 				""")
-			.type(nullable(Integer.class))
+			.type(nonNull(Integer.class))
 			.build();
 		PropertyDescriptor HAS_CHILDREN = PropertyDescriptor.builder()
 			.name("hasChildren")
@@ -203,7 +210,7 @@ public interface HierarchyDescriptor {
 				This DTO represents single hierarchical entity in the hierarchy tree. It contains identification of the entity,
 				the cardinality of queried entities that refer to it and information about children level.
 				""")
-			.staticFields(List.of(PARENT_ID, QUERIED_ENTITY_COUNT, CHILDREN_COUNT, HAS_CHILDREN))
+			.staticFields(List.of(PARENT_ID, LEVEL, QUERIED_ENTITY_COUNT, CHILDREN_COUNT, HAS_CHILDREN))
 			.build();
 	}
 }
