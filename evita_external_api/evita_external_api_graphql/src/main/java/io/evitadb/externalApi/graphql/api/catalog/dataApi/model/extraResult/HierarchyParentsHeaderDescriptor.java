@@ -40,11 +40,21 @@ public interface HierarchyParentsHeaderDescriptor extends HierarchyRequireHeader
 		.description("""
 			Requests sibling nodes besides the parent nodes.
 			""")
-		// type is expected to be a sibling request object
+		// type is expected to be a sibling specification object
 		.build();
 
 	// todo lho docs
-	interface HierarchyParentsSiblingsSpecification extends HierarchyRequireHeaderDescriptor {
+	interface HierarchyParentsSiblingsSpecification {
+
+		PropertyDescriptor STOP_AT = PropertyDescriptor.builder()
+			// todo lho change to "stopAt" after we support it
+			.name("hierarchyStopAt")
+			// TOBEDONE JNO: stopAt constraint docs
+			.description("""
+				Defines node at which the hierarchy will stop expanding.
+				""")
+			// type is expected to be a `stopAt` constraint
+			.build();
 
 		ObjectDescriptor THIS = ObjectDescriptor.builder()
 			.name("*ParentsSiblingsSpecification")
