@@ -24,10 +24,10 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
-import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.filter.HierarchyExcluding;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -99,7 +99,6 @@ public class ConstraintDescriptorResolverTest {
 			parsedAttributeConstraint.orElseThrow(),
 			new ParsedConstraintDescriptor(
 				"attributeCodeEquals",
-				ConstraintPropertyType.ATTRIBUTE,
 				"code",
 				ConstraintDescriptorProvider.getConstraint(AttributeEquals.class),
 				new EntityDataLocator(Entities.PRODUCT)
@@ -114,7 +113,6 @@ public class ConstraintDescriptorResolverTest {
 			parsedEntityFromReferenceConstraint.orElseThrow(),
 			new ParsedConstraintDescriptor(
 				"entityHaving",
-				ConstraintPropertyType.ENTITY,
 				null,
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				new EntityDataLocator(Entities.CATEGORY)
@@ -129,7 +127,6 @@ public class ConstraintDescriptorResolverTest {
 			parsedHierarchyConstraint.orElseThrow(),
 			new ParsedConstraintDescriptor(
 				"hierarchyCategoryWithin",
-				ConstraintPropertyType.HIERARCHY,
 				Entities.CATEGORY,
 				ConstraintDescriptorProvider.getConstraints(HierarchyWithin.class)
 					.stream()
@@ -138,6 +135,21 @@ public class ConstraintDescriptorResolverTest {
 					.orElseThrow(),
 				new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY)
 			)
+		);
+
+		// should be parsed because there is proper parent hierarchy context properly identifying the simplified constraint
+		final Optional<ParsedConstraintDescriptor> parsedSimplifiedStopAt = parser.resolve(
+			new ConstraintResolveContext(new HierarchyDataLocator(Entities.CATEGORY), new HierarchyDataLocator(Entities.CATEGORY)),
+			"excluding"
+		);
+		assertEquals(
+			new ParsedConstraintDescriptor(
+				"excluding",
+				null,
+				ConstraintDescriptorProvider.getConstraint(HierarchyExcluding.class),
+				new HierarchyDataLocator(Entities.CATEGORY)
+			),
+			parsedSimplifiedStopAt.orElseThrow()
 		);
 	}
 
@@ -153,6 +165,20 @@ public class ConstraintDescriptorResolverTest {
 			parser.resolve(
 				new ConstraintResolveContext(new EntityDataLocator(Entities.PRODUCT)),
 				"attributeCodeNot"
+			).isEmpty()
+		);
+		// should not be parsed because it is simplified constraint without proper parent hierarchy context
+		assertTrue(
+			parser.resolve(
+				new ConstraintResolveContext(new HierarchyDataLocator(Entities.CATEGORY)),
+				"excluding"
+			).isEmpty()
+		);
+		// should not be parsed because it is simplified constraint without same current context as parent has
+		assertTrue(
+			parser.resolve(
+				new ConstraintResolveContext(new HierarchyDataLocator(Entities.CATEGORY), new EntityDataLocator(Entities.PRODUCT)),
+				"excluding"
 			).isEmpty()
 		);
 	}

@@ -85,13 +85,14 @@ class ConstraintDescriptorResolver {
 	@Nonnull
 	public Optional<ParsedConstraintDescriptor> resolve(@Nonnull ConstraintResolveContext resolveContext, @Nonnull String key) {
 		// needed data to parse
-		final ConstraintPropertyType propertyType;
+		final ConstraintPropertyType derivedPropertyType;
+		final ConstraintPropertyType fallbackPropertyType = ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(resolveContext.dataLocator().targetDomain());
 		final Optional<String> rawClassifier; // classifier in constraint key is transformed into some case to fit the key, it doesn't represent stored classifier
 		ConstraintDescriptor constraintDescriptor = null;
 
 		// parse prefix into property type first
 		final Entry<String, ConstraintPropertyType> foundPropertyType = ConstraintProcessingUtils.getPropertyTypeFromPrefix(key);
-		propertyType = foundPropertyType.getValue();
+		derivedPropertyType = foundPropertyType.getValue();
 		final String remainingKey = key.substring(foundPropertyType.getKey().length());
 
 		// parse remains of key into classifier and full constraint name
@@ -103,18 +104,20 @@ class ConstraintDescriptorResolver {
 
 			constraintDescriptor = ConstraintDescriptorProvider.getConstraint(
 					constraintType,
-					propertyType,
+					derivedPropertyType,
 					possibleFullName,
 					possibleClassifier
 				)
 				.or(() -> {
 					// when child constraint is allowed only as direct children of specific parent and domain between parent and child
 					// didn't change, we can use simplified name without prefix and classifier
-					if (propertyType.equals(ConstraintPropertyType.GENERIC) && possibleClassifier == null) {
-						final ConstraintPropertyType derivedPropertyType = ConstraintProcessingUtils.getPropertyTypeForDomain(resolveContext.dataLocator().targetDomain());
+					if (derivedPropertyType.equals(ConstraintPropertyType.GENERIC) &&
+						!resolveContext.isAtRoot() &&
+						resolveContext.dataLocator().targetDomain().equals(resolveContext.parentDataLocator().targetDomain()) &&
+						possibleClassifier == null) {
 						return ConstraintDescriptorProvider.getConstraint(
 							constraintType,
-							derivedPropertyType,
+							fallbackPropertyType,
 							possibleFullName,
 							null
 						);
@@ -141,7 +144,6 @@ class ConstraintDescriptorResolver {
 
 		return Optional.of(new ParsedConstraintDescriptor(
 			key,
-			propertyType,
 			actualClassifier.orElse(null),
 			constraintDescriptor,
 			innerDataLocator
@@ -310,7 +312,6 @@ class ConstraintDescriptorResolver {
 	 * Parsed client key representing actual constraint which is described by {@link ConstraintDescriptor}
 	 */
 	public record ParsedConstraintDescriptor(@Nonnull String originalKey,
-	                                         @Nonnull ConstraintPropertyType propertyType,
 	                                         @Nullable String classifier,
 	                                         @Nonnull ConstraintDescriptor constraintDescriptor,
 	                                         @Nonnull DataLocator innerDataLocator) {}
