@@ -2992,7 +2992,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							hierarchy {
 								self(orderBy: {attributeCodeNatural: DESC}) {
 									megaMenu: fromRoot(
-										hierarchyStopAt: { hierarchyDistance: 2 }
+										stopAt: { distance: 2 }
 										%s
 									) { %s }
 								}
@@ -3068,8 +3068,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							hierarchy {
 								self(orderBy: {attributeCodeNatural: DESC}) {
 									megaMenu: fromNode(
-										hierarchyNode: { filterBy: { entityPrimaryKeyInSet: 2 }}
-										hierarchyStopAt: { hierarchyDistance: 2 }
+										node: { filterBy: { entityPrimaryKeyInSet: 2 }}
+										stopAt: { distance: 2 }
 										%s
 									) { %s }
 								}
@@ -3144,7 +3144,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							hierarchy {
 								self(orderBy: {attributeCodeNatural: DESC}) {
 									megaMenu: children(
-										hierarchyStopAt: { hierarchyDistance: 1 }
+										stopAt: { distance: 1 }
 										%s
 									) { %s }
 								}
@@ -3218,7 +3218,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							hierarchy {
 								self(orderBy: {attributeCodeNatural: DESC}) {
 									megaMenu: parents(
-										hierarchyStopAt: { hierarchyDistance: 100 }
+										stopAt: { distance: 100 }
 										%s
 									) { %s }
 								}
@@ -3298,10 +3298,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							hierarchy {
 								self(orderBy: {attributeCodeNatural: DESC}) {
 									megaMenu: parents(
-										hierarchyStopAt: { hierarchyDistance: 100 }
+										stopAt: { distance: 100 }
 										siblings: {
-											hierarchyStopAt: {
-												hierarchyDistance: 2
+											stopAt: {
+												distance: 2
 											}
 										}
 										%s
@@ -3375,7 +3375,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							hierarchy {
 								self(orderBy: {attributeCodeNatural: DESC}) {
 									rootSiblings: siblings(
-										hierarchyStopAt: { hierarchyDistance: 1 }
+										stopAt: { distance: 1 }
 										%s
 									) { %s }
 								}
@@ -3458,11 +3458,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							hierarchy {
 								self(orderBy: {attributeCodeNatural: DESC}) {
 									megaMenu: fromRoot(
-										hierarchyStopAt: { hierarchyDistance: 2 }
+										stopAt: { distance: 2 }
 										%s
 									) { %s }
 									rootSiblings: siblings(
-										hierarchyStopAt: { hierarchyDistance: 1 }
+										stopAt: { distance: 1 }
 										%s
 									) { %s }
 								}
@@ -3578,7 +3578,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
 								) {
 									megaMenu: fromRoot(
-										hierarchyStopAt: { hierarchyDistance: 2 }
+										stopAt: { distance: 2 }
 										%s
 									) { %s }
 								}
@@ -3658,8 +3658,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
 								) {
 									megaMenu: fromNode(
-										hierarchyNode: { filterBy: { entityPrimaryKeyInSet: 2 }}
-										hierarchyStopAt: { hierarchyDistance: 2 }
+										node: { filterBy: { entityPrimaryKeyInSet: 2 }}
+										stopAt: { distance: 2 }
 										%s
 									) { %s }
 								}
@@ -3738,7 +3738,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
 								) {
 									megaMenu: children(
-										hierarchyStopAt: { hierarchyDistance: 1 }
+										stopAt: { distance: 1 }
 										%s
 									) { %s }
 								}
@@ -3816,7 +3816,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
 								) {
 									megaMenu: parents(
-										hierarchyStopAt: { hierarchyDistance: 100 }
+										stopAt: { distance: 100 }
 										%s
 									) { %s }
 								}
@@ -3900,12 +3900,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
 								) {
 									megaMenu: parents(
-										hierarchyStopAt: { hierarchyDistance: 100 }
-										siblings: {
-											hierarchyStopAt: {
-												hierarchyDistance: 2
-											}
-										}
+										stopAt: { distance: 100 }
+										siblings: { stopAt: { distance: 2 }}
 										%s
 									) { %s }
 								}
@@ -3983,7 +3979,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
 								) {
 									rootSiblings: siblings(
-										hierarchyStopAt: { hierarchyDistance: 1 }
+										stopAt: { distance: 1 }
 										%s
 									) { %s }
 								}
@@ -4072,11 +4068,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									emptyHierarchicalEntityBehaviour: REMOVE_EMPTY
 								) {
 									megaMenu: fromRoot(
-										hierarchyStopAt: { hierarchyDistance: 2 }
+										stopAt: { distance: 2 }
 										%s
 									) { %s }
 									rootSiblings: siblings(
-										hierarchyStopAt: { hierarchyDistance: 1 }
+										stopAt: { distance: 1 }
 										%s
 									) { %s }
 								}

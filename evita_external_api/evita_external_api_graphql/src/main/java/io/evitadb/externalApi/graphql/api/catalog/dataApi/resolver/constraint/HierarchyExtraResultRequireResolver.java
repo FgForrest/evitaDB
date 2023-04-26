@@ -140,8 +140,9 @@ public class HierarchyExtraResultRequireResolver {
 			? entitySchemaFetcher.apply(referenceSchema.getReferencedEntityType())
 			: null;
 
-		final EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = (EmptyHierarchicalEntityBehaviour) field.getArguments()
-			.get(HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR.name());
+		final EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = Optional.ofNullable(field.getArguments().get(HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR.name()))
+			.map(it -> (EmptyHierarchicalEntityBehaviour) it)
+			.orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY);
 		final OrderBy orderBy;
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
 			orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfReferenceHeaderDescriptor.ORDER_BY.name()))

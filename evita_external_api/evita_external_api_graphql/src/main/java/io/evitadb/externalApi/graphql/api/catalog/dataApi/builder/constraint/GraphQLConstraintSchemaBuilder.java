@@ -203,9 +203,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 	protected GraphQLInputType buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                     @Nonnull ChildParameterDescriptor childParameter) {
 		final GraphQLInputType childContainer = obtainContainer(
-			buildContext.toBuilder()
-				.dataLocator(resolveChildDataLocator(buildContext, childParameter.domain()))
-				.build(),
+			buildContext.switchToChildContext(resolveChildDataLocator(buildContext, childParameter.domain())),
 			childParameter
 		);
 

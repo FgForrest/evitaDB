@@ -27,7 +27,10 @@ import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintPropertyType;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -82,6 +85,14 @@ public class ConstraintProcessingUtils {
 		FACET_PREFIX, ConstraintPropertyType.FACET
 	);
 
+	private static final Map<ConstraintDomain, ConstraintPropertyType> DOMAIN_TO_PROPERTY_TYPE = Map.of(
+		ConstraintDomain.GENERIC, ConstraintPropertyType.GENERIC,
+		ConstraintDomain.ENTITY, ConstraintPropertyType.ENTITY,
+		ConstraintDomain.REFERENCE, ConstraintPropertyType.REFERENCE,
+		ConstraintDomain.HIERARCHY, ConstraintPropertyType.HIERARCHY,
+		ConstraintDomain.FACET, ConstraintPropertyType.FACET
+	);
+
 
 	/**
 	 * Wrapper range properties
@@ -95,7 +106,7 @@ public class ConstraintProcessingUtils {
 	 * Finds correct query JSON key prefix by property type.
 	 */
 	@Nonnull
-	public static Optional<String> getPrefixByPropertyType(@Nonnull ConstraintPropertyType propertyType) {
+	public static Optional<String> getPrefixForPropertyType(@Nonnull ConstraintPropertyType propertyType) {
 		return Optional.ofNullable(PROPERTY_TYPE_TO_PREFIX.get(propertyType));
 	}
 
@@ -103,12 +114,25 @@ public class ConstraintProcessingUtils {
 	 * Finds corresponding property type for query JSON key prefix. Returns found prefix with corresponding property type.
 	 */
 	@Nonnull
-	public static Entry<String, ConstraintPropertyType> getPropertyTypeByPrefix(@Nonnull String s) {
+	public static Entry<String, ConstraintPropertyType> getPropertyTypeFromPrefix(@Nonnull String s) {
 		return ConstraintProcessingUtils.PREFIX_TO_PROPERTY_TYPE.entrySet()
 			.stream()
 			.filter(it -> s.startsWith(it.getKey()))
 			.findFirst()
 			.orElse(Map.entry(ConstraintProcessingUtils.GENERIC_PREFIX, ConstraintPropertyType.GENERIC));
+	}
+
+	/**
+	 * Finds property type that is valid in passed domain.
+	 */
+	@Nonnull
+	public static ConstraintPropertyType getPropertyTypeForDomain(@Nonnull ConstraintDomain domain) {
+		Assert.isPremiseValid(
+			!domain.isDynamic(),
+			() -> new ExternalApiInternalError("Dynamic domain (`" + domain + "`) cannot be mapped to specific property type.")
+		);
+		return Optional.ofNullable(DOMAIN_TO_PROPERTY_TYPE.get(domain))
+			.orElseThrow(() -> new ExternalApiInternalError("Domain `" + domain + "` doesn't have assigned property type."));
 	}
 
 	/**

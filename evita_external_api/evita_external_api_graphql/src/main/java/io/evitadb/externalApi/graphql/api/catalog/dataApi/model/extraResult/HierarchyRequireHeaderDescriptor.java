@@ -37,8 +37,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
 public interface HierarchyRequireHeaderDescriptor {
 
 	PropertyDescriptor STOP_AT = PropertyDescriptor.builder()
-		// todo lho change to "stopAt" after we support it
-		.name("hierarchyStopAt")
+		.name("stopAt")
 		// TOBEDONE JNO: stopAt constraint docs
 		.description("""
 			Defines node at which the hierarchy will stop expanding.

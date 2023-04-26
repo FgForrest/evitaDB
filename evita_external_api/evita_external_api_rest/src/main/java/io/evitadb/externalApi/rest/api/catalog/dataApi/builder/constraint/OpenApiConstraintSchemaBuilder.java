@@ -204,7 +204,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 	protected OpenApiSimpleType buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                      @Nonnull ChildParameterDescriptor childParameter) {
 		final OpenApiSimpleType childContainer = obtainContainer(
-			new ConstraintBuildContext(resolveChildDataLocator(buildContext, childParameter.domain())),
+			buildContext.switchToChildContext(resolveChildDataLocator(buildContext, childParameter.domain())),
 			childParameter
 		);
 

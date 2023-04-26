@@ -30,13 +30,11 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDesc
 import io.evitadb.api.query.descriptor.ConstraintCreator.ParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
-import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
@@ -46,7 +44,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.FacetDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorParser.ParsedConstraintDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.utils.Assert;
@@ -107,8 +105,7 @@ import java.util.stream.Stream;
 public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 	@Nonnull protected final CatalogSchemaContract catalogSchema;
-	@Nonnull private final ConstraintDescriptorParser keyParser;
-	@Nonnull private final ConstraintKeyBuilder keyBuilder;
+	@Nonnull private final ConstraintDescriptorResolver keyParser;
 	/**
 	 * Map of additional resolvers for cross-resolving constraints of different constraint types.
 	 */
@@ -124,8 +121,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		);
 
 		this.catalogSchema = catalogSchema;
-		this.keyParser = new ConstraintDescriptorParser(catalogSchema, getConstraintType());
-		this.keyBuilder = new ConstraintKeyBuilder();
+		this.keyParser = new ConstraintDescriptorResolver(catalogSchema, getConstraintType());
 		this.additionalResolvers = additionalResolvers;
 	}
 
@@ -157,7 +153,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 */
 	@Nullable
 	protected C resolve(@Nonnull ConstraintResolveContext resolveContext, @Nonnull String key, @Nullable Object value) {
-		final ParsedConstraintDescriptor parsedConstraintDescriptor = keyParser.parse(resolveContext, key)
+		final ParsedConstraintDescriptor parsedConstraintDescriptor = keyParser.resolve(resolveContext, key)
 			.orElseThrow(() -> createQueryResolvingInternalError("Unknown constraint `" + key + "`. Check that it has correct property type and name and support for classifier."));
 		final ConstraintResolveContext innerResolveContext = resolveContext.toBuilder()
 			.dataLocator(parsedConstraintDescriptor.innerDataLocator())
@@ -690,15 +686,11 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			() -> createQueryResolvingInternalError("Missing resolver for constraint type `" + parameterDescriptor.constraintType() + "`.")
 		);
 
-		// because we don't have direct access to descriptor of additional child constraint, we assume that additional
-		// child parameter has some generic constraint with single creator with single direct child parameter only
-		//noinspection unchecked
-		final ConstraintDescriptor additionalChildRootDescriptor = ConstraintDescriptorProvider.getConstraint(
-			(Class<? extends Constraint<?>>) parameterDescriptor.type()
+		return resolver.get().resolve(
+			new ConstraintResolveContext(resolveContext.dataLocator()),
+			parameterDescriptor.name(),
+			argument
 		);
-		final String additionalChildRootKey = keyBuilder.build(additionalChildRootDescriptor, null);
-
-		return resolver.get().resolve(new ConstraintResolveContext(resolveContext.dataLocator()), additionalChildRootKey, argument);
 	}
 
 	/**
