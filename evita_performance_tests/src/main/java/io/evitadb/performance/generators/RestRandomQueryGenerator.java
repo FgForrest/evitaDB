@@ -44,7 +44,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintBuildContext;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintKeyBuilder;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.graphql.api.dataType.coercing.AnyCoercing;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -1284,7 +1286,7 @@ public interface RestRandomQueryGenerator {
 
 		@Override
 		public String toString() {
-			final String key = new ConstraintKeyBuilder().build(constraintDescriptor, () -> classifier);
+			final String key = new ConstraintKeyBuilder().build(new ConstraintBuildContext(new GenericDataLocator("")), constraintDescriptor, () -> classifier);
 			return "\"" + key + "\": " + value;
 		}
 	}
