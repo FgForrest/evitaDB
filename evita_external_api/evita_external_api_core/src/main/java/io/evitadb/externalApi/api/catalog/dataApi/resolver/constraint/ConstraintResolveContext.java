@@ -24,18 +24,66 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Local context for constraint resolving. It is passed down the constraint tree. Each node can create new
  * context for its children if received context from parent is not relevant
  *
- * @param dataLocator specifies how to get schemas for resolving data
- *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@Builder(toBuilder = true)
-record ConstraintResolveContext(@Nonnull DataLocator dataLocator) {
+@Builder(access = AccessLevel.PRIVATE, toBuilder = true)
+@ToString
+@EqualsAndHashCode
+class ConstraintResolveContext {
+
+	@Nullable private final DataLocator parentDataLocator;
+	@Nonnull private final DataLocator dataLocator;
+
+	public ConstraintResolveContext(@Nonnull DataLocator dataLocator) {
+		this(null, dataLocator);
+	}
+
+	public ConstraintResolveContext(@Nonnull DataLocator parentDataLocator, @Nonnull DataLocator dataLocator) {
+		this.parentDataLocator = parentDataLocator;
+		this.dataLocator = dataLocator;
+	}
+
+	@Nonnull
+	public ConstraintResolveContext switchToChildContext(@Nonnull DataLocator childDataLocator) {
+		return toBuilder()
+			.parentDataLocator(dataLocator())
+			.dataLocator(childDataLocator)
+			.build();
+	}
+
+	/**
+	 * Whether building context is currently at the root of constraint and thus doesn't have any parent constraints.
+	 */
+	public boolean isAtRoot() {
+		return parentDataLocator == null;
+	}
+
+	/**
+	 * {@link #dataLocator()} that was used by parent constraint as main data locator. Useful for logic that is based
+	 * on difference between current and parent data locator.
+	 */
+	@Nonnull
+	public DataLocator parentDataLocator() {
+		return parentDataLocator;
+	}
+
+	/**
+	 * Specifies how to get data based on target domain for building constraint tree at current level.
+	 */
+	@Nonnull
+	public DataLocator dataLocator() {
+		return dataLocator;
+	}
 }

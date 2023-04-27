@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
-import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
@@ -72,7 +71,7 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-class ConstraintDescriptorParser {
+class ConstraintDescriptorResolver {
 
 	@Nonnull
 	private final CatalogSchemaContract catalogSchema;
@@ -84,19 +83,17 @@ class ConstraintDescriptorParser {
 	 * was found for the key.
 	 */
 	@Nonnull
-	public Optional<ParsedConstraintDescriptor> parse(@Nonnull ConstraintResolveContext resolveContext, @Nonnull String key) {
-		String remainingKey = key;
-
+	public Optional<ParsedConstraintDescriptor> resolve(@Nonnull ConstraintResolveContext resolveContext, @Nonnull String key) {
 		// needed data to parse
-		final ConstraintPropertyType propertyType;
+		final ConstraintPropertyType derivedPropertyType;
+		final ConstraintPropertyType fallbackPropertyType = ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(resolveContext.dataLocator().targetDomain());
 		final Optional<String> rawClassifier; // classifier in constraint key is transformed into some case to fit the key, it doesn't represent stored classifier
-		final String fullName;
 		ConstraintDescriptor constraintDescriptor = null;
 
 		// parse prefix into property type first
-		final Entry<String, ConstraintPropertyType> foundPropertyType = ConstraintProcessingUtils.getPropertyTypeByPrefix(key);
-		propertyType = foundPropertyType.getValue();
-		remainingKey = remainingKey.substring(foundPropertyType.getKey().length());
+		final Entry<String, ConstraintPropertyType> foundPropertyType = ConstraintProcessingUtils.getPropertyTypeFromPrefix(key);
+		derivedPropertyType = foundPropertyType.getValue();
+		final String remainingKey = key.substring(foundPropertyType.getKey().length());
 
 		// parse remains of key into classifier and full constraint name
 		final Deque<String> classifierWords = new LinkedList<>();
@@ -106,11 +103,27 @@ class ConstraintDescriptorParser {
 			final String possibleFullName = constructFullName(fullNameWords);
 
 			constraintDescriptor = ConstraintDescriptorProvider.getConstraint(
-				constraintType,
-				propertyType,
-				possibleFullName,
-				possibleClassifier
-			)
+					constraintType,
+					derivedPropertyType,
+					possibleFullName,
+					possibleClassifier
+				)
+				.or(() -> {
+					// when child constraint is allowed only as direct children of specific parent and domain between parent and child
+					// didn't change, we can use simplified name without prefix and classifier
+					if (derivedPropertyType.equals(ConstraintPropertyType.GENERIC) &&
+						!resolveContext.isAtRoot() &&
+						resolveContext.dataLocator().targetDomain().equals(resolveContext.parentDataLocator().targetDomain()) &&
+						possibleClassifier == null) {
+						return ConstraintDescriptorProvider.getConstraint(
+							constraintType,
+							fallbackPropertyType,
+							possibleFullName,
+							null
+						);
+					}
+					return Optional.empty();
+				})
 				.orElse(null);
 
 			if (constraintDescriptor == null) {
@@ -123,17 +136,15 @@ class ConstraintDescriptorParser {
 			return Optional.empty();
 		}
 
+
 		rawClassifier = constructClassifier(classifierWords);
-		fullName = constructFullName(fullNameWords);
 
 		final Optional<String> actualClassifier = resolveActualClassifier(resolveContext, constraintDescriptor, rawClassifier);
 		final DataLocator innerDataLocator = resolveInnerDataLocator(resolveContext, key, constraintDescriptor, actualClassifier);
 
 		return Optional.of(new ParsedConstraintDescriptor(
 			key,
-			propertyType,
 			actualClassifier.orElse(null),
-			fullName,
 			constraintDescriptor,
 			innerDataLocator
 		));
@@ -301,9 +312,7 @@ class ConstraintDescriptorParser {
 	 * Parsed client key representing actual constraint which is described by {@link ConstraintDescriptor}
 	 */
 	public record ParsedConstraintDescriptor(@Nonnull String originalKey,
-	                                         @Nonnull ConstraintPropertyType propertyType,
 	                                         @Nullable String classifier,
-	                                         @Nonnull String fullName,
 	                                         @Nonnull ConstraintDescriptor constraintDescriptor,
 	                                         @Nonnull DataLocator innerDataLocator) {}
 }

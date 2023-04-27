@@ -24,7 +24,10 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
+import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Descriptor of header arguments common for all {@link HierarchyRequireConstraint}s.
@@ -34,21 +37,19 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 public interface HierarchyRequireHeaderDescriptor {
 
 	PropertyDescriptor STOP_AT = PropertyDescriptor.builder()
-		// todo lho change to "stopAt" after we support it
-		.name("hierarchyStopAt")
+		.name("stopAt")
 		// TOBEDONE JNO: stopAt constraint docs
 		.description("""
 			Defines node at which the hierarchy will stop expanding.
 			""")
 		// type is expected to be a `stopAt` constraint
 		.build();
-	PropertyDescriptor STATISTICS = PropertyDescriptor.builder()
-		// todo lho change to "statistics" after we support it
-		.name("hierarchyStatistics")
-		// TOBEDONE JNO: statistics constraint docs
+	PropertyDescriptor STATISTICS_BASE = PropertyDescriptor.builder()
+		.name("statisticsBase")
 		.description("""
-			Triggers computing the count of children for each returned hierarchy node.
+			Specifies whether the hierarchy statistics cardinality will be based on a complete query filter by
+			constraint or only the part without user defined filter.
 			""")
-		// type is expected to be a `statistics` constraint
+		.type(nullable(StatisticsBase.class))
 		.build();
 }

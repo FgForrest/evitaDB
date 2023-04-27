@@ -727,16 +727,12 @@ public class FullResponseObjectBuilder {
 		final HierarchyDataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
 		final GraphQLInputType nodeConstraint = hierarchyRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyNode.class);
 		final GraphQLInputType stopAtConstraint = hierarchyRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStopAt.class);
-		final GraphQLInputType statisticsConstraint = hierarchyRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStatistics.class);
 		final GraphQLInputObjectType parentsSiblingsSpecification = HierarchyParentsSiblingsSpecification.THIS
 			.to(inputObjectBuilderTransformer)
 			.name(HierarchyParentsSiblingsSpecification.THIS.name(entitySchema, entitySchema))
 			.field(HierarchyParentsSiblingsSpecification.STOP_AT
 				.to(inputFieldBuilderTransformer)
 				.type(stopAtConstraint))
-			.field(HierarchyParentsSiblingsSpecification.STATISTICS
-				.to(inputFieldBuilderTransformer)
-				.type(statisticsConstraint))
 			.build();
 
 		final GraphQLObjectType selfLevelInfoObject = buildSelfLevelInfoObject(entitySchema);
@@ -748,27 +744,27 @@ public class FullResponseObjectBuilder {
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfSelfObjectBuilder,
-			buildHierarchyFromRootField(stopAtConstraint, statisticsConstraint, selfLevelInfoObject)
+			buildHierarchyFromRootField(stopAtConstraint, selfLevelInfoObject)
 		);
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfSelfObjectBuilder,
-			buildHierarchyFromNodeField(nodeConstraint, stopAtConstraint, statisticsConstraint, selfLevelInfoObject)
+			buildHierarchyFromNodeField(nodeConstraint, stopAtConstraint, selfLevelInfoObject)
 		);
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfSelfObjectBuilder,
-			buildHierarchyChildrenField(stopAtConstraint, statisticsConstraint, selfLevelInfoObject)
+			buildHierarchyChildrenField(stopAtConstraint, selfLevelInfoObject)
 		);
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfSelfObjectBuilder,
-			buildHierarchyParentsField(stopAtConstraint, statisticsConstraint, parentsSiblingsSpecification, selfLevelInfoObject)
+			buildHierarchyParentsField(stopAtConstraint, parentsSiblingsSpecification, selfLevelInfoObject)
 		);
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfSelfObjectBuilder,
-			buildHierarchySiblingsField(stopAtConstraint, statisticsConstraint, selfLevelInfoObject)
+			buildHierarchySiblingsField(stopAtConstraint, selfLevelInfoObject)
 		);
 
 		return hierarchyOfSelfObjectBuilder.build();
@@ -844,16 +840,12 @@ public class FullResponseObjectBuilder {
 		);
 		final GraphQLInputType nodeConstraint = hierarchyRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyNode.class);
 		final GraphQLInputType stopAtConstraint = hierarchyRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyStopAt.class);
-		final GraphQLInputType statisticsConstraint = hierarchyRequireConstraintSchemaBuilder.build(referenceHierarchyConstraintDataLocator, HierarchyStatistics.class);
 		final GraphQLInputObjectType parentsSiblingsSpecification = HierarchyParentsSiblingsSpecification.THIS
 			.to(inputObjectBuilderTransformer)
 			.name(HierarchyParentsSiblingsSpecification.THIS.name(entitySchema, referenceSchema))
 			.field(HierarchyParentsSiblingsSpecification.STOP_AT
 				.to(inputFieldBuilderTransformer)
 				.type(stopAtConstraint))
-			.field(HierarchyParentsSiblingsSpecification.STATISTICS
-				.to(inputFieldBuilderTransformer)
-				.type(statisticsConstraint))
 			.build();
 
 		final GraphQLObjectType levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema);
@@ -865,27 +857,27 @@ public class FullResponseObjectBuilder {
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfReferenceObjectBuilder,
-			buildHierarchyFromRootField(stopAtConstraint, statisticsConstraint, levelInfoObject)
+			buildHierarchyFromRootField(stopAtConstraint, levelInfoObject)
 		);
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfReferenceObjectBuilder,
-			buildHierarchyFromNodeField(nodeConstraint, stopAtConstraint, statisticsConstraint, levelInfoObject)
+			buildHierarchyFromNodeField(nodeConstraint, stopAtConstraint, levelInfoObject)
 		);
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfReferenceObjectBuilder,
-			buildHierarchyChildrenField(stopAtConstraint, statisticsConstraint, levelInfoObject)
+			buildHierarchyChildrenField(stopAtConstraint, levelInfoObject)
 		);
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfReferenceObjectBuilder,
-			buildHierarchyParentsField(stopAtConstraint, statisticsConstraint, parentsSiblingsSpecification, levelInfoObject)
+			buildHierarchyParentsField(stopAtConstraint, parentsSiblingsSpecification, levelInfoObject)
 		);
 		buildingContext.registerFieldToObject(
 			objectName,
 			hierarchyOfReferenceObjectBuilder,
-			buildHierarchySiblingsField(stopAtConstraint, statisticsConstraint, levelInfoObject)
+			buildHierarchySiblingsField(stopAtConstraint, levelInfoObject)
 		);
 
 		return hierarchyOfReferenceObjectBuilder.build();
@@ -929,7 +921,6 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildHierarchyFromRootField(@Nonnull GraphQLInputType stopAtConstraint,
-	                                                         @Nonnull GraphQLInputType statisticsConstraint,
 	                                                         @Nonnull GraphQLObjectType levelInfoObject) {
 		return new BuiltFieldDescriptor(
 			HierarchyOfDescriptor.FROM_ROOT
@@ -938,9 +929,8 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchyFromRootHeaderDescriptor.STOP_AT
 					.to(argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchyFromRootHeaderDescriptor.STATISTICS
-					.to(argumentBuilderTransformer)
-					.type(statisticsConstraint))
+				.argument(HierarchyFromRootHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
 				.build(),
 			new SpecificHierarchyDataFetcher()
 		);
@@ -949,7 +939,6 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private BuiltFieldDescriptor buildHierarchyFromNodeField(@Nonnull GraphQLInputType nodeConstraint,
 	                                                         @Nonnull GraphQLInputType stopAtConstraint,
-	                                                         @Nonnull GraphQLInputType statisticsConstraint,
 	                                                         @Nonnull GraphQLObjectType levelInfoObject) {
 		return new BuiltFieldDescriptor(
 			HierarchyOfDescriptor.FROM_NODE
@@ -961,9 +950,8 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchyFromNodeHeaderDescriptor.STOP_AT
 					.to(argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchyFromNodeHeaderDescriptor.STATISTICS
-					.to(argumentBuilderTransformer)
-					.type(statisticsConstraint))
+				.argument(HierarchyFromNodeHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
 				.build(),
 			new SpecificHierarchyDataFetcher()
 		);
@@ -971,7 +959,6 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildHierarchyChildrenField(@Nonnull GraphQLInputType stopAtConstraint,
-	                                                         @Nonnull GraphQLInputType statisticsConstraint,
 	                                                         @Nonnull GraphQLObjectType levelInfoObject) {
 		return new BuiltFieldDescriptor(
 			HierarchyOfDescriptor.CHILDREN
@@ -980,9 +967,8 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchyChildrenHeaderDescriptor.STOP_AT
 					.to(argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchyChildrenHeaderDescriptor.STATISTICS
-					.to(argumentBuilderTransformer)
-					.type(statisticsConstraint))
+				.argument(HierarchyChildrenHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
 				.build(),
 			new SpecificHierarchyDataFetcher()
 		);
@@ -990,7 +976,6 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildHierarchyParentsField(@Nonnull GraphQLInputType stopAtConstraint,
-	                                                        @Nonnull GraphQLInputType statisticsConstraint,
 	                                                        @Nonnull GraphQLInputObjectType parentsSiblingsSpecification,
 	                                                        @Nonnull GraphQLObjectType levelInfoObject) {
 		return new BuiltFieldDescriptor(
@@ -1000,9 +985,8 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchyParentsHeaderDescriptor.STOP_AT
 					.to(argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchyParentsHeaderDescriptor.STATISTICS
-					.to(argumentBuilderTransformer)
-					.type(statisticsConstraint))
+				.argument(HierarchyParentsHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
 				.argument(HierarchyParentsHeaderDescriptor.SIBLINGS
 					.to(argumentBuilderTransformer)
 					.type(parentsSiblingsSpecification))
@@ -1013,7 +997,6 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildHierarchySiblingsField(@Nonnull GraphQLInputType stopAtConstraint,
-	                                                         @Nonnull GraphQLInputType statisticsConstraint,
 	                                                         @Nonnull GraphQLObjectType levelInfoObject) {
 		return new BuiltFieldDescriptor(
 			HierarchyOfDescriptor.SIBLINGS
@@ -1022,9 +1005,8 @@ public class FullResponseObjectBuilder {
 				.argument(HierarchySiblingsHeaderDescriptor.STOP_AT
 					.to(argumentBuilderTransformer)
 					.type(stopAtConstraint))
-				.argument(HierarchySiblingsHeaderDescriptor.STATISTICS
-					.to(argumentBuilderTransformer)
-					.type(statisticsConstraint))
+				.argument(HierarchySiblingsHeaderDescriptor.STATISTICS_BASE
+					.to(argumentBuilderTransformer))
 				.build(),
 			new SpecificHierarchyDataFetcher()
 		);
