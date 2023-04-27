@@ -295,6 +295,7 @@ public class EvitaEnumConverter {
 			case EXTRA_RESULT_ITEM_FABRICATION -> GrpcQueryPhase.EXTRA_RESULT_ITEM_FABRICATION;
 			case FETCHING -> GrpcQueryPhase.FETCHING;
 			case FETCHING_REFERENCES -> GrpcQueryPhase.FETCHING_REFERENCES;
+			case FETCHING_PARENTS -> GrpcQueryPhase.FETCHING_PARENTS;
 		};
 	}
 

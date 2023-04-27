@@ -222,7 +222,7 @@ public interface RandomQueryGenerator {
 		}
 
 		return Query.query(
-			existingQuery.getEntities(),
+			existingQuery.getCollection(),
 			existingQuery.getFilterBy(),
 			require(
 				ArrayUtils.mergeArrays(
@@ -287,7 +287,7 @@ public interface RandomQueryGenerator {
 		hierarchyConstraint = hierarchyWithin(hierarchyEntityType, parentId, specification.toArray(EMPTY_HSFC_ARRAY));
 
 		return Query.query(
-			existingQuery.getEntities(),
+			existingQuery.getCollection(),
 			filterBy(
 				and(
 					ArrayUtils.mergeArrays(
@@ -306,7 +306,7 @@ public interface RandomQueryGenerator {
 	 */
 	default Query generateRandomPriceHistogramQuery(@Nonnull Query existingQuery, @Nonnull Random random) {
 		return Query.query(
-			existingQuery.getEntities(),
+			existingQuery.getCollection(),
 			existingQuery.getFilterBy(),
 			require(
 				ArrayUtils.mergeArrays(

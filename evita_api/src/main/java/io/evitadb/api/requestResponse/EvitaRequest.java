@@ -113,7 +113,7 @@ public class EvitaRequest {
 	private Map<String, RequirementContext> entityFetchRequirements;
 
 	public EvitaRequest(@Nonnull Query query, @Nonnull OffsetDateTime alignedNow) {
-		final Collection header = query.getEntities();
+		final Collection header = query.getCollection();
 		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(null);
 		this.query = query;
 		this.alignedNow = alignedNow;
@@ -283,7 +283,7 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public String getEntityTypeOrThrowException(@Nonnull String purpose) {
-		final Collection header = query.getEntities();
+		final Collection header = query.getCollection();
 		return ofNullable(header)
 			.map(Collection::getEntityType)
 			.orElseThrow(() -> new EntityCollectionRequiredException(purpose));
@@ -388,7 +388,7 @@ public class EvitaRequest {
 
 	/**
 	 * Method will find all requirement specifying richness of main entities. The constraints inside
-	 * {@link ExtraResultRequireConstraint} implementing of same type are ignored because they relate to the different entity context.
+	 * {@link SeparateEntityContentRequireContainer} implementing of same type are ignored because they relate to the different entity context.
 	 */
 	@Nullable
 	public EntityFetch getEntityRequirement() {
@@ -413,6 +413,19 @@ public class EvitaRequest {
 			}
 		}
 		return this.requiresParent;
+	}
+
+	/**
+	 * Method will find all requirement specifying richness of main entities. The constraints inside
+	 * {@link SeparateEntityContentRequireContainer} implementing of same type are ignored because they relate to the
+	 * different entity context.
+	 */
+	@Nullable
+	public HierarchyContent getHierarchyContent() {
+		if (this.requiresParent == null) {
+			isRequiresParent();
+		}
+		return this.parentContent;
 	}
 
 	/**

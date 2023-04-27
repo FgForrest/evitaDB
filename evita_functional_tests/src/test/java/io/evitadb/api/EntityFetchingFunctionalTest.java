@@ -33,7 +33,11 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
+import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
+import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -44,12 +48,15 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.extern.slf4j.Slf4j;
+import one.edee.oss.pmptt.model.Hierarchy;
+import one.edee.oss.pmptt.model.HierarchyItem;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -64,6 +71,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.extension.DataCarrier.tuple;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -153,6 +161,53 @@ public class EntityFetchingFunctionalTest {
 			.orElseThrow(() -> new EvitaInvalidUsageException("There are no entities matching the requirements!"));
 	}
 
+	@Nonnull
+	private static EntityReferenceWithParent createParentChain(
+		@Nonnull Hierarchy categoryHierarchy,
+		int theLeaf,
+		@Nullable Integer level,
+		@Nullable Integer distance
+	) {
+		final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(theLeaf));
+		EntityReferenceWithParent workingNode = null;
+		final Integer start = Optional.ofNullable(level)
+			.map(it -> it - 1)
+			.orElseGet(() -> Optional.ofNullable(distance).map(it -> parentItems.size() - it).orElse(0));
+		for (int i = start; i < parentItems.size(); i++) {
+			HierarchyItem parentItem = parentItems.get(i);
+			workingNode = new EntityReferenceWithParent(Entities.CATEGORY, Integer.parseInt(parentItem.getCode()), workingNode);
+		}
+
+		return workingNode;
+	}
+
+	@Nonnull
+	private static SealedEntity createParentEntityChain(@Nonnull Hierarchy categoryHierarchy, @Nonnull Map<Integer, SealedEntity> categoryIndex, int theLeaf, @Nullable Integer level, @Nullable Integer distance) {
+		final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(theLeaf));
+		EntityDecorator workingNode = null;
+		final Integer start = Optional.ofNullable(level)
+			.map(it -> it - 1)
+			.orElseGet(() -> Optional.ofNullable(distance).map(it -> parentItems.size() - it).orElse(0));
+		for (int i = start; i < parentItems.size(); i++) {
+			HierarchyItem parentItem = parentItems.get(i);
+			final EntityDecorator categoryDecorator = (EntityDecorator) categoryIndex.get(Integer.parseInt(parentItem.getCode()));
+			workingNode = Entity.decorate(
+				categoryDecorator.getDelegate(),
+				categoryDecorator.getSchema(),
+				workingNode,
+				categoryDecorator.getLocalePredicate(),
+				categoryDecorator.getAttributePredicate(),
+				categoryDecorator.getAssociatedDataPredicate(),
+				categoryDecorator.getReferencePredicate(),
+				categoryDecorator.getPricePredicate(),
+				categoryDecorator.getAlignedNow(),
+				ReferenceFetcher.NO_IMPLEMENTATION
+			);
+		}
+
+		return workingNode;
+	}
+
 	@DataSet(value = FIFTY_PRODUCTS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
@@ -162,7 +217,7 @@ public class EntityFetchingFunctionalTest {
 				return primaryKey == 0 ? null : primaryKey;
 			};
 
-			dataGenerator.generateEntities(
+			final List<EntityReference> storedCategories = dataGenerator.generateEntities(
 					dataGenerator.getSampleCategorySchema(
 						session,
 						builder -> {
@@ -178,7 +233,8 @@ public class EntityFetchingFunctionalTest {
 					SEED
 				)
 				.limit(10)
-				.forEach(session::upsertEntity);
+				.map(session::upsertEntity)
+				.toList();
 
 			dataGenerator.generateEntities(
 					dataGenerator.getSamplePriceListSchema(session),
@@ -264,6 +320,15 @@ public class EntityFetchingFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
+			final Map<Integer, SealedEntity> categories = storedCategories.stream()
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
+				.collect(
+					Collectors.toMap(
+						EntityContract::getPrimaryKey,
+						Function.identity()
+					)
+				);
+
 			final List<SealedEntity> products = storedProducts.stream()
 				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
 				.toList();
@@ -281,10 +346,12 @@ public class EntityFetchingFunctionalTest {
 				.toList();
 
 			return new DataCarrier(
-				"originalProducts", products,
-				"originalBrands", brands,
-				"originalParameters", parameters,
-				"originalStores", stores
+				tuple("originalProducts", products),
+				tuple("originalBrands", brands),
+				tuple("originalParameters", parameters),
+				tuple("originalStores", stores),
+				tuple("originalCategories", categories),
+				tuple("categoryHierarchy", dataGenerator.getHierarchy(Entities.CATEGORY))
 			);
 		});
 	}
@@ -1598,6 +1665,10 @@ public class EntityFetchingFunctionalTest {
 		);
 	}
 
+	/*
+		PRIVATE METHODS
+	 */
+
 	@DisplayName("References can be lazy auto loaded")
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
@@ -1699,10 +1770,6 @@ public class EntityFetchingFunctionalTest {
 			}
 		);
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	@DisplayName("Should check existence of the entity")
 	@UseDataSet(FIFTY_PRODUCTS)
@@ -2660,6 +2727,763 @@ public class EntityFetchingFunctionalTest {
 				return null;
 			},
 			SessionFlags.BINARY
+		);
+	}
+
+	@DisplayName("Should return hierarchy parent id")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParentId(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getAllChildItems(categoryHierarchy.getRootItems().get(0).getCode())
+					.stream()
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						)
+					)
+				);
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
+
+				assertEquals(theParentPk, productByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertTrue(productByPk.getRecordData().get(0).getParentEntity().isEmpty());
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return hierarchy parent entity reference")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParents(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(hierarchyContent())
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(createParentChain(categoryHierarchy, theChildPk, null, null), categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow());
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return hierarchy parent entity references stopping at level two")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParentsUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(hierarchyContent(stopAt(level(2))))
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(createParentChain(categoryHierarchy, theChildPk, 2, null), categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow());
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return hierarchy parent entity references stopping at distance one")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParentsWithinDistanceOne(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(hierarchyContent(stopAt(distance(1))))
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(createParentChain(categoryHierarchy, theChildPk, null, 1), categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow());
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return hierarchy parent entity references stopping at node defined by attribute filter")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParentsUntilNodeSpecifiedByAttributeFilter(Evita evita, Map<Integer, SealedEntity> originalCategories, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+				final SealedEntity parentCategory = originalCategories.get(theParentPk);
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(
+										node(
+											filterBy(
+												attributeEquals(
+													ATTRIBUTE_CODE,
+													parentCategory.getAttribute(ATTRIBUTE_CODE, String.class)
+												)
+											)
+										)
+									)
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(createParentChain(categoryHierarchy, theChildPk, null, 1), categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow());
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return hierarchy parent sealed entities")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParentEntities(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(hierarchyContent(entityFetchAll()))
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(
+					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, null),
+					categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return hierarchy parent sealed entities stopping at level two")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParentEntitiesUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(hierarchyContent(stopAt(level(2)), entityFetchAll()))
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(
+					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, 2, null),
+					categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return hierarchy parent sealed entities stopping at distance one")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParentEntitiesWithinDistanceOne(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(hierarchyContent(stopAt(distance(1)), entityFetchAll()))
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(
+					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, 1),
+					categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return hierarchy parent sealed entities stopping at node defined by attribute filter")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnDirectHierarchyParentEntitiesUntilNodeSpecifiedByAttributeFilter(Evita evita, Map<Integer, SealedEntity> originalCategories, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+				final SealedEntity parentCategory = originalCategories.get(theParentPk);
+
+				final EvitaResponse<SealedEntity> categoryByPk = session.querySealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(theChildPk)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(
+										node(
+											filterBy(
+												attributeEquals(
+													ATTRIBUTE_CODE,
+													parentCategory.getAttribute(ATTRIBUTE_CODE, String.class)
+												)
+											)
+										)
+									),
+									entityFetchAll()
+								)
+							)
+						)
+					)
+				);
+				assertEquals(1, categoryByPk.getRecordData().size());
+				assertEquals(1, categoryByPk.getTotalRecordCount());
+
+				assertEquals(theParentPk, categoryByPk.getRecordData().get(0).getParent().orElseThrow());
+				assertEquals(
+					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, 1),
+					categoryByPk.getRecordData().get(0).getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return product hierarchy parent entity reference")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductHierarchyParents(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, theChildPk)
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(hierarchyContent())
+								)
+							)
+						)
+					)
+				);
+				assertTrue(products.getRecordData().size() > 0);
+				assertTrue(products.getTotalRecordCount() > 0);
+
+				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
+				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
+				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(
+					createParentChain(categoryHierarchy, theChildPk, null, null),
+					referencedCategory.getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return product hierarchy parent entity references stopping at level two")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductHierarchyParentsUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, theChildPk)
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(hierarchyContent(stopAt(level(2))))
+								)
+							)
+						)
+					)
+				);
+				assertTrue(products.getRecordData().size() > 0);
+				assertTrue(products.getTotalRecordCount() > 0);
+
+				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
+				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
+				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(
+					createParentChain(categoryHierarchy, theChildPk, 2, null),
+					referencedCategory.getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return product hierarchy parent entity references stopping at distance one")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductHierarchyParentsWithinDistanceOne(Evita evita, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, theChildPk)
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(hierarchyContent(stopAt(distance(1))))
+								)
+							)
+						)
+					)
+				);
+				assertTrue(products.getRecordData().size() > 0);
+				assertTrue(products.getTotalRecordCount() > 0);
+
+				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
+				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
+				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(
+					createParentChain(categoryHierarchy, theChildPk, null, 1),
+					referencedCategory.getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return product hierarchy parent entity references stopping at node defined by attribute filter")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductHierarchyParentsUntilNodeSpecifiedByAttributeFilter(Evita evita, Map<Integer, SealedEntity> originalCategories, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+				final SealedEntity parentCategory = originalCategories.get(theParentPk);
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, theChildPk)
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											stopAt(
+												node(
+													filterBy(
+														attributeEquals(
+															ATTRIBUTE_CODE,
+															parentCategory.getAttribute(ATTRIBUTE_CODE, String.class)
+														)
+													)
+												)
+											)
+										)
+									)
+								)
+							)
+						)
+					)
+				);
+				assertTrue(products.getRecordData().size() > 0);
+				assertTrue(products.getTotalRecordCount() > 0);
+
+				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
+				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
+				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(
+					createParentChain(categoryHierarchy, theChildPk, 2, null),
+					referencedCategory.getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return product hierarchy parent sealed entities")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductHierarchyParentEntities(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, theChildPk)
+						),
+						require(
+							entityFetch(referenceContent(Entities.CATEGORY, entityFetch(hierarchyContent(entityFetchAll()))))
+						)
+					)
+				);
+				assertTrue(products.getRecordData().size() > 0);
+				assertTrue(products.getTotalRecordCount() > 0);
+
+				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
+				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
+
+				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(
+					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, null),
+					referencedCategory.getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return product hierarchy parent sealed entities stopping at level two")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductHierarchyParentEntitiesUpToLevelTwo(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, theChildPk)
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(hierarchyContent(stopAt(level(2)), entityFetchAll()))
+								)
+							)
+						)
+					)
+				);
+				assertTrue(products.getRecordData().size() > 0);
+				assertTrue(products.getTotalRecordCount() > 0);
+
+				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
+				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
+
+				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(
+					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, 2, null),
+					referencedCategory.getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return product hierarchy parent sealed entities stopping at distance one")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductHierarchyParentEntitiesWithinDistanceOne(Evita evita, Hierarchy categoryHierarchy, Map<Integer, SealedEntity> originalCategories) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, theChildPk)
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(hierarchyContent(stopAt(distance(1)), entityFetchAll()))
+								)
+							)
+						)
+					)
+				);
+				assertTrue(products.getRecordData().size() > 0);
+				assertTrue(products.getTotalRecordCount() > 0);
+
+				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
+				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
+
+				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(
+					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, 1),
+					referencedCategory.getParentEntity().orElseThrow()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return product hierarchy parent sealed entities stopping at node defined by attribute filter")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductHierarchyParentEntitiesUntilNodeSpecifiedByAttributeFilter(Evita evita, Map<Integer, SealedEntity> originalCategories, Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HierarchyItem theChild = categoryHierarchy.getRootItems()
+					.stream()
+					.flatMap(it -> categoryHierarchy.getAllChildItems(it.getCode()).stream())
+					.max(Comparator.comparingInt(HierarchyItem::getLevel))
+					.orElseThrow();
+				final int theChildPk = Integer.parseInt(theChild.getCode());
+				final int theParentPk = Integer.parseInt(categoryHierarchy.getParentItem(theChild.getCode()).getCode());
+				final SealedEntity parentCategory = originalCategories.get(theParentPk);
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(Entities.CATEGORY, theChildPk)
+						),
+						require(
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											stopAt(
+												node(
+													filterBy(
+														attributeEquals(
+															ATTRIBUTE_CODE,
+															parentCategory.getAttribute(ATTRIBUTE_CODE, String.class)
+														)
+													)
+												)
+											),
+											entityFetchAll()
+										)
+									)
+								)
+							)
+						)
+					)
+				);
+				assertTrue(products.getRecordData().size() > 0);
+				assertTrue(products.getTotalRecordCount() > 0);
+
+				final ReferenceContract categoryReference = products.getRecordData().get(0).getReference(Entities.CATEGORY, theChildPk).orElseThrow();
+				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
+
+				assertEquals(theParentPk, referencedCategory.getParent().orElseThrow());
+				assertEquals(
+					createParentEntityChain(categoryHierarchy, originalCategories, theChildPk, null, 1),
+					referencedCategory.getParentEntity().orElseThrow()
+				);
+				return null;
+			}
 		);
 	}
 

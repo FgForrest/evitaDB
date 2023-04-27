@@ -215,7 +215,11 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 		/**
 		 * Fetching referenced entities and entity groups from the storage based on referenced primary keys information.
 		 */
-		FETCHING_REFERENCES
+		FETCHING_REFERENCES,
+		/**
+		 * Fetching parent entities from the storage based on parent primary keys information.
+		 */
+		FETCHING_PARENTS
 
 	}
 }

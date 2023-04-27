@@ -216,7 +216,7 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	public void traverse(@Nonnull Query query) {
 		this.result.append("query" + ARG_OPENING).append(newLine());
 		this.level = 1;
-		ofNullable(query.getEntities()).ifPresent(it -> {
+		ofNullable(query.getCollection()).ifPresent(it -> {
 			it.accept(this);
 			this.result.append(",");
 		});

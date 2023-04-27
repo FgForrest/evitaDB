@@ -27,9 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
+import io.evitadb.api.query.require.HierarchyStopAt;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -41,34 +41,16 @@ import lombok.RequiredArgsConstructor;
 public class HierarchyContentSerializer extends Serializer<HierarchyContent> {
 
 	@Override
-	public void write(Kryo kryo, Output output, HierarchyContent object) {
-		final String[] hierarchydEntityType = object.getReferencedEntityTypes();
-		output.writeVarInt(hierarchydEntityType.length, true);
-		for (String refEntityType : hierarchydEntityType) {
-			output.writeString(refEntityType);
-		}
-
-		kryo.writeClassAndObject(output, object.getEntityRequirement());
-
-		kryo.writeClassAndObject(output, object.getFilterBy());
+	public void write(Kryo kryo, Output output, HierarchyContent hierarchyContent) {
+		kryo.writeObjectOrNull(output, hierarchyContent.getEntityFetch().orElse(null), EntityFetch.class);
+		kryo.writeObjectOrNull(output, hierarchyContent.getStopAt().orElse(null), HierarchyStopAt.class);
 	}
 
 	@Override
 	public HierarchyContent read(Kryo kryo, Input input, Class<? extends HierarchyContent> type) {
-		final int hierarchydEntityTypeCount = input.readVarInt(true);
-		final String[] hierarchydEntityTypes = new String[hierarchydEntityTypeCount];
-		for (int i = 0; i < hierarchydEntityTypeCount; i++) {
-			hierarchydEntityTypes[i] = input.readString();
-		}
-
-		final EntityFetch entityFetch = (EntityFetch) kryo.readClassAndObject(input);
-
-		final FilterBy filter = (FilterBy) kryo.readClassAndObject(input);
-
-		if (filter == null) {
-			return new HierarchyContent(hierarchydEntityTypes, entityFetch);
-		}
-		return new HierarchyContent(hierarchydEntityTypes[0], filter, entityFetch);
+		final EntityFetch entityFetch = kryo.readObjectOrNull(input, EntityFetch.class);
+		final HierarchyStopAt stopAt = kryo.readObjectOrNull(input, HierarchyStopAt.class);
+		return new HierarchyContent(stopAt, entityFetch);
 	}
 
 }

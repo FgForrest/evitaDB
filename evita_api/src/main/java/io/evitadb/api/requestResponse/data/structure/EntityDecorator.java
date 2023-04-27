@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -120,7 +121,7 @@ public class EntityDecorator implements SealedEntity {
 	 * Contains body of the parent entity. The body is accessible only when the input request (query) contains
 	 * requirements for fetching entity (i.e. {@link EntityFetch}) in the {@link HierarchyContent} requirement.
 	 */
-	private final SealedEntity parentEntity;
+	private final EntityClassifier parentEntity;
 	/**
 	 * Optimization that ensures that expensive attributes filtering using predicates happens only once.
 	 */
@@ -183,7 +184,7 @@ public class EntityDecorator implements SealedEntity {
 	public EntityDecorator(
 		@Nonnull Entity delegate,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable SealedEntity parentEntity,
+		@Nullable EntityClassifier parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
@@ -217,7 +218,7 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	public EntityDecorator(
 		@Nonnull EntityDecorator decorator,
-		@Nullable SealedEntity parentEntity,
+		@Nullable EntityClassifier parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
@@ -274,7 +275,7 @@ public class EntityDecorator implements SealedEntity {
 	public EntityDecorator(
 		@Nonnull Entity entity,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable SealedEntity parentEntity,
+		@Nullable EntityClassifier parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
@@ -491,7 +492,7 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public Optional<SealedEntity> getParentEntity() {
+	public Optional<EntityClassifier> getParentEntity() {
 		return ofNullable(parentEntity);
 	}
 

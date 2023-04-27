@@ -91,7 +91,7 @@ public interface EntityContract extends EntityClassifier, ContentComparator<Enti
 	 * The property allows to fetch entire parent axis of the entity to the root if requested.
 	 */
 	@Nonnull
-	Optional<SealedEntity> getParentEntity();
+	Optional<EntityClassifier> getParentEntity();
 
 	/**
 	 * Returns collection of {@link Reference} of this entity. The references represent relations to other evitaDB
@@ -208,7 +208,7 @@ public interface EntityContract extends EntityClassifier, ContentComparator<Enti
 		final Set<Locale> locales = getLocales();
 		return (isDropped() ? "❌ " : "") +
 			"Entity " + getType() + " ID=" + getPrimaryKey() +
-			getParent().stream().mapToObj(it -> ", with " + it).findAny().orElse("") +
+			getParent().stream().mapToObj(it -> ", ↰ " + it).findAny().orElse("") +
 			(references.isEmpty() ? "" : ", " + references.stream().map(ReferenceContract::toString).collect(Collectors.joining(", "))) +
 			(attributeValues.isEmpty() ? "" : ", " + attributeValues.stream().map(AttributeValue::toString).collect(Collectors.joining(", "))) +
 			(associatedDataValues.isEmpty() ? "" : ", " + associatedDataValues.stream().map(AssociatedDataValue::toString).collect(Collectors.joining(", "))) +

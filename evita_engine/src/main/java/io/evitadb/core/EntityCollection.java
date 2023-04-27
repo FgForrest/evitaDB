@@ -375,9 +375,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	@Nonnull
 	public EntityDecorator enrichEntity(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() ?
+		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() && !evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
+				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
 				createQueryContext(evitaRequest, session),
 				sealedEntity
@@ -704,7 +705,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	public EntityDecorator enrichEntity(
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull ReferenceFetcher entityFetcher
+		@Nonnull ReferenceFetcher referenceFetcher
 	)
 		throws EntityAlreadyRemovedException {
 		final EntityDecorator partiallyLoadedEntity = (EntityDecorator) sealedEntity;
@@ -714,6 +715,16 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
 		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
 		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
+		// fetch parents if requested
+		final EntityClassifier parentEntity;
+		if (partiallyLoadedEntity.getParentEntity().isPresent()) {
+			parentEntity = partiallyLoadedEntity.getParentEntity().get();
+		} else {
+			parentEntity = partiallyLoadedEntity.getParent().isPresent() ?
+				ofNullable(referenceFetcher.getParentEntityFetcher())
+					.map(it -> it.apply(partiallyLoadedEntity.getParent().getAsInt()))
+					.orElse(null) : null;
+		}
 
 		return doWithPersistenceService(
 			() -> Entity.decorate(
@@ -731,9 +742,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				// use original schema
 				getInternalSchema(),
 				// fetch parents if requested
-				evitaRequest.isRequiresParent() && partiallyLoadedEntity.getParentEntity().isEmpty() ?
-					/* TODO JNO - fetch the entity */
-					null : null,
+				parentEntity,
 				// show / hide locales the entity is fetched in
 				newLocalePredicate,
 				// show / hide attributes information
@@ -747,7 +756,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				// propagate original date time
 				partiallyLoadedEntity.getAlignedNow(),
 				// recursive entity loader
-				entityFetcher
+				referenceFetcher
 			)
 		);
 	}
@@ -1144,9 +1153,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nonnull EvitaSessionContract session
 	) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		return referenceEntityFetch.isEmpty() ?
+		return referenceEntityFetch.isEmpty() && !evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
+				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
 				createQueryContext(evitaRequest, session)
 			);
@@ -1176,13 +1186,16 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nonnull ReferenceFetcher referenceFetcher,
 		@Nullable Boolean contextAvailable
 	) {
+		// fetch parents if requested
+		final EntityClassifier parentEntity = fullEntity.getParent().isPresent() ?
+			ofNullable(referenceFetcher.getParentEntityFetcher())
+				.map(it -> it.apply(fullEntity.getParent().getAsInt()))
+				.orElse(null) : null;
+
 		return Entity.decorate(
 			fullEntity,
 			getInternalSchema(),
-			// fetch parents if requested
-			evitaRequest.isRequiresParent() ?
-				/* TODO JNO - fetch the entity */
-				null : null,
+			parentEntity,
 			new LocaleSerializablePredicate(evitaRequest),
 			new AttributeValueSerializablePredicate(evitaRequest),
 			new AssociatedDataValueSerializablePredicate(evitaRequest),

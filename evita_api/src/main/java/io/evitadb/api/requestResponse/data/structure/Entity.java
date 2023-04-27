@@ -41,6 +41,7 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -119,7 +120,7 @@ public class Entity implements SealedEntity {
 	 * Serializable type of entity. Using Enum type is highly recommended for this key.
 	 * Entity type is main sharding key - all data of entities with same type are stored in separated index. Within the
 	 * entity type entity is uniquely represented by primary key.
-	 * Type is specified in each lookup {@link Query#getEntities()}
+	 * Type is specified in each lookup {@link Query#getCollection()}
 	 */
 	@Getter @Nonnull final String type;
 	/**
@@ -410,7 +411,7 @@ public class Entity implements SealedEntity {
 	 */
 	public static EntityDecorator decorate(
 		@Nonnull EntityDecorator entityDecorator,
-		@Nullable SealedEntity parentEntity,
+		@Nullable EntityClassifier parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
@@ -434,7 +435,7 @@ public class Entity implements SealedEntity {
 	public static EntityDecorator decorate(
 		@Nonnull Entity entity,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable SealedEntity parentEntity,
+		@Nullable EntityClassifier parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
@@ -777,7 +778,7 @@ public class Entity implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public Optional<SealedEntity> getParentEntity() {
+	public Optional<EntityClassifier> getParentEntity() {
 		return empty();
 	}
 

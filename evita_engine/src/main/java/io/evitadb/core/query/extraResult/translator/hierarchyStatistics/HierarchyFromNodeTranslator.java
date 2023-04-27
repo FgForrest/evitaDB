@@ -60,7 +60,7 @@ public class HierarchyFromNodeTranslator
 		final HierarchyProducerContext context = producer.getContext(fromNode.getName());
 		final FilterBy fromNodeFilter = fromNode.getFromNode().getFilterBy();
 		final HierarchyTraversalPredicate scopePredicate = fromNode.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(context, it))
+			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		producer.addComputer(
 			fromNode.getName(),

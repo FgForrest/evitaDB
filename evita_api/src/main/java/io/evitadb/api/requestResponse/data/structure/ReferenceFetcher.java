@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -54,6 +55,12 @@ public interface ReferenceFetcher {
 		@Override
 		public <T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection) {
 			return entities;
+		}
+
+		@Nullable
+		@Override
+		public Function<Integer, EntityClassifier> getParentEntityFetcher() {
+			return null;
 		}
 
 		@Nullable
@@ -121,7 +128,15 @@ public interface ReferenceFetcher {
 	<T extends SealedEntity> List<T> initReferenceIndex(@Nonnull List<T> entities, @Nonnull EntityCollectionContract entityCollection);
 
 	/**
-	 * Creates a fetcher lambda that for passed entity primary key fetches the rich form of the entity.
+	 * Creates a fetcher lambda that for passed entity parent primary key fetches the rich form of the entity.
+	 * The fetcher is expected to provide only access to the data fetched during `initReferenceIndex` methods.
+	 * If none the init methods is not called, the exception is thrown.
+	 */
+	@Nullable
+	Function<Integer, EntityClassifier> getParentEntityFetcher();
+
+	/**
+	 * Creates a fetcher lambda that for passed referenced entity primary key fetches the rich form of the entity.
 	 * The fetcher is expected to provide only access to the data fetched during `initReferenceIndex` methods.
 	 * If none the init methods is not called, the exception is thrown.
 	 */
@@ -129,7 +144,7 @@ public interface ReferenceFetcher {
 	Function<Integer, SealedEntity> getEntityFetcher(@Nonnull ReferenceSchemaContract referenceSchema);
 
 	/**
-	 * Creates a fetcher lambda that for passed (group) entity primary key fetches the rich form of the entity.
+	 * Creates a fetcher lambda that for passed referenced entity group primary key fetches the rich form of the entity.
 	 * The fetcher is expected to provide only access to the data fetched during `initReferenceIndex` methods.
 	 * If none the init methods is not called, the exception is thrown.
 	 */

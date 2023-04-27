@@ -2633,165 +2633,34 @@ public interface QueryConstraints {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement);
 	}
 
+	// TOBEDONE JNO: add docs after docs revision
 	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable String... hierarchydEntityType) {
-		if (hierarchydEntityType == null) {
+	static HierarchyContent hierarchyContent() {
+		return new HierarchyContent();
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt) {
+		return stopAt == null ? new HierarchyContent() : new HierarchyContent(stopAt);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityFetch) {
+		return entityFetch == null ? new HierarchyContent() : new HierarchyContent(entityFetch);
+	}
+
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt, @Nullable EntityFetch entityFetch) {
+		if (stopAt == null && entityFetch == null) {
 			return new HierarchyContent();
-		}
-		return new HierarchyContent(hierarchydEntityType);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable String hierarchydEntityType, @Nullable EntityFetch entityRequirement) {
-		if (hierarchydEntityType == null && entityRequirement == null) {
-			return new HierarchyContent();
-		}
-		if (hierarchydEntityType == null) {
-			return new HierarchyContent(entityRequirement);
-		}
-		if (entityRequirement == null) {
-			return new HierarchyContent(hierarchydEntityType);
-		}
-		return new HierarchyContent(hierarchydEntityType, entityRequirement);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable String hierarchydEntityType, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (hierarchydEntityType == null && groupEntityRequirement == null) {
-			return new HierarchyContent();
-		}
-		if (hierarchydEntityType == null) {
-			return new HierarchyContent(groupEntityRequirement);
-		}
-		if (groupEntityRequirement == null) {
-			return new HierarchyContent(hierarchydEntityType);
-		}
-		return new HierarchyContent(hierarchydEntityType, groupEntityRequirement);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable String hierarchydEntityType, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (hierarchydEntityType == null) {
-			return new HierarchyContent(entityRequirement, groupEntityRequirement);
-		}
-		return new HierarchyContent(hierarchydEntityType, entityRequirement, groupEntityRequirement);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable String[] hierarchydEntityTypes, @Nullable EntityFetch entityRequirement) {
-		if (hierarchydEntityTypes == null && entityRequirement == null) {
-			return new HierarchyContent();
-		}
-		if (hierarchydEntityTypes == null) {
-			return new HierarchyContent(entityRequirement);
-		}
-		if (entityRequirement == null) {
-			return new HierarchyContent(hierarchydEntityTypes);
-		}
-		return new HierarchyContent(
-			hierarchydEntityTypes,
-			entityRequirement
-		);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable String[] hierarchydEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (hierarchydEntityTypes == null && groupEntityRequirement == null) {
-			return new HierarchyContent();
-		}
-		if (hierarchydEntityTypes == null) {
-			return new HierarchyContent(groupEntityRequirement);
-		}
-		if (groupEntityRequirement == null) {
-			return new HierarchyContent(hierarchydEntityTypes);
-		}
-		return new HierarchyContent(
-			hierarchydEntityTypes,
-			groupEntityRequirement
-		);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable String[] hierarchydEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (hierarchydEntityTypes != null) {
-			return new HierarchyContent(hierarchydEntityTypes, entityRequirement, groupEntityRequirement);
+		} else if (entityFetch != null) {
+			return stopAt == null ? new HierarchyContent(entityFetch) : new HierarchyContent(stopAt, entityFetch);
 		} else {
-			return new HierarchyContent(entityRequirement, groupEntityRequirement);
+			return new HierarchyContent(stopAt);
 		}
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nonnull String hierarchyName, @Nullable FilterBy filterBy) {
-		if (filterBy == null) {
-			return new HierarchyContent(hierarchyName);
-		}
-		return new HierarchyContent(hierarchyName, filterBy);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nonnull String hierarchyName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
-		if (filterBy == null) {
-			return hierarchyContent(hierarchyName, entityRequirement);
-		}
-		if (entityRequirement == null) {
-			return new HierarchyContent(hierarchyName, filterBy);
-		}
-		return new HierarchyContent(
-			hierarchyName,
-			filterBy,
-			entityRequirement
-		);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nonnull String hierarchyName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (filterBy == null) {
-			return hierarchyContent(hierarchyName, groupEntityRequirement);
-		}
-		if (groupEntityRequirement == null) {
-			return new HierarchyContent(hierarchyName, filterBy);
-		}
-		return new HierarchyContent(
-			hierarchyName,
-			filterBy,
-			groupEntityRequirement
-		);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nonnull String hierarchyName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		if (filterBy == null) {
-			return new HierarchyContent(hierarchyName, entityRequirement, groupEntityRequirement);
-		}
-		return new HierarchyContent(hierarchyName, filterBy, entityRequirement, groupEntityRequirement);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityRequirement) {
-		return hierarchyContent((String) null, entityRequirement);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable EntityGroupFetch groupEntityRequirement) {
-		return hierarchyContent((String) null, groupEntityRequirement);
-	}
-
-	// TOBEDONE JNO: add docs after docs revision
-	@Nonnull
-	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new HierarchyContent(entityRequirement, groupEntityRequirement);
 	}
 
 	/**
@@ -3104,7 +2973,7 @@ public interface QueryConstraints {
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
-			attributeContent(), associatedDataContent(), priceContentAll(), referenceContent(), dataInLocales()
+			attributeContent(), hierarchyContent(), associatedDataContent(), priceContentAll(), referenceContent(), dataInLocales()
 		);
 	}
 

@@ -111,6 +111,10 @@ public enum GrpcQueryPhase
    * <code>FETCHING_REFERENCES = 19;</code>
    */
   FETCHING_REFERENCES(19),
+  /**
+   * <code>FETCHING_PARENTS = 20;</code>
+   */
+  FETCHING_PARENTS(20),
   UNRECOGNIZED(-1),
   ;
 
@@ -194,6 +198,10 @@ public enum GrpcQueryPhase
    * <code>FETCHING_REFERENCES = 19;</code>
    */
   public static final int FETCHING_REFERENCES_VALUE = 19;
+  /**
+   * <code>FETCHING_PARENTS = 20;</code>
+   */
+  public static final int FETCHING_PARENTS_VALUE = 20;
 
 
   public final int getNumber() {
@@ -240,6 +248,7 @@ public enum GrpcQueryPhase
       case 17: return EXTRA_RESULT_ITEM_FABRICATION;
       case 18: return FETCHING;
       case 19: return FETCHING_REFERENCES;
+      case 20: return FETCHING_PARENTS;
       default: return null;
     }
   }

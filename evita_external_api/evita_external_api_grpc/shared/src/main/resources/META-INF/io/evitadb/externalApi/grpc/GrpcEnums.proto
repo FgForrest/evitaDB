@@ -175,6 +175,7 @@ enum GrpcQueryPhase {
   EXTRA_RESULT_ITEM_FABRICATION = 17;
   FETCHING = 18;
   FETCHING_REFERENCES = 19;
+  FETCHING_PARENTS = 20;
 }
 
 enum GrpcEntityExistence {
