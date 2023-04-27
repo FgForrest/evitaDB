@@ -305,7 +305,7 @@ class ConstraintDescriptorResolver {
 					.filter(ReferenceSchemaContract::isReferencedEntityTypeManaged)
 					.flatMap(referenceSchema -> catalogSchema.getEntitySchema(referenceSchema.getReferencedEntityType()));
 			})
-			.orElseThrow(() -> new ExternalApiInternalError("Could not find schema for reference entity."));
+			.orElseThrow(() -> new ExternalApiInternalError("Could not find schema for referenced entity."));
 	}
 
 	/**

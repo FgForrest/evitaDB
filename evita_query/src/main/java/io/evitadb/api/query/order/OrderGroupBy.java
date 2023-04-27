@@ -26,6 +26,7 @@ package io.evitadb.api.query.order;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -41,8 +42,9 @@ import java.io.Serializable;
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "orderBy",
-	shortDescription = "The container encapsulates order constraints that control the order of the facet groups in facet summary."
+	name = "orderGroupBy",
+	shortDescription = "The container encapsulates order constraints that control the order of the facet groups in facet summary.",
+	supportedIn = ConstraintDomain.REFERENCE
 )
 public class OrderGroupBy extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -309362096093370813L;

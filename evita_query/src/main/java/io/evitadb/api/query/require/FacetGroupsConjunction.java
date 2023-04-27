@@ -26,6 +26,7 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -107,7 +108,7 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintContainer i
 
 	@Creator
 	public FacetGroupsConjunction(@Nonnull @Classifier String referenceName,
-	                              @Nonnull @AdditionalChild FilterBy filterBy) {
+	                              @Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy) {
 		super(new Serializable[]{referenceName}, NO_CHILDREN, filterBy);
 	}
 

@@ -271,7 +271,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	 */
 	@Nullable
 	public FilterBy getFilterBy() {
-		return getAdditionalChild(FilterBy.class);
+		return getAdditionalChild(FilterBy.class).orElse(null);
 	}
 
 	/**
@@ -279,7 +279,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 	 */
 	@Nullable
 	public OrderBy getOrderBy() {
-		return getAdditionalChild(OrderBy.class);
+		return getAdditionalChild(OrderBy.class).orElse(null);
 	}
 
 	@Override

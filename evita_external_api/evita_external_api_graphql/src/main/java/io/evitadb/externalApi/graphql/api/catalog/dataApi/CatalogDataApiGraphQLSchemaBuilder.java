@@ -71,6 +71,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static graphql.schema.GraphQLArgument.newArgument;
 import static graphql.schema.GraphQLEnumType.newEnum;
@@ -95,7 +96,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull private final GraphQLConstraintSchemaBuildingContext constraintContext;
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
-	@Nonnull private final RequireConstraintSchemaBuilder requireConstraintSchemaBuilder;
+	@Nonnull private final RequireConstraintSchemaBuilder mainRequireConstraintSchemaBuilder;
 
 	@Nonnull private final EntityObjectBuilder entityObjectBuilder;
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
@@ -107,7 +108,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		this.filterConstraintSchemaBuilder = new FilterConstraintSchemaBuilder(constraintContext);
 		this.orderConstraintSchemaBuilder = new OrderConstraintSchemaBuilder(constraintContext);
-		this.requireConstraintSchemaBuilder = new RequireConstraintSchemaBuilder(constraintContext);
+		this.mainRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forMainRequire(
+			constraintContext,
+			new AtomicReference<>(filterConstraintSchemaBuilder)
+		);
 
 		this.entityObjectBuilder = new EntityObjectBuilder(
 			buildingContext,
@@ -233,7 +237,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		// build only if there are any prices or facets because these are only few allowed constraints in require builder
 		if (!entitySchema.getCurrencies().isEmpty() ||
 			entitySchema.getReferences().values().stream().anyMatch(ReferenceSchemaContract::isFaceted)) {
-			final GraphQLInputType requireInputObject = requireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
+			final GraphQLInputType requireInputObject = mainRequireConstraintSchemaBuilder.build(collectionBuildingContext.getSchema().getName());
 			collectionBuildingContext.setRequireInputObject(requireInputObject);
 		}
 
