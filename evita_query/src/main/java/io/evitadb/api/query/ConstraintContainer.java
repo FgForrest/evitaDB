@@ -35,6 +35,7 @@ import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -184,16 +185,16 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	 * This method should be used only internally to provide access to concrete additional children in implementations.
 	 */
 	@Nullable
-	protected <C extends Constraint<?>> C getAdditionalChild(@Nonnull Class<C> additionalChildType) {
+	protected <C extends Constraint<?>> Optional<C> getAdditionalChild(@Nonnull Class<C> additionalChildType) {
 		if (getType().isAssignableFrom(additionalChildType) ||
 			additionalChildType.isAssignableFrom(getType())) {
 			throw new IllegalArgumentException("Type of additional child must be different from type of children of the main container.");
 		}
 		//noinspection unchecked
-		return (C) Arrays.stream(additionalChildren)
+		return Arrays.stream(additionalChildren)
 			.filter(additionalChildType::isInstance)
 			.findFirst()
-			.orElse(null);
+			.map(it -> (C) it);
 	}
 
 	@Nonnull
@@ -239,14 +240,6 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 				!getType().isAssignableFrom(additionalChildType),
 				"Type of additional child must be different from type of children of the main container."
 			);
-
-			for (int j = i + 1; j < newAdditionalChildren.length; j++) {
-				if (newAdditionalChildren[i].getClass().equals(newAdditionalChildren[j].getClass())) {
-					throw new EvitaInvalidUsageException(
-						"There are multiple additional children of same type: " + additionalChildren[i].getClass() + " and " + additionalChildren[j].getClass()
-					);
-				}
-			}
 		}
 
 		return newAdditionalChildren;

@@ -26,6 +26,8 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -116,7 +118,6 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		super(new Serializable[]{referenceName, FacetStatisticsDepth.COUNTS});
 	}
 
-	@Creator
 	public FacetSummaryOfReference(
 		@Nonnull @Classifier String referenceName,
 		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
@@ -125,15 +126,15 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		this(new Serializable[]{referenceName, statisticsDepth}, requirements);
 	}
 
-	/* TODO LHO - this should be new @Creator */
+	@Creator
 	public FacetSummaryOfReference(
-		@Nonnull String referenceName,
-		@Nonnull FacetStatisticsDepth statisticsDepth,
-		@Nonnull FilterBy filterBy,
-		@Nonnull FilterGroupBy filterGroupBy,
-		@Nonnull OrderBy orderBy,
-		@Nonnull OrderGroupBy orderGroupBy,
-		@Nonnull EntityRequire... requirements
+		@Nonnull @Classifier String referenceName,
+		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterGroupBy filterGroupBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) OrderBy orderBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) OrderGroupBy orderGroupBy,
+		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
 	) {
 		super(
 			new Serializable[]{referenceName, Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)},
@@ -191,10 +192,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	 */
 	@Nonnull
 	public Optional<FilterBy> getFilterBy() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(FilterBy.class::isInstance)
-			.map(FilterBy.class::cast)
-			.findFirst();
+		return getAdditionalChild(FilterBy.class);
 	}
 
 	/**
@@ -202,10 +200,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	 */
 	@Nonnull
 	public Optional<FilterGroupBy> getFilterGroupBy() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(FilterGroupBy.class::isInstance)
-			.map(FilterGroupBy.class::cast)
-			.findFirst();
+		return getAdditionalChild(FilterGroupBy.class);
 	}
 
 	/**
@@ -213,10 +208,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	 */
 	@Nonnull
 	public Optional<OrderBy> getOrderBy() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(OrderBy.class::isInstance)
-			.map(OrderBy.class::cast)
-			.findFirst();
+		return getAdditionalChild(OrderBy.class);
 	}
 
 	/**
@@ -224,10 +216,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	 */
 	@Nonnull
 	public Optional<OrderGroupBy> getOrderGroupBy() {
-		return Arrays.stream(getAdditionalChildren())
-			.filter(OrderGroupBy.class::isInstance)
-			.map(OrderGroupBy.class::cast)
-			.findFirst();
+		return getAdditionalChild(OrderGroupBy.class);
 	}
 
 	@Override

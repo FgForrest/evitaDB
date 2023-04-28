@@ -70,7 +70,12 @@ class GrpcExtraResultsBuilderTest {
 			},
 			BigDecimal.valueOf(10)
 		);
-		final EvitaEntityResponse response = new EvitaEntityResponse(query, new PaginatedList<>(0, 0, 0), new AttributeHistogram(Map.of(type, histogram)));
+		final EvitaEntityResponse response = new EvitaEntityResponse(
+			query,
+			new PaginatedList<>(0, 0, 0),
+			integerHierarchyParents,
+			new AttributeHistogram(Map.of(type, histogram))
+		);
 		final GrpcExtraResults extraResults = GrpcExtraResultsBuilder.buildExtraResults(response);
 
 		assertFalse(extraResults.hasPriceHistogram());

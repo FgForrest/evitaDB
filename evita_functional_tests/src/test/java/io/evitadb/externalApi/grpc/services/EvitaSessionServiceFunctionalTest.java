@@ -1086,8 +1086,8 @@ class EvitaSessionServiceFunctionalTest {
 
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
-	@DisplayName("Should return extra result of statistics consisting of products referencing to its categories")
-	void shouldReturnStatisticsOfProductsReferencingToItsCategories(Evita evita, ManagedChannel channel) {
+	@DisplayName("Should return extra result of parents consisting of products referencing to its categories")
+	void shouldReturnParentsOfProductsReferencingToItsCategories(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 

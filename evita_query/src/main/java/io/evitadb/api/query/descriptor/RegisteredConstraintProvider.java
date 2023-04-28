@@ -30,6 +30,7 @@ import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.order.Random;
 import io.evitadb.api.query.order.ReferenceProperty;
@@ -67,6 +68,7 @@ class RegisteredConstraintProvider {
 		// --- filter constraints ---
 		// generic
 		FilterBy.class,
+		FilterGroupBy.class,
 		And.class,
 		Not.class,
 		Or.class,
@@ -107,6 +109,7 @@ class RegisteredConstraintProvider {
 		// --- order constraints ---
 		// generic
 		OrderBy.class,
+		OrderGroupBy.class,
 		Random.class,
 		// entity
 		EntityProperty.class,

@@ -26,6 +26,7 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -43,7 +44,8 @@ import java.io.Serializable;
  */
 @ConstraintDefinition(
 	name = "filterGroupBy",
-	shortDescription = "The container encapsulating filter constraint limiting the facet groups returned in facet summary."
+	shortDescription = "The container encapsulating filter constraint limiting the facet groups returned in facet summary.",
+	supportedIn = ConstraintDomain.REFERENCE
 )
 public class FilterGroupBy extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -209752332976848423L;

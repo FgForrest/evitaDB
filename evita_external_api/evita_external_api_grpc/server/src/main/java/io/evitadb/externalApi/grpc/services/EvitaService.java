@@ -165,6 +165,48 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 	}
 
 	/**
+	 * Creates new catalog with a name specified in a request.
+	 *
+	 * @param request          containing name of the catalog to be created
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#defineCatalog(String)
+	 */
+	@Override
+	public void defineCatalog(GrpcDefineCatalogRequest request, StreamObserver<GrpcDefineCatalogResponse> responseObserver) {
+		evita.defineCatalog(request.getCatalogName());
+		responseObserver.onNext(GrpcDefineCatalogResponse.newBuilder().setSuccess(true).build());
+		responseObserver.onCompleted();
+	}
+
+	/**
+	 * Renames existing catalog to a name specified in a request.
+	 *
+	 * @param request          containing names of the catalogs involved
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#renameCatalog(String, String)
+	 */
+	@Override
+	public void renameCatalog(GrpcRenameCatalogRequest request, StreamObserver<GrpcRenameCatalogResponse> responseObserver) {
+		evita.renameCatalog(request.getCatalogName(), request.getNewCatalogName());
+		responseObserver.onNext(GrpcRenameCatalogResponse.newBuilder().setSuccess(true).build());
+		responseObserver.onCompleted();
+	}
+
+	/**
+	 * Replaces existing catalog with a different existing catalog and its contents.
+	 *
+	 * @param request          containing names of the catalogs involved
+	 * @param responseObserver observer on which errors might be thrown and result returned
+	 * @see EvitaContract#replaceCatalog(String, String)
+	 */
+	@Override
+	public void replaceCatalog(GrpcReplaceCatalogRequest request, StreamObserver<GrpcReplaceCatalogResponse> responseObserver) {
+		evita.replaceCatalog(request.getCatalogNameToBeReplacedWith(), request.getCatalogNameToBeReplaced());
+		responseObserver.onNext(GrpcReplaceCatalogResponse.newBuilder().setSuccess(true).build());
+		responseObserver.onCompleted();
+	}
+
+	/**
 	 * Deletes catalog with a name specified in a request.
 	 *
 	 * @param request          containing name of the catalog to be deleted

@@ -24,18 +24,63 @@
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Local context for constraint building. It is passed down the constraint tree. Each node can create new
  * context for its children if received context from parent is not relevant
  *
- * @param dataLocator specifies how to get schemas for building in particular place in built constraint tree
- *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@Builder(toBuilder = true)
-public record ConstraintBuildContext(@Nonnull DataLocator dataLocator) {
+@Builder(access = AccessLevel.PRIVATE, toBuilder = true)
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@ToString
+@EqualsAndHashCode
+public class ConstraintBuildContext {
+
+	@Nullable private final DataLocator parentDataLocator;
+	@Nonnull private final DataLocator dataLocator;
+
+	public ConstraintBuildContext(@Nonnull DataLocator dataLocator) {
+		this(null, dataLocator);
+	}
+
+	@Nonnull
+	public ConstraintBuildContext switchToChildContext(@Nonnull DataLocator childDataLocator) {
+		return toBuilder()
+			.parentDataLocator(dataLocator())
+			.dataLocator(childDataLocator)
+			.build();
+	}
+
+	/**
+	 * Whether building context is currently at the root of constraint and thus doesn't have any parent constraints.
+	 */
+	public boolean isAtRoot() {
+		return parentDataLocator == null;
+	}
+
+	/**
+	 * {@link #dataLocator()} that was used by parent constraint as main data locator. Useful for logic that is based
+	 * on difference between current and parent data locator.
+	 */
+	@Nonnull
+	public DataLocator parentDataLocator() {
+		return parentDataLocator;
+	}
+
+	/**
+	 * Specifies how to get data based on target domain for building constraint tree at current level.
+	 */
+	@Nonnull
+	public DataLocator dataLocator() {
+		return dataLocator;
+	}
 }

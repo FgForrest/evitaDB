@@ -31,6 +31,32 @@ message GrpcCatalogNamesResponse {
   repeated string catalogNames = 1;
 }
 
+message GrpcDefineCatalogRequest {
+  string catalogName = 1;
+}
+
+message GrpcDefineCatalogResponse {
+  bool success = 1;
+}
+
+message GrpcRenameCatalogRequest {
+  string catalogName = 1;
+  string newCatalogName = 2;
+}
+
+message GrpcRenameCatalogResponse {
+  bool success = 1;
+}
+
+message GrpcReplaceCatalogRequest {
+  string catalogNameToBeReplacedWith = 1;
+  string catalogNameToBeReplaced = 2;
+}
+
+message GrpcReplaceCatalogResponse {
+  bool success = 1;
+}
+
 message GrpcDeleteCatalogIfExistsRequest {
   string catalogName = 1;
 }
@@ -50,6 +76,9 @@ service EvitaService {
   rpc CreateBinaryReadWriteSession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
   rpc TerminateSession(GrpcEvitaSessionTerminationRequest) returns (GrpcEvitaSessionTerminationResponse);
   rpc GetCatalogNames(google.protobuf.Empty) returns (GrpcCatalogNamesResponse);
+  rpc DefineCatalog(GrpcDefineCatalogRequest) returns (GrpcDefineCatalogResponse);
+  rpc RenameCatalog(GrpcRenameCatalogRequest) returns (GrpcRenameCatalogResponse);
+  rpc ReplaceCatalog(GrpcReplaceCatalogRequest) returns (GrpcReplaceCatalogResponse);
   rpc DeleteCatalogIfExists(GrpcDeleteCatalogIfExistsRequest) returns (GrpcDeleteCatalogIfExistsResponse);
   rpc Update(GrpcUpdateEvitaRequest) returns (google.protobuf.Empty);
 }

@@ -28,12 +28,8 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestChannelCreator;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
-import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc;
-import io.evitadb.externalApi.grpc.generated.GrpcEntityTypesResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
+import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
@@ -66,13 +62,13 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.*;
 
-@SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("EvitaService gRPC functional test")
 @ExtendWith(EvitaParameterResolver.class)
 @Tag(FUNCTIONAL_TEST)
 @Slf4j
 class EvitaServiceFunctionalTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "EvitaServiceFunctionalTest";
+	private static final String DUMMY_CATALOG = "dummy-catalog";
 
 	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
@@ -84,20 +80,20 @@ class EvitaServiceFunctionalTest {
 		);
 	}
 
-	@AfterEach
-	public void afterEach() {
-		SessionIdHolder.reset();
-	}
-
 	@OnDataSetTearDown(GRPC_THOUSAND_PRODUCTS)
 	void onDataSetTearDown(ManagedChannel channel) {
 		channel.shutdown();
 	}
 
+	@AfterEach
+	public void afterEach() {
+		SessionIdHolder.reset();
+	}
+
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should throw an exception when sending non-existent catalog as parameter")
-	void shouldThrowWhenAskingForNonExistingCatalog(Evita evita, ManagedChannel channel) {
+	void shouldThrowWhenAskingForNonExistingCatalog(ManagedChannel channel) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		assertThrows(
@@ -112,7 +108,7 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return sessionId when sending existing catalog as parameter")
-	void shouldReturnSessionIdWhenExistingCatalogPassed(Evita evita, ManagedChannel channel) {
+	void shouldReturnSessionIdWhenExistingCatalogPassed(ManagedChannel channel) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
@@ -130,7 +126,7 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get each time new session when asked")
-	void shouldEachTimeGetNewReadOnlySession(Evita evita, ManagedChannel channel) {
+	void shouldEachTimeGetNewReadOnlySession(ManagedChannel channel) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
@@ -158,7 +154,7 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return sessionId of ReadWrite session when sending existing catalog as parameter")
-	void shouldReturnSessionIdOfReadWriteSessionWhenExistingCatalogPassed(Evita evita, ManagedChannel channel) {
+	void shouldReturnSessionIdOfReadWriteSessionWhenExistingCatalogPassed(ManagedChannel channel) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
@@ -177,7 +173,7 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should be able concurrently create sessions and call SessionService using correct sessions specified by its id and type from multiple threads in parallel")
-	void shouldBeAbleConcurrentlyCreateSessionsAndCallSessionService(Evita evita, ManagedChannel channel) throws Exception {
+	void shouldBeAbleConcurrentlyCreateSessionsAndCallSessionService(ManagedChannel channel) throws Exception {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final int numberOfThreads = 10;
@@ -221,7 +217,7 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get each time new ReadWrite session when asked")
-	void shouldEachTimeGetNewReadWriteSession(Evita evita, ManagedChannel channel) {
+	void shouldEachTimeGetNewReadWriteSession(ManagedChannel channel) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
@@ -249,7 +245,7 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get BinaryReadOnly session when asked")
-	void shouldGetBinaryReadOnlySession(Evita evita, ManagedChannel channel) {
+	void shouldGetBinaryReadOnlySession(ManagedChannel channel) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
@@ -267,7 +263,7 @@ class EvitaServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should get BinaryReadWrite session when asked")
-	void shouldGetBinaryReadWriteSession(Evita evita, ManagedChannel channel) {
+	void shouldGetBinaryReadWriteSession(ManagedChannel channel) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 
 		final AtomicReference<GrpcEvitaSessionResponse> response = new AtomicReference<>();
@@ -282,92 +278,110 @@ class EvitaServiceFunctionalTest {
 		assertEquals(GrpcSessionType.BINARY_READ_WRITE, response.get().getSessionType());
 	}
 
-	/*@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	@UseDataSet(value = GRPC_THOUSAND_PRODUCTS, destroyAfterTest = true)
 	@DisplayName("Should be able to create new catalog")
-	void shouldBeAbleToCreateNewCatalog(Evita evita) {
-		final EvitaSystemServiceGrpc.EvitaSystemServiceBlockingStub evitaBlockingStub = EvitaSystemServiceGrpc.newBlockingStub(channel);
-		assertFalse(evita.getCatalogNames().stream().anyMatch(name -> name.equals(DUMMY_CATALOG)));
-		final CreateCatalogResponse createCatalogResponse = evitaBlockingStub.createCatalog(
-			CreateCatalogRequest.newBuilder().setCatalogName(DUMMY_CATALOG).build()
+	void shouldBeAbleToCreateNewCatalog(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+		assertFalse(evita.getCatalogNames().contains(DUMMY_CATALOG));
+		final GrpcDefineCatalogResponse createCatalogResponse = evitaBlockingStub.defineCatalog(
+			GrpcDefineCatalogRequest.newBuilder().setCatalogName(DUMMY_CATALOG).build()
 		);
 		assertTrue(evita.getCatalogNames().stream().anyMatch(name -> name.equals(DUMMY_CATALOG)));
-		assertCatalogSchema(evitaSystemDataProvider.getCatalog(DUMMY_CATALOG).getSchema(), createCatalogResponse.getCatalogSchema());
+		assertTrue(createCatalogResponse.getSuccess());
+		assertTrue(
+			evitaBlockingStub.getCatalogNames(Empty.newBuilder().build())
+				.getCatalogNamesList()
+				.stream()
+				.anyMatch(it -> it.equals(DUMMY_CATALOG))
+		);
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
-	@DisplayName("Should be able to replace catalog with a new one")
-	void shouldBeAbleToReplaceCatalogWithNewOne(Evita evita) {
-		final EvitaSystemServiceGrpc.EvitaSystemServiceBlockingStub evitaBlockingStub = EvitaSystemServiceGrpc.newBlockingStub(channel);
-		assertFalse(evita.getCatalogNames().stream().anyMatch(name -> name.equals(DUMMY_CATALOG)));
-		final String replacedCatalogName = "ReplaceCatalog";
-		final CreateCatalogResponse createCatalogResponse = evitaBlockingStub.createCatalog(
-			CreateCatalogRequest.newBuilder().setCatalogName(DUMMY_CATALOG).build()
-		);
-		assertNotEquals(createCatalogResponse.getCatalogSchema().getDefaultInstanceForType(), createCatalogResponse.getCatalogSchema());
-		assertTrue(evita.getCatalogNames().stream().anyMatch(name -> name.equals(DUMMY_CATALOG)));
-		final CreateCatalogResponse createReplaceCatalogResponse = evitaBlockingStub.createCatalog(
-			CreateCatalogRequest.newBuilder().setCatalogName(replacedCatalogName).build()
-		);
-		assertNotEquals(createReplaceCatalogResponse.getCatalogSchema().getDefaultInstanceForType(), createReplaceCatalogResponse.getCatalogSchema());
-		assertEquals(Empty.getDefaultInstance(), evitaBlockingStub.replaceCatalog(
-			ReplaceCatalogRequest.newBuilder()
-				.setCatalogNameTobeReplaced(DUMMY_CATALOG)
-				.setCatalogNameTobeReplacedWith(replacedCatalogName)
-				.build()
-		));
-		assertTrue(evita.getCatalogNames().stream().anyMatch(name -> name.equals(DUMMY_CATALOG)));
-		assertFalse(evita.getCatalogNames().stream().anyMatch(name -> name.equals(replacedCatalogName)));
-	}
-
-	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(value = GRPC_THOUSAND_PRODUCTS, destroyAfterTest = true)
 	@DisplayName("Should be able to delete existing catalog")
-	void shouldBeAbleToDeleteExisting(Evita evita) {
-		final EvitaSystemServiceGrpc.EvitaSystemServiceBlockingStub evitaBlockingStub = EvitaSystemServiceGrpc.newBlockingStub(channel);
-		final CreateCatalogResponse createCatalogResponse = evitaBlockingStub.createCatalog(
-			CreateCatalogRequest.newBuilder().setCatalogName(DUMMY_CATALOG).build()
-		);
-		assertNotEquals(GrpcCatalogSchema.getDefaultInstance(), createCatalogResponse.getCatalogSchema());
-		assertTrue(evita.getCatalogNames().stream().anyMatch(name -> name.equals(DUMMY_CATALOG)));
+	void shouldBeAbleToDeleteExisting(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+		if (!evita.getCatalogNames().contains(DUMMY_CATALOG)) {
+			assertNotNull(evita.defineCatalog(DUMMY_CATALOG));
+		}
+		assertTrue(evita.getCatalogNames().contains(DUMMY_CATALOG));
 
-		final DeleteCatalogResponse deleteCatalogResponse = evitaBlockingStub.deleteCatalog(
-			DeleteCatalogRequest.newBuilder().setCatalogName(DUMMY_CATALOG).build()
+		final GrpcDeleteCatalogIfExistsResponse deleteCatalogResponse = evitaBlockingStub.deleteCatalogIfExists(
+			GrpcDeleteCatalogIfExistsRequest.newBuilder().setCatalogName(DUMMY_CATALOG).build()
 		);
 
 		assertTrue(deleteCatalogResponse.getSuccess());
-
 		assertFalse(evita.getCatalogNames().stream().anyMatch(name -> name.equals(DUMMY_CATALOG)));
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(value = GRPC_THOUSAND_PRODUCTS, destroyAfterTest = true)
+	@DisplayName("Should be able to rename catalog")
+	void shouldBeAbleToRenameCatalog(Evita evita, ManagedChannel channel) {
+		assertFalse(evita.getCatalogNames().contains(DUMMY_CATALOG));
+
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+		final GrpcRenameCatalogResponse renameCatalogResponse = evitaBlockingStub.renameCatalog(
+			GrpcRenameCatalogRequest.newBuilder()
+				.setCatalogName(TEST_CATALOG)
+				.setNewCatalogName(DUMMY_CATALOG)
+				.build()
+		);
+
+		assertTrue(renameCatalogResponse.getSuccess());
+		assertFalse(evita.getCatalogNames().contains(TEST_CATALOG));
+		assertTrue(evita.getCatalogNames().contains(DUMMY_CATALOG));
+		assertFalse(() -> evita.queryCatalog(DUMMY_CATALOG, session -> { return session.getAllEntityTypes().isEmpty(); }));
+	}
+
+	@Test
+	@UseDataSet(value = GRPC_THOUSAND_PRODUCTS, destroyAfterTest = true)
+	@DisplayName("Should be able to replace catalog with a new one")
+	void shouldBeAbleToReplaceCatalogWithNewOne(Evita evita, ManagedChannel channel) {
+		assertFalse(evita.getCatalogNames().contains(DUMMY_CATALOG));
+
+		final EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+		assertNotNull(evita.defineCatalog(DUMMY_CATALOG));
+		assertTrue(evita.getCatalogNames().contains(DUMMY_CATALOG));
+		assertTrue(() -> evita.queryCatalog(DUMMY_CATALOG, session -> { return session.getAllEntityTypes().isEmpty(); }));
+
+		final GrpcReplaceCatalogResponse replaceCatalogResponse = evitaBlockingStub.replaceCatalog(
+			GrpcReplaceCatalogRequest.newBuilder()
+				.setCatalogNameToBeReplaced(DUMMY_CATALOG)
+				.setCatalogNameToBeReplacedWith(TEST_CATALOG)
+				.build()
+		);
+
+		assertTrue(replaceCatalogResponse.getSuccess());
+		assertFalse(evita.getCatalogNames().contains(TEST_CATALOG));
+		assertTrue(evita.getCatalogNames().contains(DUMMY_CATALOG));
+		assertFalse(() -> evita.queryCatalog(DUMMY_CATALOG, session -> { return session.getAllEntityTypes().isEmpty(); }));
+	}
+
+	@Test
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should not be able to delete non-existing catalog")
-	void shouldNotBeAbleToDeleteNonExisting(Evita evita) {
-		final EvitaSystemServiceGrpc.EvitaSystemServiceBlockingStub evitaBlockingStub = EvitaSystemServiceGrpc.newBlockingStub(channel);
-		final String nonExistingCatalogName = "NonExistingCatalog";
+	void shouldNotBeAbleToDeleteNonExisting(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
+		assertFalse(evita.getCatalogNames().contains(DUMMY_CATALOG));
 
-		assertFalse(evita.getCatalogNames().stream().anyMatch(name -> name.equals(nonExistingCatalogName)));
-
-		final DeleteCatalogResponse deleteCatalogResponse = evitaBlockingStub.deleteCatalog(
-			DeleteCatalogRequest.newBuilder().setCatalogName(nonExistingCatalogName).build()
+		final GrpcDeleteCatalogIfExistsResponse deleteCatalogResponse = evitaBlockingStub.deleteCatalogIfExists(
+			GrpcDeleteCatalogIfExistsRequest.newBuilder().setCatalogName(DUMMY_CATALOG).build()
 		);
 
 		assertFalse(deleteCatalogResponse.getSuccess());
-		assertFalse(evita.getCatalogNames().stream().anyMatch(name -> name.equals(DUMMY_CATALOG)));
 	}
 
 	@Test
-	@UseDataSet(THOUSAND_PRODUCTS)
+	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return list of available evita catalogs")
-	void shouldReturnListOfEvitaCatalogs(Evita evita) {
-		final EvitaSystemServiceGrpc.EvitaSystemServiceBlockingStub evitaBlockingStub = EvitaSystemServiceGrpc.newBlockingStub(channel);
-
+	void shouldReturnListOfEvitaCatalogs(Evita evita, ManagedChannel channel) {
+		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 		final List<String> catalogNamesList = evitaBlockingStub.getCatalogNames(Empty.newBuilder().build()).getCatalogNamesList();
 
 		assertArrayEquals(evita.getCatalogNames().toArray(), catalogNamesList.toArray());
-	}*/
+	}
 
 	private void makeSessionCall(@Nonnull String catalogName, @Nonnull String sessionId, @Nonnull ManagedChannel channel) {
 		SessionIdHolder.setSessionId(catalogName, sessionId);

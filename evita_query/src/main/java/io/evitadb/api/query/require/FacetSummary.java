@@ -122,7 +122,6 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 		this(new Serializable[]{statisticsDepth}, requirements);
 	}
 
-	/* TODO LHO - this should be new @Creator */
 	public FacetSummary(
 		FacetStatisticsDepth statisticsDepth,
 		FilterBy filterBy,

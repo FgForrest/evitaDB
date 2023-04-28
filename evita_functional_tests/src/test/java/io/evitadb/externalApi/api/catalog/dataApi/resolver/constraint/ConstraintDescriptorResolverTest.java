@@ -24,10 +24,10 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
-import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.filter.HierarchyExcluding;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -38,7 +38,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorParser.ParsedConstraintDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeAll;
@@ -52,13 +52,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.wildfly.common.Assert.assertTrue;
 
 /**
- * Tests for {@link ConstraintDescriptorParser}
+ * Tests for {@link ConstraintDescriptorResolver}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ConstraintDescriptorParserTest {
+public class ConstraintDescriptorResolverTest {
 
-	private static ConstraintDescriptorParser parser;
+	private static ConstraintDescriptorResolver parser;
 
 	@BeforeAll
 	static void setup() {
@@ -86,12 +86,12 @@ public class ConstraintDescriptorParserTest {
 			.toInstance();
 		entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
 
-		parser = new ConstraintDescriptorParser(catalogSchema, ConstraintType.FILTER);
+		parser = new ConstraintDescriptorResolver(catalogSchema, ConstraintType.FILTER);
 	}
 
 	@Test
 	void shouldCorrectlyParseConstraintKey() {
-		final Optional<ParsedConstraintDescriptor> parsedAttributeConstraint = parser.parse(
+		final Optional<ParsedConstraintDescriptor> parsedAttributeConstraint = parser.resolve(
 			new ConstraintResolveContext(new EntityDataLocator(Entities.PRODUCT)),
 			"attributeCodeEquals"
 		);
@@ -99,15 +99,13 @@ public class ConstraintDescriptorParserTest {
 			parsedAttributeConstraint.orElseThrow(),
 			new ParsedConstraintDescriptor(
 				"attributeCodeEquals",
-				ConstraintPropertyType.ATTRIBUTE,
 				"code",
-				"equals",
 				ConstraintDescriptorProvider.getConstraint(AttributeEquals.class),
 				new EntityDataLocator(Entities.PRODUCT)
 			)
 		);
 
-		final Optional<ParsedConstraintDescriptor> parsedEntityFromReferenceConstraint = parser.parse(
+		final Optional<ParsedConstraintDescriptor> parsedEntityFromReferenceConstraint = parser.resolve(
 			new ConstraintResolveContext(new ReferenceDataLocator(Entities.PRODUCT, Entities.CATEGORY)),
 			"entityHaving"
 		);
@@ -115,15 +113,13 @@ public class ConstraintDescriptorParserTest {
 			parsedEntityFromReferenceConstraint.orElseThrow(),
 			new ParsedConstraintDescriptor(
 				"entityHaving",
-				ConstraintPropertyType.ENTITY,
 				null,
-				"having",
 				ConstraintDescriptorProvider.getConstraint(EntityHaving.class),
 				new EntityDataLocator(Entities.CATEGORY)
 			)
 		);
 
-		final Optional<ParsedConstraintDescriptor> parsedHierarchyConstraint = parser.parse(
+		final Optional<ParsedConstraintDescriptor> parsedHierarchyConstraint = parser.resolve(
 			new ConstraintResolveContext(new EntityDataLocator(Entities.PRODUCT)),
 			"hierarchyCategoryWithin"
 		);
@@ -131,9 +127,7 @@ public class ConstraintDescriptorParserTest {
 			parsedHierarchyConstraint.orElseThrow(),
 			new ParsedConstraintDescriptor(
 				"hierarchyCategoryWithin",
-				ConstraintPropertyType.HIERARCHY,
 				Entities.CATEGORY,
-				"within",
 				ConstraintDescriptorProvider.getConstraints(HierarchyWithin.class)
 					.stream()
 					.filter(it -> it.fullName().equals("within"))
@@ -142,20 +136,49 @@ public class ConstraintDescriptorParserTest {
 				new HierarchyDataLocator(Entities.PRODUCT, Entities.CATEGORY)
 			)
 		);
+
+		// should be parsed because there is proper parent hierarchy context properly identifying the simplified constraint
+		final Optional<ParsedConstraintDescriptor> parsedSimplifiedStopAt = parser.resolve(
+			new ConstraintResolveContext(new HierarchyDataLocator(Entities.CATEGORY), new HierarchyDataLocator(Entities.CATEGORY)),
+			"excluding"
+		);
+		assertEquals(
+			new ParsedConstraintDescriptor(
+				"excluding",
+				null,
+				ConstraintDescriptorProvider.getConstraint(HierarchyExcluding.class),
+				new HierarchyDataLocator(Entities.CATEGORY)
+			),
+			parsedSimplifiedStopAt.orElseThrow()
+		);
 	}
 
 	@Test
 	void shouldNotParseConstraintKey() {
 		assertTrue(
-			parser.parse(
+			parser.resolve(
 				new ConstraintResolveContext(new EntityDataLocator(Entities.PRODUCT)),
 				"attributeEquals"
 			).isEmpty()
 		);
 		assertTrue(
-			parser.parse(
+			parser.resolve(
 				new ConstraintResolveContext(new EntityDataLocator(Entities.PRODUCT)),
 				"attributeCodeNot"
+			).isEmpty()
+		);
+		// should not be parsed because it is simplified constraint without proper parent hierarchy context
+		assertTrue(
+			parser.resolve(
+				new ConstraintResolveContext(new HierarchyDataLocator(Entities.CATEGORY)),
+				"excluding"
+			).isEmpty()
+		);
+		// should not be parsed because it is simplified constraint without same current context as parent has
+		assertTrue(
+			parser.resolve(
+				new ConstraintResolveContext(new HierarchyDataLocator(Entities.CATEGORY), new EntityDataLocator(Entities.PRODUCT)),
+				"excluding"
 			).isEmpty()
 		);
 	}

@@ -79,18 +79,6 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 			numberOfChildParameters <= 1,
 			() -> new EvitaInternalError("Constraint cannot have multiple child parameters.")
 		);
-
-		final List<AdditionalChildParameterDescriptor> additionalChildParameters = parameters.stream()
-			.filter(AdditionalChildParameterDescriptor.class::isInstance)
-			.map(AdditionalChildParameterDescriptor.class::cast)
-			.toList();
-		final Set<ConstraintType> additionalChildParameterTypes = additionalChildParameters.stream()
-			.map(AdditionalChildParameterDescriptor::constraintType)
-			.collect(Collectors.toUnmodifiableSet());
-		Assert.isPremiseValid(
-			additionalChildParameters.size() == additionalChildParameterTypes.size(),
-			() -> new EvitaInternalError("Constraint cannot have multiple additional child parameters of same constraint type.")
-		);
 	}
 
 	/**

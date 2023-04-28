@@ -28,10 +28,9 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
-import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
@@ -51,7 +50,7 @@ public class FilterConstraintSchemaBuilder extends GraphQLConstraintSchemaBuilde
 			constraintSchemaBuildingCtx,
 			createHashMap(0), // currently, we don't support any filter constraint with additional children
 			Set.of(),
-			Set.of(FilterBy.class)
+			Set.of(FilterBy.class, FilterGroupBy.class)
 		);
 	}
 
