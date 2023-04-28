@@ -521,11 +521,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				.mapToObj(epk -> getEntityById(epk, evitaRequest))
 				.filter(Objects::nonNull)
 				.toList();
+			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			final List<Entity> removedEntities = referenceFetcher.initReferenceIndex(entitiesToRemove, this);
 			for (Entity entityToRemove : entitiesToRemove) {
 				internalDeleteEntity(entityToRemove);
 			}
-			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-			final List<Entity> removedEntities = referenceFetcher.initReferenceIndex(entitiesToRemove, this);
 			return new DeletedHierarchy(
 				removedEntities.size(),
 				removedEntities.stream()
@@ -569,11 +569,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			.map(it -> getFullEntityById(Objects.requireNonNull(it.getPrimaryKey())))
 			.filter(Objects::nonNull)
 			.map(it -> {
-				internalDeleteEntity(it);
 				final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+				final Entity fullEntity = referenceFetcher.initReferenceIndex(it, this);
+				internalDeleteEntity(it);
 				return wrapToDecorator(
 					evitaRequest,
-					referenceFetcher.initReferenceIndex(it, this),
+					fullEntity,
 					referenceFetcher,
 					false
 				);

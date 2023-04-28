@@ -5060,7 +5060,7 @@ public class EvitaQLParser extends Parser {
 
 	public static class HierarchyWithinConstraintArgsContext extends ParserRuleContext {
 		public ClassifierTokenContext classifier;
-		public ValueTokenContext primaryKey;
+		public FilterConstraintContext ofParent;
 		public FilterConstraintContext filterConstraint;
 		public List<FilterConstraintContext> constrains = new ArrayList<FilterConstraintContext>();
 		public TerminalNode ARGS_OPENING() { return getToken(EvitaQLParser.ARGS_OPENING, 0); }
@@ -5071,9 +5071,6 @@ public class EvitaQLParser extends Parser {
 		public TerminalNode ARGS_CLOSING() { return getToken(EvitaQLParser.ARGS_CLOSING, 0); }
 		public ClassifierTokenContext classifierToken() {
 			return getRuleContext(ClassifierTokenContext.class,0);
-		}
-		public ValueTokenContext valueToken() {
-			return getRuleContext(ValueTokenContext.class,0);
 		}
 		public List<FilterConstraintContext> filterConstraint() {
 			return getRuleContexts(FilterConstraintContext.class);
@@ -5114,7 +5111,7 @@ public class EvitaQLParser extends Parser {
 			setState(547);
 			match(ARGS_DELIMITER);
 			setState(548);
-			((HierarchyWithinConstraintArgsContext)_localctx).primaryKey = valueToken();
+			((HierarchyWithinConstraintArgsContext)_localctx).ofParent = filterConstraint();
 			setState(553);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
@@ -5148,23 +5145,20 @@ public class EvitaQLParser extends Parser {
 	}
 
 	public static class HierarchyWithinSelfConstraintArgsContext extends ParserRuleContext {
-		public ValueTokenContext primaryKey;
+		public FilterConstraintContext ofParent;
 		public FilterConstraintContext filterConstraint;
 		public List<FilterConstraintContext> constrains = new ArrayList<FilterConstraintContext>();
 		public TerminalNode ARGS_OPENING() { return getToken(EvitaQLParser.ARGS_OPENING, 0); }
 		public TerminalNode ARGS_CLOSING() { return getToken(EvitaQLParser.ARGS_CLOSING, 0); }
-		public ValueTokenContext valueToken() {
-			return getRuleContext(ValueTokenContext.class,0);
-		}
-		public List<TerminalNode> ARGS_DELIMITER() { return getTokens(EvitaQLParser.ARGS_DELIMITER); }
-		public TerminalNode ARGS_DELIMITER(int i) {
-			return getToken(EvitaQLParser.ARGS_DELIMITER, i);
-		}
 		public List<FilterConstraintContext> filterConstraint() {
 			return getRuleContexts(FilterConstraintContext.class);
 		}
 		public FilterConstraintContext filterConstraint(int i) {
 			return getRuleContext(FilterConstraintContext.class,i);
+		}
+		public List<TerminalNode> ARGS_DELIMITER() { return getTokens(EvitaQLParser.ARGS_DELIMITER); }
+		public TerminalNode ARGS_DELIMITER(int i) {
+			return getToken(EvitaQLParser.ARGS_DELIMITER, i);
 		}
 		public HierarchyWithinSelfConstraintArgsContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
@@ -5195,7 +5189,7 @@ public class EvitaQLParser extends Parser {
 			setState(558);
 			match(ARGS_OPENING);
 			setState(559);
-			((HierarchyWithinSelfConstraintArgsContext)_localctx).primaryKey = valueToken();
+			((HierarchyWithinSelfConstraintArgsContext)_localctx).ofParent = filterConstraint();
 			setState(564);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
@@ -7934,10 +7928,10 @@ public class EvitaQLParser extends Parser {
 		"\7V\2\2\u021c\u021f\5v<\2\u021d\u021e\7X\2\2\u021e\u0220\5\32\16\2\u021f"+
 		"\u021d\3\2\2\2\u021f\u0220\3\2\2\2\u0220\u0221\3\2\2\2\u0221\u0222\7W"+
 		"\2\2\u0222M\3\2\2\2\u0223\u0224\7V\2\2\u0224\u0225\5x=\2\u0225\u0226\7"+
-		"X\2\2\u0226\u022b\5|?\2\u0227\u0228\7X\2\2\u0228\u022a\5\26\f\2\u0229"+
+		"X\2\2\u0226\u022b\5\26\f\2\u0227\u0228\7X\2\2\u0228\u022a\5\26\f\2\u0229"+
 		"\u0227\3\2\2\2\u022a\u022d\3\2\2\2\u022b\u0229\3\2\2\2\u022b\u022c\3\2"+
 		"\2\2\u022c\u022e\3\2\2\2\u022d\u022b\3\2\2\2\u022e\u022f\7W\2\2\u022f"+
-		"O\3\2\2\2\u0230\u0231\7V\2\2\u0231\u0236\5|?\2\u0232\u0233\7X\2\2\u0233"+
+		"O\3\2\2\2\u0230\u0231\7V\2\2\u0231\u0236\5\26\f\2\u0232\u0233\7X\2\2\u0233"+
 		"\u0235\5\26\f\2\u0234\u0232\3\2\2\2\u0235\u0238\3\2\2\2\u0236\u0234\3"+
 		"\2\2\2\u0236\u0237\3\2\2\2\u0237\u0239\3\2\2\2\u0238\u0236\3\2\2\2\u0239"+
 		"\u023a\7W\2\2\u023aQ\3\2\2\2\u023b\u0245\7V\2\2\u023c\u0246\5x=\2\u023d"+

@@ -3110,7 +3110,7 @@ public class EntityFetchingFunctionalTest {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							hierarchyWithin(Entities.CATEGORY, theChildPk)
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(theChildPk))
 						),
 						require(
 							entityFetch(
@@ -3156,7 +3156,7 @@ public class EntityFetchingFunctionalTest {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							hierarchyWithin(Entities.CATEGORY, theChildPk)
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(theChildPk))
 						),
 						require(
 							entityFetch(
@@ -3202,7 +3202,7 @@ public class EntityFetchingFunctionalTest {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							hierarchyWithin(Entities.CATEGORY, theChildPk)
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(theChildPk))
 						),
 						require(
 							entityFetch(
@@ -3249,7 +3249,7 @@ public class EntityFetchingFunctionalTest {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							hierarchyWithin(Entities.CATEGORY, theChildPk)
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(theChildPk))
 						),
 						require(
 							entityFetch(
@@ -3308,7 +3308,7 @@ public class EntityFetchingFunctionalTest {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							hierarchyWithin(Entities.CATEGORY, theChildPk)
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(theChildPk))
 						),
 						require(
 							entityFetch(referenceContent(Entities.CATEGORY, entityFetch(hierarchyContent(entityFetchAll()))))
@@ -3350,7 +3350,7 @@ public class EntityFetchingFunctionalTest {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							hierarchyWithin(Entities.CATEGORY, theChildPk)
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(theChildPk))
 						),
 						require(
 							entityFetch(
@@ -3397,7 +3397,7 @@ public class EntityFetchingFunctionalTest {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							hierarchyWithin(Entities.CATEGORY, theChildPk)
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(theChildPk))
 						),
 						require(
 							entityFetch(
@@ -3445,7 +3445,7 @@ public class EntityFetchingFunctionalTest {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							hierarchyWithin(Entities.CATEGORY, theChildPk)
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(theChildPk))
 						),
 						require(
 							entityFetch(

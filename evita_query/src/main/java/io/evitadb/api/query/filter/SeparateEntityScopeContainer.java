@@ -21,17 +21,16 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.require;
+package io.evitadb.api.query.filter;
 
-import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.FilterConstraint;
 
 /**
- * This interface must be implemented by all {@link RequireConstraint} constraints that allow defining custom
- * {@link EntityContentRequire} in their body. By implementing this interface they declare, that they define new
- * separate context for entity content requirement specification that should not be mistaken with the global requirement
- * context.
+ * This interface must be implemented by all {@link FilterConstraint} constraints that allow defining inner filtering
+ * constraints that target different entity type. By implementing this interface they declare, that they define new
+ * separate context for entity filtering specification that should not be mistaken with the global requirement context.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface SeparateEntityContentRequireContainer extends RequireConstraint {
+public interface SeparateEntityScopeContainer extends FilterConstraint {
 }

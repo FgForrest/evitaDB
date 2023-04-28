@@ -2713,7 +2713,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(6)
+								hierarchyWithinSelf(entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -2790,7 +2790,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(1)
+								hierarchyWithinSelf(entityPrimaryKeyInSet(1))
 							)
 						),
 						require(
@@ -2865,7 +2865,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(30)
+								hierarchyWithinSelf(entityPrimaryKeyInSet(30))
 							)
 						),
 						require(
@@ -2939,7 +2939,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(30)
+								hierarchyWithinSelf(entityPrimaryKeyInSet(30))
 							)
 						),
 						require(
@@ -3301,7 +3301,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,6)
+								hierarchyWithin(Entities.CATEGORY,entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -3382,7 +3382,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 1)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1))
 							)
 						),
 						require(
@@ -3461,7 +3461,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 30)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(30))
 							)
 						),
 						require(
@@ -3539,7 +3539,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 30)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(30))
 							)
 						),
 						require(

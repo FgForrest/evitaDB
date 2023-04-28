@@ -409,7 +409,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
-							hierarchyWithinSelf(rootEntity.getPrimaryKey(), directRelation())
+							hierarchyWithinSelf(
+								entityPrimaryKeyInSet(rootEntity.getPrimaryKey()),
+								directRelation()
+							)
 						),
 						require(
 							strip(0, 1),

@@ -973,17 +973,17 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldParseHierarchyWithinConstraint() {
-        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithin('a',10)");
-        assertEquals(hierarchyWithin("a", 10), constraint1);
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithin('a',entityPrimaryKeyInSet(10))");
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10)), constraint1);
 
-        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("hierarchyWithin('a',10,directRelation())");
-        assertEquals(hierarchyWithin("a", 10, directRelation()), constraint3);
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("hierarchyWithin('a',entityPrimaryKeyInSet(10),directRelation())");
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10), directRelation()), constraint3);
 
-        final FilterConstraint constraint4 = parseFilterConstraintUnsafe("hierarchyWithin('a',10,directRelation(),excluding(entityPrimaryKeyInSet(1,3)),excludingRoot())");
+        final FilterConstraint constraint4 = parseFilterConstraintUnsafe("hierarchyWithin('a',entityPrimaryKeyInSet(10),directRelation(),excluding(entityPrimaryKeyInSet(1,3)),excludingRoot())");
         assertEquals(
                 hierarchyWithin(
                     "a",
-                    10,
+                    entityPrimaryKeyInSet(10),
                     directRelation(),
                     excluding(entityPrimaryKeyInSet(1, 3)),
                     excludingRoot()
@@ -991,20 +991,20 @@ class EvitaQLFilterConstraintVisitorTest {
                 constraint4
         );
 
-        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("hierarchyWithin (  'a' ,10 ,  directRelation() )");
-        assertEquals(hierarchyWithin("a", 10, directRelation()), constraint5);
+        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("hierarchyWithin (  'a' ,entityPrimaryKeyInSet(10) ,  directRelation() )");
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10), directRelation()), constraint5);
 
-        final FilterConstraint constraint6 = parseFilterConstraint("hierarchyWithin('a',?)", 10);
-        assertEquals(hierarchyWithin("a", 10), constraint6);
+        final FilterConstraint constraint6 = parseFilterConstraint("hierarchyWithin('a',entityPrimaryKeyInSet(?))", 10);
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10)), constraint6);
 
-        final FilterConstraint constraint7 = parseFilterConstraint("hierarchyWithin(@name,@par)", Map.of("name", "a", "par", 10));
-        assertEquals(hierarchyWithin("a", 10), constraint7);
+        final FilterConstraint constraint7 = parseFilterConstraint("hierarchyWithin(@name,entityPrimaryKeyInSet(@par))", Map.of("name", "a", "par", 10));
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10)), constraint7);
 
-        final FilterConstraint constraint8 = parseFilterConstraint("hierarchyWithin(?,?)","a", 10);
-        assertEquals(hierarchyWithin("a", 10), constraint8);
+        final FilterConstraint constraint8 = parseFilterConstraint("hierarchyWithin(?,entityPrimaryKeyInSet(?))","a", 10);
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10)), constraint8);
 
-        final FilterConstraint constraint9 = parseFilterConstraint("hierarchyWithin(?,?,excluding(entityPrimaryKeyInSet(?)))", "a", 10, 2);
-        assertEquals(hierarchyWithin("a", 10, excluding(entityPrimaryKeyInSet(2))), constraint9);
+        final FilterConstraint constraint9 = parseFilterConstraint("hierarchyWithin(?,entityPrimaryKeyInSet(?),excluding(entityPrimaryKeyInSet(?)))", "a", 10, 2);
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10), excluding(entityPrimaryKeyInSet(2))), constraint9);
     }
 
     @Test
@@ -1023,14 +1023,14 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldParseHierarchyWithinSelfConstraint() {
-        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithinSelf(10)");
-        assertEquals(hierarchyWithinSelf(10), constraint1);
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithinSelf(entityPrimaryKeyInSet(10))");
+        assertEquals(hierarchyWithinSelf(entityPrimaryKeyInSet(10)), constraint1);
 
-        final FilterConstraint constraint2 = parseFilterConstraint("hierarchyWithinSelf(?)", 10);
-        assertEquals(hierarchyWithinSelf(10), constraint2);
+        final FilterConstraint constraint2 = parseFilterConstraint("hierarchyWithinSelf(entityPrimaryKeyInSet(?))", 10);
+        assertEquals(hierarchyWithinSelf(entityPrimaryKeyInSet(10)), constraint2);
 
-        final FilterConstraint constraint3 = parseFilterConstraint("hierarchyWithinSelf(?, directRelation(), excluding(entityPrimaryKeyInSet(?)))", 10, 1);
-        assertEquals(hierarchyWithinSelf(10, directRelation(), excluding(entityPrimaryKeyInSet(1))), constraint3);
+        final FilterConstraint constraint3 = parseFilterConstraint("hierarchyWithinSelf(entityPrimaryKeyInSet(?), directRelation(), excluding(entityPrimaryKeyInSet(?)))", 10, 1);
+        assertEquals(hierarchyWithinSelf(entityPrimaryKeyInSet(10), directRelation(), excluding(entityPrimaryKeyInSet(1))), constraint3);
     }
 
     @Test

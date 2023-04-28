@@ -898,7 +898,7 @@ public class EntityByFacetFilteringFunctionalTest {
 							collection(Entities.PRODUCT),
 							filterBy(
 								and(
-									hierarchyWithin(Entities.CATEGORY, hierarchyRoot),
+									hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(hierarchyRoot)),
 									userFilter(
 										facetHaving(entityType, entityPrimaryKeyInSet(facetIds))
 									)
@@ -1145,7 +1145,11 @@ public class EntityByFacetFilteringFunctionalTest {
 					collection(Entities.PRODUCT),
 					filterBy(
 						and(
-							hierarchyWithin(Entities.CATEGORY, 1, excluding(entityPrimaryKeyInSet(excludedSubTrees))),
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(1),
+								excluding(entityPrimaryKeyInSet(excludedSubTrees))
+							),
 							userFilter(
 								facetHaving(Entities.BRAND, entityPrimaryKeyInSet(1)),
 								facetHaving(Entities.STORE, entityPrimaryKeyInSet(5, 6, 7, 8)),
@@ -1215,7 +1219,7 @@ public class EntityByFacetFilteringFunctionalTest {
 					collection(Entities.PRODUCT),
 					filterBy(
 						and(
-							hierarchyWithin(Entities.CATEGORY, 2),
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)),
 							userFilter(
 								facetHaving(Entities.BRAND, entityPrimaryKeyInSet(1)),
 								facetHaving(Entities.STORE, entityPrimaryKeyInSet(5))
@@ -1284,7 +1288,7 @@ public class EntityByFacetFilteringFunctionalTest {
 					collection(Entities.PRODUCT),
 					filterBy(
 						and(
-							hierarchyWithin(Entities.CATEGORY, 2),
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)),
 							userFilter(
 								facetHaving(Entities.STORE, entityPrimaryKeyInSet(5))
 							)
@@ -2045,7 +2049,7 @@ public class EntityByFacetFilteringFunctionalTest {
 			collection(Entities.PRODUCT),
 			filterBy(
 				and(
-					hierarchyWithin(Entities.CATEGORY, 2),
+					hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)),
 					userFilter(
 						facetHaving(Entities.PARAMETER, entityPrimaryKeyInSet(facetIds))
 					)

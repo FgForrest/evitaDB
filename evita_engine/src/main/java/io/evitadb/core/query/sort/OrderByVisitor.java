@@ -130,7 +130,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 		this.filteringFormula = filteringFormula;
 		scope.push(
 			new ProcessingScope(
-				this.queryContext.getGlobalEntityIndexIfExits(),
+				this.queryContext.getGlobalEntityIndexIfExists().orElse(null),
 				attributeSchemaAccessor,
 				EntityAttributeExtractor.INSTANCE
 			)

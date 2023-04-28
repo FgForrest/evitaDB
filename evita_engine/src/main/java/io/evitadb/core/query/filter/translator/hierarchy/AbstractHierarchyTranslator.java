@@ -68,7 +68,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * for later use.
 	 */
 	@Nullable
-	public static HierarchyFilteringPredicate createAndStoreExclusionPredicate(
+	protected static HierarchyFilteringPredicate createAndStoreExclusionPredicate(
 		@Nonnull QueryContext queryContext,
 		@Nullable FilterBy exclusionFilter,
 		@Nullable ReferenceSchemaContract referenceSchema
@@ -106,7 +106,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * Method returns {@link Formula} that returns all entity ids present in `hierarchyIndexes`.
 	 */
 	@Nonnull
-	protected Formula getReferencedEntityFormulas(@Nonnull List<EntityIndex> hierarchyIndexes) {
+	protected static Formula getReferencedEntityFormulas(@Nonnull List<EntityIndex> hierarchyIndexes) {
 		// return OR product of all indexed primary keys in those indexes
 		return FormulaFactory.or(
 			hierarchyIndexes.stream()
@@ -124,7 +124,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * doesn't match the `excludedChildrenFormula`.
 	 */
 	@Nonnull
-	protected Formula getReferencedAndFilteredEntityFormulas(
+	protected static Formula getReferencedAndFilteredEntityFormulas(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,

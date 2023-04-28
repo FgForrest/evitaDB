@@ -457,9 +457,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 				ctx.args.classifier
 					.accept(classifierTokenVisitor)
 					.asSingleClassifier(),
-				ctx.args.primaryKey
-					.accept(intValueTokenVisitor)
-					.asInt(),
+				ctx.args.ofParent.accept(this),
 				ctx.args.constrains
 					.stream()
 					.map(c -> (HierarchySpecificationFilterConstraint) c.accept(this))
@@ -473,9 +471,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 		return parse(
 			ctx,
 			() -> new HierarchyWithin(
-				ctx.args.primaryKey
-					.accept(intValueTokenVisitor)
-					.asInt(),
+				ctx.args.ofParent.accept(this),
 				ctx.args.constrains
 					.stream()
 					.map(c -> (HierarchySpecificationFilterConstraint) c.accept(this))

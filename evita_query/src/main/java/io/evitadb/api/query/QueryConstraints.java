@@ -664,7 +664,7 @@ public interface QueryConstraints {
 	 * and {@link HierarchyExcluding}
 	 */
 	@Nullable
-	static HierarchyWithin hierarchyWithinSelf(@Nullable Integer ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
+	static HierarchyWithin hierarchyWithinSelf(@Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null) {
 			return null;
 		} else if (with == null) {
@@ -757,7 +757,7 @@ public interface QueryConstraints {
 	 * and {@link HierarchyExcluding}
 	 */
 	@Nullable
-	static HierarchyWithin hierarchyWithin(@Nonnull String referenceName, @Nullable Integer ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
+	static HierarchyWithin hierarchyWithin(@Nonnull String referenceName, @Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null) {
 			return null;
 		} else if (with == null) {

@@ -31,6 +31,7 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ParentStatisticsHierarchyVisitor;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
@@ -90,9 +91,18 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				entityFetcher,
 				statisticsType
 			);
+
+			final Bitmap hierarchyNodes = context.queryContext().getHierarchyNodesFormula().compute();
+			Assert.isTrue(
+				hierarchyNodes.size() == 1,
+				"In order to generate parent hierarchy statistics the HierarchyWithin filter must select exactly " +
+					"one parent node. Currently, it selects `" + hierarchyNodes.size() + "` nodes."
+			);
+			final int parentNodeId = hierarchyNodes.getFirst();
+
 			entityIndex.traverseHierarchyFromNode(
 				childVisitor,
-				hierarchyWithin.getParentId(),
+				parentNodeId,
 				false,
 				filterPredicate.negate()
 			);
@@ -129,7 +139,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			);
 			entityIndex.traverseHierarchyToRoot(
 				parentVisitor,
-				hierarchyWithin.getParentId()
+				parentNodeId
 			);
 			return parentVisitor.getResult(startNode);
 		} else {

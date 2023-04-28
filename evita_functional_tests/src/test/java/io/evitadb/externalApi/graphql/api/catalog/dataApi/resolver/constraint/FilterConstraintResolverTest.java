@@ -110,7 +110,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertEquals(
 			hierarchyWithin(
 				"CATEGORY",
-				1,
+				entityPrimaryKeyInSet(1),
 				directRelation()
 			),
 			resolver.resolve(
@@ -128,7 +128,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertEquals(
 			hierarchyWithin(
 				"CATEGORY",
-				1
+				entityPrimaryKeyInSet(1)
 			),
 			resolver.resolve(
 				Entities.PRODUCT,

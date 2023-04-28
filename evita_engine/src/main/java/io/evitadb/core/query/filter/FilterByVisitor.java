@@ -33,9 +33,11 @@ import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -79,6 +81,7 @@ import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
@@ -195,6 +198,62 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Contains the translated formula from the filtering query source tree.
 	 */
 	private Formula computedFormula;
+
+	/**
+	 * Method creates a new formula that looks for entity primary keys in global index of `entityType` collection that
+	 * match the `filterBy` constraint.
+	 *
+	 * @param queryContext            used for accessing global index, global cache and recording query telemetry
+	 * @param filterBy                the filter constraints the entities must match
+	 * @param entityType              the entity type of the entity that is looked up
+	 * @param stepDescriptionSupplier the message supplier for the query telemetry
+	 * @return output {@link Formula} that is able to produce the matching entity primary keys
+	 */
+	@Nonnull
+	public static Formula createFormulaForTheFilter(
+		@Nonnull QueryContext queryContext,
+		@Nonnull FilterBy filterBy,
+		@Nonnull String entityType,
+		@Nonnull Supplier<String> stepDescriptionSupplier
+	) {
+		final Formula theFormula;
+		try {
+			queryContext.pushStep(
+				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
+				stepDescriptionSupplier
+			);
+			// create a visitor
+			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
+				queryContext,
+				Collections.emptyList(),
+				TargetIndexes.EMPTY,
+				false
+			);
+
+			// now analyze the filter by in a nested context with exchanged primary entity index
+			final GlobalEntityIndex entityIndex = queryContext.getGlobalEntityIndex(entityType);
+			theFormula = queryContext.analyse(
+				theFilterByVisitor.executeInContext(
+					Collections.singletonList(entityIndex),
+					null,
+					entityIndex.getEntitySchema(),
+					null,
+					null,
+					null,
+					new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
+					AttributesContract::getAttribute,
+					() -> {
+						filterBy.accept(theFilterByVisitor);
+						// get the result and clear the visitor internal structures
+						return theFilterByVisitor.getFormulaAndClear();
+					}
+				)
+			);
+		} finally {
+			queryContext.popStep();
+		}
+		return theFormula;
+	}
 
 	protected FilterByVisitor(
 		@Nonnull ProcessingScope processingScope,

@@ -102,7 +102,7 @@ import java.util.Arrays;
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree starting at the root of the tree (or has reference to any hierarchical entity in the tree).",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class HierarchyWithinRoot extends AbstractFilterConstraintContainer implements HierarchyFilterConstraint {
+public class HierarchyWithinRoot extends AbstractFilterConstraintContainer implements HierarchyFilterConstraint, SeparateEntityScopeContainer {
 	@Serial private static final long serialVersionUID = -4396541048481960654L;
 
 	private HierarchyWithinRoot(@Nonnull Serializable[] argument, @Nonnull FilterConstraint[] fineGrainedConstraints, @Nonnull Constraint<?>... additionalChildren) {

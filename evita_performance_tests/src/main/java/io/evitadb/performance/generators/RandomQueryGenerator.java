@@ -284,7 +284,11 @@ public interface RandomQueryGenerator {
 			specification.add(directRelation());
 		}
 		final int parentId = categoryIds.get(rndKey % categoryIds.size());
-		hierarchyConstraint = hierarchyWithin(hierarchyEntityType, parentId, specification.toArray(EMPTY_HSFC_ARRAY));
+		hierarchyConstraint = hierarchyWithin(
+			hierarchyEntityType,
+			entityPrimaryKeyInSet(parentId),
+			specification.toArray(EMPTY_HSFC_ARRAY)
+		);
 
 		return Query.query(
 			existingQuery.getCollection(),

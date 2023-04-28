@@ -220,10 +220,16 @@ public class QueryContext {
 	private Map<Constraint<?>, Formula> internalCache;
 	/**
 	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
-	 * that should be excuded from traversal.
+	 * that should be excluded from traversal.
 	 */
 	@Getter
 	private HierarchyFilteringPredicate hierarchyExclusionPredicate;
+	/**
+	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
+	 * the query result to be reused in other query evaluation phases (require).
+	 */
+	@Getter
+	private Formula hierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
 	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
@@ -747,9 +753,9 @@ public class QueryContext {
 	/**
 	 * Returns global {@link GlobalEntityIndex} of the collection if the target entity collection is known.
 	 */
-	@Nullable
-	public GlobalEntityIndex getGlobalEntityIndexIfExits() {
-		return getIndex(GLOBAL_INDEX_KEY);
+	@Nonnull
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists() {
+		return ofNullable(getIndex(GLOBAL_INDEX_KEY));
 	}
 
 	/**
@@ -757,7 +763,7 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public GlobalEntityIndex getGlobalEntityIndex() {
-		return ofNullable(getGlobalEntityIndexIfExits())
+		return getGlobalEntityIndexIfExists()
 			.map(GlobalEntityIndex.class::cast)
 			.orElseThrow(() -> new EvitaInternalError("Global index of entity unexpectedly not found!"));
 	}
@@ -767,9 +773,17 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public GlobalEntityIndex getGlobalEntityIndex(@Nonnull String entityType) {
-		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY))
-			.map(GlobalEntityIndex.class::cast)
+		return getGlobalEntityIndexIfExists(entityType)
 			.orElseThrow(() -> new EvitaInternalError("Global index of entity " + entityType + " unexpectedly not found!"));
+	}
+
+	/**
+	 * Returns {@link EntityIndex} by its key and entity type.
+	 */
+	@Nonnull
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType) {
+		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY))
+			.map(GlobalEntityIndex.class::cast);
 	}
 
 	/**
@@ -957,6 +971,14 @@ public class QueryContext {
 				computingOnce = false;
 			}
 		}
+	}
+
+	/**
+	 * Sets resolved hierarchy root nodes formula to be shared among filter and requirement phase.
+	 */
+	public void setHierarchyNodesFormula(@Nonnull Formula hierarchyNodesFormula) {
+		Assert.isPremiseValid(this.hierarchyNodesFormula == null, "The hierarchy filtering formula can be set only once!");
+		this.hierarchyNodesFormula = hierarchyNodesFormula;
 	}
 
 	/**

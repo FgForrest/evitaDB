@@ -177,9 +177,9 @@ valueWithRequireConstraintListArgs:                 ARGS_OPENING value = valueTo
 
 classifierListWithOptionalRequireConstraintArgs :   ARGS_OPENING classifiers = variadicClassifierTokens (ARGS_DELIMITER requirement = requireConstraint)? ARGS_CLOSING ;
 
-hierarchyWithinConstraintArgs :                     ARGS_OPENING classifier = classifierToken ARGS_DELIMITER primaryKey = valueToken (ARGS_DELIMITER constrains += filterConstraint)* ARGS_CLOSING ;
+hierarchyWithinConstraintArgs :                     ARGS_OPENING classifier = classifierToken ARGS_DELIMITER ofParent = filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* ARGS_CLOSING ;
 
-hierarchyWithinSelfConstraintArgs :                 ARGS_OPENING primaryKey = valueToken (ARGS_DELIMITER constrains += filterConstraint)* ARGS_CLOSING ;
+hierarchyWithinSelfConstraintArgs :                 ARGS_OPENING ofParent = filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* ARGS_CLOSING ;
 
 hierarchyWithinRootConstraintArgs :                 ARGS_OPENING (classifier = classifierToken | (classifier = classifierToken (ARGS_DELIMITER constrains += filterConstraint)*)) ARGS_CLOSING ;
 

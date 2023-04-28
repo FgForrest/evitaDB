@@ -446,37 +446,40 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	public void traverseHierarchyToRoot(@Nonnull HierarchyVisitor visitor, int node) {
-		final HierarchyNode theNode = getHierarchyNodeOrThrowException(node);
-		HierarchyNode hierarchyNode = theNode;
-		int nodeLevel = 1;
-		while (hierarchyNode.parentEntityPrimaryKey() != null) {
-			nodeLevel++;
-			hierarchyNode = getParentNodeOrThrowException(hierarchyNode);
+		final HierarchyNode theNode = this.itemIndex.get(node);
+		// if the node is missing, just skip traversal
+		if (theNode != null) {
+			HierarchyNode hierarchyNode = theNode;
+			int nodeLevel = 1;
+			while (hierarchyNode.parentEntityPrimaryKey() != null) {
+				nodeLevel++;
+				hierarchyNode = getParentNodeOrThrowException(hierarchyNode);
+			}
+
+			final AtomicReference<TraverserFactory> factoryHolder = new AtomicReference<>();
+			final TraverserFactory childrenTraverseCreator = (nodeId, level, distance) ->
+				() -> {
+					final HierarchyNode parent = getHierarchyNodeOrThrowException(nodeId);
+					visitor.visit(
+						parent, level, distance,
+						ofNullable(parent.parentEntityPrimaryKey())
+							.map(it -> factoryHolder.get().apply(it, level - 1, distance + 1))
+							.orElse(() -> {
+							})
+					);
+				};
+			factoryHolder.set(childrenTraverseCreator);
+
+			int finalNodeLevel = nodeLevel;
+			visitor.visit(
+				theNode,
+				nodeLevel, 0,
+				ofNullable(theNode.parentEntityPrimaryKey())
+					.map(it -> childrenTraverseCreator.apply(it, finalNodeLevel - 1, 1))
+					.orElse(() -> {
+					})
+			);
 		}
-
-		final AtomicReference<TraverserFactory> factoryHolder = new AtomicReference<>();
-		final TraverserFactory childrenTraverseCreator = (nodeId, level, distance) ->
-			() -> {
-				final HierarchyNode parent = getHierarchyNodeOrThrowException(nodeId);
-				visitor.visit(
-					parent, level, distance,
-					ofNullable(parent.parentEntityPrimaryKey())
-						.map(it -> factoryHolder.get().apply(it, level - 1, distance + 1))
-						.orElse(() -> {
-						})
-				);
-			};
-		factoryHolder.set(childrenTraverseCreator);
-
-		int finalNodeLevel = nodeLevel;
-		visitor.visit(
-			theNode,
-			nodeLevel, 0,
-			ofNullable(theNode.parentEntityPrimaryKey())
-				.map(it -> childrenTraverseCreator.apply(it, finalNodeLevel - 1, 1))
-				.orElse(() -> {
-				})
-		);
 	}
 
 	@Override
@@ -821,28 +824,31 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 				.sorted()
 				.collect(Collectors.toList());
 		} else if (ofNullable(excludingRoot).orElse(false)) {
-			final Optional<HierarchyNode> rootHierarchyNode = ofNullable(this.itemIndex.get(rootNode));
-			level = rootHierarchyNode
-				.map(this::computeLevel)
-				.orElse(-1);
+			final HierarchyNode rootHierarchyNode = this.itemIndex.get(rootNode);
+			if (rootHierarchyNode == null) {
+				level = 0;
+				rootNodes = Collections.emptyList();
+			} else {
+				level = this.computeLevel(rootHierarchyNode);
+				rootNodes = ofNullable(this.levelIndex.get(rootNode))
+					.map(Arrays::stream)
+					.orElse(IntStream.empty())
+					.filter(predicate)
+					.mapToObj(this.itemIndex::get)
+					.filter(Objects::nonNull)
+					.sorted()
+					.collect(Collectors.toList());
+			}
 			distance = 1;
-
-			rootNodes = ofNullable(this.levelIndex.get(rootNode))
-				.map(Arrays::stream)
-				.orElse(IntStream.empty())
-				.filter(predicate)
-				.mapToObj(this.itemIndex::get)
-				.filter(Objects::nonNull)
-				.sorted()
-				.collect(Collectors.toList());
 		} else {
-			final Optional<HierarchyNode> rootHierarchyNode = ofNullable(this.itemIndex.get(rootNode));
-			rootNodes = rootHierarchyNode
-				.map(Collections::singletonList)
-				.orElse(Collections.emptyList());
-			level = rootHierarchyNode
-				.map(this::computeLevel)
-				.orElse(-1);
+			final HierarchyNode rootHierarchyNode = this.itemIndex.get(rootNode);
+			if (rootHierarchyNode == null) {
+				rootNodes = Collections.emptyList();
+				level = 0;
+			} else {
+				rootNodes = Collections.singletonList(rootHierarchyNode);
+				level = this.computeLevel(rootHierarchyNode);
+			}
 			distance = 0;
 		}
 
