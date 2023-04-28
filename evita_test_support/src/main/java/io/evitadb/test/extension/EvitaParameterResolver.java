@@ -763,7 +763,22 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 
 					return dataSetInfo;
 				} else {
-					return dataSetInfo;
+					return dataSetInfo.updateState(
+						extensionContext.getRequiredTestInstance(),
+						extensionContext.getRequiredTestMethod(),
+						(terminationContext, dataSetState) -> {
+							if (useDataSet.destroyAfterTest()) {
+								return terminationContext.getTestMethod()
+									.map(m -> m.equals(dataSetState.testMethod()))
+									.orElse(false);
+							} else if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
+								return terminationContext.getRequiredTestClass()
+									.equals(dataSetState.testInstance().getClass());
+							} else {
+								return false;
+							}
+						}
+					);
 				}
 			}
 		}
@@ -929,6 +944,16 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			}
 		}
 
+		public DataSetInfo updateState(@Nonnull Object testInstance, @Nonnull Method testMethod, @Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate) {
+			final DataSetState theState = this.dataSetInfoAtomicReference.updateAndGet(
+				existingState -> existingState.update(testInstance, testMethod, destroyPredicate)
+			);
+			if (theState == null) {
+				throw new IllegalStateException("Previous state should not be null!");
+			}
+			return this;
+		}
+
 		public boolean destroyIfPredicateMatches(
 			@Nonnull String dataSetName,
 			@Nonnull DataSetInfo dataSetInfo,
@@ -991,6 +1016,16 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 
 		private DataSetState(@Nonnull Object testInstance, @Nonnull Method testMethod, @Nullable Evita evitaInstance, @Nullable EvitaServer evitaServerInstance, @Nullable DataCarrier dataCarrier, @Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate) {
 			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>());
+		}
+
+		@Nonnull
+		public DataSetState update(@Nonnull Object testInstance, @Nonnull Method testMethod, @Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate) {
+			return new DataSetState(
+				testInstance, testMethod,
+				evitaInstance, evitaServerInstance, dataCarrier,
+				destroyPredicate,
+				session, client, graphQLTester, restTester
+			);
 		}
 
 		/**

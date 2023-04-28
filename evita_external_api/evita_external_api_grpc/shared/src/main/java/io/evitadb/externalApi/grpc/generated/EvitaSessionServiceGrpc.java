@@ -2000,7 +2000,7 @@ public final class EvitaSessionServiceGrpc {
 
     @java.lang.Override
     public com.google.protobuf.Descriptors.FileDescriptor getFileDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSession.getDescriptor();
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.getDescriptor();
     }
 
     @java.lang.Override
