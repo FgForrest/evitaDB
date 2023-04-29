@@ -38,6 +38,7 @@ message GrpcFacetStatistics {
   bool requested = 3;
   int32 count = 4;
   google.protobuf.Int32Value impact = 5;
+  google.protobuf.Int32Value matchCount = 6;
 }
 
 message GrpcHierarchy {
@@ -65,7 +66,6 @@ message GrpcQueryTelemetry {
 }
 
 message GrpcExtraResults {
-  repeated GrpcHistogram attributeHistograms = 1;
   map<string, GrpcHistogram> attributeHistogram = 2;
   GrpcHistogram priceHistogram = 3;
   repeated GrpcFacetGroupStatistics facetGroupStatistics = 4;

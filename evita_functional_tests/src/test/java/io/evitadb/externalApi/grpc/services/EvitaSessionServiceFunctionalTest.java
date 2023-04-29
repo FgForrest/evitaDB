@@ -58,7 +58,7 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
-import io.evitadb.externalApi.grpc.query.GrpcConverter;
+import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
@@ -93,7 +93,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.externalApi.grpc.query.GrpcConverter.convertQueryParam;
+import static io.evitadb.externalApi.grpc.query.QueryConverter.convertQueryParam;
 import static io.evitadb.externalApi.grpc.testUtils.GrpcAssertions.*;
 import static io.evitadb.externalApi.grpc.testUtils.TestDataProvider.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
@@ -1725,7 +1725,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(GrpcConverter::convertQueryParam)
+								.map(QueryConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -1872,7 +1872,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(GrpcConverter::convertQueryParam)
+								.map(QueryConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -1978,7 +1978,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(GrpcConverter::convertQueryParam)
+								.map(QueryConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -2138,7 +2138,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(GrpcConverter::convertQueryParam)
+								.map(QueryConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -2238,7 +2238,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(GrpcConverter::convertQueryParam)
+								.map(QueryConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -2350,7 +2350,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(GrpcConverter::convertQueryParam)
+								.map(QueryConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(

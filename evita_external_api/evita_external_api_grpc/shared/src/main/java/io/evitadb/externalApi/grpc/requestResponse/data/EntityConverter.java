@@ -375,12 +375,19 @@ public class EntityConverter {
 	public static List<EntityReference> toEntityReferences(@Nonnull List<GrpcEntityReference> entityReferencesList) {
 		return entityReferencesList
 			.stream()
-			.map(
-				entityReference -> new EntityReference(
-					entityReference.getEntityType(),
-					entityReference.getPrimaryKey()
-				)
-			).toList();
+			.map(EntityConverter::toEntityReference).toList();
+	}
+
+	/**
+	 * Converts {@link GrpcEntityReference} to the {@link EntityReference} that should be used
+	 * in the Java client.
+	 */
+	@Nonnull
+	public static EntityReference toEntityReference(@Nonnull GrpcEntityReference entityReference) {
+		return new EntityReference(
+			entityReference.getEntityType(),
+			entityReference.getPrimaryKey()
+		);
 	}
 
 	/**

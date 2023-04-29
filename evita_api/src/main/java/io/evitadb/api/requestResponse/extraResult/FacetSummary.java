@@ -343,18 +343,42 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		@Nonnull
 		private final Map<Integer, FacetStatistics> facetStatistics;
 
+		/**
+		 * Method checks that the group entity type matches the group specified in schema.
+		 */
+		private static void verifyGroupType(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable EntityClassifier groupEntity) {
+			if (groupEntity != null) {
+				final String schemaGroupType = ofNullable(referenceSchema.getReferencedGroupType())
+					.orElse(referenceSchema.getReferencedEntityType());
+				Assert.isPremiseValid(
+					groupEntity.getType().equals(schemaGroupType),
+					() -> "Group entity is from different collection (`" + groupEntity.getType() + "`) than the group or entity (`" + schemaGroupType + "`)."
+				);
+			}
+		}
+
+		/**
+		 * This constructor should be used only for deserialization.
+		 */
+		public FacetGroupStatistics(
+			@Nonnull String referenceName,
+			@Nullable EntityClassifier groupEntity,
+			int count,
+			@Nonnull Map<Integer, FacetStatistics> facetStatistics
+		) {
+			this.referenceName = referenceName;
+			this.groupEntity = groupEntity;
+			this.count = count;
+			this.facetStatistics = facetStatistics;
+		}
+
 		public FacetGroupStatistics(
 			@Nonnull ReferenceSchemaContract referenceSchema,
 			@Nullable EntityClassifier groupEntity,
 			int count,
 			@Nonnull Map<Integer, FacetStatistics> facetStatistics
 		) {
-			if (groupEntity != null) {
-				Assert.isPremiseValid(
-					groupEntity.getType().equals(ofNullable(referenceSchema.getReferencedGroupType()).orElse(referenceSchema.getReferencedEntityType())),
-					"Group entity is from different collection than the group or entity."
-				);
-			}
+			verifyGroupType(referenceSchema, groupEntity);
 			this.referenceName = referenceSchema.getName();
 			this.groupEntity = groupEntity;
 			this.count = count;
@@ -367,14 +391,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 			int count,
 			@Nonnull Collection<FacetStatistics> facetStatistics
 		) {
-			if (groupEntity != null) {
-				final String schemaGroupType = ofNullable(referenceSchema.getReferencedGroupType())
-					.orElse(referenceSchema.getReferencedEntityType());
-				Assert.isPremiseValid(
-					groupEntity.getType().equals(schemaGroupType),
-					() -> "Group entity is from different collection (`" + groupEntity.getType() + "`) than the group or entity (`" + schemaGroupType + "`)."
-				);
-			}
+			verifyGroupType(referenceSchema, groupEntity);
 			this.referenceName = referenceSchema.getName();
 			this.groupEntity = groupEntity;
 			this.count = count;

@@ -262,11 +262,13 @@ public class EvitaEnumConverter {
 			case 11 -> QueryPhase.EXECUTION;
 			case 12 -> QueryPhase.EXECUTION_PREFETCH;
 			case 13 -> QueryPhase.EXECUTION_FILTER;
-			case 14 -> QueryPhase.EXECUTION_SORT_AND_SLICE;
-			case 15 -> QueryPhase.EXTRA_RESULTS_FABRICATION;
-			case 16 -> QueryPhase.EXTRA_RESULT_ITEM_FABRICATION;
-			case 17 -> QueryPhase.FETCHING;
-			case 18 -> QueryPhase.FETCHING_REFERENCES;
+			case 14 -> QueryPhase.EXECUTION_FILTER_NESTED_QUERY;
+			case 15 -> QueryPhase.EXECUTION_SORT_AND_SLICE;
+			case 16 -> QueryPhase.EXTRA_RESULTS_FABRICATION;
+			case 17 -> QueryPhase.EXTRA_RESULT_ITEM_FABRICATION;
+			case 18 -> QueryPhase.FETCHING;
+			case 19 -> QueryPhase.FETCHING_REFERENCES;
+			case 20 -> QueryPhase.FETCHING_PARENTS;
 			default ->
 				throw new EvitaInternalError("Unrecognized remote query phase: " + grpcQueryPhase);
 		};

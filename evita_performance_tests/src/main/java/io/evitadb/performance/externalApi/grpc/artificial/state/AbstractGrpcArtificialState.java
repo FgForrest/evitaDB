@@ -26,7 +26,7 @@ package io.evitadb.performance.externalApi.grpc.artificial.state;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryRequest;
-import io.evitadb.externalApi.grpc.query.GrpcConverter;
+import io.evitadb.externalApi.grpc.query.QueryConverter;
 import lombok.Getter;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
@@ -52,7 +52,7 @@ public abstract class AbstractGrpcArtificialState {
 			.setQuery(stringWithParameters.query())
 			.addAllPositionalQueryParams(stringWithParameters.parameters()
 				.stream()
-				.map(GrpcConverter::convertQueryParam)
+				.map(QueryConverter::convertQueryParam)
 				.toList())
 			.build();
 	}

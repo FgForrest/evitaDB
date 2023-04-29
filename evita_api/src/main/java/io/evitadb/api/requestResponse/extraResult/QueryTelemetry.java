@@ -69,10 +69,26 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 	 */
 	@Getter private long spentTime;
 
-	public QueryTelemetry(QueryPhase operation, String... arguments) {
+	/**
+	 * This constructor should be used when the query telemetry is built up from scratch.
+	 */
+	public QueryTelemetry(@Nonnull QueryPhase operation, @Nonnull String... arguments) {
 		this.operation = operation;
 		this.arguments = arguments;
 		this.start = System.nanoTime();
+	}
+
+	/**
+	 * This constructor should be used for query telemetry deserialization.
+	 */
+	public QueryTelemetry(@Nonnull QueryPhase operation, long start, long spentTime, @Nonnull String[] arguments, @Nonnull QueryTelemetry[] steps) {
+		this.operation = operation;
+		this.start = start;
+		this.spentTime = spentTime;
+		this.arguments = arguments;
+		for (QueryTelemetry step : steps) {
+			step.addStep(step);
+		}
 	}
 
 	/**

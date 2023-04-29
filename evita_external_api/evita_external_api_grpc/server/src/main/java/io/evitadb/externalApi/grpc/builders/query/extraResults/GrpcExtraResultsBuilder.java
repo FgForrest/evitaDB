@@ -64,7 +64,6 @@ public class GrpcExtraResultsBuilder {
 			if (extraResult instanceof AttributeHistogram erHistogram) {
 				final Map<String, GrpcHistogram> attributeHistograms = GrpcHistogramBuilder.buildAttributeHistogram(erHistogram);
 				extraResults.putAllAttributeHistogram(attributeHistograms);
-				attributeHistograms.values().forEach(extraResults::addAttributeHistograms);
 			} else if (extraResult instanceof PriceHistogram erHistogram) {
 				extraResults.setPriceHistogram(GrpcHistogramBuilder.buildPriceHistogram(erHistogram));
 			} else if (extraResult instanceof FacetSummary erFacetSummary) {

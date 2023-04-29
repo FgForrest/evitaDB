@@ -39,7 +39,6 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcExtraResults() {
-    attributeHistograms_ = java.util.Collections.emptyList();
     facetGroupStatistics_ = java.util.Collections.emptyList();
   }
 
@@ -74,20 +73,11 @@ private static final long serialVersionUID = 0L;
           case 0:
             done = true;
             break;
-          case 10: {
-            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              attributeHistograms_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcHistogram>();
-              mutable_bitField0_ |= 0x00000001;
-            }
-            attributeHistograms_.add(
-                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcHistogram.parser(), extensionRegistry));
-            break;
-          }
           case 18: {
-            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+            if (!((mutable_bitField0_ & 0x00000001) != 0)) {
               attributeHistogram_ = com.google.protobuf.MapField.newMapField(
                   AttributeHistogramDefaultEntryHolder.defaultEntry);
-              mutable_bitField0_ |= 0x00000002;
+              mutable_bitField0_ |= 0x00000001;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>
             attributeHistogram__ = input.readMessage(
@@ -110,9 +100,9 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 34: {
-            if (!((mutable_bitField0_ & 0x00000004) != 0)) {
+            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
               facetGroupStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics>();
-              mutable_bitField0_ |= 0x00000004;
+              mutable_bitField0_ |= 0x00000002;
             }
             facetGroupStatistics_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.parser(), extensionRegistry));
@@ -132,10 +122,10 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 50: {
-            if (!((mutable_bitField0_ & 0x00000008) != 0)) {
+            if (!((mutable_bitField0_ & 0x00000004) != 0)) {
               hierarchy_ = com.google.protobuf.MapField.newMapField(
                   HierarchyDefaultEntryHolder.defaultEntry);
-              mutable_bitField0_ |= 0x00000008;
+              mutable_bitField0_ |= 0x00000004;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>
             hierarchy__ = input.readMessage(
@@ -172,10 +162,7 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
-      if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        attributeHistograms_ = java.util.Collections.unmodifiableList(attributeHistograms_);
-      }
-      if (((mutable_bitField0_ & 0x00000004) != 0)) {
+      if (((mutable_bitField0_ & 0x00000002) != 0)) {
         facetGroupStatistics_ = java.util.Collections.unmodifiableList(facetGroupStatistics_);
       }
       this.unknownFields = unknownFields.build();
@@ -207,46 +194,6 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
             io.evitadb.externalApi.grpc.generated.GrpcExtraResults.class, io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder.class);
-  }
-
-  public static final int ATTRIBUTEHISTOGRAMS_FIELD_NUMBER = 1;
-  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram> attributeHistograms_;
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram> getAttributeHistogramsList() {
-    return attributeHistograms_;
-  }
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> 
-      getAttributeHistogramsOrBuilderList() {
-    return attributeHistograms_;
-  }
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  @java.lang.Override
-  public int getAttributeHistogramsCount() {
-    return attributeHistograms_.size();
-  }
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcHistogram getAttributeHistograms(int index) {
-    return attributeHistograms_.get(index);
-  }
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder getAttributeHistogramsOrBuilder(
-      int index) {
-    return attributeHistograms_.get(index);
   }
 
   public static final int ATTRIBUTEHISTOGRAM_FIELD_NUMBER = 2;
@@ -543,9 +490,6 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    for (int i = 0; i < attributeHistograms_.size(); i++) {
-      output.writeMessage(1, attributeHistograms_.get(i));
-    }
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
         output,
@@ -579,10 +523,6 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    for (int i = 0; i < attributeHistograms_.size(); i++) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(1, attributeHistograms_.get(i));
-    }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> entry
          : internalGetAttributeHistogram().getMap().entrySet()) {
       com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>
@@ -634,8 +574,6 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcExtraResults other = (io.evitadb.externalApi.grpc.generated.GrpcExtraResults) obj;
 
-    if (!getAttributeHistogramsList()
-        .equals(other.getAttributeHistogramsList())) return false;
     if (!internalGetAttributeHistogram().equals(
         other.internalGetAttributeHistogram())) return false;
     if (hasPriceHistogram() != other.hasPriceHistogram()) return false;
@@ -668,10 +606,6 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    if (getAttributeHistogramsCount() > 0) {
-      hash = (37 * hash) + ATTRIBUTEHISTOGRAMS_FIELD_NUMBER;
-      hash = (53 * hash) + getAttributeHistogramsList().hashCode();
-    }
     if (!internalGetAttributeHistogram().getMap().isEmpty()) {
       hash = (37 * hash) + ATTRIBUTEHISTOGRAM_FIELD_NUMBER;
       hash = (53 * hash) + internalGetAttributeHistogram().hashCode();
@@ -850,19 +784,12 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
-        getAttributeHistogramsFieldBuilder();
         getFacetGroupStatisticsFieldBuilder();
       }
     }
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      if (attributeHistogramsBuilder_ == null) {
-        attributeHistograms_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
-      } else {
-        attributeHistogramsBuilder_.clear();
-      }
       internalGetMutableAttributeHistogram().clear();
       if (priceHistogramBuilder_ == null) {
         priceHistogram_ = null;
@@ -872,7 +799,7 @@ private static final long serialVersionUID = 0L;
       }
       if (facetGroupStatisticsBuilder_ == null) {
         facetGroupStatistics_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000004);
+        bitField0_ = (bitField0_ & ~0x00000002);
       } else {
         facetGroupStatisticsBuilder_.clear();
       }
@@ -916,15 +843,6 @@ private static final long serialVersionUID = 0L;
     public io.evitadb.externalApi.grpc.generated.GrpcExtraResults buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcExtraResults result = new io.evitadb.externalApi.grpc.generated.GrpcExtraResults(this);
       int from_bitField0_ = bitField0_;
-      if (attributeHistogramsBuilder_ == null) {
-        if (((bitField0_ & 0x00000001) != 0)) {
-          attributeHistograms_ = java.util.Collections.unmodifiableList(attributeHistograms_);
-          bitField0_ = (bitField0_ & ~0x00000001);
-        }
-        result.attributeHistograms_ = attributeHistograms_;
-      } else {
-        result.attributeHistograms_ = attributeHistogramsBuilder_.build();
-      }
       result.attributeHistogram_ = internalGetAttributeHistogram();
       result.attributeHistogram_.makeImmutable();
       if (priceHistogramBuilder_ == null) {
@@ -933,9 +851,9 @@ private static final long serialVersionUID = 0L;
         result.priceHistogram_ = priceHistogramBuilder_.build();
       }
       if (facetGroupStatisticsBuilder_ == null) {
-        if (((bitField0_ & 0x00000004) != 0)) {
+        if (((bitField0_ & 0x00000002) != 0)) {
           facetGroupStatistics_ = java.util.Collections.unmodifiableList(facetGroupStatistics_);
-          bitField0_ = (bitField0_ & ~0x00000004);
+          bitField0_ = (bitField0_ & ~0x00000002);
         }
         result.facetGroupStatistics_ = facetGroupStatistics_;
       } else {
@@ -1001,32 +919,6 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcExtraResults other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcExtraResults.getDefaultInstance()) return this;
-      if (attributeHistogramsBuilder_ == null) {
-        if (!other.attributeHistograms_.isEmpty()) {
-          if (attributeHistograms_.isEmpty()) {
-            attributeHistograms_ = other.attributeHistograms_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-          } else {
-            ensureAttributeHistogramsIsMutable();
-            attributeHistograms_.addAll(other.attributeHistograms_);
-          }
-          onChanged();
-        }
-      } else {
-        if (!other.attributeHistograms_.isEmpty()) {
-          if (attributeHistogramsBuilder_.isEmpty()) {
-            attributeHistogramsBuilder_.dispose();
-            attributeHistogramsBuilder_ = null;
-            attributeHistograms_ = other.attributeHistograms_;
-            bitField0_ = (bitField0_ & ~0x00000001);
-            attributeHistogramsBuilder_ = 
-              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
-                 getAttributeHistogramsFieldBuilder() : null;
-          } else {
-            attributeHistogramsBuilder_.addAllMessages(other.attributeHistograms_);
-          }
-        }
-      }
       internalGetMutableAttributeHistogram().mergeFrom(
           other.internalGetAttributeHistogram());
       if (other.hasPriceHistogram()) {
@@ -1036,7 +928,7 @@ private static final long serialVersionUID = 0L;
         if (!other.facetGroupStatistics_.isEmpty()) {
           if (facetGroupStatistics_.isEmpty()) {
             facetGroupStatistics_ = other.facetGroupStatistics_;
-            bitField0_ = (bitField0_ & ~0x00000004);
+            bitField0_ = (bitField0_ & ~0x00000002);
           } else {
             ensureFacetGroupStatisticsIsMutable();
             facetGroupStatistics_.addAll(other.facetGroupStatistics_);
@@ -1049,7 +941,7 @@ private static final long serialVersionUID = 0L;
             facetGroupStatisticsBuilder_.dispose();
             facetGroupStatisticsBuilder_ = null;
             facetGroupStatistics_ = other.facetGroupStatistics_;
-            bitField0_ = (bitField0_ & ~0x00000004);
+            bitField0_ = (bitField0_ & ~0x00000002);
             facetGroupStatisticsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getFacetGroupStatisticsFieldBuilder() : null;
@@ -1095,246 +987,6 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     private int bitField0_;
-
-    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram> attributeHistograms_ =
-      java.util.Collections.emptyList();
-    private void ensureAttributeHistogramsIsMutable() {
-      if (!((bitField0_ & 0x00000001) != 0)) {
-        attributeHistograms_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcHistogram>(attributeHistograms_);
-        bitField0_ |= 0x00000001;
-       }
-    }
-
-    private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> attributeHistogramsBuilder_;
-
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram> getAttributeHistogramsList() {
-      if (attributeHistogramsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(attributeHistograms_);
-      } else {
-        return attributeHistogramsBuilder_.getMessageList();
-      }
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public int getAttributeHistogramsCount() {
-      if (attributeHistogramsBuilder_ == null) {
-        return attributeHistograms_.size();
-      } else {
-        return attributeHistogramsBuilder_.getCount();
-      }
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcHistogram getAttributeHistograms(int index) {
-      if (attributeHistogramsBuilder_ == null) {
-        return attributeHistograms_.get(index);
-      } else {
-        return attributeHistogramsBuilder_.getMessage(index);
-      }
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public Builder setAttributeHistograms(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram value) {
-      if (attributeHistogramsBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureAttributeHistogramsIsMutable();
-        attributeHistograms_.set(index, value);
-        onChanged();
-      } else {
-        attributeHistogramsBuilder_.setMessage(index, value);
-      }
-      return this;
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public Builder setAttributeHistograms(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder builderForValue) {
-      if (attributeHistogramsBuilder_ == null) {
-        ensureAttributeHistogramsIsMutable();
-        attributeHistograms_.set(index, builderForValue.build());
-        onChanged();
-      } else {
-        attributeHistogramsBuilder_.setMessage(index, builderForValue.build());
-      }
-      return this;
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public Builder addAttributeHistograms(io.evitadb.externalApi.grpc.generated.GrpcHistogram value) {
-      if (attributeHistogramsBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureAttributeHistogramsIsMutable();
-        attributeHistograms_.add(value);
-        onChanged();
-      } else {
-        attributeHistogramsBuilder_.addMessage(value);
-      }
-      return this;
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public Builder addAttributeHistograms(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram value) {
-      if (attributeHistogramsBuilder_ == null) {
-        if (value == null) {
-          throw new NullPointerException();
-        }
-        ensureAttributeHistogramsIsMutable();
-        attributeHistograms_.add(index, value);
-        onChanged();
-      } else {
-        attributeHistogramsBuilder_.addMessage(index, value);
-      }
-      return this;
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public Builder addAttributeHistograms(
-        io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder builderForValue) {
-      if (attributeHistogramsBuilder_ == null) {
-        ensureAttributeHistogramsIsMutable();
-        attributeHistograms_.add(builderForValue.build());
-        onChanged();
-      } else {
-        attributeHistogramsBuilder_.addMessage(builderForValue.build());
-      }
-      return this;
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public Builder addAttributeHistograms(
-        int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder builderForValue) {
-      if (attributeHistogramsBuilder_ == null) {
-        ensureAttributeHistogramsIsMutable();
-        attributeHistograms_.add(index, builderForValue.build());
-        onChanged();
-      } else {
-        attributeHistogramsBuilder_.addMessage(index, builderForValue.build());
-      }
-      return this;
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public Builder addAllAttributeHistograms(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram> values) {
-      if (attributeHistogramsBuilder_ == null) {
-        ensureAttributeHistogramsIsMutable();
-        com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, attributeHistograms_);
-        onChanged();
-      } else {
-        attributeHistogramsBuilder_.addAllMessages(values);
-      }
-      return this;
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public Builder clearAttributeHistograms() {
-      if (attributeHistogramsBuilder_ == null) {
-        attributeHistograms_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000001);
-        onChanged();
-      } else {
-        attributeHistogramsBuilder_.clear();
-      }
-      return this;
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public Builder removeAttributeHistograms(int index) {
-      if (attributeHistogramsBuilder_ == null) {
-        ensureAttributeHistogramsIsMutable();
-        attributeHistograms_.remove(index);
-        onChanged();
-      } else {
-        attributeHistogramsBuilder_.remove(index);
-      }
-      return this;
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder getAttributeHistogramsBuilder(
-        int index) {
-      return getAttributeHistogramsFieldBuilder().getBuilder(index);
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder getAttributeHistogramsOrBuilder(
-        int index) {
-      if (attributeHistogramsBuilder_ == null) {
-        return attributeHistograms_.get(index);  } else {
-        return attributeHistogramsBuilder_.getMessageOrBuilder(index);
-      }
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> 
-         getAttributeHistogramsOrBuilderList() {
-      if (attributeHistogramsBuilder_ != null) {
-        return attributeHistogramsBuilder_.getMessageOrBuilderList();
-      } else {
-        return java.util.Collections.unmodifiableList(attributeHistograms_);
-      }
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder addAttributeHistogramsBuilder() {
-      return getAttributeHistogramsFieldBuilder().addBuilder(
-          io.evitadb.externalApi.grpc.generated.GrpcHistogram.getDefaultInstance());
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder addAttributeHistogramsBuilder(
-        int index) {
-      return getAttributeHistogramsFieldBuilder().addBuilder(
-          index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.getDefaultInstance());
-    }
-    /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-     */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder> 
-         getAttributeHistogramsBuilderList() {
-      return getAttributeHistogramsFieldBuilder().getBuilderList();
-    }
-    private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> 
-        getAttributeHistogramsFieldBuilder() {
-      if (attributeHistogramsBuilder_ == null) {
-        attributeHistogramsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder>(
-                attributeHistograms_,
-                ((bitField0_ & 0x00000001) != 0),
-                getParentForChildren(),
-                isClean());
-        attributeHistograms_ = null;
-      }
-      return attributeHistogramsBuilder_;
-    }
 
     private com.google.protobuf.MapField<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> attributeHistogram_;
@@ -1589,9 +1241,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics> facetGroupStatistics_ =
       java.util.Collections.emptyList();
     private void ensureFacetGroupStatisticsIsMutable() {
-      if (!((bitField0_ & 0x00000004) != 0)) {
+      if (!((bitField0_ & 0x00000002) != 0)) {
         facetGroupStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics>(facetGroupStatistics_);
-        bitField0_ |= 0x00000004;
+        bitField0_ |= 0x00000002;
        }
     }
 
@@ -1741,7 +1393,7 @@ private static final long serialVersionUID = 0L;
     public Builder clearFacetGroupStatistics() {
       if (facetGroupStatisticsBuilder_ == null) {
         facetGroupStatistics_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000004);
+        bitField0_ = (bitField0_ & ~0x00000002);
         onChanged();
       } else {
         facetGroupStatisticsBuilder_.clear();
@@ -1818,7 +1470,7 @@ private static final long serialVersionUID = 0L;
         facetGroupStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder>(
                 facetGroupStatistics_,
-                ((bitField0_ & 0x00000004) != 0),
+                ((bitField0_ & 0x00000002) != 0),
                 getParentForChildren(),
                 isClean());
         facetGroupStatistics_ = null;

@@ -40,7 +40,7 @@ import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.QueryParam;
-import io.evitadb.externalApi.grpc.query.GrpcConverter;
+import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.grpc.stub.StreamObserver;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -131,8 +131,8 @@ public class QueryUtil {
 		try {
 			return parser.parseRequireConstraintList(
 				requireConstraints,
-				GrpcConverter.convertQueryParamsMap(namedQueryParams),
-				GrpcConverter.convertQueryParamsList(queryParams)
+				QueryConverter.convertQueryParamsMap(namedQueryParams),
+				QueryConverter.convertQueryParamsList(queryParams)
 			)
 				.stream()
 				.map(c -> {
@@ -166,7 +166,7 @@ public class QueryUtil {
 		@Nullable StreamObserver<T> responseObserver
 	) {
 		try {
-			return parser.parseQuery(queryString, GrpcConverter.convertQueryParamsList(queryParams));
+			return parser.parseQuery(queryString, QueryConverter.convertQueryParamsList(queryParams));
 		} catch (Exception ex) {
 			if (responseObserver != null) {
 				responseObserver.onError(ExceptionStatusProvider.getStatus(ex, Code.INVALID_ARGUMENT, "Query parsing error"));
@@ -187,7 +187,7 @@ public class QueryUtil {
 	@Nullable
 	public static <T extends GeneratedMessageV3> Query parseQuery(@Nonnull String queryString, @Nonnull Map<String, QueryParam> queryParams, @Nullable StreamObserver<T> responseObserver) {
 		try {
-			return parser.parseQuery(queryString, GrpcConverter.convertQueryParamsMap(queryParams));
+			return parser.parseQuery(queryString, QueryConverter.convertQueryParamsMap(queryParams));
 		} catch (Exception ex) {
 			if (responseObserver != null) {
 				responseObserver.onError(ExceptionStatusProvider.getStatus(ex, Code.INVALID_ARGUMENT, "Query parsing error"));
@@ -220,8 +220,8 @@ public class QueryUtil {
 			}
 			return parser.parseQuery(
 				queryString,
-				GrpcConverter.convertQueryParamsMap(queryParamsMap),
-				GrpcConverter.convertQueryParamsList(queryParamsList)
+				QueryConverter.convertQueryParamsMap(queryParamsMap),
+				QueryConverter.convertQueryParamsList(queryParamsList)
 			);
 		} catch (Exception ex) {
 			if (responseObserver != null) {

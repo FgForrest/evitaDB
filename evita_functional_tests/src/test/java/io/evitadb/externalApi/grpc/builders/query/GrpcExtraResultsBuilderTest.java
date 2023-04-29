@@ -147,7 +147,7 @@ class GrpcExtraResultsBuilderTest {
 		assertEquals(28, extraResults.getPriceHistogram().getOverallCount());
 
 		assertEquals(1, extraResults.getAttributeHistogramCount());
-		assertEquals(28, extraResults.getAttributeHistograms(0).getOverallCount());
+		assertEquals(28, extraResults.getAttributeHistogramMap().values().iterator().next().getOverallCount());
 
 		assertFalse(extraResults.getSelfHierarchy().getHierarchyMap().isEmpty());
 

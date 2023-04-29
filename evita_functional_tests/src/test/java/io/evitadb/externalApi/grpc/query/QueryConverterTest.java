@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * This test verifies functionalities of methods in {@link GrpcConverter} class.
+ * This test verifies functionalities of methods in {@link QueryConverter} class.
  *
  * @author Tomáš Pozler, 2022
  */
@@ -78,7 +78,7 @@ class QueryConverterTest {
 			rangeQueryParam
 		);
 
-		final List<Object> positionalParams = GrpcConverter.convertQueryParamsList(positionalQueryParams);
+		final List<Object> positionalParams = QueryConverter.convertQueryParamsList(positionalQueryParams);
 
 		assertEquals(enabled, positionalParams.get(0));
 		assertEquals(name, positionalParams.get(1));
@@ -90,7 +90,7 @@ class QueryConverterTest {
 			rangeName, rangeQueryParam
 		);
 
-		final Map<String, Object> namedParams = GrpcConverter.convertQueryParamsMap(namedQueryParams);
+		final Map<String, Object> namedParams = QueryConverter.convertQueryParamsMap(namedQueryParams);
 		assertEquals(enabled, namedParams.get(enabledName));
 		assertEquals(name, namedParams.get(nameName));
 		assertEquals(range, namedParams.get(rangeName));
@@ -170,6 +170,6 @@ class QueryConverterTest {
 
 	@SuppressWarnings("unchecked")
 	private static <T extends Serializable> T convertQueryParam(T originalValue) {
-		return (T) GrpcConverter.convertQueryParam(GrpcConverter.convertQueryParam(originalValue));
+		return (T) QueryConverter.convertQueryParam(QueryConverter.convertQueryParam(originalValue));
 	}
 }

@@ -29,12 +29,20 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
-import io.evitadb.dataType.*;
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.dataType.ByteNumberRange;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
-import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray;
+import io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray;
+import io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray;
+import io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray;
+import io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray;
+import io.evitadb.externalApi.grpc.generated.QueryParam;
 import io.evitadb.externalApi.grpc.generated.QueryParam.Builder;
 import io.evitadb.externalApi.grpc.generated.QueryParam.QueryParamCase;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -56,7 +64,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.function.Function;
+
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.*;
 
 /**
  * This class is used for converting parametrised query parameters to a form that is accepted by {@link QueryParser}.
@@ -65,7 +74,7 @@ import java.util.function.Function;
  * @author Tomáš Pozler, 2022
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public final class GrpcConverter {
+public final class QueryConverter {
 
 	/**
 	 * This method is used to convert a list of positional parameters of type {@link QueryParam} to a list
@@ -116,21 +125,21 @@ public final class GrpcConverter {
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.BOOLEANVALUE) {
 			return queryParam.getBooleanValue();
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALVALUE) {
-			return EvitaDataTypesConverter.toBigDecimal(queryParam.getBigDecimalValue());
+			return toBigDecimal(queryParam.getBigDecimalValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.DATETIMERANGEVALUE) {
-			return EvitaDataTypesConverter.toDateTimeRange(queryParam.getDateTimeRangeValue());
+			return toDateTimeRange(queryParam.getDateTimeRangeValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.INTEGERNUMBERRANGEVALUE) {
-			return EvitaDataTypesConverter.toIntegerNumberRange(queryParam.getIntegerNumberRangeValue());
+			return toIntegerNumberRange(queryParam.getIntegerNumberRangeValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.LONGNUMBERRANGEVALUE) {
-			return EvitaDataTypesConverter.toLongNumberRange(queryParam.getLongNumberRangeValue());
+			return toLongNumberRange(queryParam.getLongNumberRangeValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALNUMBERRANGEVALUE) {
-			return EvitaDataTypesConverter.toBigDecimalNumberRange(queryParam.getBigDecimalNumberRangeValue());
+			return toBigDecimalNumberRange(queryParam.getBigDecimalNumberRangeValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.OFFSETDATETIMEVALUE) {
-			return EvitaDataTypesConverter.toOffsetDateTime(queryParam.getOffsetDateTimeValue());
+			return toOffsetDateTime(queryParam.getOffsetDateTimeValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.LOCALEVALUE) {
-			return EvitaDataTypesConverter.toLocale(queryParam.getLocaleValue());
+			return toLocale(queryParam.getLocaleValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.CURRENCYVALUE) {
-			return EvitaDataTypesConverter.toCurrency(queryParam.getCurrencyValue());
+			return toCurrency(queryParam.getCurrencyValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.FACETSTATISTICSDEPTHVALUE) {
 			return EvitaEnumConverter.toFacetStatisticsDepth(queryParam.getFacetStatisticsDepthValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.QUERYPRICEMODELVALUE) {
@@ -142,29 +151,29 @@ public final class GrpcConverter {
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.ORDERDIRECTIONVALUE) {
 			return EvitaEnumConverter.toOrderDirection(queryParam.getOrderDirectionValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
-			return EvitaDataTypesConverter.toStringArray(queryParam.getStringArrayValue());
+			return toStringArray(queryParam.getStringArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.INTEGERARRAYVALUE) {
-			return EvitaDataTypesConverter.toIntegerArray(queryParam.getIntegerArrayValue());
+			return toIntegerArray(queryParam.getIntegerArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.LONGARRAYVALUE) {
-			return EvitaDataTypesConverter.toLongArray(queryParam.getLongArrayValue());
+			return toLongArray(queryParam.getLongArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.BOOLEANARRAYVALUE) {
-			return EvitaDataTypesConverter.toBooleanArray(queryParam.getBooleanArrayValue());
+			return toBooleanArray(queryParam.getBooleanArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALARRAYVALUE) {
-			return EvitaDataTypesConverter.toBigDecimalArray(queryParam.getBigDecimalArrayValue());
+			return toBigDecimalArray(queryParam.getBigDecimalArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.DATETIMERANGEARRAYVALUE) {
-			return EvitaDataTypesConverter.toDateTimeRangeArray(queryParam.getDateTimeRangeArrayValue());
+			return toDateTimeRangeArray(queryParam.getDateTimeRangeArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.INTEGERNUMBERRANGEARRAYVALUE) {
-			return EvitaDataTypesConverter.toIntegerNumberRangeArray(queryParam.getIntegerNumberRangeArrayValue());
+			return toIntegerNumberRangeArray(queryParam.getIntegerNumberRangeArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.LONGNUMBERRANGEARRAYVALUE) {
-			return EvitaDataTypesConverter.toLongNumberRangeArray(queryParam.getLongNumberRangeArrayValue());
+			return toLongNumberRangeArray(queryParam.getLongNumberRangeArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.BIGDECIMALNUMBERRANGEARRAYVALUE) {
-			return EvitaDataTypesConverter.toBigDecimalNumberRangeArray(queryParam.getBigDecimalNumberRangeArrayValue());
+			return toBigDecimalNumberRangeArray(queryParam.getBigDecimalNumberRangeArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.OFFSETDATETIMEARRAYVALUE) {
-			return EvitaDataTypesConverter.toOffsetDateTimeArray(queryParam.getOffsetDateTimeArrayValue());
+			return toOffsetDateTimeArray(queryParam.getOffsetDateTimeArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.LOCALEARRAYVALUE) {
-			return EvitaDataTypesConverter.toLocaleArray(queryParam.getLocaleArrayValue());
+			return toLocaleArray(queryParam.getLocaleArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.CURRENCYARRAYVALUE) {
-			return EvitaDataTypesConverter.toCurrencyArray(queryParam.getCurrencyArrayValue());
+			return toCurrencyArray(queryParam.getCurrencyArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.FACETSTATISTICSDEPTHARRAYVALUE) {
 			return queryParam.getFacetStatisticsDepthArrayValue()
 				.getValueList()
@@ -217,31 +226,31 @@ public final class GrpcConverter {
 		} else if (parameter instanceof Boolean booleanValue) {
 			builder.setBooleanValue(booleanValue);
 		} else if (parameter instanceof BigDecimal bigDecimalValue) {
-			builder.setBigDecimalValue(EvitaDataTypesConverter.toGrpcBigDecimal(bigDecimalValue));
+			builder.setBigDecimalValue(toGrpcBigDecimal(bigDecimalValue));
 		} else if (parameter instanceof DateTimeRange dateTimeRangeValue) {
-			builder.setDateTimeRangeValue(EvitaDataTypesConverter.toGrpcDateTimeRange(dateTimeRangeValue));
+			builder.setDateTimeRangeValue(toGrpcDateTimeRange(dateTimeRangeValue));
 		} else if (parameter instanceof ByteNumberRange byteNumberRangeValue) {
-			builder.setIntegerNumberRangeValue(EvitaDataTypesConverter.toGrpcIntegerNumberRange(byteNumberRangeValue));
+			builder.setIntegerNumberRangeValue(toGrpcIntegerNumberRange(byteNumberRangeValue));
 		} else if (parameter instanceof ShortNumberRange shortNumberRangeValue) {
-			builder.setIntegerNumberRangeValue(EvitaDataTypesConverter.toGrpcIntegerNumberRange(shortNumberRangeValue));
+			builder.setIntegerNumberRangeValue(toGrpcIntegerNumberRange(shortNumberRangeValue));
 		} else if (parameter instanceof IntegerNumberRange integerNumberRangeValue) {
-			builder.setIntegerNumberRangeValue(EvitaDataTypesConverter.toGrpcIntegerNumberRange(integerNumberRangeValue));
+			builder.setIntegerNumberRangeValue(toGrpcIntegerNumberRange(integerNumberRangeValue));
 		} else if (parameter instanceof LongNumberRange longNumberRangeValue) {
-			builder.setLongNumberRangeValue(EvitaDataTypesConverter.toGrpcLongNumberRange(longNumberRangeValue));
+			builder.setLongNumberRangeValue(toGrpcLongNumberRange(longNumberRangeValue));
 		} else if (parameter instanceof BigDecimalNumberRange bigDecimalNumberRangeValue) {
-			builder.setBigDecimalNumberRangeValue(EvitaDataTypesConverter.toGrpcBigDecimalNumberRange(bigDecimalNumberRangeValue));
+			builder.setBigDecimalNumberRangeValue(toGrpcBigDecimalNumberRange(bigDecimalNumberRangeValue));
 		} else if (parameter instanceof OffsetDateTime offsetDateTimeValue) {
-			builder.setOffsetDateTimeValue(EvitaDataTypesConverter.toGrpcOffsetDateTime(offsetDateTimeValue));
+			builder.setOffsetDateTimeValue(toGrpcOffsetDateTime(offsetDateTimeValue));
 		} else if (parameter instanceof LocalDateTime localDateTimeValue) {
-			builder.setOffsetDateTimeValue(EvitaDataTypesConverter.toGrpcLocalDateTime(localDateTimeValue));
+			builder.setOffsetDateTimeValue(toGrpcLocalDateTime(localDateTimeValue));
 		} else if (parameter instanceof LocalDate localDateValue) {
-			builder.setOffsetDateTimeValue(EvitaDataTypesConverter.toGrpcLocalDate(localDateValue));
+			builder.setOffsetDateTimeValue(toGrpcLocalDate(localDateValue));
 		} else if (parameter instanceof LocalTime localTimeValue) {
-			builder.setOffsetDateTimeValue(EvitaDataTypesConverter.toGrpcLocalTime(localTimeValue));
+			builder.setOffsetDateTimeValue(toGrpcLocalTime(localTimeValue));
 		} else if (parameter instanceof Locale localeValue) {
-			builder.setLocaleValue(EvitaDataTypesConverter.toGrpcLocale(localeValue));
+			builder.setLocaleValue(toGrpcLocale(localeValue));
 		} else if (parameter instanceof Currency currencyValue) {
-			builder.setCurrencyValue(EvitaDataTypesConverter.toGrpcCurrency(currencyValue));
+			builder.setCurrencyValue(toGrpcCurrency(currencyValue));
 		} else if (parameter instanceof FacetStatisticsDepth facetStatisticsDepth) {
 			builder.setFacetStatisticsDepthValue(EvitaEnumConverter.toGrpcFacetStatisticsDepth(facetStatisticsDepth));
 		} else if (parameter instanceof QueryPriceMode queryPriceModeValue) {
@@ -253,39 +262,39 @@ public final class GrpcConverter {
 		} else if (parameter instanceof OrderDirection orderDirectionValue) {
 			builder.setOrderDirectionValue(EvitaEnumConverter.toGrpcOrderDirection(orderDirectionValue));
 		} else if (parameter instanceof String[] stringArrayValue) {
-			builder.setStringArrayValue(EvitaDataTypesConverter.toGrpcStringArray(stringArrayValue));
+			builder.setStringArrayValue(toGrpcStringArray(stringArrayValue));
 		} else if (parameter instanceof Integer[] integerArrayValue) {
-			builder.setIntegerArrayValue(EvitaDataTypesConverter.toGrpcIntegerArray(integerArrayValue));
+			builder.setIntegerArrayValue(toGrpcIntegerArray(integerArrayValue));
 		} else if (parameter instanceof Long[] longArrayValue) {
-			builder.setLongArrayValue(EvitaDataTypesConverter.toGrpcLongArray(longArrayValue));
+			builder.setLongArrayValue(toGrpcLongArray(longArrayValue));
 		} else if (parameter instanceof Boolean[] booleanArrayValue) {
-			builder.setBooleanArrayValue(EvitaDataTypesConverter.toGrpcBooleanArray(booleanArrayValue));
+			builder.setBooleanArrayValue(toGrpcBooleanArray(booleanArrayValue));
 		} else if (parameter instanceof BigDecimal[] bigDecimalArrayValue) {
-			builder.setBigDecimalArrayValue(EvitaDataTypesConverter.toGrpcBigDecimalArray(bigDecimalArrayValue));
+			builder.setBigDecimalArrayValue(toGrpcBigDecimalArray(bigDecimalArrayValue));
 		} else if (parameter instanceof DateTimeRange[] dateTimeRangeArrayValue) {
-			builder.setDateTimeRangeArrayValue(EvitaDataTypesConverter.toGrpcDateTimeRangeArray(dateTimeRangeArrayValue));
+			builder.setDateTimeRangeArrayValue(toGrpcDateTimeRangeArray(dateTimeRangeArrayValue));
 		} else if (parameter instanceof ByteNumberRange[] byteNumberRangeArrayValue) {
-			builder.setIntegerNumberRangeArrayValue(EvitaDataTypesConverter.toGrpcByteNumberRangeArray(byteNumberRangeArrayValue));
+			builder.setIntegerNumberRangeArrayValue(toGrpcByteNumberRangeArray(byteNumberRangeArrayValue));
 		} else if (parameter instanceof ShortNumberRange[] shortNumberRangeArrayValue) {
-			builder.setIntegerNumberRangeArrayValue(EvitaDataTypesConverter.toGrpcShortNumberRangeArray(shortNumberRangeArrayValue));
+			builder.setIntegerNumberRangeArrayValue(toGrpcShortNumberRangeArray(shortNumberRangeArrayValue));
 		} else if (parameter instanceof IntegerNumberRange[] integerNumberRangeArrayValue) {
-			builder.setIntegerNumberRangeArrayValue(EvitaDataTypesConverter.toGrpcIntegerNumberRangeArray(integerNumberRangeArrayValue));
+			builder.setIntegerNumberRangeArrayValue(toGrpcIntegerNumberRangeArray(integerNumberRangeArrayValue));
 		} else if (parameter instanceof LongNumberRange[] longNumberRangeArrayValue) {
-			builder.setLongNumberRangeArrayValue(EvitaDataTypesConverter.toGrpcLongNumberRangeArray(longNumberRangeArrayValue));
+			builder.setLongNumberRangeArrayValue(toGrpcLongNumberRangeArray(longNumberRangeArrayValue));
 		} else if (parameter instanceof BigDecimalNumberRange[] bigDecimalNumberRangeArrayValue) {
-			builder.setBigDecimalNumberRangeArrayValue(EvitaDataTypesConverter.toGrpcBigDecimalNumberRangeArray(bigDecimalNumberRangeArrayValue));
+			builder.setBigDecimalNumberRangeArrayValue(toGrpcBigDecimalNumberRangeArray(bigDecimalNumberRangeArrayValue));
 		} else if (parameter instanceof OffsetDateTime[] offsetDateTimeArrayValue) {
-			builder.setOffsetDateTimeArrayValue(EvitaDataTypesConverter.toGrpcOffsetDateTimeArray(offsetDateTimeArrayValue));
+			builder.setOffsetDateTimeArrayValue(toGrpcOffsetDateTimeArray(offsetDateTimeArrayValue));
 		} else if (parameter instanceof LocalDateTime[] localDateTimeArrayValue) {
-			builder.setOffsetDateTimeArrayValue(EvitaDataTypesConverter.toGrpcLocalDateTimeArray(localDateTimeArrayValue));
+			builder.setOffsetDateTimeArrayValue(toGrpcLocalDateTimeArray(localDateTimeArrayValue));
 		} else if (parameter instanceof LocalDate[] localDateArrayValue) {
-			builder.setOffsetDateTimeArrayValue(EvitaDataTypesConverter.toGrpcLocalDateArray(localDateArrayValue));
+			builder.setOffsetDateTimeArrayValue(toGrpcLocalDateArray(localDateArrayValue));
 		} else if (parameter instanceof LocalTime[] localTimeArrayValue) {
-			builder.setOffsetDateTimeArrayValue(EvitaDataTypesConverter.toGrpcLocalTimeArray(localTimeArrayValue));
+			builder.setOffsetDateTimeArrayValue(toGrpcLocalTimeArray(localTimeArrayValue));
 		} else if (parameter instanceof Locale[] localeArrayValue) {
-			builder.setLocaleArrayValue(EvitaDataTypesConverter.toGrpcLocaleArray(localeArrayValue));
+			builder.setLocaleArrayValue(toGrpcLocaleArray(localeArrayValue));
 		} else if (parameter instanceof Currency[] currencyArrayValue) {
-			builder.setCurrencyArrayValue(EvitaDataTypesConverter.toGrpcCurrencyArray(currencyArrayValue));
+			builder.setCurrencyArrayValue(toGrpcCurrencyArray(currencyArrayValue));
 		} else if (parameter instanceof FacetStatisticsDepth[] facetStatisticsArrayDepth) {
 			builder.setFacetStatisticsDepthArrayValue(GrpcFacetStatisticsDepthArray.newBuilder().addAllValue(
 				Arrays.stream(facetStatisticsArrayDepth).map(EvitaEnumConverter::toGrpcFacetStatisticsDepth).toList()
@@ -312,44 +321,4 @@ public final class GrpcConverter {
 		return builder.build();
 	}
 
-	/**
-	 * Converts {@link GrpcQueryResponse} to {@link DataChunk} using proper implementation - either {@link PaginatedList}
-	 * or {@link StripList} depending on the information in the response.
-	 */
-	@Nonnull
-	public static <T extends Serializable> DataChunk<T> convertToDataChunk(
-		@Nonnull GrpcQueryResponse grpcResponse,
-		@Nonnull Function<GrpcDataChunk, List<T>> converter
-	) {
-		final GrpcDataChunk grpcRecordPage = grpcResponse.getRecordPage();
-		if (grpcRecordPage.hasPaginatedList()) {
-			final GrpcPaginatedList grpcPaginatedList = grpcRecordPage.getPaginatedList();
-			return new PaginatedList<>(
-				grpcPaginatedList.getPageNumber(),
-				grpcPaginatedList.getPageSize(),
-				grpcRecordPage.getTotalRecordCount(),
-				converter.apply(grpcRecordPage)
-			);
-		} else if (grpcRecordPage.hasStripList()) {
-			final GrpcStripList grpcStripList = grpcRecordPage.getStripList();
-			return new StripList<>(
-				grpcStripList.getOffset(),
-				grpcStripList.getLimit(),
-				grpcRecordPage.getTotalRecordCount(),
-				converter.apply(grpcRecordPage)
-			);
-		} else {
-			throw new EvitaInternalError(
-				"Only PaginatedList or StripList expected, but got none!"
-			);
-		}
-	}
-
-	/**
-	 * TODO JNO - implement a document me
-	 */
-	@Nonnull
-	public static EvitaResponseExtraResult[] toExtraResults(@Nonnull GrpcExtraResults extraResults) {
-		return new EvitaResponseExtraResult[0];
-	}
 }

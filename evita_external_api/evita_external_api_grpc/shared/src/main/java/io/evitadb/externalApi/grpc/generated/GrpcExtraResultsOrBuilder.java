@@ -31,30 +31,6 @@ public interface GrpcExtraResultsOrBuilder extends
     com.google.protobuf.MessageOrBuilder {
 
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram> 
-      getAttributeHistogramsList();
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcHistogram getAttributeHistograms(int index);
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  int getAttributeHistogramsCount();
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> 
-      getAttributeHistogramsOrBuilderList();
-  /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram attributeHistograms = 1;</code>
-   */
-  io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder getAttributeHistogramsOrBuilder(
-      int index);
-
-  /**
    * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; attributeHistogram = 2;</code>
    */
   int getAttributeHistogramCount();

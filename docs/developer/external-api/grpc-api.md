@@ -65,7 +65,7 @@ Unlike in the GraphQL or REST APIs, there isn't first class support for query co
 Query constraints have quite a complex tree structure (inheritance, different constructors, and so on) and gRPC
 doesn't support needed tools for building equivalent framework of constraints. Instead, the [query language parser](../query/query_language_parser.md)
 is used to pass queries between clients and server via strings. However, there is custom 
-`io.evitadb.externalApi.grpc.query.GrpcConverter` in shared module which is responsible for preparing arguments for such queries
+`io.evitadb.externalApi.grpc.query.QueryConverter` in shared module which is responsible for preparing arguments for such queries
 because they are sent separately to actual queries (just like in SQL). There is also helper class
 `io.evitadb.externalApi.grpc.utils.QueryUtil` in server module to further simplify query converting from strings.
 

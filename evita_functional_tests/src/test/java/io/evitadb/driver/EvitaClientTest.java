@@ -28,11 +28,20 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.EvitaSessionContract.DeletedHierarchy;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
+import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -60,6 +69,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -76,16 +86,12 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.Assertions.assertDiffers;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
+import static io.evitadb.test.generator.DataGenerator.*;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies behaviour of {@link EvitaClient}.
- *
- * TOBEDONE JNO - write tests for catalog rename, collection rename and replace
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -326,40 +332,137 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	}
 
 	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldReplaceCatalog(EvitaClient evitaClient) {
 		final String newCatalog = "newCatalog";
-		try {
-			evitaClient.defineCatalog(newCatalog);
+		evitaClient.defineCatalog(newCatalog);
 
-			final Set<String> catalogNames = evitaClient.getCatalogNames();
-			assertEquals(2, catalogNames.size());
-			assertTrue(catalogNames.contains(newCatalog));
-			assertTrue(catalogNames.contains(TEST_CATALOG));
-			assertEquals(
-				Integer.valueOf(10),
-				evitaClient.queryCatalog(TEST_CATALOG, evitaSessionContract -> {
-					return evitaSessionContract.getCatalogSchema().getVersion();
-				})
-			);
+		final Set<String> catalogNames = evitaClient.getCatalogNames();
+		assertEquals(2, catalogNames.size());
+		assertTrue(catalogNames.contains(newCatalog));
+		assertTrue(catalogNames.contains(TEST_CATALOG));
+		assertEquals(
+			Integer.valueOf(10),
+			evitaClient.queryCatalog(TEST_CATALOG, evitaSessionContract -> {
+				return evitaSessionContract.getCatalogSchema().getVersion();
+			})
+		);
 
-			evitaClient.replaceCatalog(TEST_CATALOG, newCatalog);
+		evitaClient.replaceCatalog(TEST_CATALOG, newCatalog);
 
-			final Set<String> catalogNamesAgain = evitaClient.getCatalogNames();
-			assertEquals(1, catalogNamesAgain.size());
-			assertTrue(catalogNamesAgain.contains(newCatalog));
+		final Set<String> catalogNamesAgain = evitaClient.getCatalogNames();
+		assertEquals(1, catalogNamesAgain.size());
+		assertTrue(catalogNamesAgain.contains(newCatalog));
 
-			assertEquals(
-				Integer.valueOf(11),
-				evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
-					return evitaSessionContract.getCatalogSchema().getVersion();
-				})
-			);
+		assertEquals(
+			Integer.valueOf(11),
+			evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
+				return evitaSessionContract.getCatalogSchema().getVersion();
+			})
+		);
+	}
 
-		} finally {
-			evitaClient.defineCatalog(TEST_CATALOG);
-			evitaClient.replaceCatalog(newCatalog, TEST_CATALOG);
-		}
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldRenameCatalog(EvitaClient evitaClient) {
+		final String newCatalog = "newCatalog";
+
+		final Set<String> catalogNames = evitaClient.getCatalogNames();
+		assertEquals(1, catalogNames.size());
+		assertTrue(catalogNames.contains(TEST_CATALOG));
+		assertEquals(
+			Integer.valueOf(10),
+			evitaClient.queryCatalog(TEST_CATALOG, evitaSessionContract -> {
+				return evitaSessionContract.getCatalogSchema().getVersion();
+			})
+		);
+
+		evitaClient.renameCatalog(TEST_CATALOG, newCatalog);
+
+		final Set<String> catalogNamesAgain = evitaClient.getCatalogNames();
+		assertEquals(1, catalogNamesAgain.size());
+		assertTrue(catalogNamesAgain.contains(newCatalog));
+
+		assertEquals(
+			Integer.valueOf(11),
+			evitaClient.queryCatalog(newCatalog, evitaSessionContract -> {
+				return evitaSessionContract.getCatalogSchema().getVersion();
+			})
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldReplaceCollection(EvitaClient evitaClient) {
+		final String newCollection = "newCollection";
+		final AtomicInteger productCount = new AtomicInteger();
+		final AtomicInteger productSchemaVersion = new AtomicInteger();
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				assertFalse(session.getAllEntityTypes().contains(newCollection));
+				session.defineEntitySchema(newCollection)
+					.withAttribute(ATTRIBUTE_CODE, String.class)
+					.updateVia(session);
+				assertTrue(session.getAllEntityTypes().contains(newCollection));
+				productSchemaVersion.set(session.getEntitySchemaOrThrow(Entities.PRODUCT).getVersion());
+				productCount.set(session.getEntityCollectionSize(Entities.PRODUCT));
+			}
+		);
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.replaceCollection(
+					newCollection,
+					Entities.PRODUCT
+				);
+			}
+		);
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertFalse(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				assertTrue(session.getAllEntityTypes().contains(newCollection));
+				assertEquals(productSchemaVersion.get() + 1, session.getEntitySchemaOrThrow(newCollection).getVersion());
+				assertEquals(productCount.get(), session.getEntityCollectionSize(newCollection));
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
+	void shouldRenameCollection(EvitaClient evitaClient) {
+		final String newCollection = "newCollection";
+		final AtomicInteger productCount = new AtomicInteger();
+		final AtomicInteger productSchemaVersion = new AtomicInteger();
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				assertFalse(session.getAllEntityTypes().contains(newCollection));
+				productSchemaVersion.set(session.getEntitySchemaOrThrow(Entities.PRODUCT).getVersion());
+				productCount.set(session.getEntityCollectionSize(Entities.PRODUCT));
+			}
+		);
+		evitaClient.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.renameCollection(
+					Entities.PRODUCT,
+					newCollection
+				);
+			}
+		);
+		evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertFalse(session.getAllEntityTypes().contains(Entities.PRODUCT));
+				assertTrue(session.getAllEntityTypes().contains(newCollection));
+				assertEquals(productSchemaVersion.get() + 1, session.getEntitySchemaOrThrow(newCollection).getVersion());
+				assertEquals(productCount.get(), session.getEntityCollectionSize(newCollection));
+			}
+		);
 	}
 
 	@Test
@@ -509,8 +612,68 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldGetListWithExtraResults(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
+		final EvitaResponse<SealedEntity> result = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							priceInPriceLists(PRICE_LIST_BASIC),
+							priceInCurrency(CURRENCY_CZK),
+							entityLocaleEquals(Locale.ENGLISH)
+						),
+						require(
+							entityFetchAll(),
+							queryTelemetry(),
+							priceHistogram(20),
+							attributeHistogram(20, ATTRIBUTE_PRIORITY),
+							hierarchyOfReference(
+								Entities.CATEGORY,
+								fromRoot("megaMenu", entityFetchAll())
+							),
+							facetSummary(FacetStatisticsDepth.IMPACT)
+						)
+					)
+				);
+			}
+		);
+
+		assertNotNull(result);
+		assertTrue(result.getTotalRecordCount() > 0);
+
+		assertNotNull(result.getExtraResult(QueryTelemetry.class));
+
+		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
+		assertNotNull(priceHistogram);
+		assertTrue(priceHistogram.getMax().compareTo(priceHistogram.getMin()) > 0);
+		assertTrue(priceHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
+		assertTrue(priceHistogram.getBuckets().length > 0);
+
+		final AttributeHistogram attributeHistogram = result.getExtraResult(AttributeHistogram.class);
+		assertNotNull(attributeHistogram);
+		final HistogramContract theHistogram = attributeHistogram.getHistogram(ATTRIBUTE_PRIORITY);
+		assertNotNull(attributeHistogram);
+		assertTrue(theHistogram.getMax().compareTo(theHistogram.getMin()) > 0);
+		assertTrue(theHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
+		assertTrue(theHistogram.getBuckets().length > 0);
+
+		final Hierarchy hierarchy = result.getExtraResult(Hierarchy.class);
+		assertNotNull(hierarchy);
+		final Map<String, List<LevelInfo>> categoryHierarchy = hierarchy.getReferenceHierarchy(Entities.CATEGORY);
+		assertNotNull(categoryHierarchy);
+		assertTrue(categoryHierarchy.get("megaMenu").size() > 0);
+
+		final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
+		assertNotNull(facetSummary);
+		assertTrue(facetSummary.getFacetGroupStatistics().size() > 0);
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldGetSingleEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
- 		final Optional<SealedEntity> sealedEntity = evitaClient.queryCatalog(
+		final Optional<SealedEntity> sealedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				return session.getEntity(
