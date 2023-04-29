@@ -26,6 +26,7 @@ package io.evitadb.test;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import org.apache.commons.io.FileUtils;
+import org.junit.jupiter.params.provider.Arguments;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -35,6 +36,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
+import java.util.Random;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 /**
  * This interface allows unit tests to easily prepare test directory, test file and also clean it up.
@@ -84,6 +88,15 @@ public interface EvitaTestSupport extends TestConstants {
 		}
 
 		return configFilePath;
+	}
+
+	/**
+	 * Returns a stream of 50 random seeds.
+	 */
+	@Nonnull
+	static Stream<Arguments> returnRandomSeed() {
+		final Random random = new Random();
+		return LongStream.generate(random::nextLong).limit(50).mapToObj(Arguments::of);
 	}
 
 	/**

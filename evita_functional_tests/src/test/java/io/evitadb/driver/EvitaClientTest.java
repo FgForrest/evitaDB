@@ -65,6 +65,8 @@ import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -76,6 +78,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -499,9 +502,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals(1, entityReference.getPrimaryKey());
 	}
 
-	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldQueryOneSealedEntity(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
+	@ParameterizedTest()
+	@MethodSource("returnRandomSeed")
+	void shouldQueryOneSealedEntity(long seed, EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
+		final Random rnd = new Random(seed);
+		final int primaryKey = rnd.nextInt(products.size());
+		final boolean referencesOnly = rnd.nextBoolean();
 		final SealedEntity sealedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -509,10 +516,26 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							entityPrimaryKeyInSet(1)
+							entityPrimaryKeyInSet(primaryKey)
 						),
 						require(
-							entityFetchAll()
+							referencesOnly ?
+								entityFetch(
+									hierarchyContent(),
+									attributeContent(),
+									associatedDataContent(),
+									priceContentAll(),
+									referenceContent(),
+									dataInLocales()
+								) :
+								entityFetch(
+									hierarchyContent(entityFetchAll()),
+									attributeContent(),
+									associatedDataContent(),
+									priceContentAll(),
+									referenceContent(entityFetchAll()),
+									dataInLocales()
+								)
 						)
 					)
 				).orElseThrow();
@@ -521,7 +544,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		assertNotNull(sealedEntity);
 		assertEquals(Entities.PRODUCT, sealedEntity.getType());
-		assertExactlyEquals(products.get(1), sealedEntity);
+		assertExactlyEquals(products.get(primaryKey), sealedEntity);
 	}
 
 	@Test

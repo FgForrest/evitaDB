@@ -40,6 +40,8 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcSealedEntity() {
     entityType_ = "";
+    parentReference_ = java.util.Collections.emptyList();
+    parentEntity_ = java.util.Collections.emptyList();
     prices_ = java.util.Collections.emptyList();
     priceInnerRecordHandling_ = 0;
     references_ = java.util.Collections.emptyList();
@@ -113,9 +115,27 @@ private static final long serialVersionUID = 0L;
           }
           case 50: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
+              parentReference_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEntityReference>();
+              mutable_bitField0_ |= 0x00000001;
+            }
+            parentReference_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcEntityReference.parser(), extensionRegistry));
+            break;
+          }
+          case 58: {
+            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+              parentEntity_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>();
+              mutable_bitField0_ |= 0x00000002;
+            }
+            parentEntity_.add(
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.parser(), extensionRegistry));
+            break;
+          }
+          case 66: {
+            if (!((mutable_bitField0_ & 0x00000004) != 0)) {
               globalAttributes_ = com.google.protobuf.MapField.newMapField(
                   GlobalAttributesDefaultEntryHolder.defaultEntry);
-              mutable_bitField0_ |= 0x00000001;
+              mutable_bitField0_ |= 0x00000004;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>
             globalAttributes__ = input.readMessage(
@@ -124,11 +144,11 @@ private static final long serialVersionUID = 0L;
                 globalAttributes__.getKey(), globalAttributes__.getValue());
             break;
           }
-          case 58: {
-            if (!((mutable_bitField0_ & 0x00000002) != 0)) {
+          case 74: {
+            if (!((mutable_bitField0_ & 0x00000008) != 0)) {
               localizedAttributes_ = com.google.protobuf.MapField.newMapField(
                   LocalizedAttributesDefaultEntryHolder.defaultEntry);
-              mutable_bitField0_ |= 0x00000002;
+              mutable_bitField0_ |= 0x00000008;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute>
             localizedAttributes__ = input.readMessage(
@@ -137,16 +157,16 @@ private static final long serialVersionUID = 0L;
                 localizedAttributes__.getKey(), localizedAttributes__.getValue());
             break;
           }
-          case 66: {
-            if (!((mutable_bitField0_ & 0x00000004) != 0)) {
+          case 82: {
+            if (!((mutable_bitField0_ & 0x00000010) != 0)) {
               prices_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcPrice>();
-              mutable_bitField0_ |= 0x00000004;
+              mutable_bitField0_ |= 0x00000010;
             }
             prices_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcPrice.parser(), extensionRegistry));
             break;
           }
-          case 74: {
+          case 90: {
             io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder subBuilder = null;
             if (priceForSale_ != null) {
               subBuilder = priceForSale_.toBuilder();
@@ -159,26 +179,26 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 80: {
+          case 96: {
             int rawValue = input.readEnum();
 
             priceInnerRecordHandling_ = rawValue;
             break;
           }
-          case 90: {
-            if (!((mutable_bitField0_ & 0x00000008) != 0)) {
+          case 106: {
+            if (!((mutable_bitField0_ & 0x00000020) != 0)) {
               references_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcReference>();
-              mutable_bitField0_ |= 0x00000008;
+              mutable_bitField0_ |= 0x00000020;
             }
             references_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcReference.parser(), extensionRegistry));
             break;
           }
-          case 98: {
-            if (!((mutable_bitField0_ & 0x00000010) != 0)) {
+          case 114: {
+            if (!((mutable_bitField0_ & 0x00000040) != 0)) {
               globalAssociatedData_ = com.google.protobuf.MapField.newMapField(
                   GlobalAssociatedDataDefaultEntryHolder.defaultEntry);
-              mutable_bitField0_ |= 0x00000010;
+              mutable_bitField0_ |= 0x00000040;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue>
             globalAssociatedData__ = input.readMessage(
@@ -187,11 +207,11 @@ private static final long serialVersionUID = 0L;
                 globalAssociatedData__.getKey(), globalAssociatedData__.getValue());
             break;
           }
-          case 106: {
-            if (!((mutable_bitField0_ & 0x00000020) != 0)) {
+          case 122: {
+            if (!((mutable_bitField0_ & 0x00000080) != 0)) {
               localizedAssociatedData_ = com.google.protobuf.MapField.newMapField(
                   LocalizedAssociatedDataDefaultEntryHolder.defaultEntry);
-              mutable_bitField0_ |= 0x00000020;
+              mutable_bitField0_ |= 0x00000080;
             }
             com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData>
             localizedAssociatedData__ = input.readMessage(
@@ -200,10 +220,10 @@ private static final long serialVersionUID = 0L;
                 localizedAssociatedData__.getKey(), localizedAssociatedData__.getValue());
             break;
           }
-          case 114: {
-            if (!((mutable_bitField0_ & 0x00000040) != 0)) {
+          case 130: {
+            if (!((mutable_bitField0_ & 0x00000100) != 0)) {
               locales_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLocale>();
-              mutable_bitField0_ |= 0x00000040;
+              mutable_bitField0_ |= 0x00000100;
             }
             locales_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLocale.parser(), extensionRegistry));
@@ -224,13 +244,19 @@ private static final long serialVersionUID = 0L;
       throw new com.google.protobuf.InvalidProtocolBufferException(
           e).setUnfinishedMessage(this);
     } finally {
-      if (((mutable_bitField0_ & 0x00000004) != 0)) {
+      if (((mutable_bitField0_ & 0x00000001) != 0)) {
+        parentReference_ = java.util.Collections.unmodifiableList(parentReference_);
+      }
+      if (((mutable_bitField0_ & 0x00000002) != 0)) {
+        parentEntity_ = java.util.Collections.unmodifiableList(parentEntity_);
+      }
+      if (((mutable_bitField0_ & 0x00000010) != 0)) {
         prices_ = java.util.Collections.unmodifiableList(prices_);
       }
-      if (((mutable_bitField0_ & 0x00000008) != 0)) {
+      if (((mutable_bitField0_ & 0x00000020) != 0)) {
         references_ = java.util.Collections.unmodifiableList(references_);
       }
-      if (((mutable_bitField0_ & 0x00000040) != 0)) {
+      if (((mutable_bitField0_ & 0x00000100) != 0)) {
         locales_ = java.util.Collections.unmodifiableList(locales_);
       }
       this.unknownFields = unknownFields.build();
@@ -247,13 +273,13 @@ private static final long serialVersionUID = 0L;
   protected com.google.protobuf.MapField internalGetMapField(
       int number) {
     switch (number) {
-      case 6:
+      case 8:
         return internalGetGlobalAttributes();
-      case 7:
+      case 9:
         return internalGetLocalizedAttributes();
-      case 12:
+      case 14:
         return internalGetGlobalAssociatedData();
-      case 13:
+      case 15:
         return internalGetLocalizedAssociatedData();
       default:
         throw new RuntimeException(
@@ -365,7 +391,87 @@ private static final long serialVersionUID = 0L;
     return getParent();
   }
 
-  public static final int GLOBALATTRIBUTES_FIELD_NUMBER = 6;
+  public static final int PARENTREFERENCE_FIELD_NUMBER = 6;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> parentReference_;
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> getParentReferenceList() {
+    return parentReference_;
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+      getParentReferenceOrBuilderList() {
+    return parentReference_;
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  @java.lang.Override
+  public int getParentReferenceCount() {
+    return parentReference_.size();
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getParentReference(int index) {
+    return parentReference_.get(index);
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getParentReferenceOrBuilder(
+      int index) {
+    return parentReference_.get(index);
+  }
+
+  public static final int PARENTENTITY_FIELD_NUMBER = 7;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> parentEntity_;
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> getParentEntityList() {
+    return parentEntity_;
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+      getParentEntityOrBuilderList() {
+    return parentEntity_;
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  @java.lang.Override
+  public int getParentEntityCount() {
+    return parentEntity_.size();
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getParentEntity(int index) {
+    return parentEntity_.get(index);
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getParentEntityOrBuilder(
+      int index) {
+    return parentEntity_.get(index);
+  }
+
+  public static final int GLOBALATTRIBUTES_FIELD_NUMBER = 8;
   private static final class GlobalAttributesDefaultEntryHolder {
     static final com.google.protobuf.MapEntry<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> defaultEntry =
@@ -392,7 +498,7 @@ private static final long serialVersionUID = 0L;
     return internalGetGlobalAttributes().getMap().size();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
 
   @java.lang.Override
@@ -410,7 +516,7 @@ private static final long serialVersionUID = 0L;
     return getGlobalAttributesMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
   @java.lang.Override
 
@@ -418,7 +524,7 @@ private static final long serialVersionUID = 0L;
     return internalGetGlobalAttributes().getMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
   @java.lang.Override
 
@@ -431,7 +537,7 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
   @java.lang.Override
 
@@ -446,7 +552,7 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
-  public static final int LOCALIZEDATTRIBUTES_FIELD_NUMBER = 7;
+  public static final int LOCALIZEDATTRIBUTES_FIELD_NUMBER = 9;
   private static final class LocalizedAttributesDefaultEntryHolder {
     static final com.google.protobuf.MapEntry<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute> defaultEntry =
@@ -473,7 +579,7 @@ private static final long serialVersionUID = 0L;
     return internalGetLocalizedAttributes().getMap().size();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
 
   @java.lang.Override
@@ -491,7 +597,7 @@ private static final long serialVersionUID = 0L;
     return getLocalizedAttributesMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
   @java.lang.Override
 
@@ -499,7 +605,7 @@ private static final long serialVersionUID = 0L;
     return internalGetLocalizedAttributes().getMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
   @java.lang.Override
 
@@ -512,7 +618,7 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
   @java.lang.Override
 
@@ -527,17 +633,17 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
-  public static final int PRICES_FIELD_NUMBER = 8;
+  public static final int PRICES_FIELD_NUMBER = 10;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> prices_;
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> getPricesList() {
     return prices_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
@@ -545,21 +651,21 @@ private static final long serialVersionUID = 0L;
     return prices_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
   public int getPricesCount() {
     return prices_.size();
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcPrice getPrices(int index) {
     return prices_.get(index);
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPricesOrBuilder(
@@ -567,10 +673,10 @@ private static final long serialVersionUID = 0L;
     return prices_.get(index);
   }
 
-  public static final int PRICEFORSALE_FIELD_NUMBER = 9;
+  public static final int PRICEFORSALE_FIELD_NUMBER = 11;
   private io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
    * @return Whether the priceForSale field is set.
    */
   @java.lang.Override
@@ -578,7 +684,7 @@ private static final long serialVersionUID = 0L;
     return priceForSale_ != null;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
    * @return The priceForSale.
    */
   @java.lang.Override
@@ -586,24 +692,24 @@ private static final long serialVersionUID = 0L;
     return priceForSale_ == null ? io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSale_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPriceForSaleOrBuilder() {
     return getPriceForSale();
   }
 
-  public static final int PRICEINNERRECORDHANDLING_FIELD_NUMBER = 10;
+  public static final int PRICEINNERRECORDHANDLING_FIELD_NUMBER = 12;
   private int priceInnerRecordHandling_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
    * @return The enum numeric value on the wire for priceInnerRecordHandling.
    */
   @java.lang.Override public int getPriceInnerRecordHandlingValue() {
     return priceInnerRecordHandling_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
    * @return The priceInnerRecordHandling.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling getPriceInnerRecordHandling() {
@@ -612,17 +718,17 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling.UNRECOGNIZED : result;
   }
 
-  public static final int REFERENCES_FIELD_NUMBER = 11;
+  public static final int REFERENCES_FIELD_NUMBER = 13;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> references_;
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> getReferencesList() {
     return references_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
@@ -630,21 +736,21 @@ private static final long serialVersionUID = 0L;
     return references_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
   public int getReferencesCount() {
     return references_.size();
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcReference getReferences(int index) {
     return references_.get(index);
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder getReferencesOrBuilder(
@@ -652,7 +758,7 @@ private static final long serialVersionUID = 0L;
     return references_.get(index);
   }
 
-  public static final int GLOBALASSOCIATEDDATA_FIELD_NUMBER = 12;
+  public static final int GLOBALASSOCIATEDDATA_FIELD_NUMBER = 14;
   private static final class GlobalAssociatedDataDefaultEntryHolder {
     static final com.google.protobuf.MapEntry<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue> defaultEntry =
@@ -679,7 +785,7 @@ private static final long serialVersionUID = 0L;
     return internalGetGlobalAssociatedData().getMap().size();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
 
   @java.lang.Override
@@ -697,7 +803,7 @@ private static final long serialVersionUID = 0L;
     return getGlobalAssociatedDataMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
   @java.lang.Override
 
@@ -705,7 +811,7 @@ private static final long serialVersionUID = 0L;
     return internalGetGlobalAssociatedData().getMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
   @java.lang.Override
 
@@ -718,7 +824,7 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
   @java.lang.Override
 
@@ -733,7 +839,7 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
-  public static final int LOCALIZEDASSOCIATEDDATA_FIELD_NUMBER = 13;
+  public static final int LOCALIZEDASSOCIATEDDATA_FIELD_NUMBER = 15;
   private static final class LocalizedAssociatedDataDefaultEntryHolder {
     static final com.google.protobuf.MapEntry<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData> defaultEntry =
@@ -760,7 +866,7 @@ private static final long serialVersionUID = 0L;
     return internalGetLocalizedAssociatedData().getMap().size();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
 
   @java.lang.Override
@@ -778,7 +884,7 @@ private static final long serialVersionUID = 0L;
     return getLocalizedAssociatedDataMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
   @java.lang.Override
 
@@ -786,7 +892,7 @@ private static final long serialVersionUID = 0L;
     return internalGetLocalizedAssociatedData().getMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
   @java.lang.Override
 
@@ -799,7 +905,7 @@ private static final long serialVersionUID = 0L;
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
   @java.lang.Override
 
@@ -814,17 +920,17 @@ private static final long serialVersionUID = 0L;
     return map.get(key);
   }
 
-  public static final int LOCALES_FIELD_NUMBER = 14;
+  public static final int LOCALES_FIELD_NUMBER = 16;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> locales_;
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> getLocalesList() {
     return locales_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
@@ -832,21 +938,21 @@ private static final long serialVersionUID = 0L;
     return locales_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
   public int getLocalesCount() {
     return locales_.size();
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocale getLocales(int index) {
     return locales_.get(index);
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocalesOrBuilder(
@@ -883,44 +989,50 @@ private static final long serialVersionUID = 0L;
     if (parent_ != null) {
       output.writeMessage(5, getParent());
     }
+    for (int i = 0; i < parentReference_.size(); i++) {
+      output.writeMessage(6, parentReference_.get(i));
+    }
+    for (int i = 0; i < parentEntity_.size(); i++) {
+      output.writeMessage(7, parentEntity_.get(i));
+    }
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
         output,
         internalGetGlobalAttributes(),
         GlobalAttributesDefaultEntryHolder.defaultEntry,
-        6);
+        8);
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
         output,
         internalGetLocalizedAttributes(),
         LocalizedAttributesDefaultEntryHolder.defaultEntry,
-        7);
+        9);
     for (int i = 0; i < prices_.size(); i++) {
-      output.writeMessage(8, prices_.get(i));
+      output.writeMessage(10, prices_.get(i));
     }
     if (priceForSale_ != null) {
-      output.writeMessage(9, getPriceForSale());
+      output.writeMessage(11, getPriceForSale());
     }
     if (priceInnerRecordHandling_ != io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling.NONE.getNumber()) {
-      output.writeEnum(10, priceInnerRecordHandling_);
+      output.writeEnum(12, priceInnerRecordHandling_);
     }
     for (int i = 0; i < references_.size(); i++) {
-      output.writeMessage(11, references_.get(i));
+      output.writeMessage(13, references_.get(i));
     }
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
         output,
         internalGetGlobalAssociatedData(),
         GlobalAssociatedDataDefaultEntryHolder.defaultEntry,
-        12);
+        14);
     com.google.protobuf.GeneratedMessageV3
       .serializeStringMapTo(
         output,
         internalGetLocalizedAssociatedData(),
         LocalizedAssociatedDataDefaultEntryHolder.defaultEntry,
-        13);
+        15);
     for (int i = 0; i < locales_.size(); i++) {
-      output.writeMessage(14, locales_.get(i));
+      output.writeMessage(16, locales_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -950,6 +1062,14 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, getParent());
     }
+    for (int i = 0; i < parentReference_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(6, parentReference_.get(i));
+    }
+    for (int i = 0; i < parentEntity_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(7, parentEntity_.get(i));
+    }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> entry
          : internalGetGlobalAttributes().getMap().entrySet()) {
       com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>
@@ -958,7 +1078,7 @@ private static final long serialVersionUID = 0L;
           .setValue(entry.getValue())
           .build();
       size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(6, globalAttributes__);
+          .computeMessageSize(8, globalAttributes__);
     }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute> entry
          : internalGetLocalizedAttributes().getMap().entrySet()) {
@@ -968,23 +1088,23 @@ private static final long serialVersionUID = 0L;
           .setValue(entry.getValue())
           .build();
       size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(7, localizedAttributes__);
+          .computeMessageSize(9, localizedAttributes__);
     }
     for (int i = 0; i < prices_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(8, prices_.get(i));
+        .computeMessageSize(10, prices_.get(i));
     }
     if (priceForSale_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(9, getPriceForSale());
+        .computeMessageSize(11, getPriceForSale());
     }
     if (priceInnerRecordHandling_ != io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling.NONE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(10, priceInnerRecordHandling_);
+        .computeEnumSize(12, priceInnerRecordHandling_);
     }
     for (int i = 0; i < references_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(11, references_.get(i));
+        .computeMessageSize(13, references_.get(i));
     }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue> entry
          : internalGetGlobalAssociatedData().getMap().entrySet()) {
@@ -994,7 +1114,7 @@ private static final long serialVersionUID = 0L;
           .setValue(entry.getValue())
           .build();
       size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(12, globalAssociatedData__);
+          .computeMessageSize(14, globalAssociatedData__);
     }
     for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData> entry
          : internalGetLocalizedAssociatedData().getMap().entrySet()) {
@@ -1004,11 +1124,11 @@ private static final long serialVersionUID = 0L;
           .setValue(entry.getValue())
           .build();
       size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(13, localizedAssociatedData__);
+          .computeMessageSize(15, localizedAssociatedData__);
     }
     for (int i = 0; i < locales_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(14, locales_.get(i));
+        .computeMessageSize(16, locales_.get(i));
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -1038,6 +1158,10 @@ private static final long serialVersionUID = 0L;
       if (!getParent()
           .equals(other.getParent())) return false;
     }
+    if (!getParentReferenceList()
+        .equals(other.getParentReferenceList())) return false;
+    if (!getParentEntityList()
+        .equals(other.getParentEntityList())) return false;
     if (!internalGetGlobalAttributes().equals(
         other.internalGetGlobalAttributes())) return false;
     if (!internalGetLocalizedAttributes().equals(
@@ -1080,6 +1204,14 @@ private static final long serialVersionUID = 0L;
     if (hasParent()) {
       hash = (37 * hash) + PARENT_FIELD_NUMBER;
       hash = (53 * hash) + getParent().hashCode();
+    }
+    if (getParentReferenceCount() > 0) {
+      hash = (37 * hash) + PARENTREFERENCE_FIELD_NUMBER;
+      hash = (53 * hash) + getParentReferenceList().hashCode();
+    }
+    if (getParentEntityCount() > 0) {
+      hash = (37 * hash) + PARENTENTITY_FIELD_NUMBER;
+      hash = (53 * hash) + getParentEntityList().hashCode();
     }
     if (!internalGetGlobalAttributes().getMap().isEmpty()) {
       hash = (37 * hash) + GLOBALATTRIBUTES_FIELD_NUMBER;
@@ -1226,13 +1358,13 @@ private static final long serialVersionUID = 0L;
     protected com.google.protobuf.MapField internalGetMapField(
         int number) {
       switch (number) {
-        case 6:
+        case 8:
           return internalGetGlobalAttributes();
-        case 7:
+        case 9:
           return internalGetLocalizedAttributes();
-        case 12:
+        case 14:
           return internalGetGlobalAssociatedData();
-        case 13:
+        case 15:
           return internalGetLocalizedAssociatedData();
         default:
           throw new RuntimeException(
@@ -1243,13 +1375,13 @@ private static final long serialVersionUID = 0L;
     protected com.google.protobuf.MapField internalGetMutableMapField(
         int number) {
       switch (number) {
-        case 6:
+        case 8:
           return internalGetMutableGlobalAttributes();
-        case 7:
+        case 9:
           return internalGetMutableLocalizedAttributes();
-        case 12:
+        case 14:
           return internalGetMutableGlobalAssociatedData();
-        case 13:
+        case 15:
           return internalGetMutableLocalizedAssociatedData();
         default:
           throw new RuntimeException(
@@ -1277,6 +1409,8 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
+        getParentReferenceFieldBuilder();
+        getParentEntityFieldBuilder();
         getPricesFieldBuilder();
         getReferencesFieldBuilder();
         getLocalesFieldBuilder();
@@ -1299,11 +1433,23 @@ private static final long serialVersionUID = 0L;
         parent_ = null;
         parentBuilder_ = null;
       }
+      if (parentReferenceBuilder_ == null) {
+        parentReference_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
+      } else {
+        parentReferenceBuilder_.clear();
+      }
+      if (parentEntityBuilder_ == null) {
+        parentEntity_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000002);
+      } else {
+        parentEntityBuilder_.clear();
+      }
       internalGetMutableGlobalAttributes().clear();
       internalGetMutableLocalizedAttributes().clear();
       if (pricesBuilder_ == null) {
         prices_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000004);
+        bitField0_ = (bitField0_ & ~0x00000010);
       } else {
         pricesBuilder_.clear();
       }
@@ -1317,7 +1463,7 @@ private static final long serialVersionUID = 0L;
 
       if (referencesBuilder_ == null) {
         references_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000008);
+        bitField0_ = (bitField0_ & ~0x00000020);
       } else {
         referencesBuilder_.clear();
       }
@@ -1325,7 +1471,7 @@ private static final long serialVersionUID = 0L;
       internalGetMutableLocalizedAssociatedData().clear();
       if (localesBuilder_ == null) {
         locales_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000040);
+        bitField0_ = (bitField0_ & ~0x00000100);
       } else {
         localesBuilder_.clear();
       }
@@ -1365,14 +1511,32 @@ private static final long serialVersionUID = 0L;
       } else {
         result.parent_ = parentBuilder_.build();
       }
+      if (parentReferenceBuilder_ == null) {
+        if (((bitField0_ & 0x00000001) != 0)) {
+          parentReference_ = java.util.Collections.unmodifiableList(parentReference_);
+          bitField0_ = (bitField0_ & ~0x00000001);
+        }
+        result.parentReference_ = parentReference_;
+      } else {
+        result.parentReference_ = parentReferenceBuilder_.build();
+      }
+      if (parentEntityBuilder_ == null) {
+        if (((bitField0_ & 0x00000002) != 0)) {
+          parentEntity_ = java.util.Collections.unmodifiableList(parentEntity_);
+          bitField0_ = (bitField0_ & ~0x00000002);
+        }
+        result.parentEntity_ = parentEntity_;
+      } else {
+        result.parentEntity_ = parentEntityBuilder_.build();
+      }
       result.globalAttributes_ = internalGetGlobalAttributes();
       result.globalAttributes_.makeImmutable();
       result.localizedAttributes_ = internalGetLocalizedAttributes();
       result.localizedAttributes_.makeImmutable();
       if (pricesBuilder_ == null) {
-        if (((bitField0_ & 0x00000004) != 0)) {
+        if (((bitField0_ & 0x00000010) != 0)) {
           prices_ = java.util.Collections.unmodifiableList(prices_);
-          bitField0_ = (bitField0_ & ~0x00000004);
+          bitField0_ = (bitField0_ & ~0x00000010);
         }
         result.prices_ = prices_;
       } else {
@@ -1385,9 +1549,9 @@ private static final long serialVersionUID = 0L;
       }
       result.priceInnerRecordHandling_ = priceInnerRecordHandling_;
       if (referencesBuilder_ == null) {
-        if (((bitField0_ & 0x00000008) != 0)) {
+        if (((bitField0_ & 0x00000020) != 0)) {
           references_ = java.util.Collections.unmodifiableList(references_);
-          bitField0_ = (bitField0_ & ~0x00000008);
+          bitField0_ = (bitField0_ & ~0x00000020);
         }
         result.references_ = references_;
       } else {
@@ -1398,9 +1562,9 @@ private static final long serialVersionUID = 0L;
       result.localizedAssociatedData_ = internalGetLocalizedAssociatedData();
       result.localizedAssociatedData_.makeImmutable();
       if (localesBuilder_ == null) {
-        if (((bitField0_ & 0x00000040) != 0)) {
+        if (((bitField0_ & 0x00000100) != 0)) {
           locales_ = java.util.Collections.unmodifiableList(locales_);
-          bitField0_ = (bitField0_ & ~0x00000040);
+          bitField0_ = (bitField0_ & ~0x00000100);
         }
         result.locales_ = locales_;
       } else {
@@ -1470,6 +1634,58 @@ private static final long serialVersionUID = 0L;
       if (other.hasParent()) {
         mergeParent(other.getParent());
       }
+      if (parentReferenceBuilder_ == null) {
+        if (!other.parentReference_.isEmpty()) {
+          if (parentReference_.isEmpty()) {
+            parentReference_ = other.parentReference_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+          } else {
+            ensureParentReferenceIsMutable();
+            parentReference_.addAll(other.parentReference_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.parentReference_.isEmpty()) {
+          if (parentReferenceBuilder_.isEmpty()) {
+            parentReferenceBuilder_.dispose();
+            parentReferenceBuilder_ = null;
+            parentReference_ = other.parentReference_;
+            bitField0_ = (bitField0_ & ~0x00000001);
+            parentReferenceBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getParentReferenceFieldBuilder() : null;
+          } else {
+            parentReferenceBuilder_.addAllMessages(other.parentReference_);
+          }
+        }
+      }
+      if (parentEntityBuilder_ == null) {
+        if (!other.parentEntity_.isEmpty()) {
+          if (parentEntity_.isEmpty()) {
+            parentEntity_ = other.parentEntity_;
+            bitField0_ = (bitField0_ & ~0x00000002);
+          } else {
+            ensureParentEntityIsMutable();
+            parentEntity_.addAll(other.parentEntity_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.parentEntity_.isEmpty()) {
+          if (parentEntityBuilder_.isEmpty()) {
+            parentEntityBuilder_.dispose();
+            parentEntityBuilder_ = null;
+            parentEntity_ = other.parentEntity_;
+            bitField0_ = (bitField0_ & ~0x00000002);
+            parentEntityBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getParentEntityFieldBuilder() : null;
+          } else {
+            parentEntityBuilder_.addAllMessages(other.parentEntity_);
+          }
+        }
+      }
       internalGetMutableGlobalAttributes().mergeFrom(
           other.internalGetGlobalAttributes());
       internalGetMutableLocalizedAttributes().mergeFrom(
@@ -1478,7 +1694,7 @@ private static final long serialVersionUID = 0L;
         if (!other.prices_.isEmpty()) {
           if (prices_.isEmpty()) {
             prices_ = other.prices_;
-            bitField0_ = (bitField0_ & ~0x00000004);
+            bitField0_ = (bitField0_ & ~0x00000010);
           } else {
             ensurePricesIsMutable();
             prices_.addAll(other.prices_);
@@ -1491,7 +1707,7 @@ private static final long serialVersionUID = 0L;
             pricesBuilder_.dispose();
             pricesBuilder_ = null;
             prices_ = other.prices_;
-            bitField0_ = (bitField0_ & ~0x00000004);
+            bitField0_ = (bitField0_ & ~0x00000010);
             pricesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getPricesFieldBuilder() : null;
@@ -1510,7 +1726,7 @@ private static final long serialVersionUID = 0L;
         if (!other.references_.isEmpty()) {
           if (references_.isEmpty()) {
             references_ = other.references_;
-            bitField0_ = (bitField0_ & ~0x00000008);
+            bitField0_ = (bitField0_ & ~0x00000020);
           } else {
             ensureReferencesIsMutable();
             references_.addAll(other.references_);
@@ -1523,7 +1739,7 @@ private static final long serialVersionUID = 0L;
             referencesBuilder_.dispose();
             referencesBuilder_ = null;
             references_ = other.references_;
-            bitField0_ = (bitField0_ & ~0x00000008);
+            bitField0_ = (bitField0_ & ~0x00000020);
             referencesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getReferencesFieldBuilder() : null;
@@ -1540,7 +1756,7 @@ private static final long serialVersionUID = 0L;
         if (!other.locales_.isEmpty()) {
           if (locales_.isEmpty()) {
             locales_ = other.locales_;
-            bitField0_ = (bitField0_ & ~0x00000040);
+            bitField0_ = (bitField0_ & ~0x00000100);
           } else {
             ensureLocalesIsMutable();
             locales_.addAll(other.locales_);
@@ -1553,7 +1769,7 @@ private static final long serialVersionUID = 0L;
             localesBuilder_.dispose();
             localesBuilder_ = null;
             locales_ = other.locales_;
-            bitField0_ = (bitField0_ & ~0x00000040);
+            bitField0_ = (bitField0_ & ~0x00000100);
             localesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getLocalesFieldBuilder() : null;
@@ -1880,6 +2096,486 @@ private static final long serialVersionUID = 0L;
       return parentBuilder_;
     }
 
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> parentReference_ =
+      java.util.Collections.emptyList();
+    private void ensureParentReferenceIsMutable() {
+      if (!((bitField0_ & 0x00000001) != 0)) {
+        parentReference_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcEntityReference>(parentReference_);
+        bitField0_ |= 0x00000001;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> parentReferenceBuilder_;
+
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> getParentReferenceList() {
+      if (parentReferenceBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(parentReference_);
+      } else {
+        return parentReferenceBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public int getParentReferenceCount() {
+      if (parentReferenceBuilder_ == null) {
+        return parentReference_.size();
+      } else {
+        return parentReferenceBuilder_.getCount();
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityReference getParentReference(int index) {
+      if (parentReferenceBuilder_ == null) {
+        return parentReference_.get(index);
+      } else {
+        return parentReferenceBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public Builder setParentReference(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
+      if (parentReferenceBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureParentReferenceIsMutable();
+        parentReference_.set(index, value);
+        onChanged();
+      } else {
+        parentReferenceBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public Builder setParentReference(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder builderForValue) {
+      if (parentReferenceBuilder_ == null) {
+        ensureParentReferenceIsMutable();
+        parentReference_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        parentReferenceBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public Builder addParentReference(io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
+      if (parentReferenceBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureParentReferenceIsMutable();
+        parentReference_.add(value);
+        onChanged();
+      } else {
+        parentReferenceBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public Builder addParentReference(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference value) {
+      if (parentReferenceBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureParentReferenceIsMutable();
+        parentReference_.add(index, value);
+        onChanged();
+      } else {
+        parentReferenceBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public Builder addParentReference(
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder builderForValue) {
+      if (parentReferenceBuilder_ == null) {
+        ensureParentReferenceIsMutable();
+        parentReference_.add(builderForValue.build());
+        onChanged();
+      } else {
+        parentReferenceBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public Builder addParentReference(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder builderForValue) {
+      if (parentReferenceBuilder_ == null) {
+        ensureParentReferenceIsMutable();
+        parentReference_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        parentReferenceBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public Builder addAllParentReference(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReference> values) {
+      if (parentReferenceBuilder_ == null) {
+        ensureParentReferenceIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, parentReference_);
+        onChanged();
+      } else {
+        parentReferenceBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public Builder clearParentReference() {
+      if (parentReferenceBuilder_ == null) {
+        parentReference_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000001);
+        onChanged();
+      } else {
+        parentReferenceBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public Builder removeParentReference(int index) {
+      if (parentReferenceBuilder_ == null) {
+        ensureParentReferenceIsMutable();
+        parentReference_.remove(index);
+        onChanged();
+      } else {
+        parentReferenceBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getParentReferenceBuilder(
+        int index) {
+      return getParentReferenceFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getParentReferenceOrBuilder(
+        int index) {
+      if (parentReferenceBuilder_ == null) {
+        return parentReference_.get(index);  } else {
+        return parentReferenceBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+         getParentReferenceOrBuilderList() {
+      if (parentReferenceBuilder_ != null) {
+        return parentReferenceBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(parentReference_);
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder addParentReferenceBuilder() {
+      return getParentReferenceFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance());
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder addParentReferenceBuilder(
+        int index) {
+      return getParentReferenceFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.getDefaultInstance());
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder> 
+         getParentReferenceBuilderList() {
+      return getParentReferenceFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        getParentReferenceFieldBuilder() {
+      if (parentReferenceBuilder_ == null) {
+        parentReferenceBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>(
+                parentReference_,
+                ((bitField0_ & 0x00000001) != 0),
+                getParentForChildren(),
+                isClean());
+        parentReference_ = null;
+      }
+      return parentReferenceBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> parentEntity_ =
+      java.util.Collections.emptyList();
+    private void ensureParentEntityIsMutable() {
+      if (!((bitField0_ & 0x00000002) != 0)) {
+        parentEntity_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>(parentEntity_);
+        bitField0_ |= 0x00000002;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> parentEntityBuilder_;
+
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> getParentEntityList() {
+      if (parentEntityBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(parentEntity_);
+      } else {
+        return parentEntityBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public int getParentEntityCount() {
+      if (parentEntityBuilder_ == null) {
+        return parentEntity_.size();
+      } else {
+        return parentEntityBuilder_.getCount();
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getParentEntity(int index) {
+      if (parentEntityBuilder_ == null) {
+        return parentEntity_.get(index);
+      } else {
+        return parentEntityBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public Builder setParentEntity(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
+      if (parentEntityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureParentEntityIsMutable();
+        parentEntity_.set(index, value);
+        onChanged();
+      } else {
+        parentEntityBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public Builder setParentEntity(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
+      if (parentEntityBuilder_ == null) {
+        ensureParentEntityIsMutable();
+        parentEntity_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        parentEntityBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public Builder addParentEntity(io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
+      if (parentEntityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureParentEntityIsMutable();
+        parentEntity_.add(value);
+        onChanged();
+      } else {
+        parentEntityBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public Builder addParentEntity(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity value) {
+      if (parentEntityBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureParentEntityIsMutable();
+        parentEntity_.add(index, value);
+        onChanged();
+      } else {
+        parentEntityBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public Builder addParentEntity(
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
+      if (parentEntityBuilder_ == null) {
+        ensureParentEntityIsMutable();
+        parentEntity_.add(builderForValue.build());
+        onChanged();
+      } else {
+        parentEntityBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public Builder addParentEntity(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder builderForValue) {
+      if (parentEntityBuilder_ == null) {
+        ensureParentEntityIsMutable();
+        parentEntity_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        parentEntityBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public Builder addAllParentEntity(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> values) {
+      if (parentEntityBuilder_ == null) {
+        ensureParentEntityIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, parentEntity_);
+        onChanged();
+      } else {
+        parentEntityBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public Builder clearParentEntity() {
+      if (parentEntityBuilder_ == null) {
+        parentEntity_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00000002);
+        onChanged();
+      } else {
+        parentEntityBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public Builder removeParentEntity(int index) {
+      if (parentEntityBuilder_ == null) {
+        ensureParentEntityIsMutable();
+        parentEntity_.remove(index);
+        onChanged();
+      } else {
+        parentEntityBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getParentEntityBuilder(
+        int index) {
+      return getParentEntityFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getParentEntityOrBuilder(
+        int index) {
+      if (parentEntityBuilder_ == null) {
+        return parentEntity_.get(index);  } else {
+        return parentEntityBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+         getParentEntityOrBuilderList() {
+      if (parentEntityBuilder_ != null) {
+        return parentEntityBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(parentEntity_);
+      }
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder addParentEntityBuilder() {
+      return getParentEntityFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance());
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder addParentEntityBuilder(
+        int index) {
+      return getParentEntityFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.getDefaultInstance());
+    }
+    /**
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder> 
+         getParentEntityBuilderList() {
+      return getParentEntityFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        getParentEntityFieldBuilder() {
+      if (parentEntityBuilder_ == null) {
+        parentEntityBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>(
+                parentEntity_,
+                ((bitField0_ & 0x00000002) != 0),
+                getParentForChildren(),
+                isClean());
+        parentEntity_ = null;
+      }
+      return parentEntityBuilder_;
+    }
+
     private com.google.protobuf.MapField<
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue> globalAttributes_;
     private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>
@@ -1907,7 +2603,7 @@ private static final long serialVersionUID = 0L;
       return internalGetGlobalAttributes().getMap().size();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
 
     @java.lang.Override
@@ -1925,7 +2621,7 @@ private static final long serialVersionUID = 0L;
       return getGlobalAttributesMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
     @java.lang.Override
 
@@ -1933,7 +2629,7 @@ private static final long serialVersionUID = 0L;
       return internalGetGlobalAttributes().getMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
     @java.lang.Override
 
@@ -1946,7 +2642,7 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
     @java.lang.Override
 
@@ -1967,7 +2663,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
 
     public Builder removeGlobalAttributes(
@@ -1986,7 +2682,7 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableGlobalAttributes().getMutableMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
     public Builder putGlobalAttributes(
         java.lang.String key,
@@ -2001,7 +2697,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
      */
 
     public Builder putAllGlobalAttributes(
@@ -2038,7 +2734,7 @@ private static final long serialVersionUID = 0L;
       return internalGetLocalizedAttributes().getMap().size();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
 
     @java.lang.Override
@@ -2056,7 +2752,7 @@ private static final long serialVersionUID = 0L;
       return getLocalizedAttributesMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
     @java.lang.Override
 
@@ -2064,7 +2760,7 @@ private static final long serialVersionUID = 0L;
       return internalGetLocalizedAttributes().getMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
     @java.lang.Override
 
@@ -2077,7 +2773,7 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
     @java.lang.Override
 
@@ -2098,7 +2794,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
 
     public Builder removeLocalizedAttributes(
@@ -2117,7 +2813,7 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableLocalizedAttributes().getMutableMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
     public Builder putLocalizedAttributes(
         java.lang.String key,
@@ -2132,7 +2828,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
      */
 
     public Builder putAllLocalizedAttributes(
@@ -2145,9 +2841,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> prices_ =
       java.util.Collections.emptyList();
     private void ensurePricesIsMutable() {
-      if (!((bitField0_ & 0x00000004) != 0)) {
+      if (!((bitField0_ & 0x00000010) != 0)) {
         prices_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcPrice>(prices_);
-        bitField0_ |= 0x00000004;
+        bitField0_ |= 0x00000010;
        }
     }
 
@@ -2155,7 +2851,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> pricesBuilder_;
 
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> getPricesList() {
       if (pricesBuilder_ == null) {
@@ -2165,7 +2861,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public int getPricesCount() {
       if (pricesBuilder_ == null) {
@@ -2175,7 +2871,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice getPrices(int index) {
       if (pricesBuilder_ == null) {
@@ -2185,7 +2881,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder setPrices(
         int index, io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
@@ -2202,7 +2898,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder setPrices(
         int index, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder builderForValue) {
@@ -2216,7 +2912,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addPrices(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
       if (pricesBuilder_ == null) {
@@ -2232,7 +2928,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addPrices(
         int index, io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
@@ -2249,7 +2945,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addPrices(
         io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder builderForValue) {
@@ -2263,7 +2959,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addPrices(
         int index, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder builderForValue) {
@@ -2277,7 +2973,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder addAllPrices(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcPrice> values) {
@@ -2292,12 +2988,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder clearPrices() {
       if (pricesBuilder_ == null) {
         prices_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000004);
+        bitField0_ = (bitField0_ & ~0x00000010);
         onChanged();
       } else {
         pricesBuilder_.clear();
@@ -2305,7 +3001,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public Builder removePrices(int index) {
       if (pricesBuilder_ == null) {
@@ -2318,14 +3014,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder getPricesBuilder(
         int index) {
       return getPricesFieldBuilder().getBuilder(index);
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPricesOrBuilder(
         int index) {
@@ -2335,7 +3031,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
          getPricesOrBuilderList() {
@@ -2346,14 +3042,14 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder addPricesBuilder() {
       return getPricesFieldBuilder().addBuilder(
           io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder addPricesBuilder(
         int index) {
@@ -2361,7 +3057,7 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder> 
          getPricesBuilderList() {
@@ -2374,7 +3070,7 @@ private static final long serialVersionUID = 0L;
         pricesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>(
                 prices_,
-                ((bitField0_ & 0x00000004) != 0),
+                ((bitField0_ & 0x00000010) != 0),
                 getParentForChildren(),
                 isClean());
         prices_ = null;
@@ -2386,14 +3082,14 @@ private static final long serialVersionUID = 0L;
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> priceForSaleBuilder_;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      * @return Whether the priceForSale field is set.
      */
     public boolean hasPriceForSale() {
       return priceForSaleBuilder_ != null || priceForSale_ != null;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      * @return The priceForSale.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice getPriceForSale() {
@@ -2404,7 +3100,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public Builder setPriceForSale(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
       if (priceForSaleBuilder_ == null) {
@@ -2420,7 +3116,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public Builder setPriceForSale(
         io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder builderForValue) {
@@ -2434,7 +3130,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public Builder mergePriceForSale(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
       if (priceForSaleBuilder_ == null) {
@@ -2452,7 +3148,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public Builder clearPriceForSale() {
       if (priceForSaleBuilder_ == null) {
@@ -2466,7 +3162,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder getPriceForSaleBuilder() {
       
@@ -2474,7 +3170,7 @@ private static final long serialVersionUID = 0L;
       return getPriceForSaleFieldBuilder().getBuilder();
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPriceForSaleOrBuilder() {
       if (priceForSaleBuilder_ != null) {
@@ -2485,7 +3181,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
@@ -2503,14 +3199,14 @@ private static final long serialVersionUID = 0L;
 
     private int priceInnerRecordHandling_ = 0;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @return The enum numeric value on the wire for priceInnerRecordHandling.
      */
     @java.lang.Override public int getPriceInnerRecordHandlingValue() {
       return priceInnerRecordHandling_;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @param value The enum numeric value on the wire for priceInnerRecordHandling to set.
      * @return This builder for chaining.
      */
@@ -2521,7 +3217,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @return The priceInnerRecordHandling.
      */
     @java.lang.Override
@@ -2531,7 +3227,7 @@ private static final long serialVersionUID = 0L;
       return result == null ? io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling.UNRECOGNIZED : result;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @param value The priceInnerRecordHandling to set.
      * @return This builder for chaining.
      */
@@ -2545,7 +3241,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
      * @return This builder for chaining.
      */
     public Builder clearPriceInnerRecordHandling() {
@@ -2558,9 +3254,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> references_ =
       java.util.Collections.emptyList();
     private void ensureReferencesIsMutable() {
-      if (!((bitField0_ & 0x00000008) != 0)) {
+      if (!((bitField0_ & 0x00000020) != 0)) {
         references_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcReference>(references_);
-        bitField0_ |= 0x00000008;
+        bitField0_ |= 0x00000020;
        }
     }
 
@@ -2568,7 +3264,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcReference, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> referencesBuilder_;
 
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> getReferencesList() {
       if (referencesBuilder_ == null) {
@@ -2578,7 +3274,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public int getReferencesCount() {
       if (referencesBuilder_ == null) {
@@ -2588,7 +3284,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReference getReferences(int index) {
       if (referencesBuilder_ == null) {
@@ -2598,7 +3294,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder setReferences(
         int index, io.evitadb.externalApi.grpc.generated.GrpcReference value) {
@@ -2615,7 +3311,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder setReferences(
         int index, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder builderForValue) {
@@ -2629,7 +3325,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addReferences(io.evitadb.externalApi.grpc.generated.GrpcReference value) {
       if (referencesBuilder_ == null) {
@@ -2645,7 +3341,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addReferences(
         int index, io.evitadb.externalApi.grpc.generated.GrpcReference value) {
@@ -2662,7 +3358,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addReferences(
         io.evitadb.externalApi.grpc.generated.GrpcReference.Builder builderForValue) {
@@ -2676,7 +3372,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addReferences(
         int index, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder builderForValue) {
@@ -2690,7 +3386,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder addAllReferences(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcReference> values) {
@@ -2705,12 +3401,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder clearReferences() {
       if (referencesBuilder_ == null) {
         references_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000008);
+        bitField0_ = (bitField0_ & ~0x00000020);
         onChanged();
       } else {
         referencesBuilder_.clear();
@@ -2718,7 +3414,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public Builder removeReferences(int index) {
       if (referencesBuilder_ == null) {
@@ -2731,14 +3427,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReference.Builder getReferencesBuilder(
         int index) {
       return getReferencesFieldBuilder().getBuilder(index);
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder getReferencesOrBuilder(
         int index) {
@@ -2748,7 +3444,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
          getReferencesOrBuilderList() {
@@ -2759,14 +3455,14 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReference.Builder addReferencesBuilder() {
       return getReferencesFieldBuilder().addBuilder(
           io.evitadb.externalApi.grpc.generated.GrpcReference.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcReference.Builder addReferencesBuilder(
         int index) {
@@ -2774,7 +3470,7 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcReference.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference.Builder> 
          getReferencesBuilderList() {
@@ -2787,7 +3483,7 @@ private static final long serialVersionUID = 0L;
         referencesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcReference, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>(
                 references_,
-                ((bitField0_ & 0x00000008) != 0),
+                ((bitField0_ & 0x00000020) != 0),
                 getParentForChildren(),
                 isClean());
         references_ = null;
@@ -2822,7 +3518,7 @@ private static final long serialVersionUID = 0L;
       return internalGetGlobalAssociatedData().getMap().size();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
 
     @java.lang.Override
@@ -2840,7 +3536,7 @@ private static final long serialVersionUID = 0L;
       return getGlobalAssociatedDataMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
     @java.lang.Override
 
@@ -2848,7 +3544,7 @@ private static final long serialVersionUID = 0L;
       return internalGetGlobalAssociatedData().getMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
     @java.lang.Override
 
@@ -2861,7 +3557,7 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
     @java.lang.Override
 
@@ -2882,7 +3578,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
 
     public Builder removeGlobalAssociatedData(
@@ -2901,7 +3597,7 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableGlobalAssociatedData().getMutableMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
     public Builder putGlobalAssociatedData(
         java.lang.String key,
@@ -2916,7 +3612,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
      */
 
     public Builder putAllGlobalAssociatedData(
@@ -2953,7 +3649,7 @@ private static final long serialVersionUID = 0L;
       return internalGetLocalizedAssociatedData().getMap().size();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
 
     @java.lang.Override
@@ -2971,7 +3667,7 @@ private static final long serialVersionUID = 0L;
       return getLocalizedAssociatedDataMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
     @java.lang.Override
 
@@ -2979,7 +3675,7 @@ private static final long serialVersionUID = 0L;
       return internalGetLocalizedAssociatedData().getMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
     @java.lang.Override
 
@@ -2992,7 +3688,7 @@ private static final long serialVersionUID = 0L;
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
     @java.lang.Override
 
@@ -3013,7 +3709,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
 
     public Builder removeLocalizedAssociatedData(
@@ -3032,7 +3728,7 @@ private static final long serialVersionUID = 0L;
       return internalGetMutableLocalizedAssociatedData().getMutableMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
     public Builder putLocalizedAssociatedData(
         java.lang.String key,
@@ -3047,7 +3743,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
      */
 
     public Builder putAllLocalizedAssociatedData(
@@ -3060,9 +3756,9 @@ private static final long serialVersionUID = 0L;
     private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> locales_ =
       java.util.Collections.emptyList();
     private void ensureLocalesIsMutable() {
-      if (!((bitField0_ & 0x00000040) != 0)) {
+      if (!((bitField0_ & 0x00000100) != 0)) {
         locales_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLocale>(locales_);
-        bitField0_ |= 0x00000040;
+        bitField0_ |= 0x00000100;
        }
     }
 
@@ -3070,7 +3766,7 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> localesBuilder_;
 
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> getLocalesList() {
       if (localesBuilder_ == null) {
@@ -3080,7 +3776,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public int getLocalesCount() {
       if (localesBuilder_ == null) {
@@ -3090,7 +3786,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale getLocales(int index) {
       if (localesBuilder_ == null) {
@@ -3100,7 +3796,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder setLocales(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -3117,7 +3813,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder setLocales(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder builderForValue) {
@@ -3131,7 +3827,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addLocales(io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
       if (localesBuilder_ == null) {
@@ -3147,7 +3843,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addLocales(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLocale value) {
@@ -3164,7 +3860,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addLocales(
         io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder builderForValue) {
@@ -3178,7 +3874,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addLocales(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder builderForValue) {
@@ -3192,7 +3888,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder addAllLocales(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcLocale> values) {
@@ -3207,12 +3903,12 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder clearLocales() {
       if (localesBuilder_ == null) {
         locales_ = java.util.Collections.emptyList();
-        bitField0_ = (bitField0_ & ~0x00000040);
+        bitField0_ = (bitField0_ & ~0x00000100);
         onChanged();
       } else {
         localesBuilder_.clear();
@@ -3220,7 +3916,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public Builder removeLocales(int index) {
       if (localesBuilder_ == null) {
@@ -3233,14 +3929,14 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder getLocalesBuilder(
         int index) {
       return getLocalesFieldBuilder().getBuilder(index);
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocalesOrBuilder(
         int index) {
@@ -3250,7 +3946,7 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
          getLocalesOrBuilderList() {
@@ -3261,14 +3957,14 @@ private static final long serialVersionUID = 0L;
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder addLocalesBuilder() {
       return getLocalesFieldBuilder().addBuilder(
           io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder addLocalesBuilder(
         int index) {
@@ -3276,7 +3972,7 @@ private static final long serialVersionUID = 0L;
           index, io.evitadb.externalApi.grpc.generated.GrpcLocale.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder> 
          getLocalesBuilderList() {
@@ -3289,7 +3985,7 @@ private static final long serialVersionUID = 0L;
         localesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>(
                 locales_,
-                ((bitField0_ & 0x00000040) != 0),
+                ((bitField0_ & 0x00000100) != 0),
                 getParentForChildren(),
                 isClean());
         locales_ = null;

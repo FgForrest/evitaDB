@@ -76,11 +76,59 @@ public interface GrpcSealedEntityOrBuilder extends
   com.google.protobuf.Int32ValueOrBuilder getParentOrBuilder();
 
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityReference> 
+      getParentReferenceList();
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityReference getParentReference(int index);
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  int getParentReferenceCount();
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+      getParentReferenceOrBuilderList();
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityReference parentReference = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder getParentReferenceOrBuilder(
+      int index);
+
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> 
+      getParentEntityList();
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntity getParentEntity(int index);
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  int getParentEntityCount();
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+      getParentEntityOrBuilderList();
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity parentEntity = 7;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getParentEntityOrBuilder(
+      int index);
+
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
   int getGlobalAttributesCount();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
   boolean containsGlobalAttributes(
       java.lang.String key);
@@ -91,30 +139,30 @@ public interface GrpcSealedEntityOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>
   getGlobalAttributes();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue>
   getGlobalAttributesMap();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getGlobalAttributesOrDefault(
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue);
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaValue&gt; globalAttributes = 8;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getGlobalAttributesOrThrow(
       java.lang.String key);
 
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
   int getLocalizedAttributesCount();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
   boolean containsLocalizedAttributes(
       java.lang.String key);
@@ -125,104 +173,104 @@ public interface GrpcSealedEntityOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute>
   getLocalizedAttributes();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute>
   getLocalizedAttributesMap();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute getLocalizedAttributesOrDefault(
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute defaultValue);
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 7;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute&gt; localizedAttributes = 9;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcLocalizedAttribute getLocalizedAttributesOrThrow(
       java.lang.String key);
 
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> 
       getPricesList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcPrice getPrices(int index);
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   int getPricesCount();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
       getPricesOrBuilderList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 8;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 10;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPricesOrBuilder(
       int index);
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
    * @return Whether the priceForSale field is set.
    */
   boolean hasPriceForSale();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
    * @return The priceForSale.
    */
   io.evitadb.externalApi.grpc.generated.GrpcPrice getPriceForSale();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSale = 11;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPriceForSaleOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
    * @return The enum numeric value on the wire for priceInnerRecordHandling.
    */
   int getPriceInnerRecordHandlingValue();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling priceInnerRecordHandling = 12;</code>
    * @return The priceInnerRecordHandling.
    */
   io.evitadb.externalApi.grpc.generated.GrpcPriceInnerRecordHandling getPriceInnerRecordHandling();
 
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> 
       getReferencesList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcReference getReferences(int index);
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   int getReferencesCount();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
       getReferencesOrBuilderList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 11;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 13;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder getReferencesOrBuilder(
       int index);
 
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
   int getGlobalAssociatedDataCount();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
   boolean containsGlobalAssociatedData(
       java.lang.String key);
@@ -233,30 +281,30 @@ public interface GrpcSealedEntityOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue>
   getGlobalAssociatedData();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue>
   getGlobalAssociatedDataMap();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue getGlobalAssociatedDataOrDefault(
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue defaultValue);
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 12;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue&gt; globalAssociatedData = 14;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcEvitaAssociatedDataValue getGlobalAssociatedDataOrThrow(
       java.lang.String key);
 
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
   int getLocalizedAssociatedDataCount();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
   boolean containsLocalizedAssociatedData(
       java.lang.String key);
@@ -267,44 +315,44 @@ public interface GrpcSealedEntityOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData>
   getLocalizedAssociatedData();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData>
   getLocalizedAssociatedDataMap();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData getLocalizedAssociatedDataOrDefault(
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData defaultValue);
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 13;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData&gt; localizedAssociatedData = 15;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcLocalizedAssociatedData getLocalizedAssociatedDataOrThrow(
       java.lang.String key);
 
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
       getLocalesList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocale getLocales(int index);
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   int getLocalesCount();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
       getLocalesOrBuilderList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 14;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 16;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder getLocalesOrBuilder(
       int index);

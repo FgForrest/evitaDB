@@ -59,6 +59,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
@@ -75,7 +76,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
@@ -88,7 +88,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
@@ -96,7 +95,6 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.QueryUtils.findConstraints;
 import static io.evitadb.api.query.QueryUtils.findRequires;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.extension.DataCarrier.tuple;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
@@ -125,16 +123,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
-public class EntityByFacetFilteringFunctionalTest {
+public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	private static final String THOUSAND_PRODUCTS_WITH_FACETS = "ThousandsProductsWithFacets";
 	private static final String ATTRIBUTE_TRANSIENT = "transient";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
-
-	public static Stream<Arguments> returnRandomSeed() {
-		final Random random = new Random();
-		return LongStream.generate(random::nextLong).limit(50).mapToObj(Arguments::of);
-	}
 
 	/**
 	 * Computes facet summary by streamed fashion.

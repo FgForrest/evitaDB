@@ -368,16 +368,18 @@ public class EntityDecorator implements SealedEntity {
 	 * @param delegate     fully or partially loaded entity - it's usually wider than decorator (may be even complete),
 	 *                     delegate might be obtained from shared global cache
 	 * @param entitySchema schema of the delegate entity
+	 * @param parent       body of the {@link Entity#getParent()} entity
 	 * @param evitaRequest request that was used for retrieving the `delegate` entity
 	 */
 	public EntityDecorator(
 		@Nonnull Entity delegate,
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable EntityClassifier parent,
 		@Nonnull EvitaRequest evitaRequest
 	) {
 		this.delegate = delegate;
 		this.entitySchema = entitySchema;
-		this.parentEntity = delegate.getParentEntity().orElse(null);
+		this.parentEntity = parent;
 		this.localePredicate = new LocaleSerializablePredicate(evitaRequest);
 		this.attributePredicate = new AttributeValueSerializablePredicate(evitaRequest);
 		this.associatedDataPredicate = new AssociatedDataValueSerializablePredicate(evitaRequest);

@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -51,6 +52,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -81,8 +83,29 @@ public class EntityConverter {
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull GrpcSealedEntity grpcEntity
-		) {
+	) {
+		return toSealedEntity(entitySchemaFetcher, evitaRequest, null, grpcEntity);
+	}
+
+	/**
+	 * Method converts {@link GrpcSealedEntity} to the {@link SealedEntity} that can be used on the client side.
+	 */
+	@Nonnull
+	public static SealedEntity toSealedEntity(
+		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nullable SealedEntity parent,
+		@Nonnull GrpcSealedEntity grpcEntity
+	) {
 		final SealedEntitySchema entitySchema = entitySchemaFetcher.apply(grpcEntity);
+		final EntityClassifier parentEntity;
+		if (grpcEntity.getParentEntityCount() > 0) {
+			parentEntity = toSealedEntityWithParent(entitySchemaFetcher, evitaRequest, grpcEntity.getParentEntityList());
+		} else if (grpcEntity.getParentReferenceCount() > 0) {
+			parentEntity = toEntityReferenceWithParent(grpcEntity.getParentReferenceList());
+		} else {
+			parentEntity = parent;
+		}
 		return new EntityDecorator(
 			Entity._internalBuild(
 				grpcEntity.getPrimaryKey(),
@@ -118,6 +141,7 @@ public class EntityConverter {
 					.collect(Collectors.toSet())
 			),
 			entitySchema,
+			parentEntity,
 			evitaRequest
 		);
 	}
@@ -158,7 +182,7 @@ public class EntityConverter {
 				toSealedEntity(entitySchemaFetcher, evitaRequest, grpcReference.getReferencedEntity()) :
 				null,
 			grpcReference.hasGroupReferencedEntity() ?
-				toSealedEntity(entitySchemaFetcher, evitaRequest,grpcReference.getGroupReferencedEntity()) :
+				toSealedEntity(entitySchemaFetcher, evitaRequest, grpcReference.getGroupReferencedEntity()) :
 				null,
 			new ReferenceAttributeValueSerializablePredicate(evitaRequest)
 		);
@@ -180,6 +204,17 @@ public class EntityConverter {
 			.setPrimaryKey(entity.getPrimaryKey())
 			.setSchemaVersion(entity.getSchema().getVersion())
 			.setVersion(entity.getVersion());
+
+		entity.getParentEntity().ifPresent(parent -> {
+			if (parent instanceof EntityReferenceWithParent entityReference) {
+				buildParentReferenceList(entityBuilder, entityReference);
+			} else if (parent instanceof SealedEntity sealedEntity) {
+				buildParentEntity(entityBuilder, sealedEntity);
+			} else {
+				throw new IllegalStateException("Unexpected parent type: " + parent.getClass());
+			}
+		});
+
 		final int entityLocaleCount = entity.getAttributeLocales().size();
 		if (!entity.getAttributeValues().isEmpty()) {
 			final AttributesHolder attributes = buildAttributes(
@@ -391,6 +426,38 @@ public class EntityConverter {
 	}
 
 	/**
+	 * Converts {@link GrpcEntityReference} to the {@link EntityReference} that should be used
+	 * in the Java client.
+	 */
+	@Nonnull
+	public static EntityReferenceWithParent toEntityReferenceWithParent(@Nonnull List<GrpcEntityReference> entityReferences) {
+		EntityReferenceWithParent current = null;
+		for (GrpcEntityReference entityReference : entityReferences) {
+			current = new EntityReferenceWithParent(
+				entityReference.getEntityType(), entityReference.getPrimaryKey(), current
+			);
+		}
+		return current;
+	}
+
+	/**
+	 * Converts {@link GrpcEntityReference} to the {@link EntityReference} that should be used
+	 * in the Java client.
+	 */
+	@Nonnull
+	public static SealedEntity toSealedEntityWithParent(
+		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull List<GrpcSealedEntity> sealedEntities
+	) {
+		SealedEntity current = null;
+		for (GrpcSealedEntity sealedEntity : sealedEntities) {
+			current = toSealedEntity(entitySchemaFetcher, evitaRequest, current, sealedEntity);
+		}
+		return current;
+	}
+
+	/**
 	 * Converts list of {@link GrpcSealedEntity} to the list of {@link SealedEntity} that should be used in the Java
 	 * client.
 	 */
@@ -410,6 +477,52 @@ public class EntityConverter {
 				)
 			)
 			.toList();
+	}
+
+	@Nonnull
+	public static SealedEntity parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
+		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
+		return null;
+	}
+
+	/**
+	 * Builds a parent reference list in gRPC entity from {@link EntityReferenceWithParent} instance.
+	 */
+	private static void buildParentReferenceList(
+		@Nonnull GrpcSealedEntity.Builder entityBuilder,
+		@Nonnull EntityReferenceWithParent entityReference
+	) {
+		if (entityReference.parent() != null) {
+			buildParentReferenceList(
+				entityBuilder,
+				(EntityReferenceWithParent) entityReference.parent()
+			);
+		}
+		entityBuilder.addParentReference(
+			GrpcEntityReference.newBuilder()
+				.setEntityType(entityReference.getType())
+				.setPrimaryKey(entityReference.getPrimaryKey())
+				.build()
+		);
+	}
+
+	/**
+	 * Builds a parent reference list in gRPC entity from {@link EntityReferenceWithParent} instance.
+	 */
+	private static void buildParentEntity(
+		@Nonnull GrpcSealedEntity.Builder entityBuilder,
+		@Nonnull SealedEntity sealedEntity
+	) {
+		sealedEntity.getParentEntity()
+			.ifPresent(
+				parent -> buildParentEntity(
+					entityBuilder,
+					(SealedEntity) parent
+				)
+			);
+		entityBuilder.addParentEntity(
+			toGrpcSealedEntity(sealedEntity)
+		);
 	}
 
 	/**
@@ -577,17 +690,12 @@ public class EntityConverter {
 		);
 	}
 
-	@Nonnull
-	public static SealedEntity parseBinaryEntity(@Nonnull GrpcBinaryEntity binaryEntity) {
-		/* TOBEDONE JNO https://github.com/FgForrest/evitaDB/issues/13 */
-		return null;
-	}
-
 	/**
 	 * Holder for maps of {@link GrpcEvitaValue} and {@link GrpcLocalizedAttribute}.
 	 */
 	private record AttributesHolder(
 		@Nonnull Map<String, GrpcLocalizedAttribute> localizedAttributesMap,
 		@Nonnull Map<String, GrpcEvitaValue> globalAttributesMap
-	) { }
+	) {
+	}
 }
