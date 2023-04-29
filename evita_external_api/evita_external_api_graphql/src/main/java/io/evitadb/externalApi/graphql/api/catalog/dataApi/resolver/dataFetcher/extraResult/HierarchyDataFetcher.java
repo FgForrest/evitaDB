@@ -71,12 +71,12 @@ public class HierarchyDataFetcher implements DataFetcher<DataFetcherResult<Map<S
 			return DataFetcherResult.<Map<String, Map<String, List<LevelInfo>>>>newResult().build();
 		}
 
-		final Map<String, Map<String, List<LevelInfo>>> hierarchyDto = createHashMap(hierarchy.getStatistics().size() + 1);
+		final Map<String, Map<String, List<LevelInfo>>> hierarchyDto = createHashMap(hierarchy.getReferenceHierarchies().size() + 1);
 		hierarchyDto.put(
 			HierarchyDescriptor.SELF.name(),
-			hierarchy.getSelfStatistics()
+			hierarchy.getSelfHierarchy()
 		);
-		hierarchy.getStatistics().forEach((key, value) -> hierarchyDto.put(
+		hierarchy.getReferenceHierarchies().forEach((key, value) -> hierarchyDto.put(
 			referenceNameToFieldName.get(key),
 			value
 		));

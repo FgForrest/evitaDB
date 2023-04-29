@@ -2651,7 +2651,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -2726,7 +2726,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -2802,7 +2802,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -2876,7 +2876,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -2956,7 +2956,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3034,7 +3034,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> rootSiblings = hierarchy.getSelfStatistics("rootSiblings");
+				final List<LevelInfo> rootSiblings = hierarchy.getSelfHierarchy("rootSiblings");
 				final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
 				assertFalse(flattenedRootSiblings.isEmpty());
 				return flattenedRootSiblings;
@@ -3115,11 +3115,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				return response.getExtraResult(Hierarchy.class);
 			});
 
-		final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+		final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 		assertFalse(flattenedMegaMenu.isEmpty());
 
-		final List<LevelInfo> rootSiblings = hierarchy.getSelfStatistics("rootSiblings");
+		final List<LevelInfo> rootSiblings = hierarchy.getSelfHierarchy("rootSiblings");
 		final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
 		assertFalse(flattenedRootSiblings.isEmpty());
 
@@ -3234,7 +3234,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3313,7 +3313,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3393,7 +3393,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3471,7 +3471,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3555,7 +3555,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3634,7 +3634,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> rootSiblings = hierarchy.getStatistics(Entities.CATEGORY, "rootSiblings");
+				final List<LevelInfo> rootSiblings = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "rootSiblings");
 				final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
 				assertFalse(flattenedRootSiblings.isEmpty());
 				return flattenedRootSiblings;
@@ -3721,11 +3721,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				return response.getExtraResult(Hierarchy.class);
 			});
 
-		final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+		final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 		assertFalse(flattenedMegaMenu.isEmpty());
 
-		final List<LevelInfo> rootSiblings = hierarchy.getStatistics(Entities.CATEGORY, "rootSiblings");
+		final List<LevelInfo> rootSiblings = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "rootSiblings");
 		final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
 		assertFalse(flattenedRootSiblings.isEmpty());
 

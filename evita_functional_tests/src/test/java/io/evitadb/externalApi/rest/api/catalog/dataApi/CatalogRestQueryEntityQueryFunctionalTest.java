@@ -1244,7 +1244,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		assertFalse(response.getRecordData().isEmpty());
 
 		final var expectedBody = response.getExtraResult(Hierarchy.class)
-			.getStatistics(Entities.CATEGORY)
+			.getReferenceHierarchy(Entities.CATEGORY)
 			.entrySet()
 			.stream()
 			// TODO LHO - this needs to be corrected probably
@@ -1315,7 +1315,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		assertFalse(response.getRecordData().isEmpty());
 
 		final var expectedBody = response.getExtraResult(Hierarchy.class)
-			.getStatistics(Entities.CATEGORY)
+			.getReferenceHierarchy(Entities.CATEGORY)
 			.entrySet()
 			.stream()
 			// TODO LHO - this needs to be corrected probably

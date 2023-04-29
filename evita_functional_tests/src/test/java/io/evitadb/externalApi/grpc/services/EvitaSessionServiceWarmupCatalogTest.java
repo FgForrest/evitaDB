@@ -37,7 +37,7 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
-import io.evitadb.externalApi.grpc.query.QueryConverter;
+import io.evitadb.externalApi.grpc.query.GrpcConverter;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.system.SystemProvider;
@@ -156,7 +156,7 @@ class EvitaSessionServiceWarmupCatalogTest {
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
 							.stream()
-							.map(QueryConverter::convertQueryParam)
+							.map(GrpcConverter::convertQueryParam)
 							.toList()
 					)
 					.setEntityMutation(GrpcEntityMutation.newBuilder()

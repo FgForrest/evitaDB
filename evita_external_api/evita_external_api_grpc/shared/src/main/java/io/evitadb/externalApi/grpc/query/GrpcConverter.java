@@ -65,7 +65,7 @@ import java.util.function.Function;
  * @author Tomáš Pozler, 2022
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public final class QueryConverter {
+public final class GrpcConverter {
 
 	/**
 	 * This method is used to convert a list of positional parameters of type {@link QueryParam} to a list

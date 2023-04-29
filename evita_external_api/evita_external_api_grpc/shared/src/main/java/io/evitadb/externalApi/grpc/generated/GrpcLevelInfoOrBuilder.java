@@ -61,32 +61,56 @@ public interface GrpcLevelInfoOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder getEntityOrBuilder();
 
   /**
-   * <code>int32 cardinality = 3;</code>
-   * @return The cardinality.
+   * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+   * @return Whether the queriedEntityCount field is set.
    */
-  int getCardinality();
+  boolean hasQueriedEntityCount();
+  /**
+   * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+   * @return The queriedEntityCount.
+   */
+  com.google.protobuf.Int32Value getQueriedEntityCount();
+  /**
+   * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getQueriedEntityCountOrBuilder();
 
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+   * @return Whether the childrenCount field is set.
+   */
+  boolean hasChildrenCount();
+  /**
+   * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+   * @return The childrenCount.
+   */
+  com.google.protobuf.Int32Value getChildrenCount();
+  /**
+   * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getChildrenCountOrBuilder();
+
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> 
-      getChildrenStatisticsList();
+      getItemsList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getChildrenStatistics(int index);
+  io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getItems(int index);
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
-  int getChildrenStatisticsCount();
+  int getItemsCount();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
-      getChildrenStatisticsOrBuilderList();
+      getItemsOrBuilderList();
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getChildrenStatisticsOrBuilder(
+  io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getItemsOrBuilder(
       int index);
 }

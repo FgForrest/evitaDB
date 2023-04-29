@@ -40,6 +40,10 @@ message GrpcFacetStatistics {
   google.protobuf.Int32Value impact = 5;
 }
 
+message GrpcHierarchy {
+  map<string, GrpcLevelInfos> hierarchy = 1;
+}
+
 message GrpcLevelInfos {
   repeated GrpcLevelInfo levelInfos = 1;
 }
@@ -47,8 +51,9 @@ message GrpcLevelInfos {
 message GrpcLevelInfo {
   GrpcEntityReference entityReference = 1;
   GrpcSealedEntity entity = 2;
-  int32 cardinality = 3;
-  repeated GrpcLevelInfo childrenStatistics = 4;
+  google.protobuf.Int32Value queriedEntityCount = 3;
+  google.protobuf.Int32Value childrenCount = 4;
+  repeated GrpcLevelInfo items = 5;
 }
 
 message GrpcQueryTelemetry {
@@ -64,7 +69,7 @@ message GrpcExtraResults {
   map<string, GrpcHistogram> attributeHistogram = 2;
   GrpcHistogram priceHistogram = 3;
   repeated GrpcFacetGroupStatistics facetGroupStatistics = 4;
-  GrpcLevelInfos selfHierarchy = 5;
-  map<string, GrpcLevelInfos> hierarchy = 6;
+  GrpcHierarchy selfHierarchy = 5;
+  map<string, GrpcHierarchy> hierarchy = 6;
   GrpcQueryTelemetry queryTelemetry = 7;
 }

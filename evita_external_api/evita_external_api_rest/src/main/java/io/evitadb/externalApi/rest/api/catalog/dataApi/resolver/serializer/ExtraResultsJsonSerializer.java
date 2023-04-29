@@ -167,12 +167,12 @@ public class ExtraResultsJsonSerializer {
 	private JsonNode serializeHierarchyStatistics(@Nonnull Hierarchy statistics) {
 		final ObjectNode statisticsNode = objectJsonSerializer.objectNode();
 
-		final Map<String, List<LevelInfo>> selfStatistics = statistics.getSelfStatistics();
+		final Map<String, List<LevelInfo>> selfStatistics = statistics.getSelfHierarchy();
 		if (!selfStatistics.isEmpty()) {
 			statisticsNode.putIfAbsent(HierarchyDescriptor.SELF.name(), serializeLevelInfos(selfStatistics));
 		}
 
-		statistics.getStatistics().forEach((key, value) ->
+		statistics.getReferenceHierarchies().forEach((key, value) ->
 			statisticsNode.putIfAbsent(referenceNameToFieldName.get(key), serializeLevelInfos(value))
 		);
 

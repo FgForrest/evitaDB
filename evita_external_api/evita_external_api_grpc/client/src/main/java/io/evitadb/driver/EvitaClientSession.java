@@ -73,7 +73,7 @@ import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub;
-import io.evitadb.externalApi.grpc.query.QueryConverter;
+import io.evitadb.externalApi.grpc.query.GrpcConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.EntityMutationConverter;
@@ -332,7 +332,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
 							.stream()
-							.map(QueryConverter::convertQueryParam)
+							.map(GrpcConverter::convertQueryParam)
 							.toList()
 					)
 					.build()
@@ -381,7 +381,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
 							.stream()
-							.map(QueryConverter::convertQueryParam)
+							.map(GrpcConverter::convertQueryParam)
 							.toList()
 					)
 					.build()
@@ -428,19 +428,19 @@ public class EvitaClientSession implements EvitaSessionContract {
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
 							.stream()
-							.map(QueryConverter::convertQueryParam)
+							.map(GrpcConverter::convertQueryParam)
 							.toList()
 					)
 					.build()
 			)
 		);
 		if (EntityReferenceContract.class.isAssignableFrom(expectedType)) {
-			final DataChunk<EntityReference> recordPage = QueryConverter.convertToDataChunk(
+			final DataChunk<EntityReference> recordPage = GrpcConverter.convertToDataChunk(
 				grpcResponse,
 				grpcRecordPage -> EntityConverter.toEntityReferences(grpcRecordPage.getEntityReferencesList())
 			);
 			final EvitaResponseExtraResult[] extraResults = grpcResponse.hasExtraResults() ?
-				QueryConverter.toExtraResults(grpcResponse.getExtraResults()) : new EvitaResponseExtraResult[0];
+				GrpcConverter.toExtraResults(grpcResponse.getExtraResults()) : new EvitaResponseExtraResult[0];
 			//noinspection unchecked
 			return (T) new EvitaEntityReferenceResponse(
 				query, recordPage, extraResults
@@ -449,7 +449,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			final DataChunk<SealedEntity> recordPage;
 			if (grpcResponse.getRecordPage().getBinaryEntitiesList().isEmpty()) {
 				// convert to Sealed entities
-				recordPage = QueryConverter.convertToDataChunk(
+				recordPage = GrpcConverter.convertToDataChunk(
 					grpcResponse,
 					grpcRecordPage -> EntityConverter.toSealedEntities(
 						grpcRecordPage.getSealedEntitiesList(), query,
@@ -460,7 +460,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				);
 			} else {
 				// parse the entities
-				recordPage = QueryConverter.convertToDataChunk(
+				recordPage = GrpcConverter.convertToDataChunk(
 					grpcResponse,
 					grpcRecordPage -> grpcRecordPage.getBinaryEntitiesList()
 						.stream()
@@ -470,7 +470,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			}
 
 			final EvitaResponseExtraResult[] extraResults = grpcResponse.hasExtraResults() ?
-				QueryConverter.toExtraResults(grpcResponse.getExtraResults()) : new EvitaResponseExtraResult[0];
+				GrpcConverter.toExtraResults(grpcResponse.getExtraResults()) : new EvitaResponseExtraResult[0];
 
 			//noinspection unchecked
 			return (T) new EvitaEntityResponse(
@@ -515,7 +515,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
 							.stream()
-							.map(QueryConverter::convertQueryParam)
+							.map(GrpcConverter::convertQueryParam)
 							.toList()
 					)
 					.build()
@@ -816,7 +816,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.build()
@@ -873,7 +873,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.build()
@@ -933,7 +933,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.build()
@@ -974,7 +974,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.build()
@@ -1002,7 +1002,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.build()

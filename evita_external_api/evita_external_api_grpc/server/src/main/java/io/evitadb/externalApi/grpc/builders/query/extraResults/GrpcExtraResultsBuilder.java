@@ -46,6 +46,7 @@ import java.util.Map;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class GrpcExtraResultsBuilder {
+
 	/**
 	 * This method builds all partial additional results from {@link EvitaResponse#getExtraResult(Class)}
 	 * and after each result is built, it is added to the {@link GrpcExtraResults}. When all results are built, the final

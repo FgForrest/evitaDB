@@ -58,8 +58,7 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
-import io.evitadb.externalApi.grpc.query.QueryConverter;
-import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
+import io.evitadb.externalApi.grpc.query.GrpcConverter;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
@@ -94,7 +93,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.externalApi.grpc.query.QueryConverter.convertQueryParam;
+import static io.evitadb.externalApi.grpc.query.GrpcConverter.convertQueryParam;
 import static io.evitadb.externalApi.grpc.testUtils.GrpcAssertions.*;
 import static io.evitadb.externalApi.grpc.testUtils.TestDataProvider.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
@@ -1366,9 +1365,11 @@ class EvitaSessionServiceFunctionalTest {
 		final Hierarchy hierarchyOfSelf = referenceResponse.getExtraResult(Hierarchy.class);
 
 		if (hierarchyOfSelf != null) {
-			GrpcAssertions.assertStatistics(
-				hierarchyOfSelf.getSelfStatistics(),
-				response.get().getExtraResults().getSelfHierarchy()
+			final GrpcExtraResults extraResults = response.get().getExtraResults();
+			assertHierarchy(
+				hierarchyOfSelf,
+				extraResults.getSelfHierarchy(),
+				extraResults.getHierarchyMap()
 			);
 		}
 
@@ -1421,9 +1422,11 @@ class EvitaSessionServiceFunctionalTest {
 
 		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
 
-		assertStatistics(
-			Objects.requireNonNull(entityResponse.getExtraResult(Hierarchy.class)).getSelfStatistics(),
-			response.get().getExtraResults().getSelfHierarchy()
+		final GrpcExtraResults extraResults = response.get().getExtraResults();
+		assertHierarchy(
+			entityResponse.getExtraResult(Hierarchy.class),
+			extraResults.getSelfHierarchy(),
+			extraResults.getHierarchyMap()
 		);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
@@ -1722,7 +1725,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -1869,7 +1872,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -1975,7 +1978,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -2135,7 +2138,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -2235,7 +2238,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(
@@ -2347,7 +2350,7 @@ class EvitaSessionServiceFunctionalTest {
 						.addAllPositionalQueryParams(
 							stringWithParameters.parameters()
 								.stream()
-								.map(QueryConverter::convertQueryParam)
+								.map(GrpcConverter::convertQueryParam)
 								.toList()
 						)
 						.setEntityMutation(

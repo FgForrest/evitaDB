@@ -24,22 +24,42 @@
 package io.evitadb.externalApi.grpc.builders.query;
 
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
+import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcExtraResultsBuilder;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
+import io.evitadb.externalApi.grpc.generated.GrpcLevelInfos;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static org.wildfly.common.Assert.assertFalse;
-import static org.wildfly.common.Assert.assertTrue;
+import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcFacetSummaryBuilderTest.createFacetEntity;
+import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcFacetSummaryBuilderTest.createGroupEntity;
+import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcHierarchyBuilderTest.createHierarchyEntity;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies functionalities of methods in {@link GrpcExtraResultsBuilder} class.
@@ -47,6 +67,9 @@ import static org.wildfly.common.Assert.assertTrue;
  * @author Tomáš Pozler, 2022
  */
 class GrpcExtraResultsBuilderTest {
+	private final static ReferenceSchemaContract REFENCE_SCHEMA = ReferenceSchema._internalBuild(
+		"test1", "test1", true, Cardinality.ONE_OR_MORE, "testGroup1", false, true, true
+	);
 
 	@Test
 	void buildExtraResults() {
@@ -57,7 +80,14 @@ class GrpcExtraResultsBuilderTest {
 				entityFetch(
 					dataInLocales(Locale.US)
 				),
-				attributeHistogram(20, type)
+				attributeHistogram(20, type),
+				hierarchyOfSelf(
+					fromRoot(
+						"megaMenu",
+						entityFetchAll(),
+						statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+					)
+				)
 			)
 		);
 		final Histogram histogram = new Histogram(
@@ -73,14 +103,61 @@ class GrpcExtraResultsBuilderTest {
 		final EvitaEntityResponse response = new EvitaEntityResponse(
 			query,
 			new PaginatedList<>(0, 0, 0),
-			integerHierarchyParents,
-			new AttributeHistogram(Map.of(type, histogram))
+			new QueryTelemetry(
+				QueryPhase.OVERALL
+			).finish(),
+			new PriceHistogram(histogram),
+			new AttributeHistogram(Map.of(type, histogram)),
+			new Hierarchy(
+				Map.of(
+					"megaMenu",
+					Arrays.asList(
+						new LevelInfo(
+							createHierarchyEntity("test1", 1, "e"), 14, 0, Collections.emptyList()
+						),
+						new LevelInfo(
+							createHierarchyEntity("test1", 2, "f"), 9, 0, Collections.emptyList()
+						)
+					)
+				),
+				Collections.emptyMap()
+			),
+			new FacetSummary(
+				Collections.singletonList(
+					new FacetGroupStatistics(
+						REFENCE_SCHEMA, createGroupEntity("testGroup1"), 10,
+						Arrays.asList(
+							new FacetStatistics(
+								createFacetEntity("test1", 1, "a"), false, 45, null
+							),
+							new FacetStatistics(
+								createFacetEntity("test1", 2, "b"), false, 32, null
+							)
+						)
+					)
+				)
+			)
 		);
+
 		final GrpcExtraResults extraResults = GrpcExtraResultsBuilder.buildExtraResults(response);
 
-		assertFalse(extraResults.hasPriceHistogram());
-		assertTrue(extraResults.getAttributeHistogramCount() > 0);
-		assertTrue(extraResults.getHierarchyMap().isEmpty());
-		assertTrue(extraResults.getFacetGroupStatisticsList().isEmpty());
+		assertNotNull(extraResults.getQueryTelemetry());
+
+		assertTrue(extraResults.hasPriceHistogram());
+		assertEquals(28, extraResults.getPriceHistogram().getOverallCount());
+
+		assertEquals(1, extraResults.getAttributeHistogramCount());
+		assertEquals(28, extraResults.getAttributeHistograms(0).getOverallCount());
+
+		assertFalse(extraResults.getSelfHierarchy().getHierarchyMap().isEmpty());
+
+		final GrpcLevelInfos megaMenu = extraResults.getSelfHierarchy().getHierarchyMap().get("megaMenu");
+		assertNotNull(megaMenu);
+		assertEquals(2, megaMenu.getLevelInfosCount());
+
+		assertEquals(1, extraResults.getFacetGroupStatisticsCount());
+		assertFalse(extraResults.getFacetGroupStatisticsList().isEmpty());
+		assertNotNull(extraResults.getFacetGroupStatistics(0).getGroupEntity());
+		assertEquals(2, extraResults.getFacetGroupStatistics(0).getFacetStatisticsCount());
 	}
 }

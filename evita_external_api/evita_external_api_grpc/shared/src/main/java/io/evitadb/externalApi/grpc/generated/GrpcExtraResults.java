@@ -119,11 +119,11 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 42: {
-            io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.Builder subBuilder = null;
+            io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder subBuilder = null;
             if (selfHierarchy_ != null) {
               subBuilder = selfHierarchy_.toBuilder();
             }
-            selfHierarchy_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.parser(), extensionRegistry);
+            selfHierarchy_ = input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcHierarchy.parser(), extensionRegistry);
             if (subBuilder != null) {
               subBuilder.mergeFrom(selfHierarchy_);
               selfHierarchy_ = subBuilder.buildPartial();
@@ -137,7 +137,7 @@ private static final long serialVersionUID = 0L;
                   HierarchyDefaultEntryHolder.defaultEntry);
               mutable_bitField0_ |= 0x00000008;
             }
-            com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
+            com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>
             hierarchy__ = input.readMessage(
                 HierarchyDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
             hierarchy_.getMutableMap().put(
@@ -397,9 +397,9 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int SELFHIERARCHY_FIELD_NUMBER = 5;
-  private io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy_;
+  private io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy_;
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
    * @return Whether the selfHierarchy field is set.
    */
   @java.lang.Override
@@ -407,36 +407,36 @@ private static final long serialVersionUID = 0L;
     return selfHierarchy_ != null;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
    * @return The selfHierarchy.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getSelfHierarchy() {
-    return selfHierarchy_ == null ? io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.getDefaultInstance() : selfHierarchy_;
+  public io.evitadb.externalApi.grpc.generated.GrpcHierarchy getSelfHierarchy() {
+    return selfHierarchy_ == null ? io.evitadb.externalApi.grpc.generated.GrpcHierarchy.getDefaultInstance() : selfHierarchy_;
   }
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcLevelInfosOrBuilder getSelfHierarchyOrBuilder() {
+  public io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder getSelfHierarchyOrBuilder() {
     return getSelfHierarchy();
   }
 
   public static final int HIERARCHY_FIELD_NUMBER = 6;
   private static final class HierarchyDefaultEntryHolder {
     static final com.google.protobuf.MapEntry<
-        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> defaultEntry =
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> defaultEntry =
             com.google.protobuf.MapEntry
-            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>newDefaultInstance(
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>newDefaultInstance(
                 io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_HierarchyEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
-                io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.getDefaultInstance());
+                io.evitadb.externalApi.grpc.generated.GrpcHierarchy.getDefaultInstance());
   }
   private com.google.protobuf.MapField<
-      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> hierarchy_;
-  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> hierarchy_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>
   internalGetHierarchy() {
     if (hierarchy_ == null) {
       return com.google.protobuf.MapField.emptyMapField(
@@ -449,7 +449,7 @@ private static final long serialVersionUID = 0L;
     return internalGetHierarchy().getMap().size();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
    */
 
   @java.lang.Override
@@ -463,39 +463,39 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   @java.lang.Deprecated
-  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> getHierarchy() {
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> getHierarchy() {
     return getHierarchyMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
    */
   @java.lang.Override
 
-  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> getHierarchyMap() {
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> getHierarchyMap() {
     return internalGetHierarchy().getMap();
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
    */
   @java.lang.Override
 
-  public io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyOrDefault(
+  public io.evitadb.externalApi.grpc.generated.GrpcHierarchy getHierarchyOrDefault(
       java.lang.String key,
-      io.evitadb.externalApi.grpc.generated.GrpcLevelInfos defaultValue) {
+      io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
     if (key == null) { throw new NullPointerException("map key"); }
-    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> map =
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> map =
         internalGetHierarchy().getMap();
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
    */
   @java.lang.Override
 
-  public io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyOrThrow(
+  public io.evitadb.externalApi.grpc.generated.GrpcHierarchy getHierarchyOrThrow(
       java.lang.String key) {
     if (key == null) { throw new NullPointerException("map key"); }
-    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> map =
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> map =
         internalGetHierarchy().getMap();
     if (!map.containsKey(key)) {
       throw new java.lang.IllegalArgumentException();
@@ -605,9 +605,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, getSelfHierarchy());
     }
-    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> entry
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> entry
          : internalGetHierarchy().getMap().entrySet()) {
-      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>
       hierarchy__ = HierarchyDefaultEntryHolder.defaultEntry.newBuilderForType()
           .setKey(entry.getKey())
           .setValue(entry.getValue())
@@ -1826,31 +1826,31 @@ private static final long serialVersionUID = 0L;
       return facetGroupStatisticsBuilder_;
     }
 
-    private io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy_;
+    private io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy_;
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLevelInfos, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfosOrBuilder> selfHierarchyBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcHierarchy, io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder> selfHierarchyBuilder_;
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
      * @return Whether the selfHierarchy field is set.
      */
     public boolean hasSelfHierarchy() {
       return selfHierarchyBuilder_ != null || selfHierarchy_ != null;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
      * @return The selfHierarchy.
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getSelfHierarchy() {
+    public io.evitadb.externalApi.grpc.generated.GrpcHierarchy getSelfHierarchy() {
       if (selfHierarchyBuilder_ == null) {
-        return selfHierarchy_ == null ? io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.getDefaultInstance() : selfHierarchy_;
+        return selfHierarchy_ == null ? io.evitadb.externalApi.grpc.generated.GrpcHierarchy.getDefaultInstance() : selfHierarchy_;
       } else {
         return selfHierarchyBuilder_.getMessage();
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
      */
-    public Builder setSelfHierarchy(io.evitadb.externalApi.grpc.generated.GrpcLevelInfos value) {
+    public Builder setSelfHierarchy(io.evitadb.externalApi.grpc.generated.GrpcHierarchy value) {
       if (selfHierarchyBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1864,10 +1864,10 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
      */
     public Builder setSelfHierarchy(
-        io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.Builder builderForValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder builderForValue) {
       if (selfHierarchyBuilder_ == null) {
         selfHierarchy_ = builderForValue.build();
         onChanged();
@@ -1878,13 +1878,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
      */
-    public Builder mergeSelfHierarchy(io.evitadb.externalApi.grpc.generated.GrpcLevelInfos value) {
+    public Builder mergeSelfHierarchy(io.evitadb.externalApi.grpc.generated.GrpcHierarchy value) {
       if (selfHierarchyBuilder_ == null) {
         if (selfHierarchy_ != null) {
           selfHierarchy_ =
-            io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.newBuilder(selfHierarchy_).mergeFrom(value).buildPartial();
+            io.evitadb.externalApi.grpc.generated.GrpcHierarchy.newBuilder(selfHierarchy_).mergeFrom(value).buildPartial();
         } else {
           selfHierarchy_ = value;
         }
@@ -1896,7 +1896,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
      */
     public Builder clearSelfHierarchy() {
       if (selfHierarchyBuilder_ == null) {
@@ -1910,33 +1910,33 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.Builder getSelfHierarchyBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder getSelfHierarchyBuilder() {
       
       onChanged();
       return getSelfHierarchyFieldBuilder().getBuilder();
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfosOrBuilder getSelfHierarchyOrBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder getSelfHierarchyOrBuilder() {
       if (selfHierarchyBuilder_ != null) {
         return selfHierarchyBuilder_.getMessageOrBuilder();
       } else {
         return selfHierarchy_ == null ?
-            io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.getDefaultInstance() : selfHierarchy_;
+            io.evitadb.externalApi.grpc.generated.GrpcHierarchy.getDefaultInstance() : selfHierarchy_;
       }
     }
     /**
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLevelInfos selfHierarchy = 5;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLevelInfos, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfosOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcHierarchy, io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder> 
         getSelfHierarchyFieldBuilder() {
       if (selfHierarchyBuilder_ == null) {
         selfHierarchyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.GrpcLevelInfos, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfosOrBuilder>(
+            io.evitadb.externalApi.grpc.generated.GrpcHierarchy, io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder>(
                 getSelfHierarchy(),
                 getParentForChildren(),
                 isClean());
@@ -1946,8 +1946,8 @@ private static final long serialVersionUID = 0L;
     }
 
     private com.google.protobuf.MapField<
-        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> hierarchy_;
-    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> hierarchy_;
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>
     internalGetHierarchy() {
       if (hierarchy_ == null) {
         return com.google.protobuf.MapField.emptyMapField(
@@ -1955,7 +1955,7 @@ private static final long serialVersionUID = 0L;
       }
       return hierarchy_;
     }
-    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>
     internalGetMutableHierarchy() {
       onChanged();;
       if (hierarchy_ == null) {
@@ -1972,7 +1972,7 @@ private static final long serialVersionUID = 0L;
       return internalGetHierarchy().getMap().size();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
      */
 
     @java.lang.Override
@@ -1986,39 +1986,39 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     @java.lang.Deprecated
-    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> getHierarchy() {
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> getHierarchy() {
       return getHierarchyMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
      */
     @java.lang.Override
 
-    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> getHierarchyMap() {
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> getHierarchyMap() {
       return internalGetHierarchy().getMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
      */
     @java.lang.Override
 
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyOrDefault(
+    public io.evitadb.externalApi.grpc.generated.GrpcHierarchy getHierarchyOrDefault(
         java.lang.String key,
-        io.evitadb.externalApi.grpc.generated.GrpcLevelInfos defaultValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
       if (key == null) { throw new NullPointerException("map key"); }
-      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> map =
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> map =
           internalGetHierarchy().getMap();
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
      */
     @java.lang.Override
 
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfos getHierarchyOrThrow(
+    public io.evitadb.externalApi.grpc.generated.GrpcHierarchy getHierarchyOrThrow(
         java.lang.String key) {
       if (key == null) { throw new NullPointerException("map key"); }
-      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> map =
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> map =
           internalGetHierarchy().getMap();
       if (!map.containsKey(key)) {
         throw new java.lang.IllegalArgumentException();
@@ -2032,7 +2032,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
      */
 
     public Builder removeHierarchy(
@@ -2046,16 +2046,16 @@ private static final long serialVersionUID = 0L;
      * Use alternate mutation accessors instead.
      */
     @java.lang.Deprecated
-    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos>
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>
     getMutableHierarchy() {
       return internalGetMutableHierarchy().getMutableMap();
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
      */
     public Builder putHierarchy(
         java.lang.String key,
-        io.evitadb.externalApi.grpc.generated.GrpcLevelInfos value) {
+        io.evitadb.externalApi.grpc.generated.GrpcHierarchy value) {
       if (key == null) { throw new NullPointerException("map key"); }
       if (value == null) {
   throw new NullPointerException("map value");
@@ -2066,11 +2066,11 @@ private static final long serialVersionUID = 0L;
       return this;
     }
     /**
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcLevelInfos&gt; hierarchy = 6;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHierarchy&gt; hierarchy = 6;</code>
      */
 
     public Builder putAllHierarchy(
-        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcLevelInfos> values) {
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> values) {
       internalGetMutableHierarchy().getMutableMap()
           .putAll(values);
       return this;

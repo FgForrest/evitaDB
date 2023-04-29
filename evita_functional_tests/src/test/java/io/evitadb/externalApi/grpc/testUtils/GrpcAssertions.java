@@ -59,7 +59,6 @@ import io.evitadb.externalApi.grpc.generated.*;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -280,53 +279,59 @@ public class GrpcAssertions {
 		}
 	}
 
-	public static void assertStatistics(@Nonnull Hierarchy hierarchy, @Nonnull Map<String, GrpcLevelInfos> hierarchyStatisticsMap, @Nonnull String entityType) {
-		/* TODO LHO alter assertion
-		final Map<String, List<LevelInfo>> expectedLevelInfos = hierarchyStatistics.getStatistics(entityType);
-		final GrpcLevelInfos actualLevelInfos = hierarchyStatisticsMap.get(entityType);
-
-		assertStatistics(expectedLevelInfos, actualLevelInfos);
-		 */
+	public static void assertHierarchy(
+		@Nonnull Hierarchy hierarchy,
+		@Nonnull GrpcHierarchy selfHierarchy,
+		@Nonnull Map<String, GrpcHierarchy> referenceHierarchies
+	) {
+		assertHierarchy(hierarchy.getSelfHierarchy(), selfHierarchy.getHierarchyMap());
+		assertEquals(hierarchy.getReferenceHierarchies().size(), referenceHierarchies.size());
+		for (Entry<String, Map<String, List<LevelInfo>>> entry : hierarchy.getReferenceHierarchies().entrySet()) {
+			assertHierarchy(
+				entry.getValue(),
+				referenceHierarchies.get(entry.getKey()).getHierarchyMap()
+			);
+		}
 	}
 
-	public static void assertStatistics(Map<String, List<LevelInfo>> expectedLevelInfos, GrpcLevelInfos actualLevelInfos) {
-		assertNotNull(expectedLevelInfos);
-		assertNotNull(actualLevelInfos);
+	public static void assertHierarchy(
+		@Nonnull Map<String, List<LevelInfo>> expectedHierarchy,
+		@Nonnull Map<String, GrpcLevelInfos> actualHierarchy
+	) {
+		assertNotNull(expectedHierarchy);
+		assertNotNull(actualHierarchy);
+		assertEquals(expectedHierarchy.size(), actualHierarchy.size());
 
-		/*
-		TODO LHO alter assertion
-		for (int i = 0; i < expectedLevelInfos.size(); i++) {
-			final LevelInfo expectedLevelInfo = expectedLevelInfos.get(i);
-			final GrpcLevelInfo actualLevelInfo = actualLevelInfos.getLevelInfosList().get(i);
+		for (Entry<String, List<LevelInfo>> entry : expectedHierarchy.entrySet()) {
+			final GrpcLevelInfos grpcLevelInfos = actualHierarchy.get(entry.getKey());
+			assertNotNull(grpcLevelInfos);
+			final List<LevelInfo> expectedLevelInfos = entry.getValue();
 
-			if (expectedLevelInfo.entity() instanceof EntityReference) {
-				assertEquals(expectedLevelInfo.entity().getPrimaryKey(), actualLevelInfo.getEntityReference().getPrimaryKey());
-			} else if (expectedLevelInfo.entity() instanceof SealedEntity sealedEntity) {
-				assertEquals(sealedEntity.getPrimaryKey(), actualLevelInfo.getEntity().getPrimaryKey());
-			} else {
-				fail("Unsupported entity type");
-			}
-			assertEquals(expectedLevelInfo.cardinality(), actualLevelInfo.getCardinality());
-			assertEquals(expectedLevelInfo.childrenStatistics().size(), actualLevelInfo.getChildrenStatisticsCount());
-			for (int j = 0; j < expectedLevelInfo.childrenStatistics().size(); j++) {
-				final LevelInfo expectedChild = expectedLevelInfo.childrenStatistics().get(j);
-				final GrpcLevelInfo actualChild = actualLevelInfo.getChildrenStatisticsList().get(j);
-				assertInnerStatistics(expectedChild, actualChild);
+			assertEquals(expectedLevelInfos.size(), grpcLevelInfos.getLevelInfosList().size());
+			for (int i = 0; i < expectedLevelInfos.size(); i++) {
+				final LevelInfo expectedLevelInfo = expectedLevelInfos.get(i);
+				assertInnerStatistics(expectedLevelInfo, grpcLevelInfos.getLevelInfos(i));
 			}
 		}
-		 */
 	}
 
-	public static <T extends Serializable> void assertInnerStatistics(@Nonnull LevelInfo expectedChild, GrpcLevelInfo actualChild) {
-		assertEquals(expectedChild.queriedEntityCount(), actualChild.getCardinality());
-		assertEquals(expectedChild.children().size(), actualChild.getChildrenStatisticsCount());
-		if (expectedChild.children().isEmpty()) {
-			return;
+	public static void assertInnerStatistics(@Nonnull LevelInfo expectedChild, GrpcLevelInfo actualChild) {
+		assertEquals(expectedChild.queriedEntityCount(), actualChild.getQueriedEntityCount().getValue());
+		assertEquals(expectedChild.childrenCount(), actualChild.getChildrenCount().getValue());
+		assertEquals(expectedChild.children().size(), actualChild.getItemsCount());
+
+		final EntityClassifier expectedEntity = expectedChild.entity();
+		if (expectedEntity instanceof EntityReference entityReference) {
+			final GrpcEntityReference actualEntityReference = actualChild.getEntityReference();
+			assertEntityReference(entityReference, actualEntityReference);
+		} else if (expectedEntity instanceof SealedEntity sealedEntity) {
+			final GrpcSealedEntity actualEntity = actualChild.getEntity();
+			assertEntity(sealedEntity, actualEntity);
 		}
 
 		for (int i = 0; i < expectedChild.children().size(); i++) {
 			final LevelInfo expectedGrandChild = expectedChild.children().get(i);
-			final GrpcLevelInfo actualChildrenStatisticsList = actualChild.getChildrenStatistics(i);
+			final GrpcLevelInfo actualChildrenStatisticsList = actualChild.getItems(i);
 			assertInnerStatistics(expectedGrandChild, actualChildrenStatisticsList);
 		}
 	}
@@ -406,6 +411,11 @@ public class GrpcAssertions {
 
 			}
 		}
+	}
+
+	public static void assertEntityReference(@Nonnull EntityReference entityReference, @Nonnull GrpcEntityReference grpcEntityReference) {
+		assertEquals(entityReference.getPrimaryKey(), grpcEntityReference.getPrimaryKey());
+		assertEquals(entityReference.getType(), grpcEntityReference.getEntityType());
 	}
 
 	public static void assertEntity(@Nonnull SealedEntity sealedEntity, @Nonnull GrpcSealedEntity enrichedEntity) {

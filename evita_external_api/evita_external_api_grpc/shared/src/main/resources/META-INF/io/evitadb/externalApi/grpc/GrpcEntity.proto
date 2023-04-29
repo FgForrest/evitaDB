@@ -16,6 +16,13 @@ message GrpcEntityReference {
   int32 version = 3;
 }
 
+message GrpcEntityReferenceWithParent {
+  string entityType = 1;
+  int32 primaryKey = 2;
+  GrpcEntityReferenceWithParent parentReference = 3;
+  GrpcSealedEntity parentEntity = 4;
+}
+
 message GrpcSealedEntity {
   string entityType = 1;
   int32 primaryKey = 2;

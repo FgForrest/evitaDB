@@ -51,7 +51,7 @@ import java.util.Objects;
  *
  * @author Tomáš Pozler, 2022
  */
-class GrpcFacetSummaryBuilderTest {
+public class GrpcFacetSummaryBuilderTest {
 
 	@Test
 	void buildFacetSummary() {
@@ -82,7 +82,7 @@ class GrpcFacetSummaryBuilderTest {
 				),
 				new FacetGroupStatistics(
 					types[1],
-					createGroupEntity(),
+					createGroupEntity("testGroup2"),
 					15,
 					List.of(
 						new FacetStatistics(createFacetEntity(types[1].getReferencedEntityType(), 1, "phone1"), true, 5, new RequestImpact(55, 7)),
@@ -112,11 +112,11 @@ class GrpcFacetSummaryBuilderTest {
 	}
 
 	@Nonnull
-	private SealedEntity createGroupEntity() {
+	public static SealedEntity createGroupEntity(String groupEntityType) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
 				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), entityType -> null),
-				EntitySchema._internalBuild("testGroup2")
+				EntitySchema._internalBuild(groupEntityType)
 			)
 				.withAttribute("code", String.class)
 				.withAttribute("name", String.class)
@@ -129,7 +129,7 @@ class GrpcFacetSummaryBuilderTest {
 	}
 
 	@Nonnull
-	private SealedEntity createFacetEntity(@Nonnull String type, int pk, @Nonnull String code) {
+	public static SealedEntity createFacetEntity(@Nonnull String type, int pk, @Nonnull String code) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
 				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), entityType -> null),

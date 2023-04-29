@@ -368,9 +368,11 @@ public class FacetSummary implements EvitaResponseExtraResult {
 			@Nonnull Collection<FacetStatistics> facetStatistics
 		) {
 			if (groupEntity != null) {
+				final String schemaGroupType = ofNullable(referenceSchema.getReferencedGroupType())
+					.orElse(referenceSchema.getReferencedEntityType());
 				Assert.isPremiseValid(
-					groupEntity.getType().equals(ofNullable(referenceSchema.getReferencedGroupType()).orElse(referenceSchema.getReferencedEntityType())),
-					"Group entity is from different collection than the group or entity."
+					groupEntity.getType().equals(schemaGroupType),
+					() -> "Group entity is from different collection (`" + groupEntity.getType() + "`) than the group or entity (`" + schemaGroupType + "`)."
 				);
 			}
 			this.referenceName = referenceSchema.getName();

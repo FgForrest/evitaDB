@@ -115,7 +115,7 @@ public interface HierarchyDescriptor {
 	}
 
 	/**
-	 * Represents {@link Hierarchy#getSelfStatistics()}
+	 * Represents {@link Hierarchy#getSelfHierarchy()}
 	 *
 	 * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Fields in this
 	 * descriptor are supposed to be dynamically registered to target generated DTO.
@@ -132,7 +132,7 @@ public interface HierarchyDescriptor {
 			.build();
 	}
 	/**
-	 * Represents {@link Hierarchy#getStatistics(String, String)}.
+	 * Represents {@link Hierarchy#getReferenceHierarchy(String, String)}.
 	 *
 	 * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Fields in this
 	 * descriptor are supposed to be dynamically registered to target generated DTO.

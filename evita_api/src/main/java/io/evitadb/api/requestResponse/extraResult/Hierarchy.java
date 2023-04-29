@@ -118,8 +118,11 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 * Key is the identification of the reference name, value contains list of statistics for the single level (probably
 	 * root or whatever is filtered by the query) of the hierarchy entity.
 	 */
-	private final Map<String, Map<String, List<LevelInfo>>> statistics;
+	private final Map<String, Map<String, List<LevelInfo>>> referenceHierarchies;
 
+	/**
+	 * Compares two lists of {@link LevelInfo} objects for equality.
+	 */
 	private static boolean notEquals(@Nonnull List<LevelInfo> stats, @Nonnull List<LevelInfo> otherStats) {
 		for (int i = 0; i < stats.size(); i++) {
 			final LevelInfo levelInfo = stats.get(i);
@@ -138,7 +141,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 * was used at all. Or it's the level requested by {@link HierarchyWithin} query.
 	 */
 	@Nonnull
-	public Map<String, List<LevelInfo>> getSelfStatistics() {
+	public Map<String, List<LevelInfo>> getSelfHierarchy() {
 		return ofNullable(selfStatistics).orElse(Collections.emptyMap());
 	}
 
@@ -148,7 +151,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 * was used at all. Or it's the level requested by {@link HierarchyWithin} query.
 	 */
 	@Nonnull
-	public List<LevelInfo> getSelfStatistics(@Nonnull String outputName) {
+	public List<LevelInfo> getSelfHierarchy(@Nonnull String outputName) {
 		return ofNullable(selfStatistics)
 			.map(it -> it.get(outputName))
 			.orElse(Collections.emptyList());
@@ -160,8 +163,8 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 * was used at all. Or it's the level requested by {@link HierarchyWithin} query.
 	 */
 	@Nonnull
-	public List<LevelInfo> getStatistics(@Nonnull String referenceName, @Nonnull String outputName) {
-		return ofNullable(statistics.get(referenceName))
+	public List<LevelInfo> getReferenceHierarchy(@Nonnull String referenceName, @Nonnull String outputName) {
+		return ofNullable(referenceHierarchies.get(referenceName))
 			.map(it -> it.get(outputName))
 			.orElse(Collections.emptyList());
 	}
@@ -170,21 +173,21 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 * Returns statistics for reference of specified name.
 	 */
 	@Nonnull
-	public Map<String, List<LevelInfo>> getStatistics(@Nonnull String referenceName) {
-		return ofNullable(statistics.get(referenceName)).orElse(Collections.emptyMap());
+	public Map<String, List<LevelInfo>> getReferenceHierarchy(@Nonnull String referenceName) {
+		return ofNullable(referenceHierarchies.get(referenceName)).orElse(Collections.emptyMap());
 	}
 
 	/**
 	 * Returns statistics for all references.
 	 */
 	@Nonnull
-	public Map<String, Map<String, List<LevelInfo>>> getStatistics() {
-		return statistics;
+	public Map<String, Map<String, List<LevelInfo>>> getReferenceHierarchies() {
+		return referenceHierarchies;
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(selfStatistics, statistics);
+		return Objects.hash(selfStatistics, referenceHierarchies);
 	}
 
 	@Override
@@ -214,9 +217,9 @@ public class Hierarchy implements EvitaResponseExtraResult {
 			}
 		}
 
-		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : statistics.entrySet()) {
+		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : referenceHierarchies.entrySet()) {
 			final Map<String, List<LevelInfo>> stats = statisticsEntry.getValue();
-			final Map<String, List<LevelInfo>> otherStats = that.statistics.get(statisticsEntry.getKey());
+			final Map<String, List<LevelInfo>> otherStats = that.referenceHierarchies.get(statisticsEntry.getKey());
 
 			if (stats.size() != ofNullable(otherStats).map(Map::size).orElse(0)) {
 				return false;
@@ -255,7 +258,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 			}
 		}
 
-		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : statistics.entrySet()) {
+		for (Entry<String, Map<String, List<LevelInfo>>> statisticsEntry : referenceHierarchies.entrySet()) {
 			treeBuilder.append(statisticsEntry.getKey()).append(System.lineSeparator());
 			for (Map.Entry<String, List<LevelInfo>> statisticsByType : statisticsEntry.getValue().entrySet()) {
 				treeBuilder.append("    ").append(statisticsByType.getKey()).append(System.lineSeparator());
