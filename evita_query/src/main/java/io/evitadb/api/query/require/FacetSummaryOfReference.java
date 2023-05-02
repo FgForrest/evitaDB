@@ -88,7 +88,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 			getFacetStatisticsDepth(),
 			"Facet summary requires a facet statistics depth specification."
 		);
-		for (RequireConstraint child : children) {
+		for (RequireConstraint child : getChildren()) {
 			Assert.isTrue(
 				child instanceof EntityFetch ||
 					child instanceof EntityGroupFetch,
@@ -96,11 +96,11 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 			);
 		}
 		Assert.isTrue(
-			Arrays.stream(children).filter(EntityFetch.class::isInstance).count() <= 1,
+			Arrays.stream(getChildren()).filter(EntityFetch.class::isInstance).count() <= 1,
 			"Facet summary accepts only one `EntityFetch` constraint."
 		);
 		Assert.isTrue(
-			Arrays.stream(children).filter(EntityGroupFetch.class::isInstance).count() <= 1,
+			Arrays.stream(getChildren()).filter(EntityGroupFetch.class::isInstance).count() <= 1,
 			"Facet summary accepts only one `EntityGroupFetch` constraint."
 		);
 		for (Constraint<?> child : additionalChildren) {
