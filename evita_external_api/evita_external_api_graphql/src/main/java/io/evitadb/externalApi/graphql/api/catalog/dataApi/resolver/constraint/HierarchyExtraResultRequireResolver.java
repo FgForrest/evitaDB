@@ -76,15 +76,15 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
 @RequiredArgsConstructor
 public class HierarchyExtraResultRequireResolver {
 
+	@Nonnull private final EntitySchemaContract entitySchema;
 	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
 	@Nonnull
-	public Collection<RequireConstraint> resolveHierarchyExtraResultRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
-	                                                                         @Nullable Locale desiredLocale,
-	                                                                         @Nullable EntitySchemaContract currentEntitySchema) {
+	public Collection<RequireConstraint> resolve(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
+	                                             @Nullable Locale desiredLocale) {
 		final List<SelectedField> hierarchyFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY.name());
 		if (hierarchyFields.isEmpty()) {
 			return List.of();
@@ -94,9 +94,9 @@ public class HierarchyExtraResultRequireResolver {
 			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
 			.map(referenceField -> {
 				if (HierarchyDescriptor.SELF.name().equals(referenceField.getName())) {
-					return resolveHierarchyOfSelf(referenceField, desiredLocale, currentEntitySchema);
+					return resolveHierarchyOfSelf(referenceField, desiredLocale);
 				} else {
-					return resolveHierarchyOfReference(referenceField, desiredLocale, currentEntitySchema);
+					return resolveHierarchyOfReference(referenceField, desiredLocale);
 				}
 			})
 			.collect(Collectors.toMap(Entry::getKey, Entry::getValue, (c, c2) -> {
@@ -107,9 +107,8 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nonnull
 	private Entry<String, RequireConstraint> resolveHierarchyOfSelf(@Nonnull SelectedField field,
-	                                                                @Nullable Locale desiredLocale,
-	                                                                @Nullable EntitySchemaContract currentEntitySchema) {
-		final HierarchyDataLocator hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName());
+	                                                                @Nullable Locale desiredLocale) {
+		final HierarchyDataLocator hierarchyDataLocator = new HierarchyDataLocator(entitySchema.getName());
 
 		final OrderBy orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfSelfHeaderDescriptor.ORDER_BY.name()))
 			.map(it -> orderConstraintResolver.resolve(hierarchyDataLocator, HierarchyOfSelfHeaderDescriptor.ORDER_BY.name(), it))
@@ -118,8 +117,7 @@ public class HierarchyExtraResultRequireResolver {
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
 			hierarchyDataLocator,
-			desiredLocale,
-			currentEntitySchema
+			desiredLocale
 		);
 
 		final HierarchyOfSelf hierarchyOfSelf = hierarchyOfSelf(orderBy, hierarchyRequires);
@@ -128,14 +126,13 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nonnull
 	private Entry<String, RequireConstraint> resolveHierarchyOfReference(@Nonnull SelectedField field,
-	                                                                     @Nullable Locale desiredLocale,
-	                                                                     @Nullable EntitySchemaContract currentEntitySchema) {
-		final ReferenceSchemaContract referenceSchema = currentEntitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
+	                                                                     @Nullable Locale desiredLocale) {
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceByName(field.getName(), PROPERTY_NAME_NAMING_CONVENTION)
 			.orElseThrow(() ->
-				new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + currentEntitySchema.getName() + "`."));
+				new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + entitySchema.getName() + "`."));
 
 		final String referenceName = referenceSchema.getName();
-		final HierarchyDataLocator hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName(), referenceName);
+		final HierarchyDataLocator hierarchyDataLocator = new HierarchyDataLocator(entitySchema.getName(), referenceName);
 		final EntitySchemaContract hierarchyEntitySchema = referenceSchema.isReferencedEntityTypeManaged()
 			? entitySchemaFetcher.apply(referenceSchema.getReferencedEntityType())
 			: null;
@@ -159,8 +156,7 @@ public class HierarchyExtraResultRequireResolver {
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
 			hierarchyDataLocator,
-			desiredLocale,
-			hierarchyEntitySchema
+			desiredLocale
 		);
 
 		final HierarchyOfReference hierarchyOfReference = hierarchyOfReference(
@@ -175,16 +171,14 @@ public class HierarchyExtraResultRequireResolver {
 	@Nonnull
 	private HierarchyRequireConstraint[] resolveHierarchyRequirements(@Nonnull SelectedField field,
 	                                                                  @Nonnull HierarchyDataLocator hierarchyDataLocator,
-	                                                                  @Nullable Locale desiredLocale,
-	                                                                  @Nonnull EntitySchemaContract hierarchyEntitySchema) {
+	                                                                  @Nullable Locale desiredLocale) {
 		return field.getSelectionSet()
 			.getFields("*")
 			.stream()
 			.map(specificHierarchyField -> resolveHierarchyRequire(
 				specificHierarchyField,
 				hierarchyDataLocator,
-				desiredLocale,
-				hierarchyEntitySchema
+				desiredLocale
 			))
 			.collect(Collectors.toMap(Entry::getKey, Entry::getValue, (c, c2) -> {
 				throw new GraphQLInvalidResponseUsageException("Duplicate hierarchy output name `" + c.getOutputName() + "`.");
@@ -196,14 +190,13 @@ public class HierarchyExtraResultRequireResolver {
 	@Nonnull
 	private Entry<String, HierarchyRequireConstraint> resolveHierarchyRequire(@Nonnull SelectedField field,
 	                                                                          @Nonnull HierarchyDataLocator hierarchyDataLocator,
-	                                                                          @Nullable Locale desiredLocale,
-	                                                                          @Nullable EntitySchemaContract currentEntitySchema) {
+	                                                                          @Nullable Locale desiredLocale) {
 		final String outputName = HierarchyRequireOutputNameResolver.resolve(field);
 
 		final String hierarchyType = field.getName();
 		final HierarchyStopAt stopAt = resolveChildHierarchyRequireFromArgument(field, hierarchyDataLocator, HierarchyRequireHeaderDescriptor.STOP_AT);
 		final HierarchyStatistics statistics = resolveHierarchyStatistics(field);
-		final EntityFetch entityFetch = resolveHierarchyEntityFetch(field, desiredLocale, currentEntitySchema);
+		final EntityFetch entityFetch = resolveHierarchyEntityFetch(field, desiredLocale);
 
 		final HierarchyRequireConstraint hierarchyRequire;
 		if (HierarchyOfDescriptor.FROM_ROOT.name().equals(hierarchyType)) {
@@ -242,8 +235,7 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nullable
 	private EntityFetch resolveHierarchyEntityFetch(@Nonnull SelectedField field,
-	                                                @Nullable Locale desiredLocale,
-	                                                @Nullable EntitySchemaContract currentEntitySchema) {
+	                                                @Nullable Locale desiredLocale) {
 		return entityFetchRequireResolver.resolveEntityFetch(
 			SelectionSetWrapper.from(
 				field.getSelectionSet().getFields(LevelInfoDescriptor.ENTITY.name())
@@ -252,7 +244,7 @@ public class HierarchyExtraResultRequireResolver {
 					.toList()
 			),
 			desiredLocale,
-			currentEntitySchema
+			entitySchema
 		)
 			.orElse(null);
 	}
