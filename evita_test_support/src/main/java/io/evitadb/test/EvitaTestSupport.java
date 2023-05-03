@@ -138,6 +138,20 @@ public interface EvitaTestSupport extends TestConstants {
 	}
 
 	/**
+	 * Returns pointer to the root project directory. This method supports proper folder resolution from different
+	 * working directories in evitaDB git repository.
+	 */
+	@Nonnull
+	default Path getRootDirectory() {
+		final Path workingDirPath = Path.of(System.getProperty("user.dir"));
+		if (workingDirPath.toString().contains(File.separator + "evita_")) {
+			return workingDirPath.resolve("..");
+		} else {
+			return workingDirPath.resolve("");
+		}
+	}
+
+	/**
 	 * Returns pointer to the data directory. This method supports proper DATA folder resolution from different working
 	 * directories in evitaDB git repository.
 	 */
@@ -146,12 +160,7 @@ public interface EvitaTestSupport extends TestConstants {
 		final String externallyDefinedPath = System.getProperty(DATA_FOLDER_ENV_VARIABLE);
 		final Path dataPath;
 		if (externallyDefinedPath == null) {
-			final Path workingDirPath = Path.of(System.getProperty("user.dir"));
-			if (workingDirPath.toString().contains(File.separator + "evita_")) {
-				dataPath = workingDirPath.resolve("../data");
-			} else {
-				dataPath = workingDirPath.resolve("data");
-			}
+			dataPath = getRootDirectory().resolve("data");
 		} else {
 			dataPath = Path.of(externallyDefinedPath);
 		}

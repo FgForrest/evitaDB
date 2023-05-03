@@ -29,6 +29,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Catalog schema defines the basic properties of the {@link CatalogContract} that is a main container
@@ -51,6 +52,14 @@ public interface CatalogSchemaContract
 	 * optimistic locking i.e. avoiding parallel modifications.
 	 */
 	int getVersion();
+
+	/**
+	 * Returns set of allowed evolution modes. These allow to specify how strict is evitaDB when unknown information is
+	 * presented to her for the first time. When no evolution mode is set, each violation of the {@link EntitySchemaContract} is
+	 * reported by an exception. This behaviour can be changed by this evolution mode, however.
+	 */
+	@Nonnull
+	Set<CatalogEvolutionMode> getCatalogEvolutionMode();
 
 	/**
 	 * Returns entity schema that is connected with passed `entityType` or NULL if such entity collection doesn't

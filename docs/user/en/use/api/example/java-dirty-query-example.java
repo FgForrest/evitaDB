@@ -1,13 +1,16 @@
+// method nullable parameter
+var locale = Locale.ENGLISH;
+// is used in a query
 final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		return session.query(
 			query(
-				collection(Entities.BRAND),
+				collection("Brand"),
 				filterBy(
 					and(
 						entityPrimaryKeyInSet(1, 2, 3),
-						locale != null ? entityLocaleEquals(Locale.ENGLISH) : null
+						locale != null ? entityLocaleEquals(locale) : null
 					)
 				),
 				orderBy(

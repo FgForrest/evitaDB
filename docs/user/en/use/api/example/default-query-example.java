@@ -1,9 +1,9 @@
 final EvitaResponse<EntityReference> entities = evita.queryCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		return session.query(
 			query(
-				collection("product"),
+				collection("Product"),
 				filterBy(
 					and(
 						entityPrimaryKeyInSet(1),

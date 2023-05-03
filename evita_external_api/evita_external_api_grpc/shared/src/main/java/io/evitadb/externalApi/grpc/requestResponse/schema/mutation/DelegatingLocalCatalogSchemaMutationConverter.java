@@ -27,7 +27,9 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation;
 import com.google.protobuf.Message;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.*;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
@@ -35,7 +37,9 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchema
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation.MutationCase;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute.*;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutationConverter;
@@ -65,6 +69,8 @@ public class DelegatingLocalCatalogSchemaMutationConverter implements SchemaMuta
 		TO_GRPC_CONVERTERS = createHashMap(20);
 		// catalog schema mutations
 		TO_GRPC_CONVERTERS.put(ModifyCatalogSchemaDescriptionMutation.class, new ToGrpc((b, m) -> b.setModifyCatalogSchemaDescriptionMutation((GrpcModifyCatalogSchemaDescriptionMutation) m), new ModifyCatalogSchemaDescriptionMutationConverter()));
+		TO_GRPC_CONVERTERS.put(AllowEvolutionModeInCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setAllowEvolutionModeInCatalogSchemaMutation((GrpcAllowEvolutionModeInCatalogSchemaMutation) m), new AllowEvolutionModeInCatalogSchemaMutationConverter()));
+		TO_GRPC_CONVERTERS.put(DisallowEvolutionModeInCatalogSchemaMutation.class, new ToGrpc((b, m) -> b.setDisallowEvolutionModeInCatalogSchemaMutation((GrpcDisallowEvolutionModeInCatalogSchemaMutation) m), new DisallowEvolutionModeInCatalogSchemaMutationConverter()));
 		// global attribute schema mutations
 		TO_GRPC_CONVERTERS.put(CreateGlobalAttributeSchemaMutation.class, new ToGrpc((b, m) -> b.setCreateGlobalAttributeSchemaMutation((GrpcCreateGlobalAttributeSchemaMutation) m), new CreateGlobalAttributeSchemaMutationConverter()));
 		TO_GRPC_CONVERTERS.put(ModifyAttributeSchemaDefaultValueMutation.class, new ToGrpc((b, m) -> b.setModifyAttributeSchemaDefaultValueMutation((GrpcModifyAttributeSchemaDefaultValueMutation) m), new ModifyAttributeSchemaDefaultValueMutationConverter()));

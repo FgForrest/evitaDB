@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -40,6 +41,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.EnumSet;
 
 /**
  * Mutation is responsible for setting up a new {@link CatalogSchemaContract} - or more precisely the catalog instance
@@ -69,6 +71,7 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		return CatalogSchema._internalBuild(
 			catalogName,
 			NamingConvention.generate(catalogName),
+			EnumSet.allOf(CatalogEvolutionMode.class),
 			entityType -> {
 				throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");
 			}

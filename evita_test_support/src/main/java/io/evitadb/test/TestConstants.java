@@ -34,13 +34,13 @@ public interface TestConstants {
 	 */
 	String DATA_FOLDER_ENV_VARIABLE = "dataFolder";
 	/**
-	 * Name of the tag for {@link FunctionalTestSuite} tests.
+	 * Name of the tag for functional test suite tests.
 	 */
 	String FUNCTIONAL_TEST = "functional";
 	/**
-	 * Name of the tag for {@link IntegrationTestSuite} tests.
+	 * Name of the tag for documentation code snippets.
 	 */
-	String INTEGRATION_TEST = "integration";
+	String DOCUMENTATION_TEST = "documentation";
 	/**
 	 * Name of the tag for long running tests that needs to be executed separately.
 	 */

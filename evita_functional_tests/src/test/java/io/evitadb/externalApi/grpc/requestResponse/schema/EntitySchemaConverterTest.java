@@ -26,20 +26,16 @@ package io.evitadb.externalApi.grpc.requestResponse.schema;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.test.Entities;
-import io.evitadb.test.TestConstants;
-import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -58,12 +54,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 class EntitySchemaConverterTest {
-
-	private static final CatalogSchemaContract CATALOG_SCHEMA = CatalogSchema._internalBuild(
-		TestConstants.TEST_CATALOG,
-		NamingConvention.generate(TestConstants.TEST_CATALOG),
-		s -> null
-	);
 
 	@Test
 	void shouldConvertSimpleEntitySchema() {

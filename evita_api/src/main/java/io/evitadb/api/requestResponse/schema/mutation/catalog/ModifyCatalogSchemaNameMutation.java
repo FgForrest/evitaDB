@@ -75,6 +75,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 				newCatalogName,
 				NamingConvention.generate(newCatalogName),
 				catalogSchema.getDescription(),
+				catalogSchema.getCatalogEvolutionMode(),
 				catalogSchema.getAttributes(),
 				entityType -> {
 					throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");

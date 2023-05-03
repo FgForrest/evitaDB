@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.dto;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -40,6 +41,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -63,6 +65,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	@Getter @Nonnull private final String name;
 	@Getter private final Map<NamingConvention, String> nameVariants;
 	@Getter @Nullable private final String description;
+	@Getter @Nonnull private final Set<CatalogEvolutionMode> catalogEvolutionMode;
 	@Nonnull private final Map<String, GlobalAttributeSchema> attributes;
 	/**
 	 * Index of attribute names that allows to quickly lookup attribute schemas by attribute name in specific naming
@@ -86,10 +89,11 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	public static CatalogSchema _internalBuild(
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nonnull Set<CatalogEvolutionMode> evolutionMode,
 		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
 	) {
 		return new CatalogSchema(
-			1, name, nameVariants, null,
+			1, name, nameVariants, null, evolutionMode,
 			Collections.emptyMap(),
 			entitySchemaAccessor
 		);
@@ -106,11 +110,12 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
+		@Nonnull Set<CatalogEvolutionMode> evolutionMode,
 		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,
 		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
 	) {
 		return new CatalogSchema(
-			version, name, nameVariants, description,
+			version, name, nameVariants, description, evolutionMode,
 			attributes,
 			entitySchemaAccessor
 		);
@@ -133,6 +138,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				baseSchema.getName(),
 				baseSchema.getNameVariants(),
 				baseSchema.getDescription(),
+				baseSchema.getCatalogEvolutionMode(),
 				baseSchema.getAttributes(),
 				entityType -> baseSchema.getEntitySchema(entityType).orElse(null)
 			);
@@ -153,6 +159,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				baseSchema.getName(),
 				baseSchema.getNameVariants(),
 				baseSchema.getDescription(),
+				baseSchema.getCatalogEvolutionMode(),
 				baseSchema.getAttributes(),
 				entityType -> baseSchema.getEntitySchema(entityType).orElse(null)
 			);
@@ -189,6 +196,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
+		@Nonnull Set<CatalogEvolutionMode> catalogEvolutionMode,
 		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,
 		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
 	) {
@@ -196,6 +204,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		this.name = name;
 		this.nameVariants = nameVariants;
 		this.description = description;
+		this.catalogEvolutionMode = Collections.unmodifiableSet(catalogEvolutionMode);
 		this.attributes = attributes.entrySet()
 			.stream()
 			.collect(

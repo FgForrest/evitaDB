@@ -25,7 +25,9 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation;
 
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaDescriptionMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaNameMutationDescriptor;
@@ -50,6 +52,10 @@ public interface LocalCatalogSchemaMutationAggregateDescriptor {
 	 */
 
 	PropertyDescriptor MODIFY_CATALOG_SCHEMA_DESCRIPTION_MUTATION = PropertyDescriptor.nullableFromObject(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS);
+
+	PropertyDescriptor ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS);
+
+	PropertyDescriptor DISALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS);
 
 	/*
 	    Global attribute schema mutations
@@ -85,6 +91,8 @@ public interface LocalCatalogSchemaMutationAggregateDescriptor {
             """)
 		.staticFields(List.of(
 			MODIFY_CATALOG_SCHEMA_DESCRIPTION_MUTATION,
+			ALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION,
+			DISALLOW_EVOLUTION_MODE_IN_CATALOG_SCHEMA_MUTATION,
 
 			CREATE_GLOBAL_ATTRIBUTE_SCHEMA_MUTATION,
 			MODIFY_ATTRIBUTE_SCHEMA_DEFAULT_VALUE_MUTATION,

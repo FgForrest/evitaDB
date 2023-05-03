@@ -31,6 +31,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -38,6 +39,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -194,7 +196,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull StorageOptions storageOptions
 	) {
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
-			catalogSchema.getName(), catalogSchema.getNameVariants(),
+			catalogSchema.getName(), catalogSchema.getNameVariants(), catalogSchema.getCatalogEvolutionMode(),
 			entityType -> getEntitySchema(entityType).orElse(null)
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
@@ -438,6 +440,19 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		return queryPlan.execute();
 	}
 
+	@Nonnull
+	@Override
+	public EntityCollectionContract createCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
+		if (entityCollections.containsKey(entityType)) {
+			return entityCollections.get(entityType);
+		} else {
+			updateSchema(
+				session, new CreateEntitySchemaMutation(entityType)
+			);
+			return Objects.requireNonNull(entityCollections.get(entityType));
+		}
+	}
+
 	@Override
 	@Nonnull
 	public Optional<EntityCollectionContract> getCollectionForEntity(@Nonnull String entityType) {
@@ -463,6 +478,13 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	public EntityCollection getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
 		return ofNullable(entityCollections.get(entityType))
 			.orElseGet(() -> {
+				if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
+					throw new InvalidSchemaMutationException(
+						"The entity collection `" + entityType + "` doesn't exist and would be automatically created," +
+							" providing that catalog schema allows `" + CatalogEvolutionMode.ADDING_ENTITY_TYPES + "`" +
+							" evolution mode."
+					);
+				}
 				updateSchema(
 					session, new CreateEntitySchemaMutation(entityType)
 				);
