@@ -44,15 +44,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ShortNumberRange;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorWithReference;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.FacetDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.*;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 
@@ -361,6 +353,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected List<OBJECT_FIELD> buildAttributeChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                    @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+		if (buildContext.dataLocator() instanceof ExternalEntityDataLocator) {
+			return List.of();
+		}
+
 		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
 		// build constraints without dynamic classifier
@@ -434,6 +430,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected List<OBJECT_FIELD> buildAssociatedDataChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                         @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+		if (buildContext.dataLocator() instanceof ExternalEntityDataLocator) {
+			return List.of();
+		}
+
 		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
 		// build constraints without dynamic classifier
@@ -468,6 +468,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected List<OBJECT_FIELD> buildPriceChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
+		if (buildContext.dataLocator() instanceof ExternalEntityDataLocator) {
+			return List.of();
+		}
+
 		if (findRequiredEntitySchema(buildContext.dataLocator()).getCurrencies().isEmpty()) {
 			// no prices, cannot operate on them
 			return List.of();
@@ -483,6 +487,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	protected List<OBJECT_FIELD> buildReferenceChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                    @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
 	                                                    @Nonnull Collection<ReferenceSchemaContract> referenceSchemas) {
+		if (buildContext.dataLocator() instanceof ExternalEntityDataLocator) {
+			return List.of();
+		}
+
 		// build constraint with dynamic classifier only, others are currently not needed
 		final Set<ConstraintDescriptor> referenceConstraints = ConstraintDescriptorProvider.getConstraints(
 				getConstraintType(),
@@ -520,6 +528,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	protected List<OBJECT_FIELD> buildHierarchyChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                    @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
 	                                                    @Nonnull Collection<ReferenceSchemaContract> referenceSchemas) {
+		if (buildContext.dataLocator() instanceof ExternalEntityDataLocator) {
+			return List.of();
+		}
+
 		final Set<ConstraintDescriptor> hierarchyConstraints = ConstraintDescriptorProvider.getConstraints(
 			getConstraintType(),
 			ConstraintPropertyType.HIERARCHY,
@@ -610,6 +622,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	protected List<OBJECT_FIELD> buildFacetChildren(@Nonnull ConstraintBuildContext buildContext,
 	                                                @Nonnull AllowedConstraintPredicate allowedChildrenPredicate,
 	                                                @Nonnull Collection<ReferenceSchemaContract> referenceSchemas) {
+		if (buildContext.dataLocator() instanceof ExternalEntityDataLocator) {
+			return List.of();
+		}
+
 		final Set<ConstraintDescriptor> constraintsForFacets = ConstraintDescriptorProvider.getConstraints(
 			getConstraintType(),
 			ConstraintPropertyType.FACET,
@@ -960,6 +976,9 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 */
 	@Nonnull
 	protected Collection<AttributeSchemaContract> findAttributeSchemas(@Nonnull DataLocator dataLocator) {
+		if (dataLocator instanceof ExternalEntityDataLocator) {
+			return Collections.emptyList();
+		}
 		if (dataLocator instanceof final EntityDataLocator entityDataLocator) {
 			return findRequiredEntitySchema(entityDataLocator)
 				.getAttributes()
@@ -989,6 +1008,9 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 */
 	@Nonnull
 	protected Collection<ReferenceSchemaContract> findReferenceSchemas(@Nonnull DataLocator dataLocator) {
+		if (dataLocator instanceof ExternalEntityDataLocator) {
+			return Collections.emptyList();
+		}
 		if (dataLocator instanceof GenericDataLocator || dataLocator instanceof EntityDataLocator) {
 			return sharedContext
 				.getCatalog()

@@ -30,13 +30,19 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.PropertyDataFetcher;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
@@ -69,6 +75,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDe
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.QueryTelemetryFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetGroupStatisticsHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetStatisticsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyChildrenHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyFromNodeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyFromRootHeaderDescriptor;
@@ -119,6 +127,7 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final ObjectDescriptorToGraphQLInputObjectTransformer inputObjectBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLFieldTransformer fieldBuilderTransformer;
 	@Nonnull private final PropertyDescriptorToGraphQLInputFieldTransformer inputFieldBuilderTransformer;
+	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
 	@Nonnull private final RequireConstraintSchemaBuilder extraResultRequireConstraintSchemaBuilder;
 
@@ -137,6 +146,7 @@ public class FullResponseObjectBuilder {
 		this.inputObjectBuilderTransformer = inputObjectBuilderTransformer;
 		this.fieldBuilderTransformer = fieldBuilderTransformer;
 		this.inputFieldBuilderTransformer = inputFieldBuilderTransformer;
+		this.filterConstraintSchemaBuilder = filterConstraintSchemaBuilder;
 		this.orderConstraintSchemaBuilder = orderConstraintSchemaBuilder;
 		this.extraResultRequireConstraintSchemaBuilder = RequireConstraintSchemaBuilder.forExtraResultsRequire(
 			constraintSchemaBuildingContext,
@@ -422,13 +432,31 @@ public class FullResponseObjectBuilder {
 			referenceSchema
 		);
 
-		final GraphQLFieldDefinition facetGroupStatisticsField =  newFieldDefinition()
+		final GraphQLFieldDefinition.Builder facetGroupStatisticsFieldBuilder = newFieldDefinition()
 			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.type(list(nonNull(facetGroupStatisticsObject)))
-			.build();
+			.type(list(nonNull(facetGroupStatisticsObject)));
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			final DataLocator groupDataLocator;
+			if (referenceSchema.isReferencedGroupTypeManaged()) {
+				groupDataLocator = new EntityDataLocator(referenceSchema.getReferencedGroupType());
+			} else {
+				groupDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedGroupType());
+			}
+			final GraphQLInputType filterGroupByConstraint = filterConstraintSchemaBuilder.build(groupDataLocator, FilterGroupBy.class);
+			final GraphQLInputType orderGroupByConstraint = orderConstraintSchemaBuilder.build(groupDataLocator, OrderGroupBy.class);
+
+			facetGroupStatisticsFieldBuilder
+				.argument(FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY
+					.to(argumentBuilderTransformer)
+					.type(filterGroupByConstraint))
+				.argument(FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY
+					.to(argumentBuilderTransformer)
+					.type(orderGroupByConstraint));
+		}
 
 		return new BuiltFieldDescriptor(
-			facetGroupStatisticsField,
+			facetGroupStatisticsFieldBuilder.build(),
 			new FacetGroupStatisticsDataFetcher(referenceSchema)
 		);
 	}
@@ -436,6 +464,29 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private GraphQLObjectType buildFacetGroupStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
+		final String objectName = FacetGroupStatisticsDescriptor.THIS.name(entitySchema, referenceSchema);
+
+		final GraphQLObjectType.Builder facetGroupStatisticsBuilder = FacetGroupStatisticsDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(objectName);
+
+		buildingContext.registerFieldToObject(
+			objectName,
+			facetGroupStatisticsBuilder,
+			buildFacetGroupEntityField(referenceSchema)
+		);
+
+		buildingContext.registerFieldToObject(
+			objectName,
+			facetGroupStatisticsBuilder,
+			buildFacetStatisticsField(entitySchema, referenceSchema)
+		);
+
+		return facetGroupStatisticsBuilder.build();
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildFacetGroupEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
 			Optional.ofNullable(referenceSchema.getReferencedGroupType())
 				.map(groupType -> buildingContext
@@ -445,18 +496,40 @@ public class FullResponseObjectBuilder {
 			null;
 
 		final GraphQLOutputType groupEntityObject = buildReferencedEntityObject(groupEntitySchema);
+
+		final GraphQLFieldDefinition groupEntityField = FacetGroupStatisticsDescriptor.GROUP_ENTITY
+			.to(fieldBuilderTransformer)
+			.type(groupEntityObject)
+			.build();
+
+		return new BuiltFieldDescriptor(groupEntityField, null);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildFacetStatisticsField(@Nonnull EntitySchemaContract entitySchema,
+	                                                       @Nonnull ReferenceSchemaContract referenceSchema) {
+		final DataLocator facetDataLocator;
+		if (referenceSchema.isReferencedEntityTypeManaged()) {
+			facetDataLocator = new EntityDataLocator(referenceSchema.getReferencedEntityType());
+		} else {
+			facetDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
+		}
+		final GraphQLInputType filterByConstraint = filterConstraintSchemaBuilder.build(facetDataLocator, FilterBy.class);
+		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(facetDataLocator, OrderBy.class);
 		final GraphQLObjectType facetStatisticsObject = buildFacetStatisticsObject(entitySchema, referenceSchema);
 
-		return FacetGroupStatisticsDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.name(FacetGroupStatisticsDescriptor.THIS.name(entitySchema, referenceSchema))
-			.field(FacetGroupStatisticsDescriptor.GROUP_ENTITY
-				.to(fieldBuilderTransformer)
-				.type(groupEntityObject))
-			.field(FacetGroupStatisticsDescriptor.FACET_STATISTICS
-				.to(fieldBuilderTransformer)
-				.type(nonNull(list(nonNull(facetStatisticsObject)))))
+		final GraphQLFieldDefinition facetStatisticsField = FacetGroupStatisticsDescriptor.FACET_STATISTICS
+			.to(fieldBuilderTransformer)
+			.type(nonNull(list(nonNull(facetStatisticsObject))))
+			.argument(FacetStatisticsHeaderDescriptor.FILTER_BY
+				.to(argumentBuilderTransformer)
+				.type(filterByConstraint))
+			.argument(FacetStatisticsHeaderDescriptor.ORDER_BY
+				.to(argumentBuilderTransformer)
+				.type(orderByConstraint))
 			.build();
+
+		return new BuiltFieldDescriptor(facetStatisticsField, null);
 	}
 
 	@Nonnull

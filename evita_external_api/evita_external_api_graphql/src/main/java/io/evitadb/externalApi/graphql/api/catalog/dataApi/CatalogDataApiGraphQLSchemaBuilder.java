@@ -331,6 +331,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		final GraphQLFieldDefinition.Builder singleEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
+			.description(CatalogDataApiRootDescriptor.GET_ENTITY.description(entitySchema))
 			.type(typeRef(EntityDescriptor.THIS.name(entitySchema)))
 			.argument(GetEntityQueryHeaderDescriptor.PRIMARY_KEY.to(argumentBuilderTransformer));
 
@@ -380,6 +381,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		final GraphQLFieldDefinition.Builder entityListFieldBuilder = CatalogDataApiRootDescriptor.LIST_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
+			.description(CatalogDataApiRootDescriptor.LIST_ENTITY.description(entitySchema))
 			.type(nonNull(list(nonNull(typeRef(EntityDescriptor.THIS.name(entitySchema))))))
 			.argument(ListEntitiesQueryHeaderDescriptor.FILTER_BY
 				.to(argumentBuilderTransformer)
@@ -404,6 +406,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		final GraphQLFieldDefinition.Builder entityQueryFieldBuilder = CatalogDataApiRootDescriptor.QUERY_ENTITY
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
+			.description(CatalogDataApiRootDescriptor.QUERY_ENTITY.description(entitySchema))
 			.type(nonNull(entityFullResponseObject))
 			.argument(QueryEntitiesQueryHeaderDescriptor.FILTER_BY
 				.to(argumentBuilderTransformer)
