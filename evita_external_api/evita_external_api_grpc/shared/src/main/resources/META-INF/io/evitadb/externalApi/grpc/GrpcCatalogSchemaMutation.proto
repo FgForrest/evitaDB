@@ -9,25 +9,27 @@ import "GrpcCatalogSchemaMutations.proto";
 message GrpcLocalCatalogSchemaMutation {
   oneof mutation {
     GrpcModifyCatalogSchemaDescriptionMutation modifyCatalogSchemaDescriptionMutation = 1;
+    GrpcAllowEvolutionModeInCatalogSchemaMutation allowEvolutionModeInCatalogSchemaMutation = 2;
+    GrpcDisallowEvolutionModeInCatalogSchemaMutation disallowEvolutionModeInCatalogSchemaMutation = 3;
 
-    GrpcCreateGlobalAttributeSchemaMutation createGlobalAttributeSchemaMutation = 2;
-    GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 3;
-    GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 4;
-    GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 5;
-    GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 6;
-    GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 7;
-    GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 8;
-    GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 9;
-    GrpcSetAttributeSchemaGloballyUniqueMutation setAttributeSchemaGloballyUniqueMutation = 10;
-    GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 11;
-    GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 12;
-    GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;
-    GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;
+    GrpcCreateGlobalAttributeSchemaMutation createGlobalAttributeSchemaMutation = 4;
+    GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 5;
+    GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 6;
+    GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 7;
+    GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 8;
+    GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 9;
+    GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 10;
+    GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 11;
+    GrpcSetAttributeSchemaGloballyUniqueMutation setAttributeSchemaGloballyUniqueMutation = 12;
+    GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 13;
+    GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 14;
+    GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 15;
+    GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 16;
 
-    GrpcCreateEntitySchemaMutation createEntitySchemaMutation = 15;
-    GrpcModifyEntitySchemaMutation modifyEntitySchemaMutation = 16;
-    GrpcModifyEntitySchemaNameMutation modifyEntitySchemaNameMutation = 17;
-    GrpcRemoveEntitySchemaMutation removeEntitySchemaMutation = 18;
+    GrpcCreateEntitySchemaMutation createEntitySchemaMutation = 17;
+    GrpcModifyEntitySchemaMutation modifyEntitySchemaMutation = 18;
+    GrpcModifyEntitySchemaNameMutation modifyEntitySchemaNameMutation = 19;
+    GrpcRemoveEntitySchemaMutation removeEntitySchemaMutation = 20;
   }
 }
 

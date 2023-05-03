@@ -3,6 +3,7 @@ syntax = "proto3";
 package io.evitadb.externalApi.grpc.generated;
 option java_multiple_files = true;
 
+import "GrpcEnums.proto";
 import "GrpcEntitySchemaMutation.proto";
 import "google/protobuf/wrappers.proto";
 
@@ -18,6 +19,14 @@ message GrpcModifyCatalogSchemaNameMutation {
   string catalogName = 1;
   string newCatalogName = 2;
   bool overwriteTarget = 3;
+}
+
+message GrpcAllowEvolutionModeInCatalogSchemaMutation {
+  repeated GrpcCatalogEvolutionMode evolutionModes = 1;
+}
+
+message GrpcDisallowEvolutionModeInCatalogSchemaMutation {
+  repeated GrpcCatalogEvolutionMode evolutionModes = 1;
 }
 
 message GrpcRemoveCatalogSchemaMutation {

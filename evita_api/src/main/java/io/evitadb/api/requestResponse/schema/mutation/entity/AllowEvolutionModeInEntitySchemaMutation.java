@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Mutation is responsible for adding one or more currencies to a {@link EntitySchemaContract#getEvolutionMode()}
+ * Mutation is responsible for adding one or more evolution modes to a {@link EntitySchemaContract#getEvolutionMode()}
  * in {@link EntitySchemaContract}.
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * or negative mutation {@link AllowEvolutionModeInEntitySchemaMutation} if those mutation are present in the mutation pipeline

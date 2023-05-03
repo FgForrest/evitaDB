@@ -29,11 +29,11 @@ cd "$(dirname "$0")"
 
 
 if [ "$1" = "local" ]; then
-    cp -f ./evita_server/target/evita-server.jar .
+    cp -f ../evita_server/target/evita-server.jar .
     IMAGE="evita-performance:benchmark"
     EVITA_JAR_NAME="evita-server.jar"
 elif [ "$1" = "dev" ]; then
-    cp -f ./evita_server/target/evita-server.jar .
+    cp -f ../evita_server/target/evita-server.jar .
     IMAGE="evitadb:local"
     EVITA_JAR_NAME="evita-server.jar"
 else

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -32,6 +33,7 @@ import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.EnumSet;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,6 +50,7 @@ class CatalogSchemaConverterTest {
 		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			EnumSet.noneOf(CatalogEvolutionMode.class),
 			s -> null
 		);
 		assertCatalogSchema(
@@ -63,6 +66,7 @@ class CatalogSchemaConverterTest {
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
 			"description",
+			EnumSet.allOf(CatalogEvolutionMode.class),
 			Map.of(
 				"code", GlobalAttributeSchema._internalBuild(
 					"code",

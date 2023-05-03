@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
@@ -31,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.test.TestConstants;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,7 +48,7 @@ abstract class AbstractConstraintResolverTest {
 
 	void init() {
 		this.entitySchemaIndex = new HashMap<>();
-		this.catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), entitySchemaIndex::get);
+		this.catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchemaIndex::get);
 
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
 			catalogSchema,

@@ -32,6 +32,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.*;
 import io.evitadb.api.mock.MockCatalogStructuralChangeObserver;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -320,6 +321,79 @@ class EvitaTest implements EvitaTestSupport {
 		} finally {
 			evita.deleteCatalogIfExists(TEST_CATALOG);
 		}
+	}
+
+	@Test
+	void shouldFailToUpsertUnknownEntityToStrictlyValidatedCatalogSchema() {
+		/* set strict schema verification */
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.verifyCatalogSchemaStrictly()
+					.updateVia(session);
+			}
+		);
+
+		// now try to upset an unknown entity
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.PRODUCT)
+						.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
+						.upsertVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldUpsertUnknownEntityToLaxlyValidatedCatalogSchema() {
+		/* set strict schema verification */
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.verifyCatalogSchemaButCreateOnTheFly()
+					.updateVia(session);
+			}
+		);
+
+		// now try to upset an unknown entity
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.createNewEntity(Entities.PRODUCT)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZ, "Produkt")
+					.upsertVia(session);
+			}
+		);
+
+		assertNotNull(
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOneSealedEntity(
+						Query.query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									entityLocaleEquals(LOCALE_CZ),
+									attributeEquals(ATTRIBUTE_NAME, "Produkt")
+								)
+							),
+							require(
+								entityFetchAll()
+							)
+						)
+					);
+				}
+			)
+		);
 	}
 
 	@Test
@@ -2185,7 +2259,9 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndRenameCollectionInTransaction() {
 		setupCatalogWithProductAndCategory();
 
-		evita.updateCatalog(TEST_CATALOG, session -> { session.goLiveAndClose(); });
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.goLiveAndClose();
+		});
 
 		MockCatalogStructuralChangeObserver.reset();
 
@@ -2209,7 +2285,9 @@ class EvitaTest implements EvitaTestSupport {
 	void shouldCreateAndReplaceCollectionInTransaction() {
 		setupCatalogWithProductAndCategory();
 
-		evita.updateCatalog(TEST_CATALOG, session -> { session.goLiveAndClose(); });
+		evita.updateCatalog(TEST_CATALOG, session -> {
+			session.goLiveAndClose();
+		});
 
 		MockCatalogStructuralChangeObserver.reset();
 

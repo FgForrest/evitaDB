@@ -436,7 +436,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final EntityCollectionContract collection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
+			final EntityCollectionContract collection = getCatalog().createCollectionForEntity(entityType, session);
 			return collection.getSchema().openForWrite();
 		});
 	}

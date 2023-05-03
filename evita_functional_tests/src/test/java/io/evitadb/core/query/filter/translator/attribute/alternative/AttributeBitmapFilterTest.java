@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -57,6 +58,7 @@ import org.mockito.Mockito;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -83,7 +85,12 @@ class AttributeBitmapFilterTest {
 	@BeforeEach
 	void setUp() {
 		final DataGenerator dataGenerator = new DataGenerator();
-		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), entityType -> null);
+		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
+			TestConstants.TEST_CATALOG,
+			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			entityType -> null
+		);
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(mockSession.getCatalogSchema()).thenReturn(new CatalogSchemaDecorator(catalogSchema));
 		entities = dataGenerator.generateEntities(
