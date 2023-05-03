@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -182,7 +184,7 @@ public class GrpcHierarchyBuilderTest {
 	public static SealedEntity createHierarchyEntity(@Nonnull String type, int pk, @Nonnull String code) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), entityType -> null),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
 				EntitySchema._internalBuild(type)
 			)
 				.withAttribute("code", String.class)
