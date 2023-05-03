@@ -60,14 +60,9 @@ The evitaDB client is created automatically when the example application starts 
 <CodeTabs>
 <CodeTabsBlock>
 
-```java
-new EvitaClient(
-	EvitaClientConfiguration.builder()
-		.host("localhost")
-		.port(5556)
-		.build()
-);
-```
+<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java">
+[Example of inserting an entity](docs/user/en/get-started/example/connect-local-server.java)
+</SourceCodeTabs>
 
 </CodeTabsBlock>
 </CodeTabs>

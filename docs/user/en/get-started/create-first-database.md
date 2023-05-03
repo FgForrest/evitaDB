@@ -24,7 +24,7 @@ catalog and create predefined schemas for multiple collections: `brand`, `catego
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms 
 a tree, product is enabled to have prices:
 
-<SourceCodeTabs requires="docs/blog/en/examples/client-setup">
+<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java">
 [Example of defining catalog and schema for entity collections](docs/user/en/get-started/example/define-catalog-with-schema.java)
 </SourceCodeTabs>
 
@@ -32,7 +32,7 @@ a tree, product is enabled to have prices:
 
 When the catalog is created and schema known, you might insert a first entity to it:
 
-<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java">
+<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java,docs/user/en/get-started/example/define-test-catalog.java">
 [Example of inserting an entity](docs/user/en/get-started/example/create-first-entity.java)
 </SourceCodeTabs>
 
@@ -51,7 +51,7 @@ Let's see how you can retrieve the entity you just created in another read-only 
 
 Once you learn the basics, you can create a small dataset to work with:
 
-<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java">
+<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java,docs/user/en/get-started/example/define-test-catalog.java">
 [Example of creating a small dataset](docs/user/en/get-started/example/create-small-dataset.java)
 </SourceCodeTabs>
 

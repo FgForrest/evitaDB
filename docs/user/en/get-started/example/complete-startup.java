@@ -5,6 +5,8 @@ final Evita evita = new Evita(
 final ExternalApiServer externalApiServer = new ExternalApiServer(
 	evita,
 	ApiOptions.builder()
+		.enable(GrpcProvider.CODE)
+		.enable(SystemProvider.CODE)
 		.build()
 );
 // open the API on configured ports
