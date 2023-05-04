@@ -229,7 +229,7 @@ public class QueryContext {
 	 * the query result to be reused in other query evaluation phases (require).
 	 */
 	@Getter
-	private Formula hierarchyNodesFormula;
+	private Formula rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
 	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
@@ -976,9 +976,9 @@ public class QueryContext {
 	/**
 	 * Sets resolved hierarchy root nodes formula to be shared among filter and requirement phase.
 	 */
-	public void setHierarchyNodesFormula(@Nonnull Formula hierarchyNodesFormula) {
-		Assert.isPremiseValid(this.hierarchyNodesFormula == null, "The hierarchy filtering formula can be set only once!");
-		this.hierarchyNodesFormula = hierarchyNodesFormula;
+	public void setRootHierarchyNodesFormula(@Nonnull Formula rootHierarchyNodesFormula) {
+		Assert.isPremiseValid(this.rootHierarchyNodesFormula == null, "The hierarchy filtering formula can be set only once!");
+		this.rootHierarchyNodesFormula = rootHierarchyNodesFormula;
 	}
 
 	/**

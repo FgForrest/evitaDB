@@ -39,16 +39,13 @@ import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
-import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.List;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
@@ -92,7 +89,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 					queryContext, new FilterBy(parentFilter), targetEntitySchema.getName(),
 					() -> "Finding hierarchy parent node: " + parentFilter
 				);
-				queryContext.setHierarchyNodesFormula(hierarchyParentFormula);
+				queryContext.setRootHierarchyNodesFormula(hierarchyParentFormula);
 
 				return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
 					.map(index -> FormulaFactory.or(
@@ -159,41 +156,26 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull HierarchyWithin hierarchyWithin, @Nonnull FilterByVisitor filterByVisitor) {
-		final String referenceName = hierarchyWithin.getReferenceName();
-
-		if (referenceName == null) {
-			return createFormulaFromHierarchyIndex(hierarchyWithin, filterByVisitor);
+		// when we target the hierarchy indexes and there are filtering constraints in conjunction scope that target
+		// the index, we may omit the formula with ALL records in the index because the other constraints will
+		// take care of more limited yet correct set of records
+		// but! we can't do this when reference related constraints are found within the query because they'd use
+		// the record sets from different indexes than it's our hierarchy index (i.e. not subset)
+		if (filterByVisitor.isTargetIndexRepresentingConstraint(hierarchyWithin) &&
+			filterByVisitor.isTargetIndexQueriedByOtherConstraints() &&
+			!filterByVisitor.isReferenceQueriedByOtherConstraints()
+		) {
+			return SkipFormula.INSTANCE;
 		} else {
-			// when we target the hierarchy indexes and there are filtering constraints in conjunction scope that target
-			// the index, we may omit the formula with ALL records in the index because the other constraints will
-			// take care of more limited yet correct set of records
-			// but! we can't do this when reference related constraints are found within the query because they'd use
-			// the record sets from different indexes than it's our hierarchy index (i.e. not subset)
-			if (filterByVisitor.isTargetIndexRepresentingConstraint(hierarchyWithin) &&
-				filterByVisitor.isTargetIndexQueriedByOtherConstraints() &&
-				!filterByVisitor.isReferenceQueriedByOtherConstraints()
-			) {
-				return SkipFormula.INSTANCE;
+			final Formula matchingHierarchyNodeIds = createFormulaFromHierarchyIndex(hierarchyWithin, filterByVisitor);
+			if (hierarchyWithin.getReferenceName() == null) {
+				return matchingHierarchyNodeIds;
 			} else {
-				final TargetIndexes targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithin);
-				final FilterConstraint[] excludedChildrenFormula = hierarchyWithin.getExcludedChildrenFilter();
-				if (targetIndexes == null) {
-					return EmptyFormula.INSTANCE;
-				} else {
-					final List<EntityIndex> hierarchyIndexes = targetIndexes.getIndexesOfType(EntityIndex.class);
-					if (ArrayUtils.isEmpty(excludedChildrenFormula)) {
-						return getReferencedEntityFormulas(hierarchyIndexes);
-					} else {
-						final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
-						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-						final EntitySchemaContract targetEntitySchema = filterByVisitor.getSchema(referenceSchema.getReferencedEntityType());
-
-						return getReferencedAndFilteredEntityFormulas(
-							filterByVisitor, targetEntitySchema, referenceSchema,
-							excludedChildrenFormula, hierarchyIndexes
-						);
-					}
-				}
+				return createFormulaForReferencingEntities(
+					hierarchyWithin,
+					filterByVisitor,
+					() -> matchingHierarchyNodeIds
+				);
 			}
 		}
 	}

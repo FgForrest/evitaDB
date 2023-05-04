@@ -67,7 +67,7 @@ public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComput
 	@Nonnull
 	protected OptionalInt getParentNodeId(@Nonnull HierarchyProducerContext context) {
 		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
-			final Bitmap hierarchyNodes = context.queryContext().getHierarchyNodesFormula().compute();
+			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodesFormula().compute();
 			Assert.isTrue(
 				hierarchyNodes.size() == 1,
 				"In order to generate sibling hierarchy statistics the HierarchyWithin filter must select exactly " +

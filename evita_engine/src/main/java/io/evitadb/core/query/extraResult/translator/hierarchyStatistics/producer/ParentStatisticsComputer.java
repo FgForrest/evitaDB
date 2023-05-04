@@ -92,7 +92,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				statisticsType
 			);
 
-			final Bitmap hierarchyNodes = context.queryContext().getHierarchyNodesFormula().compute();
+			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodesFormula().compute();
 			Assert.isTrue(
 				hierarchyNodes.size() == 1,
 				"In order to generate parent hierarchy statistics the HierarchyWithin filter must select exactly " +

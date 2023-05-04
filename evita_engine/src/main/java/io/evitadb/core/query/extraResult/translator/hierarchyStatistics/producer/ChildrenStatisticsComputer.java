@@ -83,7 +83,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 				filterPredicate.negate()
 			);
 		} else if (context.hierarchyFilter() instanceof HierarchyWithin) {
-			final Bitmap hierarchyNodes = context.queryContext().getHierarchyNodesFormula().compute();
+			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodesFormula().compute();
 			Assert.isTrue(
 				hierarchyNodes.size() == 1,
 				"In order to generate children hierarchy statistics the HierarchyWithin filter must select exactly " +

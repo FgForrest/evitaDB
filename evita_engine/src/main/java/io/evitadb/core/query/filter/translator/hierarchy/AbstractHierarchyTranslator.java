@@ -25,35 +25,34 @@ package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.EntityHaving;
-import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.base.NotFormula;
-import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
+import java.util.stream.StreamSupport;
 
-import static io.evitadb.api.query.QueryConstraints.and;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -83,6 +82,49 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 			);
 			queryContext.setHierarchyExclusionPredicate(exclusionPredicate);
 			return exclusionPredicate;
+		}
+	}
+
+	/**
+	 * Method creates a formula producing primary keys that are part of the requested `hierarchyWithinConstraint`.
+	 * It favorites the already resolved target index set connected with the constraint, but if such is missing it
+	 * computes the set using provided `hierarchyNodesFormulaSupplier`.
+	 */
+	@Nonnull
+	protected static Formula createFormulaForReferencingEntities(
+		@Nonnull HierarchyFilterConstraint hierarchyWithinConstraint,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull Supplier<Formula> hierarchyNodesFormulaSupplier
+		) {
+		Assert.notNull(
+			filterByVisitor.getSchema().getReferenceOrThrowException(hierarchyWithinConstraint.getReferenceName()),
+			"Reference name validation (will never be printed)."
+		);
+		final TargetIndexes targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinConstraint);
+		if (targetIndexes == null) {
+			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
+			final QueryContext queryContext = filterByVisitor.getQueryContext();
+			return FormulaFactory.or(
+				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
+					.map(hierarchyNodeId -> (EntityIndex) queryContext.getIndex(
+						new EntityIndexKey(
+							EntityIndexType.REFERENCED_HIERARCHY_NODE,
+							new ReferenceKey(hierarchyWithinConstraint.getReferenceName(), hierarchyNodeId)
+						)
+					))
+					.filter(Objects::nonNull)
+					.map(EntityIndex::getAllPrimaryKeysFormula)
+					.toArray(Formula[]::new)
+			);
+		} else {
+			// the exclusion was already evaluated when the target indexes were initialized
+			return FormulaFactory.or(
+				targetIndexes.getIndexesOfType(EntityIndex.class)
+					.stream()
+					.filter(Objects::nonNull)
+					.map(EntityIndex::getAllPrimaryKeysFormula)
+					.toArray(Formula[]::new)
+			);
 		}
 	}
 
@@ -119,64 +161,4 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		);
 	}
 
-	/**
-	 * Method returns {@link Formula} that returns all entity ids that are present in `hierarchyIndexes` and that
-	 * doesn't match the `excludedChildrenFormula`.
-	 */
-	@Nonnull
-	protected static Formula getReferencedAndFilteredEntityFormulas(
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterConstraint[] excludedChildrenFormula,
-		@Nonnull List<EntityIndex> hierarchyIndexes
-	) {
-		final FilterConstraint filter = getExcludedFormulaDiscardingEntityHaving(and(excludedChildrenFormula));
-		// if there is any filtering present
-		if (filter != null && filter.isApplicable()) {
-			final String referenceName = referenceSchema.getName();
-			// transform each hierarchy index into one formula where the entity primary matching the exclusion filter are missing
-			final List<Formula> referencedEntityFormulas = new ArrayList<>(hierarchyIndexes.size());
-			for (EntityIndex hierarchyIndex : hierarchyIndexes) {
-				final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
-				referencedEntityFormulas.add(
-					filterByVisitor.executeInContextAndIsolatedFormulaStack(
-						Collections.singletonList(hierarchyIndex),
-						ReferenceContent.ALL_REFERENCES,
-						entitySchema,
-						referenceSchema,
-						processingScope.getNestedQueryFormulaEnricher(),
-						processingScope.getEntityNestedQueryComparator(),
-						processingScope.withReferenceSchemaAccessor(referenceName),
-						(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
-							.stream()
-							.map(it -> it.getAttributeValue(attributeName, locale)),
-						() -> {
-							filter.accept(filterByVisitor);
-							// wrap the result to the NOT formula
-							final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
-							return switch (collectedFormulas.length) {
-								case 0 -> hierarchyIndex.getAllPrimaryKeysFormula();
-								case 1 ->
-									new NotFormula(collectedFormulas[0], hierarchyIndex.getAllPrimaryKeysFormula());
-								default ->
-									new NotFormula(new OrFormula(collectedFormulas), hierarchyIndex.getAllPrimaryKeysFormula());
-							};
-						},
-						EntityPrimaryKeyInSet.class
-					)
-				);
-			}
-			// join the results using OR
-			return FormulaFactory.or(
-				referencedEntityFormulas
-					.stream()
-					.filter(Objects::nonNull)
-					.toArray(Formula[]::new)
-			);
-		} else {
-			// else return all entity primary keys found in hierarchy indexes
-			return getReferencedEntityFormulas(hierarchyIndexes);
-		}
-	}
 }

@@ -1989,20 +1989,20 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					EntityReference.class
 				);
 
-				final TestHierarchyPredicate languagePredicate =
+				final TestHierarchyPredicate filterPredicate =
 					(sealedEntity, parentItems) -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
-				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+				final TestHierarchyPredicate scopePredicate = (sealedEntity, parentItems) -> {
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
-					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1;
+					return filterPredicate.test(sealedEntity, parentItems) && withinCategory1;
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalCategoryIndex,
-					languagePredicate, treePredicate,
+					filterPredicate, scopePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeSiblings(
