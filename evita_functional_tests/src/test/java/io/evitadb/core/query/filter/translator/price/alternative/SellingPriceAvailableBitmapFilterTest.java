@@ -27,6 +27,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
@@ -43,6 +44,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.Currency;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -57,7 +59,9 @@ import static io.evitadb.api.query.QueryConstraints.*;
  */
 class SellingPriceAvailableBitmapFilterTest {
 	private static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild(Entities.PRODUCT);
-	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Collections.emptyMap(), entitySchema -> PRODUCT_SCHEMA);
+	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
+		TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchema -> PRODUCT_SCHEMA
+	);
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
 	private static final String PRICE_LIST_REFERENCE = "reference";
