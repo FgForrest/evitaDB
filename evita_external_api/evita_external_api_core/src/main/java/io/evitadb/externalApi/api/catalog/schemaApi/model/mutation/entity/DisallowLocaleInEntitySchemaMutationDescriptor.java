@@ -51,7 +51,7 @@ public interface DisallowLocaleInEntitySchemaMutationDescriptor {
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("DisallowLocaleInEntitySchemaMutation")
 		.description("""
-			Mutation is responsible for adding one or more currencies to a `EntitySchema.locales`
+			Mutation is responsible for adding one or more locales to a `EntitySchema.locales`
 			in `EntitySchema`.
 			""")
 		.staticFields(List.of(LOCALES))

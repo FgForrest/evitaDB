@@ -67,6 +67,10 @@ enum GrpcEvolutionMode {
   ADDING_HIERARCHY = 7;
 }
 
+enum GrpcCatalogEvolutionMode {
+  ADDING_ENTITY_TYPES = 0;
+}
+
 enum GrpcEvitaDataType {
   STRING = 0;
   BYTE = 1;

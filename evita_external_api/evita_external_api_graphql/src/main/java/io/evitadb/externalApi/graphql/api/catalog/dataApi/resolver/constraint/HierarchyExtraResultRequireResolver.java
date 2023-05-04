@@ -235,7 +235,7 @@ public class HierarchyExtraResultRequireResolver {
 	                                                                                                      @Nonnull PropertyDescriptor argumentDescriptor) {
 		//noinspection unchecked
 		return (T) Optional.ofNullable(field.getArguments().get(argumentDescriptor.name()))
-			.map(it -> requireConstraintResolver.resolve(hierarchyDataLocator, argumentDescriptor.name(), it))
+			.map(it -> requireConstraintResolver.resolve(hierarchyDataLocator, hierarchyDataLocator, argumentDescriptor.name(), it))
 			.orElse(null);
 	}
 
@@ -294,7 +294,7 @@ public class HierarchyExtraResultRequireResolver {
 		}
 
 		final HierarchyStopAt stopAt = Optional.ofNullable(siblingsSpecification.get(HierarchyParentsSiblingsSpecification.STOP_AT.name()))
-			.map(it -> (HierarchyStopAt) requireConstraintResolver.resolve(hierarchyDataLocator, HierarchyParentsSiblingsSpecification.STOP_AT.name(), it))
+			.map(it -> (HierarchyStopAt) requireConstraintResolver.resolve(hierarchyDataLocator, hierarchyDataLocator, HierarchyParentsSiblingsSpecification.STOP_AT.name(), it))
 			.orElse(null);
 
 		return new HierarchySiblings(null, stopAt);

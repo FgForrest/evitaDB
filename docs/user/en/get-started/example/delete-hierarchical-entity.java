@@ -1,7 +1,7 @@
 evita.updateCatalog(
-	catalogName, session -> {
+	"testCatalog", session -> {
 		return session.deleteEntityAndItsHierarchy(
-			"category",
+			"Category",
 			1
 		);
 	}

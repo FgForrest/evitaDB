@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
@@ -212,6 +213,22 @@ public class EvitaEnumConverter {
 			case EXACTLY_ONE -> GrpcCardinality.EXACTLY_ONE;
 			case ZERO_OR_MORE -> GrpcCardinality.ZERO_OR_MORE;
 			case ONE_OR_MORE -> GrpcCardinality.ONE_OR_MORE;
+		};
+	}
+
+	@Nonnull
+	public static CatalogEvolutionMode toCatalogEvolutionMode(@Nonnull GrpcCatalogEvolutionMode grpcEvolutionMode) {
+		return switch (grpcEvolutionMode.getNumber()) {
+			case 0 -> CatalogEvolutionMode.ADDING_ENTITY_TYPES;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote evolution mode: " + grpcEvolutionMode);
+		};
+	}
+
+	@Nonnull
+	public static GrpcCatalogEvolutionMode toGrpcCatalogEvolutionMode(@Nonnull CatalogEvolutionMode evolutionMode) {
+		return switch (evolutionMode) {
+			case ADDING_ENTITY_TYPES -> GrpcCatalogEvolutionMode.ADDING_ENTITY_TYPES;
 		};
 	}
 

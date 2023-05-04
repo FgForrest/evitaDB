@@ -1,4 +1,4 @@
-session.getEntity("product", 1)
+session.getEntity("Product", 1, attributeContent(), dataInLocales(Locale.ENGLISH))
 	.orElseThrow(
 		() -> new IllegalArgumentException("Product `1` not found!")
 	)

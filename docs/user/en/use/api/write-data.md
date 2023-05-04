@@ -37,7 +37,7 @@ one writing the data, we can afford to do this.
 
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode by executing:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java,docs/user/en/get-started/example/define-test-catalog.java">
 [Termination of warm-up mode](docs/user/en/use/api/example/finalization-of-warmup-mode.java)
 </SourceCodeTabs>
 
@@ -82,7 +82,7 @@ Interfaces follow this structure:
 When you create new entity using evitaDB API, you obtain a builder, and you can immediately start setting the data 
 to the entity and then store the entity to the database:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/use/api/example/finalization-of-warmup-mode.java,docs/user/en/use/api/example/open-session-manually.java">
 [Creating new entity returns a builder](docs/user/en/use/api/example/create-new-entity-shortened.java)
 </SourceCodeTabs>
 
@@ -91,7 +91,7 @@ When you read existing entity from the catalog, you obtain read-only
 basically a contract interface with a few methods allowing you to convert it to the builder instance that can be used
 for updating the data:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/use/api/example/finalization-of-warmup-mode.java,docs/user/en/get-started/example/create-small-dataset.java,docs/user/en/use/api/example/open-session-manually.java">
 [Retrieving existing entity returns a sealed entity](docs/user/en/use/api/example/update-existing-entity-shortened.java)
 </SourceCodeTabs>
 
@@ -202,7 +202,7 @@ the lambda function.
 
 That's why there is an alternative - not so secure - approach to handling sessions and transactions:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/use/api/example/finalization-of-warmup-mode.java">
 [Manual session and transaction handling](docs/user/en/use/api/example/manual-transaction-management.java)
 </SourceCodeTabs>
 
@@ -215,7 +215,7 @@ Both <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.ja
 <SourceClass>evita_api/src/main/java/io/evitadb/api/TransactionContract.java</SourceClass> implement Java 
 `Autocloseable` interface, so you can use them this way:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java,docs/user/en/get-started/example/define-test-catalog.java">
 [Get advantage of Autocloseable behaviour](docs/user/en/use/api/example/autocloseable-transaction-management.java)
 </SourceCodeTabs>
 
@@ -226,7 +226,7 @@ have all the business logic executable within the same block.
 
 For testing purposes, there is a special flag that can be used when opening a new session - a **dry run** flag:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java,docs/user/en/get-started/example/define-test-catalog.java">
 [Opening dry-run session](docs/user/en/use/api/example/dry-run-session.java)
 </SourceCodeTabs>
 
@@ -244,7 +244,7 @@ Anyway, there is also the [possibility of creating them directly](#creating-enti
 
 Usually the entity creation will look like this:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java,docs/user/en/get-started/example/define-test-catalog.java">
 [Creating new entity example](docs/user/en/use/api/example/create-new-entity.java)
 </SourceCodeTabs>
 
@@ -254,7 +254,7 @@ and it may be split into several parts, which will reveal the "builder" used in 
 When you need to alter existing entity, you first fetch it from the server, open for writing (which converts it to
 the builder wrapper), modify it, and finally collect the changes and send them to the server. 
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/use/api/example/finalization-of-warmup-mode.java,docs/user/en/get-started/example/create-small-dataset.java">
 [Updating existing entity example](docs/user/en/use/api/example/update-existing-entity.java)
 </SourceCodeTabs>
 
@@ -295,7 +295,7 @@ a stream of mutations that can be sent to and processed by the evitaDB server on
 
 There is an analogous builder that takes an existing entity and tracks changes made to it.
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/use/api/example/detached-existing-entity-preparation.java">
 [Detached existing entity example](docs/user/en/use/api/example/detached-existing-entity-instantiation.java)
 </SourceCodeTabs>
 
@@ -304,7 +304,7 @@ There is an analogous builder that takes an existing entity and tracks changes m
 The easiest way how to remove an entity is by its *primary key*. However, if you need to remove multiple entities at
 once you need to define a query that will match all the entities to remove:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/use/api/example/finalization-of-warmup-mode.java,docs/user/en/get-started/example/create-small-dataset.java">
 [Removing all entities which name starts with `A`](docs/user/en/use/api/example/delete-entities-by-query.java)
 </SourceCodeTabs>
 

@@ -126,7 +126,7 @@ public class ConstraintProcessingUtils {
 	 * Finds property type that is valid in passed domain.
 	 */
 	@Nonnull
-	public static ConstraintPropertyType getPropertyTypeForDomain(@Nonnull ConstraintDomain domain) {
+	public static ConstraintPropertyType getFallbackPropertyTypeForDomain(@Nonnull ConstraintDomain domain) {
 		Assert.isPremiseValid(
 			!domain.isDynamic(),
 			() -> new ExternalApiInternalError("Dynamic domain (`" + domain + "`) cannot be mapped to specific property type.")

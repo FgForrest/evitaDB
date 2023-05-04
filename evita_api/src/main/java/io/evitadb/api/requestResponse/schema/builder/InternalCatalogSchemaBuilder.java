@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.builder;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -34,7 +35,9 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -93,6 +96,26 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 		this.updatedSchemaDirty = addMutations(
 			this.baseSchema, this.mutations,
 			new ModifyCatalogSchemaDescriptionMutation(description)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public CatalogSchemaBuilder verifyCatalogSchemaStrictly() {
+		this.updatedSchemaDirty = addMutations(
+			this.baseSchema, this.mutations,
+			new DisallowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.values())
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public CatalogSchemaBuilder verifyCatalogSchemaButCreateOnTheFly() {
+		this.updatedSchemaDirty = addMutations(
+			this.baseSchema, this.mutations,
+			new AllowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.values())
 		);
 		return this;
 	}

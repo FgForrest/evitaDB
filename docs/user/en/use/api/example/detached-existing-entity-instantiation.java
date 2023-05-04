@@ -1,3 +1,4 @@
+// can be wrapped into a builder and updated
 final SealedEntity brand = new ExistingEntityBuilder(existingEntity)
 	.setAttribute("code", "siemens")
 	.setAttribute("name", Locale.ENGLISH, "Siemens")

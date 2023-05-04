@@ -84,6 +84,7 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 				catalogSchema.getName(),
 				catalogSchema.getNameVariants(),
 				description,
+				catalogSchema.getCatalogEvolutionMode(),
 				catalogSchema.getAttributes(),
 				entityType -> {
 					throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");

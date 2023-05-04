@@ -3,7 +3,7 @@ return evita.queryCatalog(
 	session -> {
 		return session.queryListOfSealedEntities(
 			query(
-				collection("product"),
+				collection("Product"),
 				require(entityFetchAll())
 			)
 		);

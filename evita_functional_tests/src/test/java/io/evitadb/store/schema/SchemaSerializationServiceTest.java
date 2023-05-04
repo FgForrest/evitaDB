@@ -24,6 +24,7 @@
 package io.evitadb.store.schema;
 
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
@@ -43,6 +44,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.EnumSet;
 import java.util.Locale;
 
 import static io.evitadb.test.Assertions.assertExactlyEquals;
@@ -64,7 +66,7 @@ class SchemaSerializationServiceTest {
 		final SchemaSerializationService schemaSerializationService = new SchemaSerializationService();
 		final EntitySchemaContract createdSchema = constructSomeSchema(
 				new InternalEntitySchemaBuilder(
-						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), entityType -> null),
+						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class),  entityType -> null),
 						productSchema
 				)
 		);

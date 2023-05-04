@@ -29,7 +29,7 @@ a [Lisp flavored language](https://en.wikipedia.org/wiki/Lisp_(programming_langu
 the name of the function, followed by a set of arguments in parentheses. You can even use other functions 
 in those arguments. An example of such a query might look like this:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
 [EvitaQL example](docs/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
 
@@ -74,7 +74,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> and
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
 [Java query example](docs/user/en/use/api/example/java-query-example.java)
 </SourceCodeTabs>
 
@@ -82,7 +82,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
 [Java dirty query example](docs/user/en/use/api/example/java-dirty-query-example.java)
 </SourceCodeTabs>
 
@@ -127,7 +127,7 @@ represented by the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass> 
 interface.
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
 [Default query example](docs/user/en/use/api/example/default-query-example.java)
 </SourceCodeTabs>
 
@@ -144,7 +144,7 @@ When such a require constraint is used, data will be fetched *greedily* during t
 will then contain entities in the form of 
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>.
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
 [Fetching example](docs/user/en/use/api/example/fetching-example.java)
 </SourceCodeTabs>
 
@@ -158,7 +158,7 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties 
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs>
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
 [Lazy loading example](docs/user/en/use/api/example/lazy-fetch-example.java)
 </SourceCodeTabs>
 

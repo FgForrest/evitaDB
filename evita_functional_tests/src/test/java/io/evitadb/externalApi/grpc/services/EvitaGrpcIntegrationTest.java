@@ -55,7 +55,7 @@ import org.junit.jupiter.api.function.Executable;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestConstants.INTEGRATION_TEST;
+import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,7 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("Evita gRPC integration test")
 @ExtendWith(EvitaParameterResolver.class)
-@Tag(INTEGRATION_TEST)
+@Tag(FUNCTIONAL_TEST)
 @Slf4j
 public class EvitaGrpcIntegrationTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaGrpcIntegrationTest";

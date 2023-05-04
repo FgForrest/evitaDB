@@ -1,5 +1,5 @@
 query(
-   collection("product"),
+   collection("Product"),
    filterBy(
       and(
          hierarchyWithin(
