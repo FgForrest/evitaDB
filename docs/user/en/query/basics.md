@@ -34,7 +34,7 @@ Query has these four parts:
 
 The grammar of the query is as follows:
 
-``` evitaQL
+``` evitaql
 query(
     collection('product'),
     filterBy(entityPrimaryKeyInSet(1, 2, 3)),
@@ -71,7 +71,7 @@ Any part of the query is optional, but at least `filterBy` or `collection` is ma
 part of type `filterBy`, `orderBy`, and `require` in the query. Any part can be swapped (the order is not 
 important). I.e. the following query is still a valid query:
 
-``` evitaQL
+``` evitaql
 query(
     collection('product'),   
     require(entityFetch())
@@ -81,7 +81,7 @@ query(
 ... or even this one (although it is recommended to keep the order for better readability: `collection`, `filterBy`, 
 `orderBy`, `require`):
 
-``` evitaQL
+``` evitaql
 query(
     require(entityFetch()),
     orderBy(attributeNatural('name', ASC)),
