@@ -60,6 +60,11 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 	private final FilterIndex rangeAttribute = new FilterIndex(NumberRange.class);
 
 	@Test
+	void deliberateTestFailure() {
+		fail("Deliberate test failure.");
+	}
+
+	@Test
 	void shouldInsertNewStringRecordId() {
 		stringAttribute.addRecord(1, "A");
 		stringAttribute.addRecord(2, new String[] {"A", "B"});
