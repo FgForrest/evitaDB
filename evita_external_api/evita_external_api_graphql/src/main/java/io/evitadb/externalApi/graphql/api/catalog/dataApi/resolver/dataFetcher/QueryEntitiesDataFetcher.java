@@ -140,7 +140,13 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		);
 		this.attributeHistogramResolver = new AttributeHistogramResolver(entitySchema);
 		this.priceHistogramResolver = new PriceHistogramResolver();
-		this.facetSummaryResolver = new FacetSummaryResolver(entitySchema, referencedEntitySchemas, entityFetchRequireResolver);
+		this.facetSummaryResolver = new FacetSummaryResolver(
+			entitySchema,
+			referencedEntitySchemas,
+			entityFetchRequireResolver,
+			filterConstraintResolver,
+			orderConstraintResolver
+		);
 		this.hierarchyParentsResolver = new HierarchyParentsResolver(entitySchema, referencedEntitySchemas, entityFetchRequireResolver);
 		this.hierarchyExtraResultRequireResolver = new HierarchyExtraResultRequireResolver(
 			entitySchema,

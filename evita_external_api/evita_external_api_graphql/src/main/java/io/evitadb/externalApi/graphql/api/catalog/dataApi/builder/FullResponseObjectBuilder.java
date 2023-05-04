@@ -437,14 +437,14 @@ public class FullResponseObjectBuilder {
 			.type(list(nonNull(facetGroupStatisticsObject)));
 
 		if (referenceSchema.getReferencedGroupType() != null) {
-			final DataLocator groupDataLocator;
+			final DataLocator groupEntityDataLocator;
 			if (referenceSchema.isReferencedGroupTypeManaged()) {
-				groupDataLocator = new EntityDataLocator(referenceSchema.getReferencedGroupType());
+				groupEntityDataLocator = new EntityDataLocator(referenceSchema.getReferencedGroupType());
 			} else {
-				groupDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedGroupType());
+				groupEntityDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedGroupType());
 			}
-			final GraphQLInputType filterGroupByConstraint = filterConstraintSchemaBuilder.build(groupDataLocator, FilterGroupBy.class);
-			final GraphQLInputType orderGroupByConstraint = orderConstraintSchemaBuilder.build(groupDataLocator, OrderGroupBy.class);
+			final GraphQLInputType filterGroupByConstraint = filterConstraintSchemaBuilder.build(groupEntityDataLocator, FilterGroupBy.class);
+			final GraphQLInputType orderGroupByConstraint = orderConstraintSchemaBuilder.build(groupEntityDataLocator, OrderGroupBy.class);
 
 			facetGroupStatisticsFieldBuilder
 				.argument(FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY
@@ -508,14 +508,14 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private BuiltFieldDescriptor buildFacetStatisticsField(@Nonnull EntitySchemaContract entitySchema,
 	                                                       @Nonnull ReferenceSchemaContract referenceSchema) {
-		final DataLocator facetDataLocator;
+		final DataLocator facetEntityDataLocator;
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			facetDataLocator = new EntityDataLocator(referenceSchema.getReferencedEntityType());
+			facetEntityDataLocator = new EntityDataLocator(referenceSchema.getReferencedEntityType());
 		} else {
-			facetDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
+			facetEntityDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
 		}
-		final GraphQLInputType filterByConstraint = filterConstraintSchemaBuilder.build(facetDataLocator, FilterBy.class);
-		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(facetDataLocator, OrderBy.class);
+		final GraphQLInputType filterByConstraint = filterConstraintSchemaBuilder.build(facetEntityDataLocator, FilterBy.class);
+		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(facetEntityDataLocator, OrderBy.class);
 		final GraphQLObjectType facetStatisticsObject = buildFacetStatisticsObject(entitySchema, referenceSchema);
 
 		final GraphQLFieldDefinition facetStatisticsField = FacetGroupStatisticsDescriptor.FACET_STATISTICS

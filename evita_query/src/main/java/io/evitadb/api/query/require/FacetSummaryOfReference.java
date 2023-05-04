@@ -126,14 +126,15 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		this(new Serializable[]{referenceName, statisticsDepth}, requirements);
 	}
 
+	// todo lho check if domain entity will work for external entities
 	@Creator
 	public FacetSummaryOfReference(
 		@Nonnull @Classifier String referenceName,
 		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterGroupBy filterGroupBy,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) OrderBy orderBy,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) OrderGroupBy orderGroupBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterGroupBy filterGroupBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderGroupBy orderGroupBy,
 		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
 	) {
 		super(
