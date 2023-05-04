@@ -62,12 +62,12 @@ public abstract class CachableElementKey {
 	}
 
 	protected long hashDataLocator(@Nonnull LongHashFunction hashFunction) {
-		final long targetDomainHash = hashFunction.hashChars(getDataLocator().targetDomain().name());
+		final long dataLocatorNameHash = hashFunction.hashChars(getDataLocator().getClass().getName());
 		final long entityTypeHash = hashFunction.hashChars(getDataLocator().entityType());
 		final long dataLocatorHash;
 		if (getDataLocator() instanceof final DataLocatorWithReference dataLocatorWithReference) {
 			dataLocatorHash = hashFunction.hashLongs(new long[] {
-				targetDomainHash,
+				dataLocatorNameHash,
 				entityTypeHash,
 				hashFunction.hashChars(
 					Optional.ofNullable(dataLocatorWithReference.referenceName())
@@ -75,7 +75,7 @@ public abstract class CachableElementKey {
 				)
 			});
 		} else {
-			dataLocatorHash = hashFunction.hashLongs(new long[] { targetDomainHash, entityTypeHash });
+			dataLocatorHash = hashFunction.hashLongs(new long[] { dataLocatorNameHash, entityTypeHash });
 		}
 		return dataLocatorHash;
 	}
