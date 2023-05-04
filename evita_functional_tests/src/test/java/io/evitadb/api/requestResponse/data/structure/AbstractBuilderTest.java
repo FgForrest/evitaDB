@@ -24,9 +24,12 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.APITestConstants;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.utils.NamingConvention;
+
+import java.util.EnumSet;
 
 /**
  * Abstract builder test parent class.
@@ -34,7 +37,7 @@ import io.evitadb.utils.NamingConvention;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public abstract class AbstractBuilderTest {
-	protected static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG), entityType -> null);
+	protected static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null);
 	protected static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild("product");
 
 }

@@ -3,7 +3,7 @@ return evita.queryCatalog(
 	session -> {
 		return session.queryListOfSealedEntities(
 			query(
-				collection("brand"),
+				collection("Brand"),
 				filterBy(
 					and(
 						attributeStartsWith("name", "A"),

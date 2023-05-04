@@ -34,6 +34,7 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
@@ -88,6 +89,10 @@ public class CatalogSchemaConverter {
 				catalogSchema.getName(),
 				NamingConvention.generate(catalogSchema.getName()),
 				catalogSchema.hasDescription() ? catalogSchema.getDescription().getValue() : null,
+				catalogSchema.getCatalogEvolutionModeList()
+					.stream()
+					.map(EvitaEnumConverter::toCatalogEvolutionMode)
+					.collect(Collectors.toSet()),
 				catalogSchema.getAttributesMap()
 					.entrySet()
 					.stream()

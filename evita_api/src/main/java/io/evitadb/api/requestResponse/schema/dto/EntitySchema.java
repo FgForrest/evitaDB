@@ -379,7 +379,7 @@ public final class EntitySchema implements EntitySchemaContract {
 			);
 		;
 		this.referenceNameIndex = _internalGenerateNameVariantIndex(this.references.values(), ReferenceSchemaContract::getNameVariants);
-		this.evolutionMode = evolutionMode;
+		this.evolutionMode = Collections.unmodifiableSet(evolutionMode);
 		this.nonNullableAttributes = this.attributes
 			.values()
 			.stream()

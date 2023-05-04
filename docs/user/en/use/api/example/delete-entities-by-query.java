@@ -1,8 +1,8 @@
 evita.updateCatalog(
-	catalogName, session -> {
+	"testCatalog", session -> {
 		return session.deleteEntities(
 			query(
-				collection("brand"),
+				collection("Brand"),
 				filterBy(
 					and(
 						attributeStartsWith("name", "A"),

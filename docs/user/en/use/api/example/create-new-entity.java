@@ -29,8 +29,8 @@ evita.updateCatalog(
 				new BigDecimal("365.57"), new BigDecimal("22"), new BigDecimal(446),
 				true
 			)
-			.setReference("brand", 3)
-			.setReference("categories", 3)
+			.setReference("brand", "Brand", Cardinality.ZERO_OR_ONE, 3)
+			.setReference("categories", "Category", Cardinality.ZERO_OR_MORE, 3)
 			.upsertVia(session);
 	}
 );

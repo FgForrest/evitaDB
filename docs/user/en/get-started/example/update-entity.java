@@ -1,7 +1,7 @@
 evita.updateCatalog(
 	"testCatalog",
 	session -> {
-		session.getEntity("product", 1)
+		session.getEntity("Product", 1, attributeContent(), priceContent())
 			.orElseThrow()
 			.openForWrite()
 			.setAttribute("stockQuantity", 12)
@@ -10,6 +10,6 @@ evita.updateCatalog(
 				new BigDecimal("51.64"), new BigDecimal("22"), new BigDecimal(63),
 				true
 			)
-			.upsertVia(session)
+			.upsertVia(session);
 	}
 );

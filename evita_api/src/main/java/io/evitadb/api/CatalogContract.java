@@ -25,10 +25,12 @@ package io.evitadb.api;
 
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -108,6 +110,15 @@ public interface CatalogContract {
 	<S extends EntityClassifier, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
+	 * Creates and returns collection maintaining all entities of same type. If collection for the entity type exists
+	 * existing collection is returned.
+	 *
+	 * @param entityType type (name) of the entity
+	 */
+	@Nonnull
+	EntityCollectionContract createCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session);
+
+	/**
 	 * Returns collection maintaining all entities of same type.
 	 *
 	 * @param entityType type (name) of the entity
@@ -135,9 +146,12 @@ public interface CatalogContract {
 	 * Returns collection maintaining all entities of same type. If no such collection exists new one is created.
 	 *
 	 * @param entityType type (name) of the entity
+	 * @throws InvalidSchemaMutationException when collection doesn't exist and {@link CatalogSchemaContract#getCatalogEvolutionMode()}
+	 *                                        doesn't allow {@link CatalogEvolutionMode#ADDING_ENTITY_TYPES}
 	 */
 	@Nonnull
-	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session);
+	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session)
+		throws InvalidSchemaMutationException;
 
 	/**
 	 * Deletes entire collection of entities along with its schema. After this operation there will be nothing left

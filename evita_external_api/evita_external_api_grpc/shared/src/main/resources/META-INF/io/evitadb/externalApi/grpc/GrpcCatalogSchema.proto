@@ -11,7 +11,8 @@ message GrpcCatalogSchema {
   string name = 1;
   int32 version = 2;
   google.protobuf.StringValue description = 3;
-  map<string, GrpcGlobalAttributeSchema> attributes = 4;
+  repeated GrpcCatalogEvolutionMode catalogEvolutionMode = 4;
+  map<string, GrpcGlobalAttributeSchema> attributes = 5;
 }
 
 message GrpcGlobalAttributeSchema {

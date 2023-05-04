@@ -35,7 +35,7 @@ evita.defineCatalog("testCatalog")
 			)
 	)
 	.withEntitySchema(
-		ENTITY_PRODUCT,
+		"product",
 		entitySchema -> entitySchema
 			.withDescription("""
 				Product represents an article that can be displayed and sold on e-shop.

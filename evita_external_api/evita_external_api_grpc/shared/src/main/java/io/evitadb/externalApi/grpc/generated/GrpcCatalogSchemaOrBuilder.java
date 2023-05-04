@@ -64,11 +64,40 @@ public interface GrpcCatalogSchemaOrBuilder extends
   com.google.protobuf.StringValueOrBuilder getDescriptionOrBuilder();
 
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @return A list containing the catalogEvolutionMode.
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode> getCatalogEvolutionModeList();
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @return The count of catalogEvolutionMode.
+   */
+  int getCatalogEvolutionModeCount();
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @param index The index of the element to return.
+   * @return The catalogEvolutionMode at the given index.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode getCatalogEvolutionMode(int index);
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @return A list containing the enum numeric values on the wire for catalogEvolutionMode.
+   */
+  java.util.List<java.lang.Integer>
+  getCatalogEvolutionModeValueList();
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcCatalogEvolutionMode catalogEvolutionMode = 4;</code>
+   * @param index The index of the value to return.
+   * @return The enum numeric value on the wire of catalogEvolutionMode at the given index.
+   */
+  int getCatalogEvolutionModeValue(int index);
+
+  /**
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   int getAttributesCount();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   boolean containsAttributes(
       java.lang.String key);
@@ -79,19 +108,19 @@ public interface GrpcCatalogSchemaOrBuilder extends
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema>
   getAttributes();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema>
   getAttributesMap();
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema getAttributesOrDefault(
       java.lang.String key,
       io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema defaultValue);
   /**
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema&gt; attributes = 5;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema getAttributesOrThrow(

@@ -53,6 +53,16 @@ public final class GrpcCatalogSchemaMutations {
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaNameMutation_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveCatalogSchemaMutation_descriptor;
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
@@ -87,30 +97,38 @@ public final class GrpcCatalogSchemaMutations {
   static {
     java.lang.String[] descriptorData = {
       "\n GrpcCatalogSchemaMutations.proto\022%io.e" +
-      "vitadb.externalApi.grpc.generated\032\036GrpcE" +
-      "ntitySchemaMutation.proto\032\036google/protob" +
-      "uf/wrappers.proto\"6\n\037GrpcCreateCatalogSc" +
-      "hemaMutation\022\023\n\013catalogName\030\001 \001(\t\"_\n*Grp" +
-      "cModifyCatalogSchemaDescriptionMutation\022" +
-      "1\n\013description\030\001 \001(\0132\034.google.protobuf.S" +
-      "tringValue\"k\n#GrpcModifyCatalogSchemaNam" +
-      "eMutation\022\023\n\013catalogName\030\001 \001(\t\022\026\n\016newCat" +
-      "alogName\030\002 \001(\t\022\027\n\017overwriteTarget\030\003 \001(\010\"" +
-      "6\n\037GrpcRemoveCatalogSchemaMutation\022\023\n\013ca" +
-      "talogName\030\001 \001(\t\"4\n\036GrpcCreateEntitySchem" +
-      "aMutation\022\022\n\nentityType\030\001 \001(\t\"\224\001\n\036GrpcMo" +
-      "difyEntitySchemaMutation\022\022\n\nentityType\030\001" +
-      " \001(\t\022^\n\025entitySchemaMutations\030\002 \003(\0132?.io" +
-      ".evitadb.externalApi.grpc.generated.Grpc" +
-      "EntitySchemaMutation\"\\\n\"GrpcModifyEntity" +
-      "SchemaNameMutation\022\014\n\004name\030\001 \001(\t\022\017\n\007newN" +
-      "ame\030\002 \001(\t\022\027\n\017overwriteTarget\030\003 \001(\010\".\n\036Gr" +
-      "pcRemoveEntitySchemaMutation\022\014\n\004name\030\001 \001" +
-      "(\tB\002P\001b\006proto3"
+      "vitadb.externalApi.grpc.generated\032\017GrpcE" +
+      "nums.proto\032\036GrpcEntitySchemaMutation.pro" +
+      "to\032\036google/protobuf/wrappers.proto\"6\n\037Gr" +
+      "pcCreateCatalogSchemaMutation\022\023\n\013catalog" +
+      "Name\030\001 \001(\t\"_\n*GrpcModifyCatalogSchemaDes" +
+      "criptionMutation\0221\n\013description\030\001 \001(\0132\034." +
+      "google.protobuf.StringValue\"k\n#GrpcModif" +
+      "yCatalogSchemaNameMutation\022\023\n\013catalogNam" +
+      "e\030\001 \001(\t\022\026\n\016newCatalogName\030\002 \001(\t\022\027\n\017overw" +
+      "riteTarget\030\003 \001(\010\"\210\001\n-GrpcAllowEvolutionM" +
+      "odeInCatalogSchemaMutation\022W\n\016evolutionM" +
+      "odes\030\001 \003(\0162?.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcCatalogEvolutionMode\"\213\001\n0" +
+      "GrpcDisallowEvolutionModeInCatalogSchema" +
+      "Mutation\022W\n\016evolutionModes\030\001 \003(\0162?.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcCat" +
+      "alogEvolutionMode\"6\n\037GrpcRemoveCatalogSc" +
+      "hemaMutation\022\023\n\013catalogName\030\001 \001(\t\"4\n\036Grp" +
+      "cCreateEntitySchemaMutation\022\022\n\nentityTyp" +
+      "e\030\001 \001(\t\"\224\001\n\036GrpcModifyEntitySchemaMutati" +
+      "on\022\022\n\nentityType\030\001 \001(\t\022^\n\025entitySchemaMu" +
+      "tations\030\002 \003(\0132?.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcEntitySchemaMutation\"\\" +
+      "\n\"GrpcModifyEntitySchemaNameMutation\022\014\n\004" +
+      "name\030\001 \001(\t\022\017\n\007newName\030\002 \001(\t\022\027\n\017overwrite" +
+      "Target\030\003 \001(\010\".\n\036GrpcRemoveEntitySchemaMu" +
+      "tation\022\014\n\004name\030\001 \001(\tB\002P\001b\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
         new com.google.protobuf.Descriptors.FileDescriptor[] {
+          io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor(),
           io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOuterClass.getDescriptor(),
           com.google.protobuf.WrappersProto.getDescriptor(),
         });
@@ -132,36 +150,49 @@ public final class GrpcCatalogSchemaMutations {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyCatalogSchemaNameMutation_descriptor,
         new java.lang.String[] { "CatalogName", "NewCatalogName", "OverwriteTarget", });
-    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveCatalogSchemaMutation_descriptor =
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_descriptor =
       getDescriptor().getMessageTypes().get(3);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcAllowEvolutionModeInCatalogSchemaMutation_descriptor,
+        new java.lang.String[] { "EvolutionModes", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_descriptor =
+      getDescriptor().getMessageTypes().get(4);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcDisallowEvolutionModeInCatalogSchemaMutation_descriptor,
+        new java.lang.String[] { "EvolutionModes", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveCatalogSchemaMutation_descriptor =
+      getDescriptor().getMessageTypes().get(5);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveCatalogSchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveCatalogSchemaMutation_descriptor,
         new java.lang.String[] { "CatalogName", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateEntitySchemaMutation_descriptor =
-      getDescriptor().getMessageTypes().get(4);
+      getDescriptor().getMessageTypes().get(6);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateEntitySchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcCreateEntitySchemaMutation_descriptor,
         new java.lang.String[] { "EntityType", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaMutation_descriptor =
-      getDescriptor().getMessageTypes().get(5);
+      getDescriptor().getMessageTypes().get(7);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaMutation_descriptor,
         new java.lang.String[] { "EntityType", "EntitySchemaMutations", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaNameMutation_descriptor =
-      getDescriptor().getMessageTypes().get(6);
+      getDescriptor().getMessageTypes().get(8);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaNameMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcModifyEntitySchemaNameMutation_descriptor,
         new java.lang.String[] { "Name", "NewName", "OverwriteTarget", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveEntitySchemaMutation_descriptor =
-      getDescriptor().getMessageTypes().get(7);
+      getDescriptor().getMessageTypes().get(9);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveEntitySchemaMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveEntitySchemaMutation_descriptor,
         new java.lang.String[] { "Name", });
+    io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcEntitySchemaMutationOuterClass.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();
   }

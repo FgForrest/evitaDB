@@ -1,0 +1,1 @@
+io.evitadb.api.requestResponse.data.structure.Entity  existingEntity = (io.evitadb.api.requestResponse.data.structure.Entity )(new InitialEntityBuilder("brand", 1).toInstance());
