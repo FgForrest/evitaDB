@@ -17,3 +17,11 @@ This article will contain copy of:
 - [references](https://evitadb.io/research/assignment/querying/query_language#references)
 
 once it's proof-read.
+
+## Entity fetch
+## Attribute content
+## Associated data content
+## Price content
+## Reference content
+## Hierarchy content
+## Data in locale
