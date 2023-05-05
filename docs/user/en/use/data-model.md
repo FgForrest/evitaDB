@@ -146,10 +146,10 @@ Each entity must be part of at most one hierarchy (tree).
 
 <LanguageSpecific to="java">
 <Note type="info">
-Hierarchy placement is represented by the interface:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/HierarchicalPlacementContract.java</SourceClass>.
+Hierarchy placement is represented by `parent` field in:
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass>.
 
-Hierarchy schema is part of main entity schema:
+Hierarchy definition is part of main entity schema:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass>
 </Note>
 </LanguageSpecific>

@@ -1,5 +1,5 @@
 ---
-title: Query introduction
+title: Query language
 perex: |
   The query language is the core of any database machine. evitaDB has chosen a functional form of the language instead
   of a SQL-like language, which is more consistent with how it works internally and, most importantly, much more open 
