@@ -249,6 +249,66 @@ The query returns the first page of a total of 212 pages of items:
 
 <MDInclude>[Product listing assigned to a category](docs/user/en/query/filtering/examples/hierarchy-within-root-reference-simple.md)</MDInclude>
 
-## Excluding
-## Excluding root
 ## Direct relation
+
+The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyDirectRelation.java</SourceClass> 
+is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply 
+makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return 
+all hierarchy children or entities that are transitively related to them. If the `directRelation` is used as 
+a sub-constraint, this behavior changes and only direct descendants or directly referencing entities are matched.
+
+**Syntax:**
+
+```evitaql
+directRelation()
+```
+
+### Self
+
+If the hierarchy constraint targets the hierarchy entity, the `directRelation` will cause only the children of a direct
+parent node to be returned. In the case of the `hierarchyWithinRoot` constraint, the parent is an invisible "virtual"
+top root - so only the top-level categories are returned.
+
+<SourceCodeTabs>
+[Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-root-top-categories.evitaql)
+</SourceCodeTabs>
+
+<MDInclude>[Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-root-top-categories.md)</MDInclude>
+
+In the case of the `hierarchyWithin` the result will contain direct children of the filtered category (or categories).
+
+<SourceCodeTabs>
+[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories.evitaql)
+</SourceCodeTabs>
+
+[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories.evitaql)
+
+### Reference
+
+If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example is 
+a product assigned to a category), it can only be used in the `hierarchyWithin` parent constraint.
+
+In the case of `hierarchyWithinRoot`, the `directRelation` constraint makes no sense because no entity can be assigned 
+to a "virtual" top parent root.
+
+Se we can list only a products directly related to a certain category - when we try to list products that have
+*Accessories* category assigned:
+
+<SourceCodeTabs>
+[Product directly assigned to Accessories category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories.evitaql)
+</SourceCodeTabs>
+
+... we get an empty result. There is no product directly assigned to *Accessories* category, all of them relate to
+some of its subcategories. Let's try subcategory *Smartwatches* then:
+
+<SourceCodeTabs>
+[Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories-smart.evitaql)
+</SourceCodeTabs>
+
+... and we get the list of all products related directly to a *Smartwatches* category:
+
+<MDInclude>[Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories-smart.md)</MDInclude>
+
+## Excluding
+
+## Excluding root
