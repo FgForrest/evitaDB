@@ -10,6 +10,7 @@ proofreading: 'needed'
 This article will contain copy of:
 
 - [user filter](https://evitadb.io/research/assignment/querying/query_language#user-filter)
-- [facet](https://evitadb.io/research/assignment/querying/query_language#facet)
 
 once it's proof-read.
+
+## User filter

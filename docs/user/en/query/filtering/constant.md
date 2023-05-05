@@ -1,5 +1,5 @@
 ---
-title: Random ordering
+title: Comparable filtering
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
@@ -9,8 +9,8 @@ proofreading: 'needed'
 
 This article will contain copy of:
 
-- [random](https://evitadb.io/research/assignment/querying/query_language#random)
+- [primary key](https://evitadb.io/research/assignment/querying/query_language#primary-key)
 
 once it's proof-read.
 
-## Random
+## Entity primary key in set

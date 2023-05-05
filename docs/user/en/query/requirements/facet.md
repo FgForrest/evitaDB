@@ -15,3 +15,8 @@ This article will contain copy of:
 - [facet negation](https://evitadb.io/research/assignment/querying/query_language#facet-groups-negated)
 
 once it's proof-read.
+
+## Facet summary
+## Facet conjunction
+## Facet disjunction
+## Facet negation

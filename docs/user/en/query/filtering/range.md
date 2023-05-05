@@ -12,3 +12,5 @@ This article will contain copy of:
 - [in range](https://evitadb.io/research/assignment/querying/query_language#in-range)
 
 once it's proof-read. Describe difference between in-range and between in more detail.
+
+## Attribute in range

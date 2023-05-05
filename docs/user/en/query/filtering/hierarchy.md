@@ -5,10 +5,8 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-**Work in progress**
-
-This article will contain copy of:
-
-- [within](https://evitadb.io/research/assignment/querying/query_language#within-hierarchy-and-within-root-hierarchy)
-
-once it's proof-read.
+## Hierarchy within
+## Hierarchy within root
+## Excluding
+## Excluding root
+## Direct relation
