@@ -82,7 +82,7 @@ and passing category primary key.
 Yes, it can. Although, it's apparently one of the edge cases, it's possible. This query:
 
 <SourceCodeTabs>
-[Multiple category listing](docs/user/en/query/filtering/examples/hierarchy-within-self-simple-multi.evitaql)
+[Multiple category listing](docs/user/en/query/filtering/examples/hierarchy-within-self-multi.evitaql)
 </SourceCodeTabs>
 
 ... will return all subcategories of the *Wireless headphones* and *Wired headphones* and their subcategories:
