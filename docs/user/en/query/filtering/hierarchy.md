@@ -282,7 +282,7 @@ In the case of the `hierarchyWithin` the result will contain direct children of 
 [Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-direct-categories.evitaql)
 </SourceCodeTabs>
 
-[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-direct-categories.md)
+<MDInclude>[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-direct-categories.md)</MDInclude>
 
 ### Referenced entity
 
