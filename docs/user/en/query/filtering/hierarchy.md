@@ -281,7 +281,7 @@ In the case of the `hierarchyWithin` the result will contain direct children of 
 [Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories.evitaql)
 </SourceCodeTabs>
 
-[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories.evitaql)
+[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories.md)
 
 ### Reference
 
@@ -309,6 +309,18 @@ some of its subcategories. Let's try subcategory *Smartwatches* then:
 
 <MDInclude>[Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories-smart.md)</MDInclude>
 
-## Excluding
-
 ## Excluding root
+
+The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyExcludingRoot.java</SourceClass>
+is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
+makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
+all hierarchy children or entities that are transitively related to them. If the `directRelation` is used as
+a sub-constraint, this behavior changes and only direct descendants or directly referencing entities are matched.
+
+**Syntax:**
+
+```evitaql
+excludingRoot()
+``` 
+
+## Excluding
