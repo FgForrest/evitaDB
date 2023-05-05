@@ -1,6 +1,6 @@
 ---
 title: Hierarchy filtering
-date: '17.1.2023'
+date: '5.5.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
@@ -14,6 +14,12 @@ from (some of) clients.
 
 In addition to filtering, there are query [requirement extensions](../requirements/hierarchy.md) that allow you to 
 compute data to help render (dynamic or static) menus that describe the hierarchy context you request in the query.
+
+**The typical use-cases related to hierarchy constraints:**
+
+- [list products in category](../../solve/filtering-products-in-category.md)
+- [render category menus](../../solve/render-category-menu.md)
+- [list categories for products of a specific brand](../../solve/render-referenced-brand.md)
 
 ## Hierarchy within
 
