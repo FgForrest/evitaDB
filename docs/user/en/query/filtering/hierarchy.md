@@ -31,22 +31,24 @@ focus on the category *Accessories* in our [demo dataset](https://demo.evitadb.i
 
 ![Accessories category listing](assets/accessories-category-listing.png "Accessories category listing")
 
+### Self
+
 **Syntax:**
 
 ```evitaql
 hierarchyWithin(
-    filterConstraint,
-    (directRelation|excluding|excludingRoot)*
+    filterConstraint:any,
+    filterConstraint:(directRelation|excluding|excludingRoot)*
 )
 ```
 
 <dl>
-    <dt>filterConstraint</dt>
+    <dt>filterConstraint:any</dt>
     <dd>
         a single filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
         multiple constraints must be enclosed in [AND](../logical.md#and) / [OR](../logical.md#or) containers
     </dd>
-    <dt>(directRelation|excluding|excludingRoot)*</dt>
+    <dt>filterConstraint:(directRelation|excluding|excludingRoot)*</dt>
     <dd>
         optional constraints allow you to narrow the scope of the hierarchy; 
         none or all of the constraints may be present:
@@ -57,8 +59,6 @@ hierarchyWithin(
         </ul>
     </dd>
 </dl>
-
-### Self
 
 The most straightforward usage is filtering the hierarchical entities themselves. 
 
@@ -101,6 +101,41 @@ Yes, it can. Although, it's apparently one of the edge cases, it's possible. Thi
 
 ### Referenced entity
 
+**Syntax:**
+
+```evitaql
+hierarchyWithin(
+    argument:string,
+    filterConstraint:any,
+    filterConstraint:(directRelation|excluding|excludingRoot)*
+)
+```
+
+<dl>
+    <dt>argument:string</dt>
+    <dd>
+        a name of the queried entity [reference schema](../../use/schema.md#reference) that represents the relationship 
+        to the hierarchical entity type, your entity may target different hierarchical entities in different reference
+        types, or it may target the same hierarchical entity through multiple semantically different references, and 
+        that is why the reference name is used instead of the target entity type.
+    </dd>
+    <dt>filterConstraint:any</dt>
+    <dd>
+        a single filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
+        multiple constraints must be enclosed in [AND](../logical.md#and) / [OR](../logical.md#or) containers
+    </dd>
+    <dt>filterConstraint:(directRelation|excluding|excludingRoot)*</dt>
+    <dd>
+        optional constraints allow you to narrow the scope of the hierarchy; 
+        none or all of the constraints may be present:
+        <ul>
+            <li>[directRelation](#direct-relation)</li>
+            <li>[excluding](#excluding)</li>
+            <li>[excludingRoot](#excluding-root)</li>
+        </ul>
+    </dd>
+</dl>
+
 The `hierarchyWithin` constraint can also be used for entities that directly reference a hierarchical entity type.
 The most common use case from the e-commerce world is a product that is assigned to one or more categories. To list all
 products in the *Accessories* category of our [demo dataset](https://demo.evitadb.io), we issue the following query:
@@ -108,6 +143,9 @@ products in the *Accessories* category of our [demo dataset](https://demo.evitad
 <SourceCodeTabs>
 [Product listing from *Accessories* category](docs/user/en/query/filtering/examples/hierarchy-within-reference-simple.evitaql)
 </SourceCodeTabs>
+
+Products assigned to two or more subcategories of *Accessories* category will only appear once in the response (contrary 
+to what you might expect if you have experience with SQL).
 
 The query returns the first page of a total of 26 pages of items:
 
@@ -131,16 +169,18 @@ your entity hierarchy and this virtual top root is targeted by this constraint.
 
 ![Root categories listing](assets/category-listing.png "Root categories listing")
 
+### Self
+
 **Syntax:**
 
 ```evitaql
 hierarchyWithinRoot(
-    (directRelation|excluding)*
+    filterConstraint:(directRelation|excluding)*
 )
 ```
 
 <dl>
-    <dt>(directRelation|excluding)*</dt>
+    <dt>filterConstraint:(directRelation|excluding)*</dt>
     <dd>
         optional constraints allow you to narrow the scope of the hierarchy; 
         none or all of the constraints may be present:
@@ -150,8 +190,6 @@ hierarchyWithinRoot(
         </ul>
     </dd>
 </dl>
-
-### Self
 
 The `hierarchyWithinRoot`, which targets the `Category` collection itself, returns all categories except those that 
 would point to non-existent parent nodes, such hierarchy nodes are called [orphans](../../use/schema.md#orphan-hierarchy-nodes)
@@ -166,6 +204,50 @@ The query returns the first page of a total of 2 pages of items:
 <MDInclude>[Category listing](docs/user/en/query/filtering/examples/hierarchy-within-root-simple.md)</MDInclude>
 
 ### Reference
+
+**Syntax:**
+
+```evitaql
+hierarchyWithinRoot(
+    argument:string,   
+    filterConstraint:(directRelation|excluding)*
+)
+```
+
+<dl>
+    <dt>argument:string</dt>
+    <dd>
+        a name of the queried entity [reference schema](../../use/schema.md#reference) that represents the relationship 
+        to the hierarchical entity type, your entity may target different hierarchical entities in different reference
+        types, or it may target the same hierarchical entity through multiple semantically different references, and 
+        that is why the reference name is used instead of the target entity type.
+    </dd>
+    <dt>filterConstraint:(directRelation|excluding|excludingRoot)*</dt>
+    <dd>
+        optional constraints allow you to narrow the scope of the hierarchy; 
+        none or all of the constraints may be present:
+        <ul>
+            <li>[directRelation](#direct-relation)</li>
+            <li>[excluding](#excluding)</li> 
+        </ul>
+    </dd>
+</dl>
+
+The `hierarchyWithinRoot` constraint can also be used for entities that directly reference a hierarchical entity type.
+The most common use case from the e-commerce world is a product that is assigned to one or more categories. To list all
+products assigned to any category of our [demo dataset](https://demo.evitadb.io), we issue the following query:
+
+<SourceCodeTabs>
+[Product listing assigned to a category](docs/user/en/query/filtering/examples/hierarchy-within-root-reference-simple.evitaql)
+</SourceCodeTabs>
+
+Products assigned to only one [orphan category](../../use/schema.md#orphan-hierarchy-nodes) will be missing from 
+the result. Products assigned to two or more categories will only appear once in the response (contrary to what you 
+might expect if you have experience with SQL).
+
+The query returns the first page of a total of 212 pages of items:
+
+<MDInclude>[Product listing assigned to a category](docs/user/en/query/filtering/examples/hierarchy-within-root-reference-simple.md)</MDInclude>
 
 ## Excluding
 ## Excluding root

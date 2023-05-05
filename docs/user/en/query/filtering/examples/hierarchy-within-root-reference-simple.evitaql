@@ -1,10 +1,7 @@
 query(
     collection('Product'),
     filterBy(
-        hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'accessories')
-        )
+        hierarchyWithinRoot('categories')
     ),
     require(
         entityFetch(
