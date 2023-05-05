@@ -329,14 +329,23 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	                                                 @Nonnull AllowedConstraintPredicate allowedChildrenPredicate) {
 		final DataLocator parentDataLocator = buildContext.dataLocator();
 		final DataLocator childDataLocator;
-		if (!(parentDataLocator instanceof DataLocatorWithReference)) {
-			childDataLocator = new EntityDataLocator(parentDataLocator.entityType());
-		} else {
-			final Optional<EntitySchemaContract> referencedEntitySchema = findReferencedEntitySchema(parentDataLocator);
-			if (referencedEntitySchema.isEmpty()) {
-				return List.of();
+		if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
+			final Optional<ReferenceSchemaContract> referenceSchema = Optional.ofNullable(dataLocatorWithReference.referenceName())
+				.map(it -> sharedContext.getEntitySchemaOrElseThrow(parentDataLocator.entityType())
+					.getReferenceOrThrowException(it));
+			if (referenceSchema.isEmpty()) {
+				childDataLocator = new EntityDataLocator(dataLocatorWithReference.entityType());
+			} else {
+				if (referenceSchema.get().isReferencedEntityTypeManaged()) {
+					childDataLocator = new EntityDataLocator(referenceSchema.get().getReferencedEntityType());
+				} else {
+					childDataLocator = new ExternalEntityDataLocator(referenceSchema.get().getReferencedEntityType());
+				}
 			}
-			childDataLocator = new EntityDataLocator(referencedEntitySchema.get().getName());
+		} else if (parentDataLocator instanceof ExternalEntityDataLocator) {
+			childDataLocator = parentDataLocator;
+		} else {
+			childDataLocator = new EntityDataLocator(parentDataLocator.entityType());
 		}
 
 		return buildBasicChildren(
@@ -399,7 +408,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 					final FieldFromConstraintDescriptorBuilder<OBJECT_FIELD> fieldBuilder =
 						constraintDescriptor -> buildFieldFromConstraintDescriptor(
-							buildContext.switchToChildContext(new GenericDataLocator(buildContext.dataLocator().entityType())), // attribute constraints doesn't support children, thus generic domain is used as the default
+							buildContext, // attribute constraints doesn't support children, thus parent domain is used as the default
 							constraintDescriptor,
 							() -> attributeSchema.getNameVariant(CLASSIFIER_NAMING_CONVENTION),
 							valueParameter -> {
@@ -450,7 +459,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				allowedChildrenPredicate,
 				constraintDescriptorsWithoutClassifier,
 				constraintDescriptor -> buildFieldFromConstraintDescriptor(
-					buildContext.switchToChildContext(new GenericDataLocator(buildContext.dataLocator().entityType())), // associated data constraints doesn't support children, thus generic domain is used as the default
+					buildContext, // associated data constraints doesn't support children, thus parent domain is used as the default
 					constraintDescriptor,
 					null,
 					null
@@ -472,12 +481,12 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			return List.of();
 		}
 
-		if (findRequiredEntitySchema(buildContext.dataLocator()).getCurrencies().isEmpty()) {
+		if (sharedContext.getEntitySchemaOrElseThrow(buildContext.dataLocator().entityType()).getCurrencies().isEmpty()) {
 			// no prices, cannot operate on them
 			return List.of();
 		}
 		return buildBasicChildren(
-			buildContext.switchToChildContext(new GenericDataLocator(buildContext.dataLocator().entityType())), // price constraints doesn't support children, thus generic domain is used as the default
+			buildContext, // price constraints doesn't support children, thus parent domain is used as the default
 			allowedChildrenPredicate,
 			ConstraintPropertyType.PRICE
 		);
@@ -542,7 +551,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 		// build constraints with classifier of queried collection
 		if (!(buildContext.dataLocator() instanceof DataLocatorWithReference) &&
-			findRequiredEntitySchema(buildContext.dataLocator()).isWithHierarchy()) {
+			sharedContext.getEntitySchemaOrElseThrow(buildContext.dataLocator().entityType()).isWithHierarchy()) {
 			final Set<ConstraintDescriptor> hierarchyConstraintsWithSilentImplicitClassifier = hierarchyConstraints.stream()
 				.filter(cd -> cd.creator().implicitClassifier() instanceof SilentImplicitClassifier)
 				.collect(Collectors.toUnmodifiableSet());
@@ -867,20 +876,44 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				default -> createSchemaBuildingError("Unsupported domain `" + desiredChildDomain + "`.");
 			};
 		} else {
-			final String childEntityType;
-			if (parentDataLocator instanceof DataLocatorWithReference) {
-				childEntityType = findReferencedEntitySchema(parentDataLocator)
-					.map(EntitySchemaContract::getName)
-					.orElseThrow(() -> createSchemaBuildingError("Could not find referenced entity schema for parent `" + parentDataLocator + "`."));
+			if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
+				if (dataLocatorWithReference.referenceName() == null) {
+					childDataLocator = switch (desiredChildDomain) {
+						case GENERIC -> new GenericDataLocator(dataLocatorWithReference.entityType());
+						case ENTITY -> new EntityDataLocator(dataLocatorWithReference.entityType());
+						default -> createSchemaBuildingError("Unsupported domain `" + desiredChildDomain + "`.");
+					};
+				} else {
+					final ReferenceSchemaContract referenceSchema = sharedContext.getEntitySchemaOrElseThrow(dataLocatorWithReference.entityType())
+						.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
+
+					final String referencedEntityType = referenceSchema.getReferencedEntityType();
+					childDataLocator = switch (desiredChildDomain) {
+						case GENERIC -> new GenericDataLocator(referencedEntityType);
+						case ENTITY -> {
+							if (referenceSchema.isReferencedEntityTypeManaged()) {
+								yield new EntityDataLocator(referencedEntityType);
+							} else {
+								yield new ExternalEntityDataLocator(referencedEntityType);
+							}
+						}
+						default -> createSchemaBuildingError("Unsupported domain `" + desiredChildDomain + "`.");
+					};
+				}
+			} else if (parentDataLocator instanceof ExternalEntityDataLocator) {
+				childDataLocator = switch (desiredChildDomain) {
+					case GENERIC -> new GenericDataLocator(parentDataLocator.entityType());
+					case ENTITY -> new ExternalEntityDataLocator(parentDataLocator.entityType());
+					default -> createSchemaBuildingError("Unsupported domain `" + desiredChildDomain + "`.");
+				};
 			} else {
-				childEntityType = parentDataLocator.entityType();
+				childDataLocator = switch (desiredChildDomain) {
+					case GENERIC -> new GenericDataLocator(parentDataLocator.entityType());
+					case ENTITY -> new EntityDataLocator(parentDataLocator.entityType());
+					default -> createSchemaBuildingError("Unsupported domain `" + desiredChildDomain + "`.");
+				};
 			}
 
-			childDataLocator = switch (desiredChildDomain) {
-				case GENERIC -> new GenericDataLocator(childEntityType);
-				case ENTITY -> new EntityDataLocator(childEntityType);
-				default -> createSchemaBuildingError("Unsupported domain `" + desiredChildDomain + "`.");
-			};
 		}
 
 		return childDataLocator;
@@ -935,42 +968,6 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	                                                                 @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                                 @Nullable ValueTypeSupplier valueTypeSupplier);
 
-	@Nonnull
-	protected Optional<EntitySchemaContract> findEntitySchema(@Nonnull DataLocator dataLocator) {
-		return sharedContext.getCatalog()
-			.getSchema()
-			.getEntitySchema(dataLocator.entityType());
-	}
-
-	@Nonnull
-	protected EntitySchemaContract findRequiredEntitySchema(@Nonnull DataLocator dataLocator) {
-		return findEntitySchema(dataLocator)
-			.orElseThrow(() -> createSchemaBuildingError("Entity schema `" + dataLocator.entityType() + "` is required."));
-	}
-
-	@Nonnull
-	protected Optional<EntitySchemaContract> findReferencedEntitySchema(@Nonnull DataLocator dataLocator) {
-		return findEntitySchema(dataLocator)
-			.flatMap(entitySchema -> {
-				final String referenceName;
-				if (dataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
-					referenceName = dataLocatorWithReference.referenceName();
-				} else {
-					throw createSchemaBuildingError("Cannot find referenced entity schema for non-reference data locator.");
-				}
-				if (referenceName == null) {
-					// we do not reference any other collection, thus the main one is used as fall back
-					return findEntitySchema(dataLocator);
-				}
-
-				return entitySchema.getReference(referenceName)
-					.filter(ReferenceSchemaContract::isReferencedEntityTypeManaged)
-					.flatMap(referenceSchema -> sharedContext.getCatalog()
-						.getSchema()
-						.getEntitySchema(referenceSchema.getReferencedEntityType()));
-			});
-	}
-
 	/**
 	 * Find attribute schemas for specific data locator.
 	 */
@@ -980,7 +977,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			return Collections.emptyList();
 		}
 		if (dataLocator instanceof final EntityDataLocator entityDataLocator) {
-			return findRequiredEntitySchema(entityDataLocator)
+			return sharedContext.getEntitySchemaOrElseThrow(entityDataLocator.entityType())
 				.getAttributes()
 				.values()
 				.stream()
@@ -988,7 +985,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				.toList();
 		}
 		if (dataLocator instanceof final ReferenceDataLocator referenceDataLocator) {
-			final ReferenceSchemaContract reference = findRequiredEntitySchema(referenceDataLocator)
+			final ReferenceSchemaContract reference = sharedContext.getEntitySchemaOrElseThrow(referenceDataLocator.entityType())
 				.getReference(referenceDataLocator.referenceName())
 				.orElseThrow(() -> createSchemaBuildingError(
 					"Missing reference `" + referenceDataLocator.referenceName() + "` in entity `" + referenceDataLocator.entityType() + "`."
@@ -1037,7 +1034,9 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 					(parameterType.isArray() && parameterType.getComponentType().equals(Locale.class));
 			});
 		final boolean localesPresent = !(buildContext.dataLocator() instanceof DataLocatorWithReference) &&
-			findEntitySchema(buildContext.dataLocator()).map(schema -> !schema.getLocales().isEmpty()).orElse(false);
+			sharedContext.getEntitySchema(buildContext.dataLocator().entityType())
+				.map(schema -> !schema.getLocales().isEmpty())
+				.orElse(false);
 
 		return !isLocalized || localesPresent;
 	}

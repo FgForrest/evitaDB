@@ -30,6 +30,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -108,15 +109,14 @@ public class HierarchyExtraResultRequireResolver {
 	@Nonnull
 	private Entry<String, RequireConstraint> resolveHierarchyOfSelf(@Nonnull SelectedField field,
 	                                                                @Nullable Locale desiredLocale) {
-		final HierarchyDataLocator hierarchyDataLocator = new HierarchyDataLocator(entitySchema.getName());
 
 		final OrderBy orderBy = (OrderBy) Optional.ofNullable(field.getArguments().get(HierarchyOfSelfHeaderDescriptor.ORDER_BY.name()))
-			.map(it -> orderConstraintResolver.resolve(hierarchyDataLocator, HierarchyOfSelfHeaderDescriptor.ORDER_BY.name(), it))
+			.map(it -> orderConstraintResolver.resolve(new EntityDataLocator(entitySchema.getName()), HierarchyOfSelfHeaderDescriptor.ORDER_BY.name(), it))
 			.orElse(null);
 
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
-			hierarchyDataLocator,
+			new HierarchyDataLocator(entitySchema.getName()),
 			desiredLocale
 		);
 
@@ -132,7 +132,6 @@ public class HierarchyExtraResultRequireResolver {
 				new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + entitySchema.getName() + "`."));
 
 		final String referenceName = referenceSchema.getName();
-		final HierarchyDataLocator hierarchyDataLocator = new HierarchyDataLocator(entitySchema.getName(), referenceName);
 		final EntitySchemaContract hierarchyEntitySchema = referenceSchema.isReferencedEntityTypeManaged()
 			? entitySchemaFetcher.apply(referenceSchema.getReferencedEntityType())
 			: null;
@@ -155,7 +154,7 @@ public class HierarchyExtraResultRequireResolver {
 
 		final HierarchyRequireConstraint[] hierarchyRequires = resolveHierarchyRequirements(
 			field,
-			hierarchyDataLocator,
+			new HierarchyDataLocator(entitySchema.getName(), referenceName),
 			desiredLocale
 		);
 
@@ -170,7 +169,7 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nonnull
 	private HierarchyRequireConstraint[] resolveHierarchyRequirements(@Nonnull SelectedField field,
-	                                                                  @Nonnull HierarchyDataLocator hierarchyDataLocator,
+	                                                                  @Nonnull DataLocator hierarchyDataLocator,
 	                                                                  @Nullable Locale desiredLocale) {
 		return field.getSelectionSet()
 			.getFields("*")
@@ -189,7 +188,7 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nonnull
 	private Entry<String, HierarchyRequireConstraint> resolveHierarchyRequire(@Nonnull SelectedField field,
-	                                                                          @Nonnull HierarchyDataLocator hierarchyDataLocator,
+	                                                                          @Nonnull DataLocator hierarchyDataLocator,
 	                                                                          @Nullable Locale desiredLocale) {
 		final String outputName = HierarchyRequireOutputNameResolver.resolve(field);
 
@@ -224,7 +223,7 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nullable
 	private <T extends HierarchyConstraint<RequireConstraint>> T resolveChildHierarchyRequireFromArgument(@Nonnull SelectedField field,
-	                                                                                                      @Nonnull HierarchyDataLocator hierarchyDataLocator,
+	                                                                                                      @Nonnull DataLocator hierarchyDataLocator,
 	                                                                                                      @Nonnull PropertyDescriptor argumentDescriptor) {
 		//noinspection unchecked
 		return (T) Optional.ofNullable(field.getArguments().get(argumentDescriptor.name()))
@@ -276,7 +275,7 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nullable
 	private HierarchySiblings resolveSiblingsOfParents(@Nonnull SelectedField field,
-	                                                   @Nonnull HierarchyDataLocator hierarchyDataLocator) {
+	                                                   @Nonnull DataLocator hierarchyDataLocator) {
 
 		//noinspection unchecked
 		final Map<String, Object> siblingsSpecification = (Map<String, Object>) field.getArguments()

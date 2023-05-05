@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -38,6 +37,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessin
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorWithReference;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.FacetDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
@@ -185,31 +185,24 @@ class ConstraintDescriptorResolver {
 
 			final DataLocator parentDataLocator = resolveContext.dataLocator();
 			if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
-				final String referenceName = dataLocatorWithReference.referenceName();
+				final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(dataLocatorWithReference.entityType())
+					.getReference(dataLocatorWithReference.referenceName())
+					// we can safely check this because if there was any reference schema there should be any classifier to begin with
+					.orElseThrow(() -> new ExternalApiInternalError("Missing reference schema in data locator with reference. Cannot resolve classifier `" + c + "`."));
 
 				return switch (constraintDescriptor.propertyType()) {
-					case ATTRIBUTE -> {
-						final AttributeSchemaProvider<?> attributeSchemaProvider;
-						if (referenceName == null) {
-							attributeSchemaProvider = findEntitySchema(dataLocatorWithReference);
-						} else {
-							attributeSchemaProvider = findEntitySchema(parentDataLocator)
-								.getReference(referenceName)
-								.orElseThrow(() -> new ExternalApiInternalError("Could not find reference schema for reference `" + referenceName + "`."));
-						}
-						yield attributeSchemaProvider
-							.getAttributeByName(c, CLASSIFIER_NAMING_CONVENTION)
-							.map(AttributeSchemaContract::getName)
-							.orElseThrow(() -> new ExternalApiInternalError(
-								"Could not find attribute schema for classifier `" + c + "`."
-							));
-					}
+					case ATTRIBUTE -> referenceSchema
+						.getAttributeByName(c, CLASSIFIER_NAMING_CONVENTION)
+						.map(AttributeSchemaContract::getName)
+						.orElseThrow(() -> new ExternalApiInternalError(
+							"Could not find attribute schema for classifier `" + c + "`."
+						));
 					default -> throw new ExternalApiInternalError(
 						"Constraint property type `" + constraintDescriptor.propertyType() + "` does not support classifier parameter."
 					);
 				};
 			} else {
-				final EntitySchemaContract schemaForClassifier = findEntitySchema(parentDataLocator);
+				final EntitySchemaContract schemaForClassifier = catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType());
 				return switch (constraintDescriptor.propertyType()) {
 					case ATTRIBUTE -> schemaForClassifier.getAttributeByName(c, CLASSIFIER_NAMING_CONVENTION)
 						.map(AttributeSchemaContract::getName)
@@ -236,7 +229,8 @@ class ConstraintDescriptorResolver {
 
 	/**
 	 * Resolves data locator relevant inside the parsed constraint based on property type which defines inner domain
-	 * of the constraint for its parameters, mainly its children.
+	 * of the constraint for its parameters, mainly its children. We need this to provide needed data from classifier,
+	 * otherwise we don't have any other point to gather such data later when resolving children.
 	 */
 	@Nonnull
 	private DataLocator resolveInnerDataLocator(@Nonnull ConstraintResolveContext resolveContext,
@@ -247,11 +241,22 @@ class ConstraintDescriptorResolver {
 		return switch (constraintDescriptor.propertyType()) {
 			case GENERIC, ATTRIBUTE, ASSOCIATED_DATA, PRICE -> parentDataLocator;
 			case ENTITY -> {
-				if (!(parentDataLocator instanceof DataLocatorWithReference)) {
-					yield new EntityDataLocator(parentDataLocator.entityType());
+				if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
+					if (dataLocatorWithReference.referenceName() == null) {
+						yield new EntityDataLocator(dataLocatorWithReference.entityType());
+					} else {
+						final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType())
+							.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
+						if (referenceSchema.isReferencedEntityTypeManaged()) {
+							yield new EntityDataLocator(referenceSchema.getReferencedEntityType());
+						} else {
+							yield new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
+						}
+					}
+				} else if (parentDataLocator instanceof ExternalEntityDataLocator) {
+					yield parentDataLocator;
 				} else {
-					final EntitySchemaContract referencedEntitySchema = findReferencedEntitySchema(parentDataLocator);
-					yield new EntityDataLocator(referencedEntitySchema.getName());
+					yield new EntityDataLocator(parentDataLocator.entityType());
 				}
 			}
 			case REFERENCE -> new ReferenceDataLocator(
@@ -280,33 +285,6 @@ class ConstraintDescriptorResolver {
 		};
 	}
 
-	@Nonnull
-	protected EntitySchemaContract findEntitySchema(@Nonnull DataLocator dataLocator) {
-		return catalogSchema.getEntitySchema(dataLocator.entityType())
-			.orElseThrow(() -> new ExternalApiInternalError("Entity schema `" + dataLocator.entityType() + "` is required."));
-	}
-
-	@Nonnull
-	protected EntitySchemaContract findReferencedEntitySchema(@Nonnull DataLocator dataLocator) {
-		return catalogSchema.getEntitySchema(dataLocator.entityType())
-			.flatMap(entitySchema -> {
-				final String referenceName;
-				if (dataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
-					referenceName = dataLocatorWithReference.referenceName();
-				} else {
-					throw new ExternalApiInternalError("Cannot find referenced entity schema for non-reference data locator.");
-				}
-				if (referenceName == null) {
-					// we do not reference any other collection, thus the main one is used as fall back
-					return Optional.of(entitySchema);
-				}
-
-				return entitySchema.getReference(referenceName)
-					.filter(ReferenceSchemaContract::isReferencedEntityTypeManaged)
-					.flatMap(referenceSchema -> catalogSchema.getEntitySchema(referenceSchema.getReferencedEntityType()));
-			})
-			.orElseThrow(() -> new ExternalApiInternalError("Could not find schema for referenced entity."));
-	}
 
 	/**
 	 * Parsed client key representing actual constraint which is described by {@link ConstraintDescriptor}

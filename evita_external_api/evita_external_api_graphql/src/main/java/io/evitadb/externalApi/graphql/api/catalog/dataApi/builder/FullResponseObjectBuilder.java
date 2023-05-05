@@ -776,7 +776,6 @@ public class FullResponseObjectBuilder {
 	private BuiltFieldDescriptor buildHierarchyOfSelfField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLObjectType hierarchyOfSelfObject = buildHierarchyOfSelfObject(entitySchema);
 
-		// todo lho revise in #14
 		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(new EntityDataLocator(entitySchema.getName()));
 
 		final GraphQLFieldDefinition hierarchyOfSelfField = HierarchyDescriptor.SELF
@@ -794,7 +793,6 @@ public class FullResponseObjectBuilder {
 	private GraphQLObjectType buildHierarchyOfSelfObject(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = HierarchyOfSelfDescriptor.THIS.name(entitySchema, entitySchema);
 
-		// todo lho revise in #14
 		final HierarchyDataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
 		final GraphQLInputType nodeConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyNode.class);
 		final GraphQLInputType stopAtConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStopAt.class);
@@ -886,15 +884,16 @@ public class FullResponseObjectBuilder {
 			.argument(HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR
 				.to(argumentBuilderTransformer));
 
-		// todo lho revise in #14
+		final DataLocator hierarchyDataLocator;
 		if (referenceSchema.isReferencedEntityTypeManaged()) {
-			final EntitySchemaContract referencedEntitySchema = buildingContext.getSchema()
-				.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-			final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(new EntityDataLocator(referencedEntitySchema.getName()));
-			hierarchyOfReferenceFieldBuilder.argument(HierarchyOfReferenceHeaderDescriptor.ORDER_BY
-				.to(argumentBuilderTransformer)
-				.type(orderByConstraint));
+			hierarchyDataLocator = new EntityDataLocator(referenceSchema.getReferencedEntityType());
+		} else {
+			hierarchyDataLocator = new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
 		}
+		final GraphQLInputType orderByConstraint = orderConstraintSchemaBuilder.build(hierarchyDataLocator);
+		hierarchyOfReferenceFieldBuilder.argument(HierarchyOfReferenceHeaderDescriptor.ORDER_BY
+			.to(argumentBuilderTransformer)
+			.type(orderByConstraint));
 
 		return new BuiltFieldDescriptor(hierarchyOfReferenceFieldBuilder.build(), null);
 	}
@@ -904,7 +903,6 @@ public class FullResponseObjectBuilder {
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
 		final String objectName = HierarchyOfReferenceDescriptor.THIS.name(entitySchema, referenceSchema);
 
-		// todo lho revise in #14
 		final HierarchyDataLocator referenceHierarchyConstraintDataLocator = new HierarchyDataLocator(
 			entitySchema.getName(),
 			referenceSchema.getName()

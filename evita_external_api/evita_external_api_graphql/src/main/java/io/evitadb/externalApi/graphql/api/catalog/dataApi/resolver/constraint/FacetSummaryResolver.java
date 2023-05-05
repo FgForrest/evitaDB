@@ -209,7 +209,7 @@ public class FacetSummaryResolver {
 					() -> new GraphQLInvalidResponseUsageException("There can be only one `" + FacetStatisticsDescriptor.FACET_ENTITY.name() + "` field for reference `" + referenceName + "`.")
 				);
 
-				return facetStatisticsFields.stream()
+				return facetEntityFields.stream()
 					.findFirst() // we support only one facet entity field
 					.flatMap(facetEntityField -> entityFetchRequireResolver.resolveEntityFetch(
 						SelectionSetWrapper.from(facetEntityField.getSelectionSet()),

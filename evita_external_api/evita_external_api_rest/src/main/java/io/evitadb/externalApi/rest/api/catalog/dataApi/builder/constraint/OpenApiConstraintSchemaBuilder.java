@@ -168,14 +168,14 @@ public abstract class OpenApiConstraintSchemaBuilder
 			if (Locale.class.equals(valueParameterType) || Locale.class.equals(valueParameterType.getComponentType())) {
 				// if locale data type is explicitly defined, we expect that such locale is schema-defined locale
 				return DataTypesConverter.wrapOpenApiComponentType(
-					typeRefTo(ENTITY_LOCALE_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()))),
+					typeRefTo(ENTITY_LOCALE_ENUM.name(sharedContext.getEntitySchemaOrElseThrow(buildContext.dataLocator().entityType()))),
 					valueParameterType,
 					canBeRequired && valueParameter.required()
 				);
 			} else if (Currency.class.equals(valueParameterType) || Currency.class.equals(valueParameterType.getComponentType())) {
 				// if currency data type is explicitly defined, we expect that such currency is schema-defined currency
 				return DataTypesConverter.wrapOpenApiComponentType(
-					typeRefTo(ENTITY_CURRENCY_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()))),
+					typeRefTo(ENTITY_CURRENCY_ENUM.name(sharedContext.getEntitySchemaOrElseThrow(buildContext.dataLocator().entityType()))),
 					valueParameterType,
 					canBeRequired && valueParameter.required()
 				);

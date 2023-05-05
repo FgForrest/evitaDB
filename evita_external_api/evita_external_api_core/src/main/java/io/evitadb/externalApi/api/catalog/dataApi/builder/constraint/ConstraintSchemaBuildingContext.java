@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -33,6 +35,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -64,6 +67,23 @@ public abstract class ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE> 
 	 * works mainly with type references due to the cycling references to types.
 	 */
 	protected final List<OBJECT_TYPE> builtTypes = new LinkedList<>();
+
+	/**
+	 * Returns {@link EntitySchemaContract} for passed `entityType`.
+	 */
+	@Nonnull
+	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+		return catalog.getEntitySchema(entityType).map(it -> it);
+	}
+
+	/**
+	 * Returns {@link EntitySchemaContract} for passed `entityType`. If missing throws {@link ExternalApiInternalError}.
+	 */
+	@Nonnull
+	public EntitySchemaContract getEntitySchemaOrElseThrow(@Nonnull String entityType) {
+		return getEntitySchema(entityType)
+			.orElseThrow(() -> new ExternalApiInternalError("Could not find required schema for entity `" + entityType + "`."));
+	}
 
 	/**
 	 * Caches created container under specified key if absent.
