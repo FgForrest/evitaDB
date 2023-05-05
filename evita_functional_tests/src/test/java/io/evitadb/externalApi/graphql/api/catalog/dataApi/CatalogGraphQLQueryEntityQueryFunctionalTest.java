@@ -4430,6 +4430,95 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			);
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return facet summary with marked facets")
+	void shouldReturnFacetSummaryWithMarkedFacets(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								facetHaving(Entities.PARAMETER, attributeLessThanEquals(ATTRIBUTE_CODE, "H"))
+							)
+						),
+						require(
+							facetSummaryOfReference(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+
+		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        userFilter: {
+		                            facetParameterHaving: {
+		                                attributeCodeLessThanEquals: "H"
+		                            }
+		                        }
+		                    }
+		                ) {
+		                    extraResults {
+		                        facetSummary {
+		                            parameter {
+		                                __typename
+		                                groupEntity {
+			                                __typename
+			                                primaryKey
+			                                type
+			                            }
+			                            count
+			                            facetStatistics(
+			                                filterBy: {
+		                                        attributeCodeLessThanEquals: "K"
+				                            },
+				                            orderBy: {
+				                                attributeNameNatural: DESC
+				                            }
+			                            ) {
+			                                __typename
+			                                facetEntity {
+			                                    __typename
+			                                    primaryKey
+			                                    type
+			                                }
+			                                requested
+			                                count
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
+				equalTo(expectedBody)
+			);
+	}
+
 
 	@Nonnull
 	private List<SealedEntity> findEntities(@Nonnull List<SealedEntity> originalProductEntities,
