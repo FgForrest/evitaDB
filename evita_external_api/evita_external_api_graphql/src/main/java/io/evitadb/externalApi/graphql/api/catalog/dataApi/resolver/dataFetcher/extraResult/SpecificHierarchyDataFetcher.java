@@ -38,9 +38,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO lho docs
+ * Returns specific hierarchy as flattened list of nodes from hierarchical structure.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class SpecificHierarchyDataFetcher implements DataFetcher<List<LevelInfoDto>> {
 
