@@ -47,7 +47,7 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldHaveProcessedConstraints() {
-		assertEquals(72, ConstraintDescriptorProvider.getAllConstraints().size());
+		assertEquals(74, ConstraintDescriptorProvider.getAllConstraints().size());
 	}
 
 	@Test
@@ -109,7 +109,7 @@ class ConstraintDescriptorProviderTest {
 		final ConstraintDescriptor descriptorByNameAndClassifier3 = ConstraintDescriptorProvider.getConstraint(
 			ConstraintType.REQUIRE,
 			ConstraintPropertyType.FACET,
-			"summary",
+			"summaryOfReference",
 			"parameter"
 		).get();
 		assertEquals(FacetSummaryOfReference.class, descriptorByNameAndClassifier3.constraintClass());
@@ -117,8 +117,8 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldFindAllConstraintsForSpecificType() {
-		assertEquals(34, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
-		assertEquals(6, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
+		assertEquals(35, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
+		assertEquals(7, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
 	}
 
 	@Test

@@ -32,6 +32,7 @@ import java.io.Serial;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.stream.Collectors;
 
 /**
  * IntegerBitmap implementation that is backed by {@link RoaringBitmap}.
@@ -224,6 +225,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 
 	@Override
 	public String toString() {
-		return roaringBitmap.toString();
+		// we need to unify the output with ArrayBitmap and other implementations
+		return "[" + roaringBitmap.stream().mapToObj(Integer::toString).collect(Collectors.joining(", ")) + "]";
 	}
 }

@@ -33,17 +33,10 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorWithReference;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.FacetDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
@@ -58,8 +51,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -106,6 +97,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 	@Nonnull protected final CatalogSchemaContract catalogSchema;
 	@Nonnull private final ConstraintDescriptorResolver keyParser;
+	@Nonnull private final DataLocatorResolver dataLocatorResolver;
 	/**
 	 * Map of additional resolvers for cross-resolving constraints of different constraint types.
 	 */
@@ -122,6 +114,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 		this.catalogSchema = catalogSchema;
 		this.keyParser = new ConstraintDescriptorResolver(catalogSchema, getConstraintType());
+		this.dataLocatorResolver = new DataLocatorResolver(catalogSchema);
 		this.additionalResolvers = additionalResolvers;
 	}
 
@@ -781,27 +774,6 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		}
 	}
 
-	@Nonnull
-	private Optional<EntitySchemaContract> findReferencedEntitySchema(@Nonnull DataLocator dataLocator) {
-		return catalogSchema.getEntitySchema(dataLocator.entityType())
-			.flatMap(entitySchema -> {
-				final String referenceName;
-				if (dataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
-					referenceName = dataLocatorWithReference.referenceName();
-				} else {
-					throw createQueryResolvingInternalError("Cannot find referenced entity schema for non-reference data locator.");
-				}
-				if (referenceName == null) {
-					// we do not reference any other collection, thus the main one is used as fall back
-					return Optional.of(entitySchema);
-				}
-
-				return entitySchema.getReference(referenceName)
-					.filter(ReferenceSchemaContract::isReferencedEntityTypeManaged)
-					.flatMap(referenceSchema -> catalogSchema.getEntitySchema(referenceSchema.getReferencedEntityType()));
-			});
-	}
-
 	/**
 	 * Tries to resolve or switch domain of current constraint to desired domain for child constraints.
 	 *
@@ -817,56 +789,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
 			return resolveContext.dataLocator();
 		}
-
-		final DataLocator parentDataLocator = resolveContext.dataLocator();
-		final DataLocator childDataLocator;
-		if (desiredChildDomain == ConstraintDomain.DEFAULT) {
-			childDataLocator = parentDataLocator;
-		} else if (Set.of(ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.HIERARCHY_TARGET, ConstraintDomain.FACET).contains(desiredChildDomain)) {
-			Assert.isPremiseValid(
-				parentDataLocator instanceof DataLocatorWithReference,
-				() -> createQueryResolvingInternalError("Cannot switch to `" + desiredChildDomain + "` domain because parent domain doesn't contain any reference.")
-			);
-
-			final String childEntityType = parentDataLocator.entityType();
-			final String childReferenceName = ((DataLocatorWithReference) parentDataLocator).referenceName();
-			childDataLocator = switch (desiredChildDomain) {
-				case REFERENCE -> {
-					Assert.isPremiseValid(
-						childReferenceName != null,
-						() -> createQueryResolvingInternalError("Child domain `" + ConstraintDomain.REFERENCE + "` requires explicit reference name.")
-					);
-					yield new ReferenceDataLocator(childEntityType, childReferenceName);
-				}
-				case HIERARCHY -> new HierarchyDataLocator(childEntityType, childReferenceName);
-				case HIERARCHY_TARGET -> {
-					if (childReferenceName == null) {
-						yield new EntityDataLocator(childEntityType);
-					} else {
-						yield new ReferenceDataLocator(childEntityType, childReferenceName);
-					}
-				}
-				case FACET -> new FacetDataLocator(childEntityType, childReferenceName);
-				default -> createQueryResolvingInternalError("Unsupported domain `" + desiredChildDomain + "`.");
-			};
-		} else {
-			final String childEntityType;
-			if (parentDataLocator instanceof DataLocatorWithReference) {
-				childEntityType = findReferencedEntitySchema(parentDataLocator)
-					.map(EntitySchemaContract::getName)
-					.orElseThrow(() -> createQueryResolvingInternalError("Could not find referenced entity schema for parent `" + parentDataLocator + "`."));
-			} else {
-				childEntityType = parentDataLocator.entityType();
-			}
-
-			childDataLocator = switch (desiredChildDomain) {
-				case GENERIC -> new GenericDataLocator(childEntityType);
-				case ENTITY -> new EntityDataLocator(childEntityType);
-				default -> createQueryResolvingInternalError("Unsupported domain `" + desiredChildDomain + "`.");
-			};
-		}
-
-		return childDataLocator;
+		return dataLocatorResolver.resolveChildParameterDataLocator(resolveContext.dataLocator(), desiredChildDomain);
 	}
 
 	@SuppressWarnings("unchecked")

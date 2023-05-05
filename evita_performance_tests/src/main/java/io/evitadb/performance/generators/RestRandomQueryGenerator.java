@@ -67,12 +67,10 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.facetInSet;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.userFilter;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.performance.generators.RandomQueryGenerator.extractFacetIds;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -345,7 +343,7 @@ public interface RestRandomQueryGenerator {
 					userFilter(
 						selectedFacets.entrySet()
 							.stream()
-							.map(it -> facetInSet(it.getKey(), it.getValue().toArray(new Integer[0])))
+							.map(it -> facetHaving(it.getKey(), entityPrimaryKeyInSet(it.getValue().toArray(new Integer[0]))))
 							.toArray(FilterConstraint[]::new)
 					)
 				)
@@ -355,7 +353,7 @@ public interface RestRandomQueryGenerator {
 				UserFilter.class,
 				selectedFacets.entrySet()
 					.stream()
-					.map(it -> new RestConstraint(it.getKey(), FacetInSet.class, (Object[]) it.getValue().toArray(new Integer[0])))
+					.map(it -> new RestConstraint(it.getKey(), FacetHaving.class, (Object[]) it.getValue().toArray(new Integer[0])))
 					.toArray(RestConstraint[]::new)
 			),
 			null,
@@ -422,28 +420,28 @@ public interface RestRandomQueryGenerator {
 	 * Updates randomized query adding a request to facet summary computation juggling inter facet relations.
 	 */
 	default RestQuery generateRandomFacetSummaryQuery(@Nonnull RestQuery existingQuery, @Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull FacetStatisticsDepth depth, @Nonnull Map<String, Map<Integer, Integer>> facetGroupsIndex) {
-		final List<FilterConstraint> facetFilters = FinderVisitor.findConstraints(existingQuery.originalQuery().getFilterBy(), FacetInSet.class::isInstance);
+		final List<FilterConstraint> facetFilters = FinderVisitor.findConstraints(existingQuery.originalQuery().getFilterBy(), FacetHaving.class::isInstance);
 		final List<RestConstraint> requireConstraints = new LinkedList<>();
 		for (FilterConstraint facetFilter : facetFilters) {
-			final FacetInSet facetInSetConstraint = (FacetInSet) facetFilter;
+			final FacetHaving facetHaving = (FacetHaving) facetFilter;
 			final int dice = random.nextInt(4);
-			final Map<Integer, Integer> entityTypeGroups = facetGroupsIndex.get(facetInSetConstraint.getReferenceName());
-			final Set<Integer> groupIds = Arrays.stream(facetInSetConstraint.getFacetIds())
+			final Map<Integer, Integer> entityTypeGroups = facetGroupsIndex.get(facetHaving.getReferenceName());
+			final Set<Integer> groupIds = Arrays.stream(extractFacetIds(facetHaving))
 				.mapToObj(entityTypeGroups::get)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
 			if (!groupIds.isEmpty()) {
 				if (dice == 1) {
 					requireConstraints.add(
-						new RestConstraint(facetInSetConstraint.getReferenceName(), FacetGroupsConjunction.class, new Object[] {getRandomItem(random, groupIds)})
+						new RestConstraint(facetHaving.getReferenceName(), FacetGroupsConjunction.class, new Object[] {getRandomItem(random, groupIds)})
 					);
 				} else if (dice == 2) {
 					requireConstraints.add(
-						new RestConstraint(facetInSetConstraint.getReferenceName(), FacetGroupsDisjunction.class, new Object[] {getRandomItem(random, groupIds)})
+						new RestConstraint(facetHaving.getReferenceName(), FacetGroupsDisjunction.class, new Object[] {getRandomItem(random, groupIds)})
 					);
 				} else if (dice == 3) {
 					requireConstraints.add(
-						new RestConstraint(facetInSetConstraint.getReferenceName(), FacetGroupsNegation.class, new Object[] {getRandomItem(random, groupIds)})
+						new RestConstraint(facetHaving.getReferenceName(), FacetGroupsNegation.class, new Object[] {getRandomItem(random, groupIds)})
 					);
 				}
 			}

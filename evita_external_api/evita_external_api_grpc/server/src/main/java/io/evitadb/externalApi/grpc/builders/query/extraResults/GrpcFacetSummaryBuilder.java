@@ -64,19 +64,19 @@ public class GrpcFacetSummaryBuilder {
 			final List<GrpcFacetStatistics> facetStatistics = new ArrayList<>(originalFacetStatistics.size());
 			for (FacetSummary.FacetStatistics facetStatistic : originalFacetStatistics) {
 				final GrpcFacetStatistics.Builder statisticsBuilder = GrpcFacetStatistics.newBuilder()
-					.setRequested(facetStatistic.requested())
-					.setCount(facetStatistic.count());
+					.setRequested(facetStatistic.isRequested())
+					.setCount(facetStatistic.getCount());
 
-				if (facetStatistic.facetEntity() instanceof final EntityReference entityReference) {
+				if (facetStatistic.getFacetEntity() instanceof final EntityReference entityReference) {
 					statisticsBuilder.setFacetEntityReference(GrpcEntityReference.newBuilder()
 						.setEntityType(entityReference.getType())
 						.setPrimaryKey(entityReference.getPrimaryKey()));
-				} else if (facetStatistic.facetEntity() instanceof final SealedEntity entity) {
+				} else if (facetStatistic.getFacetEntity() instanceof final SealedEntity entity) {
 					statisticsBuilder.setFacetEntity(EntityConverter.toGrpcSealedEntity(entity));
 				}
 
-				if (facetStatistic.impact() != null) {
-					statisticsBuilder.setImpact(Int32Value.newBuilder().setValue(facetStatistic.impact().difference()).build());
+				if (facetStatistic.getImpact() != null) {
+					statisticsBuilder.setImpact(Int32Value.newBuilder().setValue(facetStatistic.getImpact().difference()).build());
 				}
 
 				final GrpcFacetStatistics statistics = statisticsBuilder.build();

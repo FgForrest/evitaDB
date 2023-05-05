@@ -27,33 +27,37 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.FacetHaving;
 import lombok.RequiredArgsConstructor;
 
-import java.util.Arrays;
-
 /**
- * This {@link Serializer} implementation reads/writes {@link FacetInSet} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link FacetHaving} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class FacetInSetSerializer extends Serializer<FacetInSet> {
+public class FacetHavingSerializer extends Serializer<FacetHaving> {
 
 	@Override
-	public void write(Kryo kryo, Output output, FacetInSet object) {
+	public void write(Kryo kryo, Output output, FacetHaving object) {
 		output.writeString(object.getReferenceName());
-		final int[] primaryKeys = object.getFacetIds();
-		output.writeVarInt(primaryKeys.length, true);
-		output.writeInts(primaryKeys, 0, primaryKeys.length);
+		final FilterConstraint[] children = object.getChildren();
+		output.writeVarInt(children.length, true);
+		for (FilterConstraint child : children) {
+			kryo.writeClassAndObject(output, child);
+		}
 	}
 
 	@Override
-	public FacetInSet read(Kryo kryo, Input input, Class<? extends FacetInSet> type) {
-		final String entityType = input.readString();
-		final int facetCount = input.readVarInt(true);
-		final Integer[] primaryKeys = Arrays.stream(input.readInts(facetCount)).boxed().toArray(Integer[]::new);
-		return new FacetInSet(entityType, primaryKeys);
+	public FacetHaving read(Kryo kryo, Input input, Class<? extends FacetHaving> type) {
+		final String referenceName = input.readString();
+		final int childrenCount = input.readVarInt(true);
+		final FilterConstraint[] children = new FilterConstraint[childrenCount];
+		for (int i = 0; i < childrenCount; i++) {
+			children[i] = (FilterConstraint) kryo.readClassAndObject(input);
+		}
+		return new FacetHaving(referenceName, children);
 	}
 
 }

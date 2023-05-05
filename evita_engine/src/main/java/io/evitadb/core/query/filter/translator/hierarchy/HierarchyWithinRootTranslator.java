@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.exception.TargetEntityIsNotHierarchicalException;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
@@ -32,19 +33,21 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -82,12 +85,13 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		final String referenceName = hierarchyWithinRoot.getReferenceName();
 		final boolean directRelation = hierarchyWithinRoot.isDirectRelation();
 
+		final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
 		final ReferenceSchemaContract referenceSchema = ofNullable(referenceName)
-			.map(it -> filterByVisitor.getSchema().getReferenceOrThrowException(it))
+			.map(entitySchema::getReferenceOrThrowException)
 			.orElse(null);
 		final EntitySchemaContract targetEntitySchema = ofNullable(referenceSchema)
 			.map(it -> filterByVisitor.getSchema(it.getReferencedEntityType()))
-			.orElse(filterByVisitor.getSchema());
+			.orElse(entitySchema);
 
 		Assert.isTrue(
 			targetEntitySchema.isWithHierarchy(),
@@ -100,9 +104,10 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 				() -> createFormulaFromHierarchyIndex(
 					createAndStoreExclusionPredicate(
 						queryContext,
-						hierarchyWithinRoot.getExcludedChildrenFilter(),
-						filterByVisitor.getGlobalEntityIndex(),
-						referenceSchema
+						of(new FilterBy(hierarchyWithinRoot.getExcludedChildrenFilter()))
+							.filter(ConstraintContainer::isApplicable)
+							.orElse(null),
+						null
 					),
 					directRelation,
 					filterByVisitor.getGlobalEntityIndex()
@@ -120,18 +125,19 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 				return SkipFormula.INSTANCE;
 			} else {
 				final TargetIndexes targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinRoot);
+				final FilterConstraint[] excludedChildrenFormula = hierarchyWithinRoot.getExcludedChildrenFilter();
 				if (targetIndexes == null) {
-					final EntityIndex foreignEntityIndex = filterByVisitor.getGlobalEntityIndex(referenceName);
-					final FilterConstraint[] excludedChildrenFormula = hierarchyWithinRoot.getExcludedChildrenFilter();
-					final HierarchyFilteringPredicate exclusionPredicate = ArrayUtils.isEmpty(excludedChildrenFormula) ?
-						null :
-						new FilteringFormulaHierarchyEntityPredicate(
-							queryContext, foreignEntityIndex, new FilterBy(excludedChildrenFormula), referenceSchema
-						);
-					final Formula referencedIdsFormula = createFormulaFromHierarchyIndex(exclusionPredicate, directRelation, foreignEntityIndex);
-					return getReferencedEntityFormulas(filterByVisitor, referenceName, referencedIdsFormula.compute().getArray());
+					return EmptyFormula.INSTANCE;
 				} else {
-					return getReferencedEntityFormulas(targetIndexes.getIndexesOfType(EntityIndex.class));
+					final List<EntityIndex> hierarchyIndexes = targetIndexes.getIndexesOfType(EntityIndex.class);
+					if (ArrayUtils.isEmpty(excludedChildrenFormula)) {
+						return getReferencedEntityFormulas(hierarchyIndexes);
+					} else {
+						return getReferencedAndFilteredEntityFormulas(
+							filterByVisitor, entitySchema, referenceSchema,
+							excludedChildrenFormula, hierarchyIndexes
+						);
+					}
 				}
 			}
 		}

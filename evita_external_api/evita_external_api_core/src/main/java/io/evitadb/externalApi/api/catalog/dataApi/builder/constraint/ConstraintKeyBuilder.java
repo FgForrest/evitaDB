@@ -78,7 +78,7 @@ public class ConstraintKeyBuilder {
 		// and not globally available
 		if (!buildContext.isAtRoot() &&
 			buildContext.dataLocator().targetDomain().equals(buildContext.parentDataLocator().targetDomain()) &&
-			!creator.needsClassifier() &&
+			!creator.hasClassifier() &&
 			constraintDescriptor.propertyType().equals(ConstraintProcessingUtils.getFallbackPropertyTypeForDomain(buildContext.dataLocator().targetDomain()))) {
 			return StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_NAMING_CONVENTION);
 		}
@@ -87,7 +87,7 @@ public class ConstraintKeyBuilder {
 		if (!prefix.isEmpty()) {
 			keyBuilder.append(prefix);
 		}
-		if (creator.needsClassifier()) {
+		if (creator.hasClassifier()) {
 			if (creator.hasImplicitClassifier()) {
 				if (creator.implicitClassifier() instanceof FixedImplicitClassifier fixedImplicitClassifier) {
 					keyBuilder.append(StringUtils.toSpecificCase(fixedImplicitClassifier.classifier(), PROPERTY_NAME_PART_NAMING_CONVENTION));

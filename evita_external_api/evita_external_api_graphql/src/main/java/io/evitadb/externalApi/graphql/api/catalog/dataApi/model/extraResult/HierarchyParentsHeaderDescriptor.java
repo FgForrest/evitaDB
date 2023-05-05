@@ -43,7 +43,10 @@ public interface HierarchyParentsHeaderDescriptor extends HierarchyRequireHeader
 		// type is expected to be a sibling specification object
 		.build();
 
-	// todo lho docs
+	/**
+	 * Descriptor of modified {@link io.evitadb.api.query.require.HierarchySiblings} constraint specifically for
+	 * parents.
+	 */
 	interface HierarchyParentsSiblingsSpecification {
 
 		PropertyDescriptor STOP_AT = PropertyDescriptor.builder()

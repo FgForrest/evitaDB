@@ -23,18 +23,18 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
-import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
 
 /**
  * This `facet` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
@@ -80,50 +80,52 @@ import java.util.Arrays;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "inSet",
+	name = "having",
 	shortDescription = "The constraint if entity has at least one of the passed facet primary keys.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class FacetInSet extends AbstractFilterConstraintLeaf implements FacetConstraint<FilterConstraint> {
+public class FacetHaving extends AbstractFilterConstraintContainer implements FacetConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -4135466525683422992L;
 
-	private FacetInSet(Serializable... arguments) {
-		super(arguments);
-	}
-
-	@Creator
-	public FacetInSet(@Nonnull @Classifier String referenceName,
-	                  @Nonnull @Value Integer... facetId) {
-		super(concat(referenceName, facetId));
+	private FacetHaving(@Nonnull Serializable[] arguments, @Nonnull FilterConstraint... children) {
+		super(arguments, children);
 	}
 
 	/**
-	 * Returns name of the entity this hierarchy query relates to.
+	 * Private constructor that creates unnecessary / not applicable version of the query.
+	 */
+	private FacetHaving(@Nonnull @Classifier String referenceName) {
+		super(referenceName);
+	}
+
+	@Creator
+	public FacetHaving(@Nonnull @Classifier String referenceName,
+	                   @Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filter) {
+		super(new Serializable[]{referenceName}, filter);
+	}
+
+	/**
+	 * Returns reference name of the facet relation that should be used for applying for filtering according to children constraints.
 	 */
 	@Nonnull
 	public String getReferenceName() {
 		return (String) getArguments()[0];
 	}
 
-	/**
-	 * Returns primary keys of all facets that entity must have in order to match.
-	 */
-	@Nonnull
-	public int[] getFacetIds() {
-		return Arrays.stream(getArguments())
-			.skip(1)
-			.mapToInt(Integer.class::cast)
-			.toArray();
+	@Override
+	public boolean isNecessary() {
+		return getArguments().length == 1 && getChildren().length > 0;
 	}
 
+	@Nonnull
 	@Override
-	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length >= 2;
+	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		return children.length == 0 ? new FacetHaving(getReferenceName()) : new FacetHaving(getReferenceName(), children);
 	}
 
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new FacetInSet(newArguments);
+		return new FacetHaving(newArguments, getChildren());
 	}
 }

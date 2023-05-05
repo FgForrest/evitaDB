@@ -29,9 +29,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.extraResult.translator.facet.FilterFormulaFacetOptimizeVisitor;
 import io.evitadb.index.bitmap.Bitmap;
 
@@ -78,23 +76,26 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	 */
 	private final ImpactFormulaGenerator impactFormulaGenerator;
 
-	public MemoizingFacetCalculator(@Nonnull QueryContext queryContext, @Nonnull Formula baseFormula, @Nonnull Formula baseFormulaWithoutUserFilter) {
+	public MemoizingFacetCalculator(
+		@Nonnull QueryContext queryContext,
+		@Nonnull Formula baseFormula,
+		@Nonnull Formula baseFormulaWithoutUserFilter
+	) {
 		// first optimize formula to a form that utilizes memoization the most while adding new facet filters
 		final Formula optimizedFormula = FilterFormulaFacetOptimizeVisitor.optimize(baseFormula);
 		// now replace common parts of the formula with cached counterparts
 		this.baseFormula = queryContext.analyse(optimizedFormula);
 		this.baseFormulaWithoutUserFilter = baseFormulaWithoutUserFilter;
 		this.base = new RequestImpact(0, baseFormula.compute().size());
-		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
 		this.facetFormulaGenerator = new FacetFormulaGenerator(
-			evitaRequest::isFacetGroupConjunction,
-			evitaRequest::isFacetGroupDisjunction,
-			evitaRequest::isFacetGroupNegation
+			queryContext::isFacetGroupConjunction,
+			queryContext::isFacetGroupDisjunction,
+			queryContext::isFacetGroupNegation
 		);
 		this.impactFormulaGenerator = new ImpactFormulaGenerator(
-			evitaRequest::isFacetGroupConjunction,
-			evitaRequest::isFacetGroupDisjunction,
-			evitaRequest::isFacetGroupNegation
+			queryContext::isFacetGroupConjunction,
+			queryContext::isFacetGroupDisjunction,
+			queryContext::isFacetGroupNegation
 		);
 	}
 

@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.builder.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -207,10 +208,10 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 			() -> resolver.resolve(
 				Entities.PRODUCT,
 				"attributeAgeBetween",
-				mapOf(
-					"from", 1,
-					"to", 2
-				)
+				map()
+					.e("from", 1)
+					.e("to", 2)
+					.build()
 			)
 		);
 	}
@@ -226,7 +227,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 						attributeIs("AGE", AttributeSpecialValue.NULL),
 						and(
 							priceBetween(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
-							facetInSet("BRAND", 10, 20, 30)
+							facetHaving("BRAND", entityPrimaryKeyInSet(10, 20, 30))
 						)
 					),
 					referenceHaving(
@@ -251,55 +252,37 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 				resolver.resolve(
 					Entities.PRODUCT,
 					"filterBy",
-					mapOf(
-						"attributeCodeEquals", "123",
-						"or", List.of(
-							mapOf(
-								"attributeAgeIs", AttributeSpecialValue.NULL
-							),
-							mapOf(
-								"priceBetween", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)),
-								"facetBrandInSet", List.of(10, 20, 30)
-							)
-						),
-						"referenceCategoryHaving", List.of(
-							mapOf(
-								"attributeCodeStartsWith", "ab",
-								"entityPrimaryKeyInSet", List.of(2),
-								"entityHaving", mapOf(
-									"attributeNameEquals", "cd",
-									"referenceRelatedProductsHaving", List.of(
-										mapOf(
-											"attributeOrderEquals", 1
-										)
-									)
-								)
-							)
-						)
-					)
+					map()
+						.e("attributeCodeEquals", "123")
+						.e("or", List.of(
+							map()
+								.e("attributeAgeIs", AttributeSpecialValue.NULL)
+								.build(),
+							map()
+								.e("priceBetween", List.of(BigDecimal.valueOf(10L), BigDecimal.valueOf(20L)))
+								.e("facetBrandHaving", List.of(
+									map()
+										.e("entityPrimaryKeyInSet",  List.of(10, 20, 30))
+										.build()
+								))
+								.build()
+						))
+						.e("referenceCategoryHaving", List.of(
+							map()
+								.e("attributeCodeStartsWith", "ab")
+								.e("entityPrimaryKeyInSet", List.of(2))
+								.e("entityHaving", map()
+									.e("attributeNameEquals", "cd")
+									.e("referenceRelatedProductsHaving", List.of(
+										map()
+											.e("attributeOrderEquals", 1)
+											.build()
+									)))
+								.build()
+						))
+						.build()
 				)
 			)
 		);
-	}
-
-	private <K, V> Map<K, V> mapOf(K k1, V v1) {
-		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
-		map.put(k1, v1);
-		return map;
-	}
-
-	private <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2) {
-		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
-		map.put(k1, v1);
-		map.put(k2, v2);
-		return map;
-	}
-
-	private <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2, K k3, V v3) {
-		final LinkedHashMap<K, V> map = new LinkedHashMap<>();
-		map.put(k1, v1);
-		map.put(k2, v2);
-		map.put(k3, v3);
-		return map;
 	}
 }

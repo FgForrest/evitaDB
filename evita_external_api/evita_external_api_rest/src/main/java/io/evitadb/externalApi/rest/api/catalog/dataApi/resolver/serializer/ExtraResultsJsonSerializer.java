@@ -154,18 +154,18 @@ public class ExtraResultsJsonSerializer {
 	@Nonnull
 	private JsonNode serializeFacetStatistics(@Nonnull FacetStatistics facetStatistics) {
 		final ObjectNode facetStatsNode = objectJsonSerializer.objectNode();
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.REQUESTED.name(), objectJsonSerializer.serializeObject(facetStatistics.requested()));
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.COUNT.name(), objectJsonSerializer.serializeObject(facetStatistics.count()));
-		if (facetStatistics.impact() != null) {
+		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.REQUESTED.name(), objectJsonSerializer.serializeObject(facetStatistics.isRequested()));
+		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.COUNT.name(), objectJsonSerializer.serializeObject(facetStatistics.getCount()));
+		if (facetStatistics.getImpact() != null) {
 			final ObjectNode impactNode = objectJsonSerializer.objectNode();
-			final RequestImpact impact = facetStatistics.impact();
+			final RequestImpact impact = facetStatistics.getImpact();
 			impactNode.putIfAbsent(FacetRequestImpactDescriptor.DIFFERENCE.name(), objectJsonSerializer.serializeObject(impact.difference()));
 			impactNode.putIfAbsent(FacetRequestImpactDescriptor.MATCH_COUNT.name(), objectJsonSerializer.serializeObject(impact.matchCount()));
 			impactNode.putIfAbsent(FacetRequestImpactDescriptor.HAS_SENSE.name(), objectJsonSerializer.serializeObject(impact.hasSense()));
 
 			facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.IMPACT.name(), impactNode);
 		}
-		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.FACET_ENTITY.name(), serializeEntity(facetStatistics.facetEntity()));
+		facetStatsNode.putIfAbsent(FacetStatisticsDescriptor.FACET_ENTITY.name(), serializeEntity(facetStatistics.getFacetEntity()));
 		return facetStatsNode;
 	}
 

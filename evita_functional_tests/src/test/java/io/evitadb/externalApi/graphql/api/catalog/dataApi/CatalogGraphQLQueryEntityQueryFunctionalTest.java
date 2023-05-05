@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.StatisticsBase;
@@ -65,6 +66,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -4148,7 +4150,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
 
-		final var expectedBody = createFacetSummaryWithCountsDto(response);
+		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -4274,6 +4276,247 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(expectedBody)
 			);
 		;
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return facet summary with filtered and ordered facet groups")
+	void shouldReturnFacetSummaryWithFilteredAndOrderedFacetGroups(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							facetSummaryOfReference(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								filterGroupBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+
+		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        facetSummary {
+		                            parameter(
+		                                filterGroupBy: {
+		                                    attributeCodeLessThanEquals: "K"
+			                            },
+			                            orderGroupBy: {
+			                                attributeNameNatural: DESC
+			                            }
+		                            ) {
+		                                __typename
+		                                groupEntity {
+			                                __typename
+			                                primaryKey
+			                                type
+			                            }
+			                            count
+			                            facetStatistics {
+			                                __typename
+			                                facetEntity {
+			                                    __typename
+			                                    primaryKey
+			                                    type
+			                                }
+			                                requested
+			                                count
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return facet summary with filtered and ordered facets")
+	void shouldReturnFacetSummaryWithFilteredAndOrderedFacets(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							facetSummaryOfReference(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+
+		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        facetSummary {
+		                            parameter {
+		                                __typename
+		                                groupEntity {
+			                                __typename
+			                                primaryKey
+			                                type
+			                            }
+			                            count
+			                            facetStatistics(
+			                                filterBy: {
+		                                        attributeCodeLessThanEquals: "K"
+				                            },
+				                            orderBy: {
+				                                attributeNameNatural: DESC
+				                            }
+			                            ) {
+			                                __typename
+			                                facetEntity {
+			                                    __typename
+			                                    primaryKey
+			                                    type
+			                                }
+			                                requested
+			                                count
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return facet summary with marked facets")
+	void shouldReturnFacetSummaryWithMarkedFacets(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								facetHaving(Entities.PARAMETER, attributeLessThanEquals(ATTRIBUTE_CODE, "H"))
+							)
+						),
+						require(
+							facetSummaryOfReference(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getFacetGroupStatistics().isEmpty());
+
+		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        userFilter: {
+		                            facetParameterHaving: {
+		                                attributeCodeLessThanEquals: "H"
+		                            }
+		                        }
+		                    }
+		                ) {
+		                    extraResults {
+		                        facetSummary {
+		                            parameter {
+		                                __typename
+		                                groupEntity {
+			                                __typename
+			                                primaryKey
+			                                type
+			                            }
+			                            count
+			                            facetStatistics(
+			                                filterBy: {
+		                                        attributeCodeLessThanEquals: "K"
+				                            },
+				                            orderBy: {
+				                                attributeNameNatural: DESC
+				                            }
+			                            ) {
+			                                __typename
+			                                facetEntity {
+			                                    __typename
+			                                    primaryKey
+			                                    type
+			                                }
+			                                requested
+			                                count
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
+				equalTo(expectedBody)
+			);
 	}
 
 
@@ -4492,29 +4735,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response) {
+	private List<Map<String, Object>> createFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                  @Nonnull String referenceName) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
 		return facetSummary.getFacetGroupStatistics()
 			.stream()
-			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(Entities.BRAND))
+			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
 			.map(groupStatistics ->
 				map()
-					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
-					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)
+					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), groupStatistics.getGroupEntity() != null
+						? map()
+							.e(TYPENAME_FIELD, StringUtils.toPascalCase(groupStatistics.getGroupEntity().getType()))
+							.e(EntityDescriptor.PRIMARY_KEY.name(), groupStatistics.getGroupEntity().getPrimaryKey())
+							.e(EntityDescriptor.TYPE.name(), groupStatistics.getGroupEntity().getType())
+						: null)
 					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(TYPENAME_FIELD, FacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Brand")))
+								.e(TYPENAME_FIELD, FacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
 								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
-									.e(TYPENAME_FIELD, "Brand")
-									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.facetEntity().getPrimaryKey())
-									.e(EntityDescriptor.TYPE.name(), facetStatistics.facetEntity().getType())
+									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.requested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.count())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.build())
 						.toList())
 					.build()
@@ -4537,19 +4786,19 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.map(facetStatistics ->
 							map()
 								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
-									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.facetEntity().getPrimaryKey())
-									.e(EntityDescriptor.TYPE.name(), facetStatistics.facetEntity().getType())
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.e(EntityDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.facetEntity()).getAttribute(ATTRIBUTE_CODE))
+										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.requested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.count())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.e(FacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
-									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.impact().difference())
-									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.impact().matchCount())
-									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.impact().hasSense())
+									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
+									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
+									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
 									.build())
 								.build())
 						.toList())

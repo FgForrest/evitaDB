@@ -54,7 +54,7 @@ A constraint *type* is specified by implementing any supported subclass of `io.e
 
 Constraint implementing such interface may look like this:
 ```java
-public class FacetInSet extends ConstraintLeaf<FilterConstraint> implements FilterConstraint {
+public class FacetHaving extends ConstraintLeaf<FilterConstraint> implements FilterConstraint {
 ```
 
 ### Constraint property type
@@ -81,7 +81,7 @@ of `io.evitadb.api.query.PropertyTypeDefiningConstraint`. There are 8 types to c
 
 Constraint implementing such interface with constraint type interface may look like this:
 ```java
-public class FacetInSet extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, FacetConstraint<FilterConstraint> {
+public class FacetHaving extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, FacetConstraint<FilterConstraint> {
 ```
 
 ## Annotation framework

@@ -13,7 +13,7 @@ query(
          priceInCurrency(Currency.getInstance("CZK")),
          priceInPriceLists("vip", "loyal-customer", "regular-prices"),
          userFilter(
-            facetInSet(
+            facetHaving(
                "parameter",
                entityHaving(
                   attributeInSet("code", "gluten-free", "original-recipe")

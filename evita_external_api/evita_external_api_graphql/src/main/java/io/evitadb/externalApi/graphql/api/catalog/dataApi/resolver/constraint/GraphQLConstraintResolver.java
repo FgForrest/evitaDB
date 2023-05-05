@@ -26,13 +26,11 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.util.Map;

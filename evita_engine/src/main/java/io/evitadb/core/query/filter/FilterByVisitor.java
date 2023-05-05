@@ -38,13 +38,12 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.exception.AttributeNotFilterableException;
-import io.evitadb.core.exception.AttributeNotFoundException;
 import io.evitadb.core.exception.ReferenceNotFoundException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
+import io.evitadb.core.query.AttributeSchemaAccessor;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
@@ -62,7 +61,7 @@ import io.evitadb.core.query.filter.translator.bool.NotTranslator;
 import io.evitadb.core.query.filter.translator.bool.OrTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityLocaleEqualsTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
-import io.evitadb.core.query.filter.translator.facet.FacetInSetTranslator;
+import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceBetweenTranslator;
@@ -74,7 +73,6 @@ import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslat
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -88,7 +86,6 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -98,7 +95,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -107,7 +103,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.isTrue;
-import static io.evitadb.utils.Assert.notNull;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -151,7 +146,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(PriceBetween.class, new PriceBetweenTranslator());
 		TRANSLATORS.put(HierarchyWithin.class, new HierarchyWithinTranslator());
 		TRANSLATORS.put(HierarchyWithinRoot.class, new HierarchyWithinRootTranslator());
-		TRANSLATORS.put(FacetInSet.class, new FacetInSetTranslator());
+		TRANSLATORS.put(FacetHaving.class, new FacetHavingTranslator());
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
 	}
 
@@ -201,28 +196,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	private Formula computedFormula;
 
-	/**
-	 * Returns {@link AttributeSchemaContract} of specified `attributeName` from {@link ReferenceSchemaContract}, but
-	 * only if it exists and is filterable. Otherwise, it returns standardized exception.
-	 */
-	@Nonnull
-	public static AttributeSchemaContract getReferenceAttributeSchema(
-		@Nonnull String attributeName,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
-		final AttributeSchemaContract attributeSchema = referenceSchema.getAttribute(attributeName).orElse(null);
-		notNull(
-			attributeSchema,
-			() -> new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
-		);
-		isTrue(
-			attributeSchema.isFilterable() || attributeSchema.isUnique(),
-			() -> new AttributeNotFilterableException(attributeName, referenceSchema, entitySchema)
-		);
-		return attributeSchema;
-	}
-
 	protected FilterByVisitor(
 		@Nonnull ProcessingScope processingScope,
 		@Nonnull QueryContext queryContext,
@@ -248,25 +221,9 @@ public class FilterByVisitor implements ConstraintVisitor {
 			new ProcessingScope(
 				indexSetToUse.getIndexes(),
 				AttributeContent.ALL_ATTRIBUTES,
+				queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null,
 				null, null,
-				(entitySchema, attributeName) -> {
-					final AttributeSchemaContract attributeSchema;
-					final Optional<GlobalAttributeSchemaContract> globalAttributeSchema = queryContext.getCatalogSchema().getAttribute(attributeName);
-					if (globalAttributeSchema.isPresent()) {
-						attributeSchema = globalAttributeSchema.get();
-					} else {
-						attributeSchema = ofNullable(entitySchema).orElseGet(queryContext::getSchema).getAttribute(attributeName).orElse(null);
-					}
-					notNull(
-						attributeSchema,
-						() -> new AttributeNotFoundException(attributeName, queryContext.getSchema())
-					);
-					isTrue(
-						attributeSchema.isFilterable() || attributeSchema.isUnique(),
-						() -> new AttributeNotFilterableException(attributeName, queryContext.getSchema())
-					);
-					return attributeSchema;
-				},
+				new AttributeSchemaAccessor(queryContext),
 				(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale))
 			),
 			queryContext,
@@ -282,6 +239,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula getFormula() {
 		return ofNullable(this.computedFormula)
+			.map(this::constructFinalFormula)
 			.orElseGet(this::getSuperSetFormula);
 	}
 
@@ -328,16 +286,16 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns attribute definition from current scope.
 	 */
 	@Nonnull
-	public AttributeSchemaContract getAttributeSchema(@Nonnull String attributeName) {
-		return getAttributeSchema(null, attributeName);
+	public AttributeSchemaContract getAttributeSchema(@Nonnull String attributeName, @Nonnull AttributeTrait... requiredTrait) {
+		return getProcessingScope().getAttributeSchemaAccessor().getAttributeSchema(attributeName, requiredTrait);
 	}
 
 	/**
-	 * Returns attribute definition from current scope.
+	 * Returns attribute definition from current scope using provided entity schema.
 	 */
 	@Nonnull
-	public AttributeSchemaContract getAttributeSchema(@Nullable EntitySchemaContract entitySchema, @Nonnull String attributeName) {
-		return getProcessingScope().getAttributeSchema(entitySchema, attributeName);
+	public AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract entitySchema, @Nonnull String attributeName, @Nonnull AttributeTrait... requiredTrait) {
+		return getProcessingScope().getAttributeSchemaAccessor().getAttributeSchema(entitySchema, attributeName, requiredTrait);
 	}
 
 	/**
@@ -460,7 +418,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			// if current query is FilterBy we know we're at the top of the filtering query tree
 			if (filterConstraint instanceof FilterBy) {
 				// so we can assign the result of the visitor
-				this.computedFormula = constructFinalFormula(constraintFormula);
+				this.computedFormula = constraintFormula;
 			} else if (!(constraintFormula instanceof SkipFormula)) {
 				// we add the formula to the current level in the query stack
 				addFormula(constraintFormula);
@@ -481,7 +439,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	/**
 	 * Returns extension of {@link ProcessingScope} that is set for current context.
 	 *
-	 * @see #executeInContext(List, EntityContentRequire, ReferenceSchemaContract, Function, EntityNestedQueryComparator, BiFunction, TriFunction, Supplier, Class[])
+	 * @see #executeInContext(List, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, Function, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
 	 */
 	@Nonnull
 	public ProcessingScope getProcessingScope() {
@@ -498,7 +456,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	/**
 	 * Method returns all {@link EntityIndex} that contain subset of data that satisfy the passed filtering constraint.
 	 *
-	 * @param referenceHaving the filtering constraint to satisfy
 	 * @return entity indexes that contains parts of indexed data
 	 */
 	@Nonnull
@@ -508,7 +465,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 		final boolean referencesHierarchicalEntity = isReferencingHierarchicalEntity(referenceSchema);
-		final Bitmap referencedRecordIds = computeReferencedRecordIds(referenceSchema, new FilterBy(referenceHaving.getChildren()));
+		final Formula referencedRecordIdFormula = getReferencedRecordIdFormula(referenceSchema, new FilterBy(referenceHaving.getChildren()));
+		final Bitmap referencedRecordIds = referencedRecordIdFormula.compute();
 		final List<EntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
 			ofNullable(getReferencedEntityIndex(referenceName, referencesHierarchicalEntity, referencedRecordId))
@@ -526,7 +484,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * @return bitmap with referenced entity ids
 	 */
 	@Nonnull
-	public Bitmap computeReferencedRecordIds(
+	public Formula getReferencedRecordIdFormula(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy
 	) {
@@ -536,35 +494,29 @@ public class FilterByVisitor implements ConstraintVisitor {
 
 		final EntityIndex entityIndex = getIndex(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName));
 		if (entityIndex == null) {
-			return EmptyBitmap.INSTANCE;
+			return EmptyFormula.INSTANCE;
 		}
 
-		final Formula resultFormula = executeInContext(
+		return executeInContext(
 			Collections.singletonList(entityIndex),
 			ReferenceContent.ALL_REFERENCES,
+			entityIndex.getEntitySchema(),
 			referenceSchema,
 			null, null,
-			(theEntitySchema, attributeName) -> {
-				isPremiseValid(
-					theEntitySchema == null || theEntitySchema.getName().equals(entitySchema.getName()),
-					() -> "Expected `" + entitySchema.getName() + "` but got `" + theEntitySchema.getName() + "`!"
-				);
-				return getReferenceAttributeSchema(attributeName, entitySchema, referenceSchema);
-			},
+			getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),
 			(theEntity, attributeName, locale) -> theEntity.getReferences(referenceName).stream().map(it -> it.getAttributeValue(attributeName, locale)),
 			() -> {
 				filterBy.accept(this);
 				return getFormulaAndClear();
 			}
 		);
-		return resultFormula.compute();
 	}
 
 	/**
 	 * Returns the special index for passed {@link ReferenceSchemaContract#getName() reference name} that contains
 	 * index of referenced entity ids instead of the primary entity primary keys.
 	 *
-	 * @param entitySchema to be used in error message
+	 * @param entitySchema    to be used in error message
 	 * @param referenceSchema {@link ReferenceSchemaContract} to identify the reference
 	 * @return the index
 	 */
@@ -595,30 +547,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 	public boolean isReferenceQueriedByOtherConstraints() {
 		return this.targetIndexes.stream()
 			.anyMatch(it -> it.getRepresentedConstraint() instanceof ReferenceHaving);
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by conjunction (AND) instead
-	 * of default disjunction (OR).
-	 */
-	public boolean isFacetGroupConjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		return groupId != null && getEvitaRequest().isFacetGroupConjunction(referenceSchema.getName(), groupId);
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` is requested to be joined with other facet groups by
-	 * disjunction (OR) instead of default conjunction (AND).
-	 */
-	public boolean isFacetGroupDisjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		return groupId != null && getEvitaRequest().isFacetGroupDisjunction(referenceSchema.getName(), groupId);
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by negation (AND NOT) instead
-	 * of default disjunction (OR).
-	 */
-	public boolean isFacetGroupNegation(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
-		return groupId != null && getEvitaRequest().isFacetGroupNegation(referenceSchema.getName(), groupId);
 	}
 
 	/**
@@ -670,13 +598,49 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
 	 */
 	@SafeVarargs
-	public final <T> T executeInContext(
+	public final <T> T executeInContextAndIsolatedFormulaStack(
 		@Nonnull List<EntityIndex> targetIndexes,
 		@Nullable EntityContentRequire requirements,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nonnull BiFunction<EntitySchemaContract, String, AttributeSchemaContract> attributeSchemaAccessor,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
+		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+		@Nonnull Supplier<T> lambda,
+		@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
+	) {
+		try {
+			this.stack.push(new LinkedList<>());
+			return executeInContext(
+				targetIndexes,
+				requirements,
+				entitySchema,
+				referenceSchema,
+				nestedQueryFormulaEnricher,
+				entityNestedQueryComparator,
+				attributeSchemaAccessor,
+				attributeValueAccessor,
+				lambda,
+				suppressedConstraints
+			);
+		} finally {
+			stack.pop();
+		}
+	}
+
+	/**
+	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
+	 */
+	@SafeVarargs
+	public final <T> T executeInContext(
+		@Nonnull List<EntityIndex> targetIndexes,
+		@Nullable EntityContentRequire requirements,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
 		@Nonnull Supplier<T> lambda,
 		@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
@@ -686,6 +650,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 				new ProcessingScope(
 					targetIndexes,
 					requirements,
+					entitySchema,
 					referenceSchema,
 					nestedQueryFormulaEnricher,
 					entityNestedQueryComparator,
@@ -896,8 +861,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 		/**
 		 * Function provides access to the attribute schema in {@link EntitySchema}
 		 */
-		@Nonnull
-		private final BiFunction<EntitySchemaContract, String, AttributeSchemaContract> attributeSchemaAccessor;
+		@Getter @Nonnull
+		private final AttributeSchemaAccessor attributeSchemaAccessor;
 		/**
 		 * Function provides access to the attribute value in {@link EntityContract} body.
 		 */
@@ -913,6 +878,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 */
 		@Nullable
 		private final EntityContentRequire requirements;
+		/**
+		 * Currently targeted entity schema.
+		 */
+		@Getter
+		@Nonnull
+		private final EntitySchemaContract entitySchema;
 		/**
 		 * Currently targeted reference schema.
 		 */
@@ -935,19 +906,35 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nullable
 		private final EntityNestedQueryComparator entityNestedQueryComparator;
 
+		private static void examineChildren(
+			@Nonnull Consumer<FilterConstraint> lambda,
+			@Nonnull Predicate<FilterConstraint> isConjunction,
+			@Nonnull ConstraintContainer<FilterConstraint> parentConstraint
+		) {
+			for (FilterConstraint children : parentConstraint.getChildren()) {
+				lambda.accept(children);
+				if (isConjunction.test(children)) {
+					//noinspection unchecked
+					examineChildren(lambda, isConjunction, (ConstraintContainer<FilterConstraint>) children);
+				}
+			}
+		}
+
 		@SafeVarargs
 		public ProcessingScope(
 			@Nonnull List<? extends Index<?>> targetIndexes,
 			@Nullable EntityContentRequire requirements,
+			@Nonnull EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
 			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-			@Nonnull BiFunction<EntitySchemaContract, String, AttributeSchemaContract> attributeSchemaAccessor,
+			@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 			@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 		) {
 			this(
 				targetIndexes,
 				requirements,
+				entitySchema,
 				referenceSchema,
 				null,
 				entityNestedQueryComparator,
@@ -961,10 +948,11 @@ public class FilterByVisitor implements ConstraintVisitor {
 		public ProcessingScope(
 			@Nonnull List<? extends Index<?>> targetIndexes,
 			@Nullable EntityContentRequire requirements,
+			@Nonnull EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
 			@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
 			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-			@Nonnull BiFunction<EntitySchemaContract, String, AttributeSchemaContract> attributeSchemaAccessor,
+			@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 			@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 		) {
@@ -977,6 +965,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 				this.suppressedConstraints = Collections.emptySet();
 			}
 			this.requirements = requirements;
+			this.entitySchema = entitySchema;
 			this.referenceSchema = referenceSchema;
 			this.nestedQueryFormulaEnricher = nestedQueryFormulaEnricher == null ? Function.identity() : nestedQueryFormulaEnricher;
 			this.entityNestedQueryComparator = entityNestedQueryComparator;
@@ -1063,9 +1052,25 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 * Returns attribute schema for attribute of passed name.
 		 */
 		@Nonnull
-		public AttributeSchemaContract getAttributeSchema(@Nullable EntitySchemaContract entitySchema, @Nonnull String attributeName) {
-			return ofNullable(attributeSchemaAccessor.apply(entitySchema, attributeName))
-				.orElseThrow(() -> new EvitaInvalidUsageException("Attribute `" + attributeName + "` is not defined!"));
+		public AttributeSchemaContract getAttributeSchema(@Nonnull String attributeName, @Nonnull AttributeTrait... attributeTraits) {
+			return attributeSchemaAccessor.getAttributeSchema(attributeName, attributeTraits);
+		}
+
+		/**
+		 * Returns attribute schema for attribute of passed name.
+		 */
+		@Nonnull
+		public AttributeSchemaContract getAttributeSchema(@Nonnull EntitySchemaContract entitySchema, @Nonnull String attributeName, @Nonnull AttributeTrait... attributeTraits) {
+			return attributeSchemaAccessor.getAttributeSchema(entitySchema, attributeName, attributeTraits);
+		}
+
+		/**
+		 * Returns new attribute schema accessor that delegates lookup for attribute schema to appropriate reference
+		 * schema.
+		 */
+		@Nonnull
+		public AttributeSchemaAccessor withReferenceSchemaAccessor(@Nonnull String referenceName) {
+			return attributeSchemaAccessor.withReferenceSchemaAccessor(referenceName);
 		}
 
 		/**
@@ -1074,20 +1079,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Nullable
 		public Stream<Optional<AttributeValue>> getAttributeValueStream(@Nonnull EntityContract entitySchema, @Nonnull String attributeName, @Nullable Locale locale) {
 			return attributeValueAccessor.apply(entitySchema, attributeName, locale);
-		}
-
-		private static void examineChildren(
-			@Nonnull Consumer<FilterConstraint> lambda,
-			@Nonnull Predicate<FilterConstraint> isConjunction,
-			@Nonnull ConstraintContainer<FilterConstraint> parentConstraint
-		) {
-			for (FilterConstraint children : parentConstraint.getChildren()) {
-				lambda.accept(children);
-				if (isConjunction.test(children)) {
-					//noinspection unchecked
-					examineChildren(lambda, isConjunction, (ConstraintContainer<FilterConstraint>) children);
-				}
-			}
 		}
 	}
 

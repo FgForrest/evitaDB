@@ -49,7 +49,8 @@ public class FormulaFactory {
 	 * If array contains exactly one inner formula, only this formula is returned, otherwise OR formula container
 	 * either for integer or long type is created and returned.
 	 */
-	public static Formula or(Supplier<Formula> superSetFormulaSupplier, Formula... innerFormulas) {
+	@Nonnull
+	public static Formula or(@Nonnull Supplier<Formula> superSetFormulaSupplier, @Nonnull Formula... innerFormulas) {
 		if (innerFormulas.length == 0) {
 			return EmptyFormula.INSTANCE;
 		} else if (innerFormulas.length == 1) {
@@ -70,7 +71,8 @@ public class FormulaFactory {
 	 * If array contains exactly one inner formula, only this formula is returned, otherwise OR formula container
 	 * either for integer or long type is created and returned.
 	 */
-	public static Formula or(Formula... innerFormulas) {
+	@Nonnull
+	public static Formula or(@Nonnull Formula... innerFormulas) {
 		if (innerFormulas.length == 0) {
 			return EmptyFormula.INSTANCE;
 		} else if (innerFormulas.length == 1) {
@@ -86,7 +88,8 @@ public class FormulaFactory {
 	 * If array contains exactly one inner formula, only this formula is returned, otherwise AND formula container
 	 * either for integer or long type is created and returned.
 	 */
-	public static Formula and(Formula... innerFormulas) {
+	@Nonnull
+	public static Formula and(@Nonnull Formula... innerFormulas) {
 		if (innerFormulas.length == 0) {
 			return EmptyFormula.INSTANCE;
 		} else if (innerFormulas.length == 1) {
@@ -100,7 +103,8 @@ public class FormulaFactory {
 	/**
 	 * Creates boolean NOT query for passed formulas, either for integer or long type.
 	 */
-	public static Formula not(Formula subtracted, Formula superSet) {
+	@Nonnull
+	public static Formula not(@Nonnull Formula subtracted, @Nonnull Formula superSet) {
 		return new NotFormula(
 			subtracted, superSet
 		);
@@ -112,7 +116,7 @@ public class FormulaFactory {
 	 * we would need to compute only one OR product and not two or more separate ones.
 	 */
 	@Nonnull
-	private static Formula[] getMergedOrFormulas(Formula... formulas) {
+	private static Formula[] getMergedOrFormulas(@Nonnull Formula... formulas) {
 		final CompositeObjectArray<Formula> mergedFormulas = new CompositeObjectArray<>(Formula.class);
 		for (Formula innerFormula : formulas) {
 			if (innerFormula instanceof OrFormula) {
@@ -131,7 +135,7 @@ public class FormulaFactory {
 	 * we would need to compute only one AND product and not two and more separate ones.
 	 */
 	@Nonnull
-	private static Formula[] getMergedAndFormulas(Formula... formulas) {
+	private static Formula[] getMergedAndFormulas(@Nonnull Formula... formulas) {
 		final CompositeObjectArray<Formula> mergedFormulas = new CompositeObjectArray<>(Formula.class);
 		for (Formula innerFormula : formulas) {
 			if (innerFormula instanceof AndFormula) {

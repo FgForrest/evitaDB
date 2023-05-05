@@ -38,6 +38,7 @@ import io.evitadb.api.query.filter.IndexUsingConstraint;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -60,6 +61,7 @@ import java.util.Optional;
 
 import static io.evitadb.core.query.filter.translator.hierarchy.AbstractHierarchyTranslator.createAndStoreExclusionPredicate;
 import static io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator.createFormulaFromHierarchyIndex;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -76,12 +78,14 @@ import static java.util.Optional.ofNullable;
  */
 public class IndexSelectionVisitor implements ConstraintVisitor {
 	private final QueryContext queryContext;
+	private final AttributeSchemaAccessor attributeSchemaAccessor;
 	@Getter private final List<TargetIndexes> targetIndexes = new LinkedList<>();
 	@Getter private boolean targetIndexQueriedByOtherConstraints;
 	private FilterByVisitor filterByVisitor;
 
 	public IndexSelectionVisitor(@Nonnull QueryContext queryContext) {
 		this.queryContext = queryContext;
+		this.attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
 		final Optional<EntityIndex> entityIndex = ofNullable(queryContext.getIndex(new EntityIndexKey(EntityIndexType.GLOBAL)));
 		if (entityIndex.isPresent()) {
 			final EntityIndex eix = entityIndex.get();
@@ -154,8 +158,9 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							() -> HierarchyWithinRootTranslator.createFormulaFromHierarchyIndex(
 								createAndStoreExclusionPredicate(
 									queryContext,
-									hierarchyWithinRoot.getExcludedChildrenFilter(),
-									targetHierarchyIndex,
+									of(new FilterBy(hierarchyWithinRoot.getExcludedChildrenFilter()))
+										.filter(ConstraintContainer::isApplicable)
+										.orElse(null),
 									referencedSchema
 								),
 								hierarchyWithinRoot.isDirectRelation(),
@@ -169,8 +174,9 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 								hierarchyWithin.getParentId(),
 								createAndStoreExclusionPredicate(
 									queryContext,
-									hierarchyWithin.getExcludedChildrenFilter(),
-									targetHierarchyIndex,
+									of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
+										.filter(ConstraintContainer::isApplicable)
+										.orElse(null),
 									referencedSchema
 								),
 								hierarchyWithin.isDirectRelation(),

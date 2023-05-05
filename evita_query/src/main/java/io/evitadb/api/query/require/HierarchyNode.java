@@ -64,8 +64,8 @@ public class HierarchyNode extends AbstractRequireConstraintContainer implements
 	 */
 	@Nonnull
 	public FilterBy getFilterBy() {
-		return Objects.requireNonNull(Optional.ofNullable(getAdditionalChild(FilterBy.class))
-			.orElseThrow(() -> new IllegalStateException("Hierarchy node expects FilterBy as its single inner constraint!")));
+		return getAdditionalChild(FilterBy.class)
+			.orElseThrow(() -> new IllegalStateException("Hierarchy node expects FilterBy as its single inner constraint!"));
 	}
 
 	@Override

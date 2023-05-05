@@ -52,13 +52,13 @@ public class ReferenceHavingSerializer extends Serializer<ReferenceHaving> {
 
 	@Override
 	public ReferenceHaving read(Kryo kryo, Input input, Class<? extends ReferenceHaving> type) {
-		final String entityType = input.readString();
+		final String referenceName = input.readString();
 		final int childrenCount = input.readVarInt(true);
 		final FilterConstraint[] children = new FilterConstraint[childrenCount];
 		for (int i = 0; i < childrenCount; i++) {
 			children[i] = (FilterConstraint) kryo.readClassAndObject(input);
 		}
-		return new ReferenceHaving(entityType, children);
+		return new ReferenceHaving(referenceName, children);
 	}
 
 }

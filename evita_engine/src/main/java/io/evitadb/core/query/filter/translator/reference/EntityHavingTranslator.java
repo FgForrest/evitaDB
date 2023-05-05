@@ -100,7 +100,8 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 		final ReferenceSchemaContract referenceSchema = filterByVisitor.getReferenceSchema()
 			.orElseThrow(() -> new EvitaInvalidUsageException(
 					"Filtering constraint `" + entityHaving + "` needs to be placed within `ReferenceHaving` " +
-						"parent constraint that allows to resolve the target entity type."
+						"parent constraint that allows to resolve the entity `" +
+						filterByVisitor.getProcessingScope().getEntitySchema().getName() + "` referenced entity type."
 				)
 			);
 		Assert.isTrue(
@@ -144,7 +145,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 						}
 					);
 					final Formula outputFormula;
-					if (entityIndex instanceof ReferencedTypeEntityIndex || entityIndex == referencedEntityCollection.getGlobalIndex()) {
+					if (entityIndex instanceof ReferencedTypeEntityIndex) {
 						outputFormula = nestedQueryFormula;
 					} else {
 						outputFormula = new ReferenceOwnerTranslatingFormula(
@@ -155,19 +156,24 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 								.orElse(EmptyBitmap.INSTANCE)
 						);
 					}
-					final QueryContext queryContext = filterByVisitor.getQueryContext();
-					return new DeferredFormula(
-						new FormulaWrapper(
-							outputFormula,
-							formula -> {
-								try {
-									queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
-									return formula.compute();
-								} finally {
-									queryContext.popStep();
-								}
-							}
-						)
+					return filterByVisitor.computeOnlyOnce(
+						entityHaving,
+						() -> {
+							final QueryContext queryContext = filterByVisitor.getQueryContext();
+							return new DeferredFormula(
+								new FormulaWrapper(
+									outputFormula,
+									formula -> {
+										try {
+											queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, nestedQueryDescription);
+											return formula.compute();
+										} finally {
+											queryContext.popStep();
+										}
+									}
+								)
+							);
+						}
 					);
 				}
 			);

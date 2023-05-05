@@ -73,7 +73,12 @@ public class HierarchyOfSelfTranslator
 		final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(null);
 		final EntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(queriedEntityType);
 		final Sorter sorter = hierarchyOfSelf.getOrderBy()
-			.map(it -> createSorter(extraResultPlanner, it, globalIndex))
+			.map(
+				it -> extraResultPlanner.createSorter(
+					it, globalIndex,
+					() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
+				)
+			)
 			.orElse(null);
 
 		// retrieve existing producer or create new one
@@ -87,6 +92,7 @@ public class HierarchyOfSelfTranslator
 		hierarchyStatisticsProducer.interpret(
 			entitySchema,
 			null,
+			extraResultPlanner.getAttributeSchemaAccessor(),
 			hierarchyWithin,
 			globalIndex,
 			extraResultPlanner.getPrefetchRequirementCollector(),
@@ -101,7 +107,8 @@ public class HierarchyOfSelfTranslator
 						filter,
 						() -> createFilterFormula(
 							extraResultPlanner.getQueryContext(),
-							filter, globalIndex
+							filter, globalIndex,
+							extraResultPlanner.getAttributeSchemaAccessor()
 						)
 					);
 					return FormulaFactory.and(
@@ -121,7 +128,8 @@ public class HierarchyOfSelfTranslator
 						filter,
 						() -> createFilterFormula(
 							extraResultPlanner.getQueryContext(),
-							filter, globalIndex
+							filter, globalIndex,
+							extraResultPlanner.getAttributeSchemaAccessor()
 						)
 					);
 					return new FilteringFormulaHierarchyEntityPredicate(

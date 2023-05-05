@@ -102,6 +102,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	private static final String ATTRIBUTE_FOUNDED = "founded";
 	private static final String ATTRIBUTE_CAPACITY = "capacity";
 	private static final String ATTRIBUTE_SHORTCUT = "shortcut";
+	private static final String ATTRIBUTE_TRANSIENT = "transient";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
 
@@ -204,6 +205,16 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique().sortable())
 								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().indexDecimalPlaces(2))
 								.withAttribute(ATTRIBUTE_PRIORITY, Long.class, whichIs -> whichIs.sortable().filterable())
+								.withReferenceToEntity(
+									Entities.CATEGORY,
+									Entities.CATEGORY,
+									Cardinality.ZERO_OR_MORE,
+									whichIs ->
+										/* we can specify special attributes on relation */
+										whichIs.filterable()
+											.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().nullable())
+											.withAttribute(ATTRIBUTE_TRANSIENT, Boolean.class, thatIs -> thatIs.filterable())
+								)
 								.withReferenceToEntity(
 									Entities.BRAND,
 									Entities.BRAND,
@@ -312,10 +323,71 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		);
 	}
 
+	@DisplayName("Should return all products in categories ignoring relations in specified category subtrees")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnAllProductsInCategoriesExceptCertainRelationsToSpecifiedSubtrees(Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Map<Integer, SealedEntity> categoryIndex = originalCategoryEntities
+			.stream()
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					Function.identity()
+				)
+			);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithinRoot(
+								Entities.CATEGORY,
+								excluding(
+									attributeEqualsTrue(ATTRIBUTE_TRANSIENT),
+									entityHaving(
+										attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
+									)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.CATEGORY)
+						.stream()
+						.anyMatch(it -> {
+							final boolean isTransient = it.getAttribute(ATTRIBUTE_TRANSIENT, Boolean.class);
+							final List<SealedEntity> categoryPath = Stream.concat(
+									Stream.of(it.getReferencedPrimaryKey()),
+									categoryHierarchy.getParentItems(String.valueOf(it.getReferencedPrimaryKey()))
+										.stream()
+										.map(node -> Integer.parseInt(node.getCode()))
+								).map(categoryIndex::get)
+								.toList();
+							return !isTransient &&
+								categoryPath.stream().noneMatch(theCategory -> theCategory.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
+						}),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products in category")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test
-	void shouldReturnProductsInCategory(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+	void shouldReturnProductsInCategory(Evita evita, List<SealedEntity> originalProductEntities) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1070,7 +1142,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,6)
+								hierarchyWithin(Entities.CATEGORY, 6)
 							)
 						),
 						require(
@@ -1148,7 +1220,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,2)
+								hierarchyWithin(Entities.CATEGORY, 2)
 							)
 						),
 						require(
@@ -1221,7 +1293,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,1)
+								hierarchyWithin(Entities.CATEGORY, 1)
 							)
 						),
 						require(
@@ -1299,7 +1371,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,6)
+								hierarchyWithin(Entities.CATEGORY, 6)
 							)
 						),
 						require(
@@ -1377,7 +1449,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,6)
+								hierarchyWithin(Entities.CATEGORY, 6)
 							)
 						),
 						require(
@@ -1670,7 +1742,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,1)
+								hierarchyWithin(Entities.CATEGORY, 1)
 							)
 						),
 						require(
@@ -1903,7 +1975,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithin(
-									Entities.CATEGORY,1,
+									Entities.CATEGORY, 1,
 									excluding(
 										entityHaving(
 											attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
@@ -1986,7 +2058,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithin(
-									Entities.CATEGORY,16,
+									Entities.CATEGORY, 16,
 									excluding(
 										entityHaving(
 											attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
@@ -2069,7 +2141,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithin(
-									Entities.CATEGORY,16,
+									Entities.CATEGORY, 16,
 									excluding(
 										entityHaving(
 											attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
@@ -2223,7 +2295,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,1)
+								hierarchyWithin(Entities.CATEGORY, 1)
 							)
 						),
 						require(
@@ -2299,7 +2371,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,6)
+								hierarchyWithin(Entities.CATEGORY, 6)
 							)
 						),
 						require(

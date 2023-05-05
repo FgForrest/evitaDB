@@ -59,7 +59,7 @@ public class CachedRecord extends CacheRecordAdept {
 	 * ids of transactional data structures that this cached values relates to. The hash must exactly match the hash
 	 * of the input computational object if the cached result can be used.
 	 *
-	 * TODO JNO - this is unnecessary for extra result computers and formulas, but necessary for entities. This should
+	 * TOBEDONE JNO - this is unnecessary for extra result computers and formulas, but necessary for entities. This should
 	 * be moved to payload of those entities and validated somehow there, also we need to add integration tests for
 	 * the cache!!!
 	 **/

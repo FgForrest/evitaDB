@@ -31,6 +31,7 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -61,6 +62,7 @@ public record HierarchyProducerContext(
 	@Nonnull QueryContext queryContext,
 	@Nonnull EntitySchemaContract entitySchema,
 	@Nullable ReferenceSchemaContract referenceSchema,
+	@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 	@Nullable HierarchyFilterConstraint hierarchyFilter,
 	@Nonnull EntityIndex entityIndex,
 	@Nullable PrefetchRequirementCollector prefetchRequirementCollector,

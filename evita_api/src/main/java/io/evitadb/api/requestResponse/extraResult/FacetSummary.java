@@ -43,14 +43,16 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
+import static java.util.Optional.ofNullable;
 
 /**
  * This DTO allows returning summary of all facets that match query filter excluding those inside {@link UserFilter}.
@@ -73,14 +75,14 @@ public class FacetSummary implements EvitaResponseExtraResult {
 	private final Map<String, Map<Integer, FacetGroupStatistics>> facetGroupStatistics;
 
 	public FacetSummary(@Nonnull Collection<FacetGroupStatistics> facetGroupStatistics) {
-		this.facetGroupStatistics = createHashMap(facetGroupStatistics.size());
+		this.facetGroupStatistics = createLinkedHashMap(facetGroupStatistics.size());
 		for (FacetGroupStatistics stat : facetGroupStatistics) {
-			final Integer groupId = Optional.ofNullable(stat.getGroupEntity())
+			final Integer groupId = ofNullable(stat.getGroupEntity())
 				.map(EntityClassifier::getPrimaryKey)
 				.orElse(null);
 			final Map<Integer, FacetGroupStatistics> groupById = this.facetGroupStatistics.computeIfAbsent(
 				stat.getReferenceName(),
-				s -> createHashMap(facetGroupStatistics.size())
+				s -> createLinkedHashMap(facetGroupStatistics.size())
 			);
 			Assert.isPremiseValid(
 				!groupById.containsKey(groupId),
@@ -95,7 +97,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 	 */
 	@Nullable
 	public FacetGroupStatistics getFacetGroupStatistics(@Nonnull String referencedEntityType) {
-		return Optional.ofNullable(facetGroupStatistics.get(referencedEntityType))
+		return ofNullable(facetGroupStatistics.get(referencedEntityType))
 			.map(it -> it.get(null))
 			.orElse(null);
 	}
@@ -105,7 +107,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 	 */
 	@Nullable
 	public FacetGroupStatistics getFacetGroupStatistics(@Nonnull String referencedEntityType, int groupId) {
-		return Optional.ofNullable(facetGroupStatistics.get(referencedEntityType))
+		return ofNullable(facetGroupStatistics.get(referencedEntityType))
 			.map(it -> it.get(groupId))
 			.orElse(null);
 	}
@@ -131,11 +133,39 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		FacetSummary that = (FacetSummary) o;
+
+		for (Entry<String, Map<Integer, FacetGroupStatistics>> referenceEntry : facetGroupStatistics.entrySet()) {
+			final Map<Integer, FacetGroupStatistics> statistics = referenceEntry.getValue();
+			final Map<Integer, FacetGroupStatistics> thatStatistics = that.facetGroupStatistics.get(referenceEntry.getKey());
+			if (thatStatistics == null || statistics.size() != thatStatistics.size()) {
+				return false;
+			} else {
+				final Iterator<Entry<Integer, FacetGroupStatistics>> it = statistics.entrySet().iterator();
+				final Iterator<Entry<Integer, FacetGroupStatistics>> thatIt = thatStatistics.entrySet().iterator();
+				while (it.hasNext()) {
+					final Entry<Integer, FacetGroupStatistics> entry = it.next();
+					final Entry<Integer, FacetGroupStatistics> thatEntry = thatIt.next();
+					if (!Objects.equals(entry.getKey(), thatEntry.getKey()) || !Objects.equals(entry.getValue(), thatEntry.getValue())) {
+						return false;
+					}
+				}
+			}
+		}
 		return facetGroupStatistics.equals(that.facetGroupStatistics);
 	}
 
 	@Override
 	public String toString() {
+		return toString(
+			statistics -> "",
+			facetStatistics -> ""
+		);
+	}
+
+	public String toString(
+		@Nonnull Function<FacetGroupStatistics, String> groupRenderer,
+		@Nonnull Function<FacetStatistics, String> facetRenderer
+	) {
 		return "Facet summary:\n" +
 			facetGroupStatistics
 				.entrySet()
@@ -143,19 +173,20 @@ public class FacetSummary implements EvitaResponseExtraResult {
 				.sorted(Entry.comparingByKey())
 				.flatMap(groupsByReferenceName ->
 					groupsByReferenceName.getValue()
-						.entrySet()
+						.values()
 						.stream()
-						.sorted(Entry.comparingByKey())
-						.map(groupById ->
-							"\t" + groupsByReferenceName.getKey() + (groupById.getKey() == null ? "" : " " + groupById.getKey()) + " [" + groupById.getValue().getCount() + "]:\n" +
-								groupById.getValue()
-									.getFacetStatistics()
-									.stream()
-									.sorted()
-									.map(facet -> "\t\t[" + (facet.requested() ? "X" : " ") + "] " + facet.facetEntity().getPrimaryKey() +
-										" (" + facet.count() + ")" +
-										Optional.ofNullable(facet.impact()).map(RequestImpact::toString).map(it -> " " + it).orElse(""))
-									.collect(Collectors.joining("\n"))
+						.map(statistics -> "\t" + groupsByReferenceName.getKey() + ": " +
+							ofNullable(groupRenderer.apply(statistics)).filter(it -> !it.isBlank())
+								.orElseGet(() -> ofNullable(statistics.getGroupEntity()).map(EntityClassifier::getPrimaryKey).map(Object::toString).orElse("")) +
+							" [" + statistics.getCount() + "]:\n" +
+							statistics
+								.getFacetStatistics()
+								.stream()
+								.map(facet -> "\t\t[" + (facet.isRequested() ? "X" : " ") + "] " +
+									ofNullable(facetRenderer.apply(facet)).filter(it -> !it.isBlank()).orElseGet(() -> String.valueOf(facet.getFacetEntity().getPrimaryKey())) +
+									" (" + facet.getCount() + ")" +
+									ofNullable(facet.getImpact()).map(RequestImpact::toString).map(it -> " " + it).orElse(""))
+								.collect(Collectors.joining("\n"))
 						)
 				)
 				.collect(Collectors.joining("\n"));
@@ -216,26 +247,49 @@ public class FacetSummary implements EvitaResponseExtraResult {
 
 	/**
 	 * This DTO contains information about single facet statistics of the entities that are present in the response.
-	 *
-	 * @param facetEntity contains entity (or reference to it) representing the facet
-	 * @param requested Contains TRUE if the facet was part of the query filtering constraints.
-	 * @param count     Contains number of distinct entities in the response that possess of this reference.
-	 * @param impact    This field is not null only when this facet is not requested - {@link #requested ()} is FALSE.
-	 *                  Contains projected impact on the current response if this facet is also requested in filtering constraints.
 	 */
-	public record FacetStatistics(
-		@Nonnull EntityClassifier facetEntity,
-		boolean requested,
-		int count,
-		@Nullable RequestImpact impact
-	) implements Comparable<FacetStatistics>, Serializable {
-
+	@SuppressWarnings("ClassCanBeRecord")
+	public static final class FacetStatistics implements Comparable<FacetStatistics>, Serializable {
 		@Serial private static final long serialVersionUID = -575288624429566680L;
+		/**
+		 * Contains entity (or reference to it) representing the facet.
+		 */
+		@Getter @Nonnull private final EntityClassifier facetEntity;
+		/**
+		 * Contains TRUE if the facet was part of the query filtering constraints.
+		 */
+		@Getter private final boolean requested;
+		/**
+		 * Contains number of distinct entities in the response that possess of this reference.
+		 */
+		@Getter private final int count;
+		/**
+		 * This field is not null only when this facet is not requested - {@link #requested ()} is FALSE.
+		 * Contains projected impact on the current response if this facet is also requested in filtering constraints.
+		 */
+		@Getter @Nullable private final RequestImpact impact;
+
+		public FacetStatistics(
+			@Nonnull EntityClassifier facetEntity,
+			boolean requested,
+			int count,
+			@Nullable RequestImpact impact
+		) {
+			this.facetEntity = facetEntity;
+			this.requested = requested;
+			this.count = count;
+			this.impact = impact;
+		}
 
 		@Override
 		public int compareTo(FacetStatistics o) {
 			//noinspection ConstantConditions
-			return Integer.compare(facetEntity().getPrimaryKey(), o.facetEntity().getPrimaryKey());
+			return Integer.compare(getFacetEntity().getPrimaryKey(), o.getFacetEntity().getPrimaryKey());
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(facetEntity, requested, count, impact);
 		}
 
 		@Override
@@ -243,11 +297,21 @@ public class FacetSummary implements EvitaResponseExtraResult {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			final FacetStatistics that = (FacetStatistics) o;
-			return Objects.equals(facetEntity(), that.facetEntity()) &&
+			return Objects.equals(getFacetEntity(), that.getFacetEntity()) &&
 				requested == that.requested &&
 				count == that.count &&
 				Objects.equals(impact, that.impact);
 		}
+
+		@Override
+		public String toString() {
+			return "FacetStatistics[" +
+				"facetEntity=" + facetEntity + ", " +
+				"requested=" + requested + ", " +
+				"count=" + count + ", " +
+				"impact=" + impact + ']';
+		}
+
 	}
 
 	/**
@@ -287,7 +351,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		) {
 			if (groupEntity != null) {
 				Assert.isPremiseValid(
-					groupEntity.getType().equals(Optional.ofNullable(referenceSchema.getReferencedGroupType()).orElse(referenceSchema.getReferencedEntityType())),
+					groupEntity.getType().equals(ofNullable(referenceSchema.getReferencedGroupType()).orElse(referenceSchema.getReferencedEntityType())),
 					"Group entity is from different collection than the group or entity."
 				);
 			}
@@ -305,7 +369,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		) {
 			if (groupEntity != null) {
 				Assert.isPremiseValid(
-					groupEntity.getType().equals(Optional.ofNullable(referenceSchema.getReferencedGroupType()).orElse(referenceSchema.getReferencedEntityType())),
+					groupEntity.getType().equals(ofNullable(referenceSchema.getReferencedGroupType()).orElse(referenceSchema.getReferencedEntityType())),
 					"Group entity is from different collection than the group or entity."
 				);
 			}
@@ -316,11 +380,12 @@ public class FacetSummary implements EvitaResponseExtraResult {
 				.stream()
 				.collect(
 					Collectors.toMap(
-						it -> it.facetEntity().getPrimaryKey(),
+						it -> it.getFacetEntity().getPrimaryKey(),
 						Function.identity(),
 						(facetStatistics1, facetStatistics2) -> {
 							throw new EvitaInternalError("Statistics are expected to be unique!");
-						}
+						},
+						LinkedHashMap::new
 					)
 				);
 		}
@@ -345,7 +410,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		public int hashCode() {
 			return Objects.hash(
 				referenceName,
-				Optional.ofNullable(groupEntity)
+				ofNullable(groupEntity)
 					.map(EntityClassifier::getPrimaryKey)
 					.orElse(null),
 				count,
@@ -358,10 +423,24 @@ public class FacetSummary implements EvitaResponseExtraResult {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			final FacetGroupStatistics that = (FacetGroupStatistics) o;
-			return referenceName.equals(that.referenceName) &&
-				count == that.count &&
-				Objects.equals(groupEntity, that.getGroupEntity()) &&
-				facetStatistics.equals(that.facetStatistics);
+			if (!referenceName.equals(that.referenceName) ||
+				count != that.count ||
+				!Objects.equals(groupEntity, that.getGroupEntity()) ||
+				facetStatistics.size() != that.facetStatistics.size()) {
+				return false;
+			}
+
+			final Iterator<Entry<Integer, FacetStatistics>> it = facetStatistics.entrySet().iterator();
+			final Iterator<Entry<Integer, FacetStatistics>> thatIt = that.facetStatistics.entrySet().iterator();
+			while (it.hasNext()) {
+				final Entry<Integer, FacetStatistics> entry = it.next();
+				final Entry<Integer, FacetStatistics> thatEntry = thatIt.next();
+				if (!Objects.equals(entry.getKey(), thatEntry.getKey()) || !Objects.equals(entry.getValue(), thatEntry.getValue())) {
+					return false;
+				}
+			}
+
+			return true;
 		}
 	}
 
