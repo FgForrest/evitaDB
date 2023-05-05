@@ -64,7 +64,34 @@ To list all nested categories of *Accessories* category issue this query:
 
 You should receive listing of these categories:
 
-<Include file="docs/user/en/query/filtering/examples/hierarchy-within-self-simple.md"/>
+<MDInclude>[Single root hierarchy example](docs/user/en/query/filtering/examples/hierarchy-within-self-simple.md)</MDInclude>
+
+The first argument specifies the filter targets the attributes of the `Category` entity. In this example we used
+[attributeEquals](comparable.md#attribute-equals) for unique attribute `code`, but you can select the category
+by localized `url` attribute (but then you need to provide also [entityLocaleEquals](locale.md#entity-locale-equals)
+constraint for determining the proper language), or using [entityPrimaryKeyInSet](constant.md#entity-primary-key-in-set)
+and passing category primary key. 
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Can the parent node filter constraint match multiple ones? 
+</NoteTitle>
+
+Yes, it can. Although, it's apparently one of the edge cases, it's possible. This query:
+
+<SourceCodeTabs>
+[Multiple category listing](docs/user/en/query/filtering/examples/hierarchy-within-self-simple-multi.evitaql)
+</SourceCodeTabs>
+
+... will return all subcategories of the *Wireless headphones* and *Wired headphones* and their subcategories:
+
+<MDInclude>[Multi-root hierarchy example](docs/user/en/query/filtering/examples/hierarchy-within-self-multi.md)</MDInclude>
+
+![Accessories category listing](assets/accessories-category-listing-multi.png "Accessories category listing")
+
+</Note>
 
 ### Referenced entity
 
