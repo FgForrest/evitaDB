@@ -296,14 +296,14 @@ Se we can list only a products directly related to a certain category - when we 
 *Accessories* category assigned:
 
 <SourceCodeTabs>
-[Product directly assigned to Accessories category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories.evitaql)
+[Products directly assigned to Accessories category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories.evitaql)
 </SourceCodeTabs>
 
 ... we get an empty result. There are no products directly assigned to the *Accessories* category, they all refer to 
 some of its subcategories. Let's try the *Smartwatches* subcategory:
 
 <SourceCodeTabs>
-[Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories-smart.evitaql)
+[Products directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories-smart.evitaql)
 </SourceCodeTabs>
 
 ... and we get the list of all products related directly to a *Smartwatches* category:
@@ -340,5 +340,25 @@ As we can see the requested parent category *Accessories* is excluded from the r
 <MDInclude>[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding-root.md)</MDInclude>
 
 ### Referenced entity
+
+If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example is
+a product assigned to a category), it can only be used in the `hierarchyWithin` parent constraint.
+
+In the case of `hierarchyWithinRoot`, the `excludingRoot` constraint makes no sense because no entity can be assigned
+to a "virtual" top parent root.
+
+Because we learned that *Accessories* category has no directly assigned products, the `exludingRoot` constraint presence
+would not affect the query result. Therefore, we choose *Keyboard* category for our example. When we list all products
+in *Keyboard* category using `hierarchyWithin` constraint, we obtain **20 items**. When the `excludingRoot` constraint
+is used:
+
+<SourceCodeTabs>
+[Products in subcategories of Keyboard category](docs/user/en/query/filtering/examples/hierarchy-within-reference-excluding-root.evitaql)
+</SourceCodeTabs>
+
+... we get only **4 items**, which means that 16 were assigned directly to *Keyboards* category and only 4 of them were
+assigned to *Exotic keyboards*:
+
+<MDInclude>[Products in subcategories of Keyboard category](docs/user/en/query/filtering/examples/hierarchy-within-reference-excluding-root.md)</MDInclude>
 
 ## Excluding
