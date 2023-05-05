@@ -298,8 +298,8 @@ Se we can list only a products directly related to a certain category - when we 
 [Product directly assigned to Accessories category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories.evitaql)
 </SourceCodeTabs>
 
-... we get an empty result. There is no product directly assigned to *Accessories* category, all of them relate to
-some of its subcategories. Let's try subcategory *Smartwatches* then:
+... we get an empty result. There are no products directly assigned to the *Accessories* category, they all refer to 
+some of its subcategories. Let's try the *Smartwatches* subcategory:
 
 <SourceCodeTabs>
 [Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories-smart.evitaql)
@@ -307,7 +307,7 @@ some of its subcategories. Let's try subcategory *Smartwatches* then:
 
 ... and we get the list of all products related directly to a *Smartwatches* category:
 
-<MDInclude>[Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories-smart.md)</MDInclude>
+<MDInclude>[Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories-smart.md)</MDInclude>
 
 ## Excluding root
 
