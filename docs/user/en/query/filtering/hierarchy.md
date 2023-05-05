@@ -95,7 +95,62 @@ Yes, it can. Although, it's apparently one of the edge cases, it's possible. Thi
 
 ### Referenced entity
 
+The `hierarchyWithin` constraint can also be used for entities that directly reference a hierarchical entity type.
+The most common use case from the e-commerce world is a product that is assigned to one or more categories. To list all
+products in the *Accessories* category of our [demo dataset](https://demo.evitadb.io), we issue the following query:
+
+<SourceCodeTabs>
+[Product listing from *Accessories* category](docs/user/en/query/filtering/examples/hierarchy-within-reference-simple.evitaql)
+</SourceCodeTabs>
+
+The query returns the first page of a total of 26 pages of items:
+
+<MDInclude>[Product listing from *Accessories* category](docs/user/en/query/filtering/examples/hierarchy-within-reference-simple.md)</MDInclude>
+
+The category filter constraint specifies a condition that targets the referenced entity (i.e., category attributes,
+category references). Currently, it's not possible to specify a filter constraint that takes into account the product
+reference that leads to its category. An [issue #105](https://github.com/FgForrest/evitaDB/issues/105) is planned to
+address this shortcoming.
+
 ## Hierarchy within root
+
+The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyWithinRoot.java</SourceClass>
+allows you to restrict the search to only those entities that are part of the entire hierarchy tree. In e-commerce
+systems the typical representative of a hierarchical entity is a *category*, which will be used in all of our examples.
+
+![Root categories listing](assets/category-listing.png "Root categories listing")
+
+**Syntax:**
+
+```evitaql
+hierarchyWithin(
+    filterConstraint,
+    (directRelation|excluding|excludingRoot)*
+)
+```
+
+<dl>
+    <dt>filterConstraint</dt>
+    <dd>
+        a single filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
+        multiple constraints must be enclosed in [AND](../logical.md#and) / [OR](../logical.md#or) containers
+    </dd>
+    <dt>(directRelation|excluding|excludingRoot)*</dt>
+    <dd>
+        optional constraints allow you to narrow the scope of the hierarchy; 
+        none or all of the constraints may be present:
+        <ul>
+            <li>[directRelation](#direct-relation)</li>
+            <li>[excluding](#excluding)</li>
+            <li>[excludingRoot](#excluding-root)</li>
+        </ul>
+    </dd>
+</dl>
+
+### Self
+
+### Reference
+
 ## Excluding
 ## Excluding root
 ## Direct relation
