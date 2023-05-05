@@ -124,36 +124,46 @@ The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filte
 allows you to restrict the search to only those entities that are part of the entire hierarchy tree. In e-commerce
 systems the typical representative of a hierarchical entity is a *category*, which will be used in all of our examples.
 
+The single difference to [hierarchyWithin constraint](#hierarchy-within) is that it doesn't accept a root node 
+specification. Because evitaDB accepts multiple root nodes in your entity hierarchy, it may be helpful to imagine
+there is an invisible "virtual" top root above all the top nodes (whose `parent` property remains `NULL`) you have in 
+your entity hierarchy and this virtual top root is targeted by this constraint.
+
 ![Root categories listing](assets/category-listing.png "Root categories listing")
 
 **Syntax:**
 
 ```evitaql
-hierarchyWithin(
-    filterConstraint,
-    (directRelation|excluding|excludingRoot)*
+hierarchyWithinRoot(
+    (directRelation|excluding)*
 )
 ```
 
 <dl>
-    <dt>filterConstraint</dt>
-    <dd>
-        a single filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
-        multiple constraints must be enclosed in [AND](../logical.md#and) / [OR](../logical.md#or) containers
-    </dd>
-    <dt>(directRelation|excluding|excludingRoot)*</dt>
+    <dt>(directRelation|excluding)*</dt>
     <dd>
         optional constraints allow you to narrow the scope of the hierarchy; 
         none or all of the constraints may be present:
         <ul>
             <li>[directRelation](#direct-relation)</li>
             <li>[excluding](#excluding)</li>
-            <li>[excludingRoot](#excluding-root)</li>
         </ul>
     </dd>
 </dl>
 
 ### Self
+
+The `hierarchyWithinRoot`, which targets the `Category` collection itself, returns all categories except those that 
+would point to non-existent parent nodes, such hierarchy nodes are called [orphans](../../use/schema.md#orphan-hierarchy-nodes)
+and do not satisfy any hierarchy query.
+
+<SourceCodeTabs>
+[Category listing](docs/user/en/query/filtering/examples/hierarchy-within-root-simple.evitaql)
+</SourceCodeTabs>
+
+The query returns the first page of a total of 2 pages of items:
+
+<MDInclude>[Category listing](docs/user/en/query/filtering/examples/hierarchy-within-root-simple.md)</MDInclude>
 
 ### Reference
 
