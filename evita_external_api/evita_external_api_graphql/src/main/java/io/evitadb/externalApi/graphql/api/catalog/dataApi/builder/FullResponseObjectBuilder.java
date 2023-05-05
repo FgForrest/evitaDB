@@ -793,7 +793,7 @@ public class FullResponseObjectBuilder {
 	private GraphQLObjectType buildHierarchyOfSelfObject(@Nonnull EntitySchemaContract entitySchema) {
 		final String objectName = HierarchyOfSelfDescriptor.THIS.name(entitySchema, entitySchema);
 
-		final HierarchyDataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
+		final DataLocator selfHierarchyConstraintDataLocator = new HierarchyDataLocator(entitySchema.getName());
 		final GraphQLInputType nodeConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyNode.class);
 		final GraphQLInputType stopAtConstraint = extraResultRequireConstraintSchemaBuilder.build(selfHierarchyConstraintDataLocator, HierarchyStopAt.class);
 		final GraphQLInputObjectType parentsSiblingsSpecification = HierarchyParentsSiblingsSpecification.THIS
@@ -903,7 +903,7 @@ public class FullResponseObjectBuilder {
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
 		final String objectName = HierarchyOfReferenceDescriptor.THIS.name(entitySchema, referenceSchema);
 
-		final HierarchyDataLocator referenceHierarchyConstraintDataLocator = new HierarchyDataLocator(
+		final DataLocator referenceHierarchyConstraintDataLocator = new HierarchyDataLocator(
 			entitySchema.getName(),
 			referenceSchema.getName()
 		);

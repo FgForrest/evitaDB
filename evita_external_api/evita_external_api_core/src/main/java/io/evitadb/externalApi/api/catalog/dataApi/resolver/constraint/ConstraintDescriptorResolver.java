@@ -35,16 +35,11 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorWithReference;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.FacetDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -70,13 +65,17 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 class ConstraintDescriptorResolver {
 
-	@Nonnull
-	private final CatalogSchemaContract catalogSchema;
-	@Nonnull
-	private final ConstraintType constraintType;
+	@Nonnull private final CatalogSchemaContract catalogSchema;
+	@Nonnull private final ConstraintType constraintType;
+	@Nonnull private final DataLocatorResolver dataLocatorResolver;
+
+	public ConstraintDescriptorResolver(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull ConstraintType constraintType) {
+		this.catalogSchema = catalogSchema;
+		this.constraintType = constraintType;
+		this.dataLocatorResolver = new DataLocatorResolver(catalogSchema);
+	}
 
 	/**
 	 * Extracts information from key and tries to find corresponding constraint for it. Returns empty if no constraint
@@ -140,7 +139,7 @@ class ConstraintDescriptorResolver {
 		rawClassifier = constructClassifier(classifierWords);
 
 		final Optional<String> actualClassifier = resolveActualClassifier(resolveContext, constraintDescriptor, rawClassifier);
-		final DataLocator innerDataLocator = resolveInnerDataLocator(resolveContext, key, constraintDescriptor, actualClassifier);
+		final DataLocator innerDataLocator = resolveInnerDataLocator(resolveContext, constraintDescriptor, actualClassifier);
 
 		return Optional.of(new ParsedConstraintDescriptor(
 			key,
@@ -234,55 +233,9 @@ class ConstraintDescriptorResolver {
 	 */
 	@Nonnull
 	private DataLocator resolveInnerDataLocator(@Nonnull ConstraintResolveContext resolveContext,
-												@Nonnull String originalKey,
 	                                            @Nonnull ConstraintDescriptor constraintDescriptor,
 	                                            @Nonnull Optional<String> classifier) {
-		final DataLocator parentDataLocator = resolveContext.dataLocator();
-		return switch (constraintDescriptor.propertyType()) {
-			case GENERIC, ATTRIBUTE, ASSOCIATED_DATA, PRICE -> parentDataLocator;
-			case ENTITY -> {
-				if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
-					if (dataLocatorWithReference.referenceName() == null) {
-						yield new EntityDataLocator(dataLocatorWithReference.entityType());
-					} else {
-						final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType())
-							.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
-						if (referenceSchema.isReferencedEntityTypeManaged()) {
-							yield new EntityDataLocator(referenceSchema.getReferencedEntityType());
-						} else {
-							yield new ExternalEntityDataLocator(referenceSchema.getReferencedEntityType());
-						}
-					}
-				} else if (parentDataLocator instanceof ExternalEntityDataLocator) {
-					yield parentDataLocator;
-				} else {
-					yield new EntityDataLocator(parentDataLocator.entityType());
-				}
-			}
-			case REFERENCE -> new ReferenceDataLocator(
-				parentDataLocator.entityType(),
-				classifier.orElseThrow(() -> new ExternalApiInternalError("Missing required classifier in `" + originalKey + "`."))
-			);
-			case HIERARCHY -> {
-				if (constraintDescriptor.creator().hasClassifierParameter() && classifier.isEmpty()) {
-					throw new ExternalApiInternalError("Missing required classifier in `" + originalKey + "`.");
-				}
-				yield new HierarchyDataLocator(
-					parentDataLocator.entityType(),
-					classifier.orElse(null)
-				);
-			}
-			case FACET -> {
-				if (constraintDescriptor.creator().hasClassifierParameter() && classifier.isEmpty()) {
-					throw new ExternalApiInternalError("Missing required classifier in `" + originalKey + "`.");
-				}
-				yield new FacetDataLocator(
-					parentDataLocator.entityType(),
-					classifier.orElse(null)
-				);
-			}
-			default -> throw new ExternalApiInternalError("Unsupported property type `" + constraintDescriptor.propertyType() + "`.");
-		};
+		return dataLocatorResolver.resolveChildDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
 	}
 
 

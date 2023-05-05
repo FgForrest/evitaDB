@@ -80,7 +80,7 @@ public abstract class ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE> 
 	 * Returns {@link EntitySchemaContract} for passed `entityType`. If missing throws {@link ExternalApiInternalError}.
 	 */
 	@Nonnull
-	public EntitySchemaContract getEntitySchemaOrElseThrow(@Nonnull String entityType) {
+	public EntitySchemaContract getEntitySchemaOrThrowException(@Nonnull String entityType) {
 		return getEntitySchema(entityType)
 			.orElseThrow(() -> new ExternalApiInternalError("Could not find required schema for entity `" + entityType + "`."));
 	}

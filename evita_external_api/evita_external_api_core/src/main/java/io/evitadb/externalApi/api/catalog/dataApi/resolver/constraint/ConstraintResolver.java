@@ -33,8 +33,10 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.*;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
@@ -49,7 +51,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -96,6 +97,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 	@Nonnull protected final CatalogSchemaContract catalogSchema;
 	@Nonnull private final ConstraintDescriptorResolver keyParser;
+	@Nonnull private final DataLocatorResolver dataLocatorResolver;
 	/**
 	 * Map of additional resolvers for cross-resolving constraints of different constraint types.
 	 */
@@ -112,6 +114,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 		this.catalogSchema = catalogSchema;
 		this.keyParser = new ConstraintDescriptorResolver(catalogSchema, getConstraintType());
+		this.dataLocatorResolver = new DataLocatorResolver(catalogSchema);
 		this.additionalResolvers = additionalResolvers;
 	}
 
@@ -786,79 +789,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
 			return resolveContext.dataLocator();
 		}
-
-		final DataLocator parentDataLocator = resolveContext.dataLocator();
-		final DataLocator childDataLocator;
-		if (desiredChildDomain == ConstraintDomain.DEFAULT) {
-			childDataLocator = parentDataLocator;
-		} else if (Set.of(ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.HIERARCHY_TARGET, ConstraintDomain.FACET).contains(desiredChildDomain)) {
-			Assert.isPremiseValid(
-				parentDataLocator instanceof DataLocatorWithReference,
-				() -> createQueryResolvingInternalError("Cannot switch to `" + desiredChildDomain + "` domain because parent data locator `" + parentDataLocator + "` doesn't contain any reference.")
-			);
-
-			final String childEntityType = parentDataLocator.entityType();
-			final String childReferenceName = ((DataLocatorWithReference) parentDataLocator).referenceName();
-			childDataLocator = switch (desiredChildDomain) {
-				case REFERENCE -> {
-					Assert.isPremiseValid(
-						childReferenceName != null,
-						() -> createQueryResolvingInternalError("Child domain `" + ConstraintDomain.REFERENCE + "` requires explicit reference name.")
-					);
-					yield new ReferenceDataLocator(childEntityType, childReferenceName);
-				}
-				case HIERARCHY -> new HierarchyDataLocator(childEntityType, childReferenceName);
-				case HIERARCHY_TARGET -> {
-					if (childReferenceName == null) {
-						yield new EntityDataLocator(childEntityType);
-					} else {
-						yield new ReferenceDataLocator(childEntityType, childReferenceName);
-					}
-				}
-				case FACET -> new FacetDataLocator(childEntityType, childReferenceName);
-				default -> createQueryResolvingInternalError("Unsupported domain `" + desiredChildDomain + "`.");
-			};
-		} else {
-			if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
-				if (dataLocatorWithReference.referenceName() == null) {
-					childDataLocator = switch (desiredChildDomain) {
-						case GENERIC -> new GenericDataLocator(dataLocatorWithReference.entityType());
-						case ENTITY -> new EntityDataLocator(dataLocatorWithReference.entityType());
-						default -> createQueryResolvingInternalError("Unsupported domain `" + desiredChildDomain + "`.");
-					};
-				} else {
-					final ReferenceSchemaContract referenceSchema = catalogSchema.getEntitySchemaOrThrowException(dataLocatorWithReference.entityType())
-						.getReferenceOrThrowException(dataLocatorWithReference.referenceName());
-
-					final String referencedEntityType = referenceSchema.getReferencedEntityType();
-					childDataLocator = switch (desiredChildDomain) {
-						case GENERIC -> new GenericDataLocator(referencedEntityType);
-						case ENTITY -> {
-							if (referenceSchema.isReferencedEntityTypeManaged()) {
-								yield new EntityDataLocator(referencedEntityType);
-							} else {
-								yield new ExternalEntityDataLocator(referencedEntityType);
-							}
-						}
-						default -> createQueryResolvingInternalError("Unsupported domain `" + desiredChildDomain + "`.");
-					};
-				}
-			} else if (parentDataLocator instanceof ExternalEntityDataLocator) {
-				childDataLocator = switch (desiredChildDomain) {
-					case GENERIC -> new GenericDataLocator(parentDataLocator.entityType());
-					case ENTITY -> new ExternalEntityDataLocator(parentDataLocator.entityType());
-					default -> createQueryResolvingInternalError("Unsupported domain `" + desiredChildDomain + "`.");
-				};
-			} else {
-				childDataLocator = switch (desiredChildDomain) {
-					case GENERIC -> new GenericDataLocator(parentDataLocator.entityType());
-					case ENTITY -> new EntityDataLocator(parentDataLocator.entityType());
-					default -> createQueryResolvingInternalError("Unsupported domain `" + desiredChildDomain + "`.");
-				};
-			}
-		}
-
-		return childDataLocator;
+		return dataLocatorResolver.resolveChildDataLocator(resolveContext.dataLocator(), desiredChildDomain);
 	}
 
 	@SuppressWarnings("unchecked")
