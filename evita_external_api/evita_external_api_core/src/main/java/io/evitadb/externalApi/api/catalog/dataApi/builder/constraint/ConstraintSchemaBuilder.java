@@ -841,7 +841,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected DataLocator resolveChildDataLocator(@Nonnull ConstraintBuildContext buildContext,
 	                                              @Nonnull ConstraintDomain desiredChildDomain) {
-		return dataLocatorResolver.resolveChildDataLocator(buildContext.dataLocator(), desiredChildDomain);
+		return dataLocatorResolver.resolveChildParameterDataLocator(buildContext.dataLocator(), desiredChildDomain);
 	}
 
 	/**

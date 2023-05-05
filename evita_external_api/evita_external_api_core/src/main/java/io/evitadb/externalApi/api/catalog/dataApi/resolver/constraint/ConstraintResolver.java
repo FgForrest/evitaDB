@@ -789,7 +789,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
 			return resolveContext.dataLocator();
 		}
-		return dataLocatorResolver.resolveChildDataLocator(resolveContext.dataLocator(), desiredChildDomain);
+		return dataLocatorResolver.resolveChildParameterDataLocator(resolveContext.dataLocator(), desiredChildDomain);
 	}
 
 	@SuppressWarnings("unchecked")

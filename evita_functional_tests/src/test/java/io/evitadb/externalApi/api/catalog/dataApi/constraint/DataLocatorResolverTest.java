@@ -116,12 +116,12 @@ public class DataLocatorResolverTest {
 
 	@ParameterizedTest
 	@MethodSource("possibleParentDataLocatorsWithDesiredChildDomains")
-	void shouldResolveChildDataLocatorForDataLocator(@Nonnull DataLocator parentDataLocator,
-	                                                       @Nonnull ConstraintDomain desiredChildDomain,
-	                                                       @Nonnull DataLocator expectedChildDataLocator) {
+	void shouldResolveChildParameterDataLocator(@Nonnull DataLocator parentDataLocator,
+	                                            @Nonnull ConstraintDomain desiredChildDomain,
+	                                            @Nonnull DataLocator expectedChildDataLocator) {
 		assertEquals(
 			expectedChildDataLocator,
-			dataLocatorResolver.resolveChildDataLocator(parentDataLocator, desiredChildDomain)
+			dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain)
 		);
 	}
 
@@ -167,11 +167,11 @@ public class DataLocatorResolverTest {
 
 	@ParameterizedTest
 	@MethodSource("impossibleChildDomainsForParentDataLocators")
-	void shouldNotResolveChildDataLocatorForDesiredDomain(@Nonnull DataLocator parentDataLocator,
-	                                                      @Nonnull ConstraintDomain desiredChildDomain) {
+	void shouldNotResolveChildParameterDataLocator(@Nonnull DataLocator parentDataLocator,
+	                                               @Nonnull ConstraintDomain desiredChildDomain) {
 		assertThrows(
 			ExternalApiInternalError.class,
-			() -> dataLocatorResolver.resolveChildDataLocator(parentDataLocator, desiredChildDomain)
+			() -> dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain)
 		);
 	}
 
@@ -218,13 +218,13 @@ public class DataLocatorResolverTest {
 
 	@ParameterizedTest
 	@MethodSource("possibleParentDataLocatorsWithChildConstraints")
-	void shouldResolveChildDataLocatorForConstraint(@Nonnull DataLocator parentDataLocator,
-	                                                @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                                @Nullable String classifier,
-	                                                @Nonnull DataLocator expectedChildDataLocator) {
+	void shouldResolveConstraintChildDataLocator(@Nonnull DataLocator parentDataLocator,
+	                                             @Nonnull ConstraintDescriptor constraintDescriptor,
+	                                             @Nullable String classifier,
+	                                             @Nonnull DataLocator expectedChildDataLocator) {
 		assertEquals(
 			expectedChildDataLocator,
-			dataLocatorResolver.resolveChildDataLocator(parentDataLocator, constraintDescriptor, Optional.ofNullable(classifier))
+			dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, Optional.ofNullable(classifier))
 		);
 	}
 
@@ -348,12 +348,12 @@ public class DataLocatorResolverTest {
 
 	@ParameterizedTest
 	@MethodSource("impossibleChildConstraintsForParentDataLocators")
-	void shouldNotResolveChildDataLocatorForConstraint(@Nonnull DataLocator parentDataLocator,
-	                                                   @Nonnull ConstraintDescriptor constraintDescriptor,
-	                                                   @Nullable String classifier) {
+	void shouldNotResolveConstraintDataLocator(@Nonnull DataLocator parentDataLocator,
+	                                           @Nonnull ConstraintDescriptor constraintDescriptor,
+	                                           @Nullable String classifier) {
 		assertThrows(
 			ExternalApiInternalError.class,
-			() -> dataLocatorResolver.resolveChildDataLocator(parentDataLocator, constraintDescriptor, Optional.ofNullable(classifier))
+			() -> dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, Optional.ofNullable(classifier))
 		);
 	}
 

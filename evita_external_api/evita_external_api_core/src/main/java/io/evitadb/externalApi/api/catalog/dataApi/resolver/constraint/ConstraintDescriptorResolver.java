@@ -235,7 +235,7 @@ class ConstraintDescriptorResolver {
 	private DataLocator resolveInnerDataLocator(@Nonnull ConstraintResolveContext resolveContext,
 	                                            @Nonnull ConstraintDescriptor constraintDescriptor,
 	                                            @Nonnull Optional<String> classifier) {
-		return dataLocatorResolver.resolveChildDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
+		return dataLocatorResolver.resolveConstraintDataLocator(resolveContext.dataLocator(), constraintDescriptor, classifier);
 	}
 
 
