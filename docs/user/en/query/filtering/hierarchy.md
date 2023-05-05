@@ -203,14 +203,14 @@ The query returns the first page of a total of 2 pages of items:
 
 <MDInclude>[Category listing](docs/user/en/query/filtering/examples/hierarchy-within-root-simple.md)</MDInclude>
 
-### Reference
+### Referenced entity
 
 **Syntax:**
 
 ```evitaql
 hierarchyWithinRoot(
     argument:string,   
-    filterConstraint:(directRelation|excluding)*
+    filterConstraint:(excluding)*
 )
 ```
 
@@ -222,7 +222,7 @@ hierarchyWithinRoot(
         types, or it may target the same hierarchical entity through multiple semantically different references, and 
         that is why the reference name is used instead of the target entity type.
     </dd>
-    <dt>filterConstraint:(directRelation|excluding|excludingRoot)*</dt>
+    <dt>filterConstraint:(excluding)*</dt>
     <dd>
         optional constraints allow you to narrow the scope of the hierarchy; 
         none or all of the constraints may be present:
@@ -254,8 +254,9 @@ The query returns the first page of a total of 212 pages of items:
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyDirectRelation.java</SourceClass> 
 is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply 
 makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return 
-all hierarchy children or entities that are transitively related to them. If the `directRelation` is used as 
-a sub-constraint, this behavior changes and only direct descendants or directly referencing entities are matched.
+all hierarchy children of the parent node or entities that are transitively or directly related to them and the parent 
+node itself. If the `directRelation` is used as a sub-constraint, this behavior changes and only direct descendants or 
+directly referencing entities are matched.
 
 **Syntax:**
 
@@ -270,20 +271,20 @@ parent node to be returned. In the case of the `hierarchyWithinRoot` constraint,
 top root - so only the top-level categories are returned.
 
 <SourceCodeTabs>
-[Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-root-top-categories.evitaql)
+[Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-top-categories.evitaql)
 </SourceCodeTabs>
 
-<MDInclude>[Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-root-top-categories.md)</MDInclude>
+<MDInclude>[Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-top-categories.md)</MDInclude>
 
 In the case of the `hierarchyWithin` the result will contain direct children of the filtered category (or categories).
 
 <SourceCodeTabs>
-[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories.evitaql)
+[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-direct-categories.evitaql)
 </SourceCodeTabs>
 
-[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-direct-categories.md)
+[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-direct-categories.md)
 
-### Reference
+### Referenced entity
 
 If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example is 
 a product assigned to a category), it can only be used in the `hierarchyWithin` parent constraint.
@@ -314,13 +315,30 @@ some of its subcategories. Let's try the *Smartwatches* subcategory:
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyExcludingRoot.java</SourceClass>
 is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
 makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
-all hierarchy children or entities that are transitively related to them. If the `directRelation` is used as
-a sub-constraint, this behavior changes and only direct descendants or directly referencing entities are matched.
+all hierarchy children of the parent node or entities that are transitively or directly related to them and the parent 
+node itself. When the `excludingRoot` is used as a sub-constraint, this behavior changes and the parent node itself or the
+entities directly related to that parent node are be excluded from the result.
 
 **Syntax:**
 
 ```evitaql
 excludingRoot()
-``` 
+```
+
+### Self
+
+If the hierarchy constraint targets the hierarchy entity, the `excludingRoot` will the requested parent node will be
+omitted from the result. In the case of the `hierarchyWithinRoot` constraint, the parent is an invisible "virtual"
+top root, and this constraint makes no sense.
+
+<SourceCodeTabs>
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding-root.evitaql)
+</SourceCodeTabs>
+
+As we can see the requested parent category *Accessories* is excluded from the result:
+
+<MDInclude>[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding-root.md)</MDInclude>
+
+### Referenced entity
 
 ## Excluding

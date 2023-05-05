@@ -1,5 +1,6 @@
 | primary key | code                  |
 |-------------|-----------------------|
+| 66468       | accessories           |
 | 66480       | christmas-electronics |
 | 66481       | smart-wearable        |
 | 66482       | audio                 |
