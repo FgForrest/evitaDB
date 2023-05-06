@@ -3,6 +3,8 @@ title: Building a Developer-friendly Documentation Portal with Next.js and MDX
 perex: As a developer, I understand the importance of up-to-date documentation. But creating a documentation portal that's easy to maintain and update can be a challenge. I'm a firm believer that when developers can write and publish documentation in a snap, it motivates them to take the time to document critical information. That's why I took on the challenge of building the new developers documentation portal for evitadb.io.
 date: '04.5.2023'
 author: 'Miro Alt'
+motive: assets/images/05-building-documentation-portal.png
+proofreading: 'done'
 ---
 
 My goal was to create a documentation portal that's easy to maintain and update, with documentation files kept closely
