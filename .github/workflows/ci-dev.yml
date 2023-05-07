@@ -45,12 +45,7 @@ jobs:
       if: success() || failure() # always run even if the previous step fails
       with:
         report_paths: '**/TEST-*.xml'
-        require_tests: true
         fail_on_failure: true
-        include_passed: true
-        summary: true
-        job_summary: true
-        annotate_notice: true
 
     - name: Upload test results    # upload XML with unit test results to artifact `test-results` for `test-report.yml`
       uses: actions/upload-artifact@v2
