@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.evitadb.utils.StringUtils.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This class verifies behaviour of {@link StringUtils}
@@ -34,6 +35,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class StringUtilsTest {
+
+	@Test
+	void deliberateTestFail() {
+		fail("This is experimental failure!");
+	}
 
 	@Test
 	void shouldUncapitalizeString() {
