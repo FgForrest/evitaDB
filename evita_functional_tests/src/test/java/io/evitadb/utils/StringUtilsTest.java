@@ -38,7 +38,7 @@ class StringUtilsTest {
 
 	@Test
 	void deliberateTestFail() {
-		fail("This is experimental failure!!");
+		fail("This is experimental failure!!!");
 	}
 
 	@Test

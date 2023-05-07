@@ -40,13 +40,6 @@ jobs:
         mvn -T 1C -B package -P unitAndFunctional jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
         jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
-    - name: Publish Test Report
-      uses: mikepenz/action-junit-report@v3
-      if: success() || failure() # always run even if the previous step fails
-      with:
-        report_paths: '**/TEST-*.xml'
-        fail_on_failure: true
-
     - name: Upload test results    # upload XML with unit test results to artifact `test-results` for `test-report.yml`
       uses: actions/upload-artifact@v2
       if: success() || failure()
