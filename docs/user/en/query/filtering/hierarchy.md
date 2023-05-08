@@ -74,7 +74,7 @@ To list all nested categories of *Accessories* category issue this query:
 
 <NoteTitle toggles="true">
 
-##### List of all subcategories of *Accessories* category
+##### List of all subcategories of the *Accessories* category
 </NoteTitle>
 
 <MDInclude>[Single root hierarchy example](docs/user/en/query/filtering/examples/hierarchy-within-self-simple.md)</MDInclude>
@@ -156,9 +156,18 @@ products in the *Accessories* category of our [demo dataset](https://demo.evitad
 Products assigned to two or more subcategories of *Accessories* category will only appear once in the response (contrary 
 to what you might expect if you have experience with SQL).
 
-The query returns the first page of a total of 26 pages of items:
+The query returns the first page of a total of 26 pages of items.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all products in the *Accessories* category or its subcategories
+</NoteTitle>
 
 <MDInclude>[Product listing from *Accessories* category](docs/user/en/query/filtering/examples/hierarchy-within-reference-simple.md)</MDInclude>
+
+</Note>
 
 The category filter constraint specifies a condition that targets the referenced entity (i.e., category attributes,
 category references). Currently, it's not possible to specify a filter constraint that takes into account the product
@@ -208,9 +217,18 @@ and do not satisfy any hierarchy query.
 [Category listing](docs/user/en/query/filtering/examples/hierarchy-within-root-simple.evitaql)
 </SourceCodeTabs>
 
-The query returns the first page of a total of 2 pages of items:
+The query returns the first page of a total of 2 pages of items.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all categories in the hierarchy tree
+</NoteTitle>
 
 <MDInclude>[Category listing](docs/user/en/query/filtering/examples/hierarchy-within-root-simple.md)</MDInclude>
+
+</Note>
 
 ### Referenced entity
 
@@ -256,7 +274,16 @@ might expect if you have experience with SQL).
 
 The query returns the first page of a total of 212 pages of items:
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all products assigned to any category in the hierarchy tree
+</NoteTitle>
+
 <MDInclude>[Product listing assigned to a category](docs/user/en/query/filtering/examples/hierarchy-within-root-reference-simple.md)</MDInclude>
+
+</Note>
 
 ## Direct relation
 
@@ -283,7 +310,16 @@ top root - so only the top-level categories are returned.
 [Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-top-categories.evitaql)
 </SourceCodeTabs>
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all root categories of the hierarchy
+</NoteTitle>
+
 <MDInclude>[Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-top-categories.md)</MDInclude>
+
+</Note>
 
 In the case of the `hierarchyWithin` the result will contain direct children of the filtered category (or categories).
 
@@ -291,7 +327,16 @@ In the case of the `hierarchyWithin` the result will contain direct children of 
 [Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-direct-categories.evitaql)
 </SourceCodeTabs>
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all direct subcategories of the *Accessories* category
+</NoteTitle>
+
 <MDInclude>[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-direct-categories.md)</MDInclude>
+
+</Note>
 
 ### Referenced entity
 
@@ -315,9 +360,18 @@ some of its subcategories. Let's try the *Smartwatches* subcategory:
 [Products directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories-smart.evitaql)
 </SourceCodeTabs>
 
-... and we get the list of all products related directly to a *Smartwatches* category:
+... and we get the list of all products related directly to a *Smartwatches* category.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all products directly related to the *Smartwatches* category
+</NoteTitle>
 
 <MDInclude>[Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories-smart.md)</MDInclude>
+
+</Note>
 
 ## Excluding root
 
@@ -344,9 +398,18 @@ top root, and this constraint makes no sense.
 [Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding-root.evitaql)
 </SourceCodeTabs>
 
-As we can see the requested parent category *Accessories* is excluded from the result:
+As we can see the requested parent category *Accessories* is excluded from the result.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all subcategories of the *Accessories* category except the *Accessories* category itself
+</NoteTitle>
 
 <MDInclude>[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding-root.md)</MDInclude>
+
+</Note>
 
 ### Referenced entity
 
@@ -368,6 +431,15 @@ is used:
 ... we get only **4 items**, which means that 16 were assigned directly to *Keyboards* category and only 4 of them were
 assigned to *Exotic keyboards*:
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all products related to subcategories of the *Keyboard* category except to the *Keyboard* category itself
+</NoteTitle>
+
 <MDInclude>[Products in subcategories of Keyboard category](docs/user/en/query/filtering/examples/hierarchy-within-reference-excluding-root.md)</MDInclude>
+
+</Note>
 
 ## Excluding
