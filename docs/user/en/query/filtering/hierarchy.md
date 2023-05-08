@@ -68,9 +68,18 @@ To list all nested categories of *Accessories* category issue this query:
 [Transitive category listing](docs/user/en/query/filtering/examples/hierarchy-within-self-simple.evitaql)
 </SourceCodeTabs>
 
-You should receive listing of these categories:
+... and you should get about 21 categories in the response.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all subcategories of *Accessories* category
+</NoteTitle>
 
 <MDInclude>[Single root hierarchy example](docs/user/en/query/filtering/examples/hierarchy-within-self-simple.md)</MDInclude>
+
+</Note>
 
 The first argument specifies the filter targets the attributes of the `Category` entity. In this example we used
 [attributeEquals](comparable.md#attribute-equals) for unique attribute `code`, but you can select the category
