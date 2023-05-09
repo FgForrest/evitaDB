@@ -31,7 +31,6 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
@@ -95,7 +94,7 @@ public class CatalogSchemaSerializer extends Serializer<CatalogSchema> {
 			attributeSchema,
 			entityType -> theCatalog
 				.getEntitySchema(entityType)
-				.orElseThrow(() -> new EvitaInternalError("Entity `" + entityType + "` schema unexpectedly not found!"))
+				.orElse(null)
 		);
 	}
 

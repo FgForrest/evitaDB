@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
@@ -41,6 +42,7 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
@@ -100,8 +102,12 @@ public class HierarchyOfSelfTranslator
 				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
 					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
 					extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
+				final Formula childrenExceptSelfFormula = FormulaFactory.not(
+					new ConstantFormula(new BaseBitmap(nodeId)),
+					globalIndex.getHierarchyNodesForParentFormula(nodeId)
+				);
 				if (filter == null || !filter.isApplicable()) {
-					return globalIndex.getHierarchyNodesForParentFormula(nodeId);
+					return childrenExceptSelfFormula;
 				} else {
 					final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
 						filter,
@@ -113,7 +119,7 @@ public class HierarchyOfSelfTranslator
 					);
 					return FormulaFactory.and(
 						baseFormula,
-						globalIndex.getHierarchyNodesForParentFormula(nodeId)
+						childrenExceptSelfFormula
 					);
 				}
 			},

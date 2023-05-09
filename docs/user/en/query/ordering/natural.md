@@ -13,3 +13,8 @@ This article will contain copy of:
 - [desc](https://evitadb.io/research/assignment/querying/query_language#descending)
 
 once it's proof-read.
+
+## Attribute natural
+
+This type of constraints target [entity attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
+ordering them by their "natural" oder (either numeric or alphabetical).

@@ -166,14 +166,14 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 			if (Locale.class.equals(valueParameterType) || Locale.class.equals(valueParameterType.getComponentType())) {
 				// if locale data type is explicitly defined, we expect that such locale is schema-defined locale
 				return DataTypesConverter.wrapGraphQLComponentType(
-					typeRef(ENTITY_LOCALE_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()))),
+					typeRef(ENTITY_LOCALE_ENUM.name(sharedContext.getEntitySchemaOrThrowException(buildContext.dataLocator().entityType()))),
 					valueParameterType,
 					canBeRequired && valueParameter.required()
 				);
 			} else if (Currency.class.equals(valueParameterType) || Currency.class.equals(valueParameterType.getComponentType())) {
 				// if currency data type is explicitly defined, we expect that such currency is schema-defined currency
 				return DataTypesConverter.wrapGraphQLComponentType(
-					typeRef(ENTITY_CURRENCY_ENUM.name(findRequiredEntitySchema(buildContext.dataLocator()))),
+					typeRef(ENTITY_CURRENCY_ENUM.name(sharedContext.getEntitySchemaOrThrowException(buildContext.dataLocator().entityType()))),
 					valueParameterType,
 					canBeRequired && valueParameter.required()
 				);

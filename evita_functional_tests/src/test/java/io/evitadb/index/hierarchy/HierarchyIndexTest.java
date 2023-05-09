@@ -440,7 +440,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	void shouldReturnDirectChildrenOfParent() {
 		final Bitmap children = hierarchyIndex.getHierarchyNodesForParent(9);
 		assertArrayEquals(
-			new int[]{10, 11, 12},
+			new int[]{9, 10, 11, 12},
 			children.getArray()
 		);
 	}

@@ -14,3 +14,16 @@ This article will contain copy of:
 - [hierarchy statistics](https://evitadb.io/research/assignment/querying/query_language#hierarchy-statistics)
 
 once it's proof-read.
+
+## Hierarchy of self
+## Hierarchy of reference
+## From root
+## From node
+## Children
+## Siblings
+## Parents
+## Stop at
+## Distance
+## Level
+## Node
+## Statistics

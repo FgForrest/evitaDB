@@ -148,6 +148,27 @@ will then contain entities in the form of
 [Fetching example](docs/user/en/use/api/example/fetching-example.java)
 </SourceCodeTabs>
 
+Although there are simpler variants for querying entities, the typical method is `query` that returns a complex object
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/EvitaResponse.java</SourceClass> containing:
+
+- **<SourceClass>evita_common/src/main/java/io/evitadb/dataType/DataChunk.java</SourceClass>** with result entities in
+  the form of <SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass> or
+  <SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass>
+- [Map](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html) of extra results indexed by their
+  class (`<T extends EvitaResponseExtraResult> Map<Class<T>, T>`)
+
+The next example documents fetching the second page of products in a category with calculated facet statistics:
+
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
+[Fetching example](docs/user/en/use/api/example/query-example.java)
+</SourceCodeTabs>
+
+There are shortcuts for calling query with the expected entity form so that you don't need to declare the expected
+entity form in the second argument of the `query` method:
+
+- `queryEntityReference` producing <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
+- `querySealedEntity` producing <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
+
 #### Lazy fetching (enrichment)
 
 Attributes, associated data, prices and references can be fetched separately by providing the primary key of the entity.

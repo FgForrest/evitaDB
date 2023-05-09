@@ -31,9 +31,9 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 
 /**
- * TODO lho docs
+ * Resolves output name of each hierarchy from field path.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class HierarchyRequireOutputNameResolver {

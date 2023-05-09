@@ -59,7 +59,9 @@ import static io.evitadb.api.query.QueryConstraints.*;
  */
 class SellingPriceAvailableBitmapFilterTest {
 	private static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild(Entities.PRODUCT);
-	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchema -> PRODUCT_SCHEMA);
+	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
+		TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchema -> PRODUCT_SCHEMA
+	);
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
 	private static final String PRICE_LIST_REFERENCE = "reference";

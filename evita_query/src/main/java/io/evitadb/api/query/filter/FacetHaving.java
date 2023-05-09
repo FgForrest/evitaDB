@@ -100,7 +100,7 @@ public class FacetHaving extends AbstractFilterConstraintContainer implements Fa
 
 	@Creator
 	public FacetHaving(@Nonnull @Classifier String referenceName,
-	                   @Nonnull @Child(domain = ConstraintDomain.REFERENCE) FilterConstraint... filter) {
+	                   @Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filter) {
 		super(new Serializable[]{referenceName}, filter);
 	}
 
@@ -120,7 +120,7 @@ public class FacetHaving extends AbstractFilterConstraintContainer implements Fa
 	@Nonnull
 	@Override
 	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
-		return children.length == 0 ? new ReferenceHaving(getReferenceName()) : new ReferenceHaving(getReferenceName(), children);
+		return children.length == 0 ? new FacetHaving(getReferenceName()) : new FacetHaving(getReferenceName(), children);
 	}
 
 	@Nonnull

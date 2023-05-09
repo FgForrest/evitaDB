@@ -94,11 +94,14 @@ public class SystemProvider implements ExternalApiProvider<SystemConfig> {
 			ConsoleWriter.write(StringUtils.rightPad("   - client private key served at: ", " ", ExternalApiServer.PADDING_START_UP));
 			ConsoleWriter.write(clientPrivateKey + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 			ConsoleWriter.write("""
-                \n************************* WARNING!!! *************************
+                
+                ************************* WARNING!!! *************************
                 You use mTLS with automatically generated client certificate.
                 This is not safe for production environments!
                 Supply the certificate for production manually and set `useGeneratedCertificate` to false.
-                ************************* WARNING!!! *************************\n\n""",
+                ************************* WARNING!!! *************************
+                
+                """,
 				ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD
 			);
 		}

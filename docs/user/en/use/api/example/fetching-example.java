@@ -1,4 +1,4 @@
-final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
+final EvitaResponse<SealedEntity> response = evita.queryCatalog(
 	"evita",
 	session -> {
 		return session.query(

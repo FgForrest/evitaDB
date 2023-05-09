@@ -72,7 +72,7 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "summary",
+	name = "summaryOfReference",
 	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with custom \"fetching\" settings for specific reference."
 )
 public class FacetSummaryOfReference extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
@@ -88,7 +88,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 			getFacetStatisticsDepth(),
 			"Facet summary requires a facet statistics depth specification."
 		);
-		for (RequireConstraint child : children) {
+		for (RequireConstraint child : getChildren()) {
 			Assert.isTrue(
 				child instanceof EntityFetch ||
 					child instanceof EntityGroupFetch,
@@ -96,11 +96,11 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 			);
 		}
 		Assert.isTrue(
-			Arrays.stream(children).filter(EntityFetch.class::isInstance).count() <= 1,
+			Arrays.stream(getChildren()).filter(EntityFetch.class::isInstance).count() <= 1,
 			"Facet summary accepts only one `EntityFetch` constraint."
 		);
 		Assert.isTrue(
-			Arrays.stream(children).filter(EntityGroupFetch.class::isInstance).count() <= 1,
+			Arrays.stream(getChildren()).filter(EntityGroupFetch.class::isInstance).count() <= 1,
 			"Facet summary accepts only one `EntityGroupFetch` constraint."
 		);
 		for (Constraint<?> child : additionalChildren) {
@@ -126,14 +126,15 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		this(new Serializable[]{referenceName, statisticsDepth}, requirements);
 	}
 
+	// todo lho check if domain entity will work for external entities
 	@Creator
 	public FacetSummaryOfReference(
 		@Nonnull @Classifier String referenceName,
 		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterGroupBy filterGroupBy,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) OrderBy orderBy,
-		@Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) OrderGroupBy orderGroupBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterGroupBy filterGroupBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
+		@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderGroupBy orderGroupBy,
 		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
 	) {
 		super(

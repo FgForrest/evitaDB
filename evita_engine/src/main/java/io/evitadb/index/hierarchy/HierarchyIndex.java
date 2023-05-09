@@ -422,9 +422,22 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	@Nonnull
 	public Bitmap getHierarchyNodesForParent(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		final int[] childrenIds = this.levelIndex.get(parentNode);
-		return ArrayUtils.isEmpty(childrenIds) ?
-			EmptyBitmap.INSTANCE : new BaseBitmap(Arrays.stream(childrenIds).filter(nodeId -> !excludedNodeTrees.test(nodeId)).toArray());
+		final HierarchyNode theParentNode = this.itemIndex.get(parentNode);
+		if (theParentNode == null) {
+			return EmptyBitmap.INSTANCE;
+		} else {
+			final int[] childrenIds = this.levelIndex.get(parentNode);
+			return ArrayUtils.isEmpty(childrenIds) ?
+				new BaseBitmap(parentNode) :
+				new BaseBitmap(
+					IntStream.concat(
+							IntStream.of(parentNode),
+							Arrays.stream(childrenIds)
+						)
+						.filter(nodeId -> !excludedNodeTrees.test(nodeId))
+						.toArray()
+				);
+		}
 	}
 
 	@Nonnull
@@ -587,7 +600,20 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	 * Returns count of children for passed parent.
 	 */
 	public int getHierarchyNodeCountForParent(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		return ofNullable(this.levelIndex.get(parentNode)).map(it -> it.length).filter(it -> !excludedNodeTrees.test(it)).orElse(0);
+		final HierarchyNode theParentNode = this.itemIndex.get(parentNode);
+		if (theParentNode == null) {
+			return 0;
+		} else {
+			final int[] childrenIds = this.levelIndex.get(parentNode);
+			return ArrayUtils.isEmpty(childrenIds) ?
+				1 :
+				(int) IntStream.concat(
+						IntStream.of(parentNode),
+						Arrays.stream(childrenIds)
+					)
+					.filter(nodeId -> !excludedNodeTrees.test(nodeId))
+					.count();
+		}
 	}
 
 	@Override

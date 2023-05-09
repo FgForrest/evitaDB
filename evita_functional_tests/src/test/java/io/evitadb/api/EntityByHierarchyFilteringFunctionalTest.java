@@ -35,6 +35,8 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
+import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
+import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
@@ -246,6 +248,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				assertResultIs(
 					originalCategoryEntities,
 					sealedEntity ->
+						// is directly parent
+						sealedEntity.getPrimaryKey() == 7 ||
 						// has direct parent node 7
 						ofNullable(categoryHierarchy.getParentItem(sealedEntity.getPrimaryKey().toString()))
 							.map(it -> Objects.equals(it.getCode(), String.valueOf(7)))

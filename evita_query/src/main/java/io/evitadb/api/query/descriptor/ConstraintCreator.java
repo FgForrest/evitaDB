@@ -34,10 +34,8 @@ import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
@@ -122,7 +120,7 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	/**
 	 * Whether this constraint requires classifier, either fixed {@link #implicitClassifier()} or dynamic {@link #classifierParameter()}.
 	 */
-	public boolean needsClassifier() {
+	public boolean hasClassifier() {
 		return hasClassifierParameter() || hasImplicitClassifier();
 	}
 

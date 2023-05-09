@@ -39,45 +39,27 @@ import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityGroupFetch;
-import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesQueryHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordPageFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDescriptor.RecordStripFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.HierarchyExtraResultRequireResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.*;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
-import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
-import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.LinkedList;
@@ -85,15 +67,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.strip;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Root data fetcher for fetching list of entities (or their references) of specified type. Besides returning {@link EntityDecorator}'s or
@@ -116,8 +96,14 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
+	@Nonnull private final PagingRequireResolver pagingRequireResolver;
 	@Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
+	@Nonnull private final AttributeHistogramResolver attributeHistogramResolver;
+	@Nonnull private final PriceHistogramResolver priceHistogramResolver;
+	@Nonnull private final FacetSummaryResolver facetSummaryResolver;
+	@Nonnull private final HierarchyParentsResolver hierarchyParentsResolver;
 	@Nonnull private final HierarchyExtraResultRequireResolver hierarchyExtraResultRequireResolver;
+	@Nonnull private final QueryTelemetryResolver queryTelemetryResolver;
 
 	@Nullable
 	private static Locale extractDesiredLocale(@Nullable FilterBy filterBy) {
@@ -146,17 +132,30 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			catalogSchema,
 			new AtomicReference<>(filterConstraintResolver)
 		);
+		this.pagingRequireResolver = new PagingRequireResolver();
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
 			filterConstraintResolver,
 			orderConstraintResolver
 		);
+		this.attributeHistogramResolver = new AttributeHistogramResolver(entitySchema);
+		this.priceHistogramResolver = new PriceHistogramResolver();
+		this.facetSummaryResolver = new FacetSummaryResolver(
+			entitySchema,
+			referencedEntitySchemas,
+			entityFetchRequireResolver,
+			filterConstraintResolver,
+			orderConstraintResolver
+		);
+		this.hierarchyParentsResolver = new HierarchyParentsResolver(entitySchema, referencedEntitySchemas, entityFetchRequireResolver);
 		this.hierarchyExtraResultRequireResolver = new HierarchyExtraResultRequireResolver(
+			entitySchema,
 			catalogSchema::getEntitySchemaOrThrowException,
 			entityFetchRequireResolver,
 			orderConstraintResolver,
 			requireConstraintResolver
 		);
+		this.queryTelemetryResolver = new QueryTelemetryResolver();
 	}
 
 	@Nonnull
@@ -241,19 +240,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		} else {
 			// build paging require
 			final SelectedField recordField = recordFields.get(0);
-			if (recordField.getName().equals(ResponseDescriptor.RECORD_PAGE.name())) {
-				final Integer pageNumber = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.NUMBER.name(), 1);
-				final Integer pageSize = (Integer) recordField.getArguments().getOrDefault(RecordPageFieldHeaderDescriptor.SIZE.name(), 20);
-				requireConstraints.add(page(pageNumber, pageSize));
-			} else if (recordField.getName().equals(ResponseDescriptor.RECORD_STRIP.name())) {
-				final Integer offset = (Integer) recordField.getArguments().getOrDefault(RecordStripFieldHeaderDescriptor.OFFSET.name(), 0);
-				final Integer limit = (Integer) recordField.getArguments().getOrDefault(RecordStripFieldHeaderDescriptor.LIMIT.name(), 20);
-				requireConstraints.add(strip(offset, limit));
-			} else {
-				throw new GraphQLInternalError(
-					"Expected field `" + ResponseDescriptor.RECORD_PAGE + "` or `" + ResponseDescriptor.RECORD_STRIP + "` but was `" + recordField.getName() + "`."
-				);
-			}
+			requireConstraints.add(pagingRequireResolver.resolve(recordField));
 
 			// build content requires
 			final List<SelectedField> recordData = recordField.getSelectionSet().getFields(DataChunkDescriptor.DATA.name());
@@ -281,292 +268,16 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 				.map(SelectedField::getSelectionSet)
 				.toList()
 		);
-		requireConstraints.addAll(buildAttributeHistogramRequires(extraResultsSelectionSet));
-		requireConstraints.add(buildPriceHistogramRequire(extraResultsSelectionSet));
-		requireConstraints.addAll(buildFacetSummaryRequire(extraResultsSelectionSet, desiredLocale));
-		requireConstraints.addAll(hierarchyExtraResultRequireResolver.resolveHierarchyExtraResultRequires(extraResultsSelectionSet, desiredLocale, entitySchema));
-		requireConstraints.add(buildQueryTelemetryRequire(extraResultsSelectionSet));
+		requireConstraints.addAll(attributeHistogramResolver.resolve(extraResultsSelectionSet));
+		requireConstraints.add(priceHistogramResolver.resolve(extraResultsSelectionSet).orElse(null));
+		requireConstraints.addAll(facetSummaryResolver.resolve(extraResultsSelectionSet, desiredLocale));
+		requireConstraints.addAll(hierarchyParentsResolver.resolve(extraResultsSelectionSet, desiredLocale));
+		requireConstraints.addAll(hierarchyExtraResultRequireResolver.resolve(extraResultsSelectionSet, desiredLocale));
+		requireConstraints.add(queryTelemetryResolver.resolve(extraResultsSelectionSet).orElse(null));
 
 		return require(
 			requireConstraints.toArray(RequireConstraint[]::new)
 		);
-	}
-
-	@Nonnull
-	private List<RequireConstraint> buildAttributeHistogramRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
-		final List<SelectedField> attributeHistogramFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name());
-		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
-		final List<SelectedField> attributeHistogramsFields = extraResultsSelectionSet.getFields("attributeHistograms");
-		if (attributeHistogramFields.isEmpty() && attributeHistogramsFields.isEmpty()) {
-			return List.of();
-		}
-
-		final Map<String, Integer> requestedAttributeHistograms = createHashMap(10);
-
-		attributeHistogramFields.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-			.forEach(f -> {
-				final AttributeSchemaContract attributeSchema = entitySchema
-					.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION)
-					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + f.getName() + "`."));
-				final String originalAttributeName = attributeSchema.getName();
-
-				final List<SelectedField> bucketsFields = SelectionSetWrapper.from(f.getSelectionSet()).getFields(HistogramDescriptor.BUCKETS.name());
-				Assert.isTrue(
-					!bucketsFields.isEmpty(),
-					() -> new GraphQLInvalidResponseUsageException(
-						"Attribute histogram for attribute `" + originalAttributeName + "` must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
-					)
-				);
-
-				bucketsFields.forEach(bucketsField -> {
-					final int requestedBucketCount = (int) bucketsField.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT);
-					final Integer alreadyRequestedBucketCount = requestedAttributeHistograms.put(originalAttributeName, requestedBucketCount);
-					Assert.isTrue(
-						alreadyRequestedBucketCount == null || alreadyRequestedBucketCount == requestedBucketCount,
-						() -> new GraphQLInvalidResponseUsageException(
-							"Attribute histogram for attribute `" + originalAttributeName + "` was already requested with bucket count `" + alreadyRequestedBucketCount + "`." +
-								" Each attribute can have maximum number of one requested bucket count."
-						)
-					);
-				});
-			});
-
-		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
-		if (!attributeHistogramsFields.isEmpty()) {
-			attributeHistogramsFields.forEach(f -> {
-				//noinspection unchecked
-				final List<String> attributes = ((List<String>) f.getArguments().get("attributes"))
-					.stream()
-					.map(a -> {
-						final AttributeSchemaContract attributeSchema = entitySchema
-							.getAttributeByName(a, PROPERTY_NAME_NAMING_CONVENTION)
-							.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + a + "`."));
-						return attributeSchema.getName();
-					})
-					.toList();
-
-				final List<SelectedField> bucketsFields = SelectionSetWrapper.from(f.getSelectionSet()).getFields(HistogramDescriptor.BUCKETS.name());
-				Assert.isTrue(
-					!bucketsFields.isEmpty(),
-					() -> new GraphQLInvalidResponseUsageException(
-						"Attribute histograms for attributes `" + String.join(",", attributes) + "` must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
-					)
-				);
-
-				bucketsFields.forEach(bucketsField -> {
-					final int requestedBucketCount = (int) bucketsField.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT);
-					attributes.forEach(attribute -> {
-						final Integer alreadyRequestedBucketCount = requestedAttributeHistograms.put(attribute, requestedBucketCount);
-						Assert.isTrue(
-							alreadyRequestedBucketCount == null || alreadyRequestedBucketCount == requestedBucketCount,
-							() -> new GraphQLInvalidResponseUsageException(
-								"Attribute histogram for attribute `" + attribute + "` was already requested with bucket count `" + alreadyRequestedBucketCount + "`." +
-									" Each attribute can have maximum number of one requested bucket count."
-							)
-						);
-					});
-				});
-			});
-		}
-
-		// construct actual requires from gathered data
-		//noinspection ConstantConditions
-		return requestedAttributeHistograms.entrySet()
-			.stream()
-			.map(h -> (RequireConstraint) attributeHistogram(h.getValue(), h.getKey()))
-			.toList();
-	}
-
-	@Nullable
-	private RequireConstraint buildPriceHistogramRequire(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
-		final List<SelectedField> priceHistogramFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.PRICE_HISTOGRAM.name());
-		if (priceHistogramFields.isEmpty()) {
-			return null;
-		}
-
-		final Set<Integer> requestedBucketCounts = priceHistogramFields.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields(HistogramDescriptor.BUCKETS.name()).stream())
-			.map(f -> (int) f.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT))
-			.collect(Collectors.toSet());
-		Assert.isTrue(
-			!requestedBucketCounts.isEmpty(),
-			() -> new GraphQLInvalidResponseUsageException(
-				"Price histogram must have at least one `" + HistogramDescriptor.BUCKETS.name() + "` field."
-			)
-		);
-		Assert.isTrue(
-			requestedBucketCounts.size() == 1,
-			() -> new GraphQLInvalidResponseUsageException(
-				"Price histogram was requested with multiple different bucket counts. Only single count can be requested."
-			)
-		);
-
-		return priceHistogram(requestedBucketCounts.iterator().next());
-	}
-
-	@Nonnull
-	private List<RequireConstraint> buildFacetSummaryRequire(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
-	                                                         @Nullable Locale desiredLocale) {
-		final List<SelectedField> facetSummaryFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.FACET_SUMMARY.name());
-		if (facetSummaryFields.isEmpty()) {
-			return List.of();
-		}
-
-		final Set<String> references = createHashSet(facetSummaryFields.size());
-		final Map<String, FacetStatisticsDepth> statisticsDepths = createHashMap(facetSummaryFields.size());
-		final Map<String, List<DataFetchingFieldSelectionSet>> groupEntityContentFields = createHashMap(facetSummaryFields.size());
-		final Map<String, List<DataFetchingFieldSelectionSet>> facetEntityContentFields = createHashMap(facetSummaryFields.size());
-		facetSummaryFields.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-			.forEach(f -> {
-				final String referenceName = f.getName();
-				final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, PROPERTY_NAME_NAMING_CONVENTION)
-					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
-				final String originalReferenceName = reference.getName();
-				references.add(originalReferenceName);
-
-				final boolean impactsNeeded = SelectionSetWrapper.from(f.getSelectionSet())
-					.getFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name())
-					.stream()
-					.anyMatch(f2 -> f2.getSelectionSet().contains(FacetStatisticsDescriptor.IMPACT.name()));
-				statisticsDepths.merge(
-					originalReferenceName,
-					impactsNeeded ? FacetStatisticsDepth.IMPACT : FacetStatisticsDepth.COUNTS,
-					(statisticsDepth1, statisticsDepth2) -> {
-						if (statisticsDepth1 == FacetStatisticsDepth.IMPACT || statisticsDepth2 == FacetStatisticsDepth.IMPACT) {
-							return FacetStatisticsDepth.IMPACT;
-						}
-						return FacetStatisticsDepth.COUNTS;
-					}
-				);
-
-				final List<DataFetchingFieldSelectionSet> groupEntityContentFieldsForReference = groupEntityContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
-				groupEntityContentFieldsForReference.addAll(
-					SelectionSetWrapper.from(f.getSelectionSet())
-						.getFields(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name())
-						.stream()
-						.map(SelectedField::getSelectionSet)
-						.toList()
-				);
-
-				final List<DataFetchingFieldSelectionSet> facetEntityContentFieldsForReference = facetEntityContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
-				facetEntityContentFieldsForReference.addAll(
-					SelectionSetWrapper.from(f.getSelectionSet())
-						.getFields(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name())
-						.stream()
-						.flatMap(f2 -> f2.getSelectionSet().getFields(FacetStatisticsDescriptor.FACET_ENTITY.name()).stream())
-						.map(SelectedField::getSelectionSet)
-						.toList()
-				);
-			});
-
-		// construct actual requires from gathered data
-		final List<RequireConstraint> requestedFacetSummaries = new ArrayList<>(references.size());
-		references.forEach(referenceName -> {
-			final FacetStatisticsDepth statisticsDepth = statisticsDepths.get(referenceName);
-
-			final Optional<EntityFetch> facetEntityRequirement = entityFetchRequireResolver.resolveEntityFetch(
-				SelectionSetWrapper.from(facetEntityContentFields.get(referenceName)),
-				desiredLocale,
-				referencedEntitySchemas.get(referenceName)
-			);
-
-			final Optional<EntityGroupFetch> groupEntityRequirement = entityFetchRequireResolver.resolveGroupFetch(
-				SelectionSetWrapper.from(groupEntityContentFields.get(referenceName)),
-				desiredLocale,
-				referencedEntitySchemas.get(referenceName)
-			);
-
-			requestedFacetSummaries.add(facetSummaryOfReference(
-				referenceName,
-				statisticsDepth,
-				facetEntityRequirement.orElse(null),
-				groupEntityRequirement.orElse(null)
-			));
-		});
-
-		return requestedFacetSummaries;
-	}
-
-	@Nonnull
-	private List<RequireConstraint> buildHierarchyStatisticsRequires(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
-	                                                                 @Nullable FilterBy filterBy) {
-		final List<SelectedField> hierarchyStatisticsFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY.name());
-		if (hierarchyStatisticsFields.isEmpty()) {
-			return List.of();
-		}
-
-		final Map<String, List<DataFetchingFieldSelectionSet>> hierarchyStatisticsContentFields = createHashMap(hierarchyStatisticsFields.size());
-		hierarchyStatisticsFields.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
-			.forEach(f -> {
-				final String referenceName = f.getName();
-				final String originalReferenceName;
-
-				/* TODO LHO - CHECK self constraint */
-				if (referenceName.equals("self")) {
-					originalReferenceName = "self";
-				} else {
-					final ReferenceSchemaContract reference = entitySchema.getReferenceByName(referenceName, PROPERTY_NAME_NAMING_CONVENTION)
-						.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + referenceName + "` in `" + entitySchema.getName() + "`."));
-					originalReferenceName = reference.getName();
-				}
-
-				final List<DataFetchingFieldSelectionSet> fields = hierarchyStatisticsContentFields.computeIfAbsent(originalReferenceName, k -> new LinkedList<>());
-				fields.addAll(
-					f.getSelectionSet()
-						.getFields(LevelInfoDescriptor.ENTITY.name())
-						.stream()
-						.map(SelectedField::getSelectionSet)
-						.toList()
-				);
-			});
-
-		// construct actual requires from gathered data
-		final List<RequireConstraint> requestedHierarchyStatistics = new ArrayList<>(hierarchyStatisticsContentFields.size());
-		hierarchyStatisticsContentFields.forEach((referenceName, contentFields) -> {
-			/* TODO LHO - CHECK self constraint */
-			if (referenceName.equals("self")) {
-				requestedHierarchyStatistics.add(
-					hierarchyOfSelf(
-						/* TODO LHO - now the requirements are placed inside computers */
-						/*EntityFetchRequireBuilder.buildEntityRequirement(
-							catalogSchema,
-							SelectionSetWrapper.from(contentFields),
-							extractDesiredLocale(filterBy),
-							entitySchema,
-							entitySchemaFetcher
-						)*/
-					)
-				);
-			} else {
-				requestedHierarchyStatistics.add(
-					hierarchyOfReference(
-						referenceName
-						/* TODO LHO - now the requirements are placed inside computers */
-//						EntityFetchRequireBuilder.buildEntityRequirement(
-//							catalogSchema,
-//							SelectionSetWrapper.from(contentFields),
-//							extractDesiredLocale(filterBy),
-//							referencedEntitySchemas.get(referenceName),
-//							entitySchemaFetcher
-//						)
-					)
-				);
-			}
-		});
-
-		return requestedHierarchyStatistics;
-	}
-
-	@Nullable
-	private RequireConstraint buildQueryTelemetryRequire(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
-		final List<SelectedField> queryTelemetryFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.QUERY_TELEMETRY.name());
-		if (queryTelemetryFields.isEmpty()) {
-			return null;
-		}
-		return queryTelemetry();
 	}
 
 	@Nonnull

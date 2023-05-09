@@ -24,9 +24,9 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 
 /**
- * TODO lho docs
+ * Field arguments descriptor for {@link io.evitadb.api.query.require.HierarchyOfSelf} in GraphQL
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface HierarchyOfSelfHeaderDescriptor extends HierarchyHeaderDescriptor {
 }

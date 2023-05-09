@@ -111,14 +111,16 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 			Assert.isTrue(
 				filterConstraint instanceof HierarchyExcluding ||
 					(filterConstraint instanceof HierarchyDirectRelation && getReferenceName() == null),
-				() -> "Constraint hierarchyWithinRoot accepts only Excluding, or DirectRelation " +
-					(getReferenceName() == null ? "when it targets same entity type" : "") + " as inner query!"
+				() -> "Constraint hierarchyWithinRoot accepts only " +
+					(getReferenceName() == null ? "Excluding, or DirectRelation when it targets same entity type" :
+						"Excluding when it targets different entity type") + " as inner query!"
 			);
 		}
 		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
-			() -> "Constraint hierarchyWithinRoot accepts only Excluding, or DirectRelation " +
-				(getReferenceName() == null ? "when it targets same entity type" : "") + " as inner query!"
+			() -> "Constraint hierarchyWithinRoot accepts only " +
+				(getReferenceName() == null ? "Excluding, or DirectRelation when it targets same entity type" :
+					"Excluding when it targets different entity type") + " as inner query!"
 		);
 	}
 
