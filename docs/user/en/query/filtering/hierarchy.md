@@ -37,15 +37,15 @@ focus on the category *Accessories* in our [demo dataset](https://demo.evitadb.i
 
 ```evitaql
 hierarchyWithin(
-    filterConstraint:any,
-    filterConstraint:(directRelation|excluding|excludingRoot)*
+    filterConstraint:any!,
+    filterConstraint:(directRelation|having|excluding|excludingRoot)*
 )
 ```
 
 <dl>
-    <dt>filterConstraint:any</dt>
+    <dt>filterConstraint:any!</dt>
     <dd>
-        a single filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
+        a single mandatory filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
         multiple constraints must be enclosed in [AND](../logical.md#and) / [OR](../logical.md#or) containers
     </dd>
     <dt>filterConstraint:(directRelation|excluding|excludingRoot)*</dt>
@@ -54,6 +54,7 @@ hierarchyWithin(
         none or all of the constraints may be present:
         <ul>
             <li>[directRelation](#direct-relation)</li>
+            <li>[having](#having)</li>
             <li>[excluding](#excluding)</li>
             <li>[excludingRoot](#excluding-root)</li>
         </ul>
@@ -114,23 +115,23 @@ Yes, it can. Although, it's apparently one of the edge cases, it's possible. Thi
 
 ```evitaql
 hierarchyWithin(
-    argument:string,
-    filterConstraint:any,
-    filterConstraint:(directRelation|excluding|excludingRoot)*
+    argument:string!,
+    filterConstraint:any!,
+    filterConstraint:(directRelation|having|excluding|excludingRoot)*
 )
 ```
 
 <dl>
-    <dt>argument:string</dt>
+    <dt>argument:string!</dt>
     <dd>
-        a name of the queried entity [reference schema](../../use/schema.md#reference) that represents the relationship 
-        to the hierarchical entity type, your entity may target different hierarchical entities in different reference
-        types, or it may target the same hierarchical entity through multiple semantically different references, and 
-        that is why the reference name is used instead of the target entity type.
+        a mandatory name of the queried entity [reference schema](../../use/schema.md#reference) that represents 
+        the relationship to the hierarchical entity type, your entity may target different hierarchical entities in 
+        different reference types, or it may target the same hierarchical entity through multiple semantically different 
+        references, and that is why the reference name is used instead of the target entity type.
     </dd>
-    <dt>filterConstraint:any</dt>
+    <dt>filterConstraint:any!</dt>
     <dd>
-        a single filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
+        a single mandatory filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
         multiple constraints must be enclosed in [AND](../logical.md#and) / [OR](../logical.md#or) containers
     </dd>
     <dt>filterConstraint:(directRelation|excluding|excludingRoot)*</dt>
@@ -204,6 +205,7 @@ hierarchyWithinRoot(
         none or all of the constraints may be present:
         <ul>
             <li>[directRelation](#direct-relation)</li>
+            <li>[having](#having)</li>
             <li>[excluding](#excluding)</li>
         </ul>
     </dd>
@@ -236,25 +238,26 @@ The query returns the first page of a total of 2 pages of items.
 
 ```evitaql
 hierarchyWithinRoot(
-    argument:string,   
-    filterConstraint:(excluding)*
+    argument:string!,   
+    filterConstraint:(having|excluding)*
 )
 ```
 
 <dl>
-    <dt>argument:string</dt>
+    <dt>argument:string!</dt>
     <dd>
-        a name of the queried entity [reference schema](../../use/schema.md#reference) that represents the relationship 
-        to the hierarchical entity type, your entity may target different hierarchical entities in different reference
-        types, or it may target the same hierarchical entity through multiple semantically different references, and 
-        that is why the reference name is used instead of the target entity type.
+        a mandatory name of the queried entity [reference schema](../../use/schema.md#reference) that represents 
+        the relationship to the hierarchical entity type, your entity may target different hierarchical entities in
+        different reference types, or it may target the same hierarchical entity through multiple semantically different 
+        references, and that is why the reference name is used instead of the target entity type.
     </dd>
-    <dt>filterConstraint:(excluding)*</dt>
+    <dt>filterConstraint:(having|excluding)*</dt>
     <dd>
         optional constraints allow you to narrow the scope of the hierarchy; 
         none or all of the constraints may be present:
         <ul>
             <li>[directRelation](#direct-relation)</li>
+            <li>[having](#having)</li> 
             <li>[excluding](#excluding)</li> 
         </ul>
     </dd>
@@ -346,7 +349,7 @@ a product assigned to a category), it can only be used in the `hierarchyWithin` 
 In the case of `hierarchyWithinRoot`, the `directRelation` constraint makes no sense because no entity can be assigned 
 to a "virtual" top parent root.
 
-Se we can list only a products directly related to a certain category - when we try to list products that have
+So we can only list products that are directly related to a certain category - if we try to list products that have 
 *Accessories* category assigned:
 
 <SourceCodeTabs>
@@ -390,9 +393,9 @@ excludingRoot()
 
 ### Self
 
-If the hierarchy constraint targets the hierarchy entity, the `excludingRoot` will the requested parent node will be
-omitted from the result. In the case of the `hierarchyWithinRoot` constraint, the parent is an invisible "virtual"
-top root, and this constraint makes no sense.
+If the hierarchy constraint targets the hierarchy entity, the `excludingRoot` will omit the requested parent node from 
+the result. In the case of the `hierarchyWithinRoot` constraint, the parent is an invisible "virtual" top root, and this 
+constraint makes no sense.
 
 <SourceCodeTabs>
 [Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding-root.evitaql)
@@ -414,7 +417,8 @@ As we can see the requested parent category *Accessories* is excluded from the r
 ### Referenced entity
 
 If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example is
-a product assigned to a category), it can only be used in the `hierarchyWithin` parent constraint.
+a product assigned to a category), the `excludingRoot` constraint can only be used in the `hierarchyWithin` parent 
+constraint.
 
 In the case of `hierarchyWithinRoot`, the `excludingRoot` constraint makes no sense because no entity can be assigned
 to a "virtual" top parent root.
@@ -442,4 +446,240 @@ assigned to *Exotic keyboards*:
 
 </Note>
 
+## Having
+
+The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyHaving.java</SourceClass>
+is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
+makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
+all hierarchy children of the parent node or entities that are transitively or directly related to them, and the parent
+node itself.
+
+The `having` constraint allows you to set a constraint that must be fulfilled by all categories in the category scope
+in order to be accepted by hierarchy within filter. This constraint is especially useful if you want to conditionally 
+display certain parts of the tree. Imagine you have a category *Christmas Sale* that should only be available during 
+a certain period of the year, or a category *B2B Partners* that should only be accessible to a certain role of users.
+All of these scenarios can take advantage of the `having` constraint (but there are other approaches to solving the 
+above use cases).
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### The lookup stops at the first node that doesn't satisfy the constraint!
+</NoteTitle>
+
+The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks whether 
+the `having` constraint is still valid, and if not, it excludes that hierarchy node and all of its child nodes (entire 
+subtree).
+
+</Note>
+
+**Syntax:**
+
+```evitaql
+having(
+    filterConstraint:+
+)
+```
+
+<dl>
+    <dt>filterConstraint:+</dt>
+    <dd>
+        one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark 
+        the visible part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
+    </dd>
+</dl>
+
+### Self
+
+When the hierarchy constraint targets the hierarchy entity, the children that don't satisfy the inner constraints (and 
+their children, whether they satisfy them or not) are excluded from the result.
+
+For demonstration purposes, let's list all categories within the *Accessories* category, but only those that are valid 
+at 01:00 AM on October 1, 2023.
+
+![Accessories category listing with validity constraint](assets/accessories-category-listing-validity.png "Accessories category listing with validity constraint")
+
+<SourceCodeTabs>
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-having.evitaql)
+</SourceCodeTabs>
+
+Because the category *Christmas electronics* has its validity set to be valid only between December 1st and December 
+24th, it will be omitted from the result. If it had subcategories, they would also be omitted (even if they had no 
+validity restrictions).
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all valid subcategories of the *Accessories* category
+</NoteTitle>
+
+<MDInclude>[Accessories category listing with validity constraint](docs/user/en/query/filtering/examples/hierarchy-within-self-having.md)</MDInclude>
+
+</Note>
+
+### Referenced entity
+
+If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example is 
+a product assigned to a category), the `having` constraint is evaluated against the hierarchical entity (category), but 
+affects the queried non-hierarchical entities (products). It excludes all products referencing categories that don't 
+satisfy the `having` inner constraints.
+
+Let's use again our example with *Christmas electronics* that is valid only between 1st and 24th December. To list all
+products available at 01:00 AM on October 1, 2023, issue a following query:
+
+<SourceCodeTabs>
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-reference-having.evitaql)
+</SourceCodeTabs>
+
+You can see that Christmas products like *Retlux Blue christmas lightning*, *Retlux Warm white christmas lightning* or 
+*Emos Candlestick* are not present in the listing.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all *Accessories* products valid in October 2023
+</NoteTitle>
+
+<MDInclude>[Accessories category product listing with validity constraint](docs/user/en/query/filtering/examples/hierarchy-within-reference-having.md)</MDInclude>
+
+</Note>
+
+When you change the date and time in range constraint for *validity* attribute to 2nd December:
+
+<SourceCodeTabs>
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-reference-having-december.evitaql)
+</SourceCodeTabs>
+
+... you will see all those products in *Christmas electronics* category.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all *Accessories* products valid in December 2023
+</NoteTitle>
+
+<MDInclude>[Accessories category product listing with validity constraint](docs/user/en/query/filtering/examples/hierarchy-within-reference-having-december.md)</MDInclude>
+
+</Note>
+
+<Note type="warning">
+
+<NoteTitle toggles="true">
+
+##### What if the product is linked to two categories - one that meets the constraint and one that does not?
+</NoteTitle>
+
+In the situation where the single product, let's say *Garmin Vivosmart 5*, is in both the excluded category *Christmas 
+Electronics* and the included category *Smartwatches*, as on the following schematics:
+
+![Accessories category listing with validity constraint](assets/accessories-category-listing-validity.png "Accessories category listing with validity constraint")
+
+... it will remain in the query result because there is at least one product reference that is part of the visible part 
+of the tree.
+
+</Note>
+
 ## Excluding
+
+The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyHaving.java</SourceClass>
+is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
+makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
+all hierarchy children of the parent node or entities that are transitively or directly related to them, and the parent
+node itself.
+
+The `excluding` constraint allows you to exclude one or more subtrees from the scope of the filter. This constraint is
+the exact opposite of the [`having`](#having) constraint. If the constraint is true for a hierarchy entity, it and all
+of its children are excluded from the query. The `excluding` constraint is the same as declaring 
+`having(not(expression))`, but for the sake of readability it has its own constraint.
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### The lookup stops at the first node that satisfies the constraint!
+</NoteTitle>
+
+The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks whether
+the `excluding` constraint is satisfied valid, and if so, it excludes that hierarchy node and all of its child nodes 
+(entire subtree).
+
+</Note>
+
+**Syntax:**
+
+```evitaql
+excluding(
+    filterConstraint:+
+)
+```
+
+<dl>
+    <dt>filterConstraint:+</dt>
+    <dd>
+        one or more mandatory constraints that must be satisfied by all returned hierarchy nodes and that mark 
+        the visible part of the tree, the implicit relation between constraints is logical conjunction (boolean AND)
+    </dd>
+</dl>
+
+### Self
+
+When the hierarchy constraint targets the hierarchy entity, the children that satisfy the inner constraints (and
+their children, whether they satisfy them or not) are excluded from the result.
+
+For demonstration purposes, let's list all categories within the *Accessories* category, but exclude exactly
+the *Wireless headphones* subcategory.
+
+![Accessories category listing excluding *Wireless headphones* subcategory](assets/accessories-category-listing-exluding.png "Accessories category listing excluding *Wireless headphones* subcategory")
+
+<SourceCodeTabs>
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding.evitaql)
+</SourceCodeTabs>
+
+The category *Wireless Headphones* and all its subcategories will not be shown in the results list.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all subcategories of the *Accessories* category except *Wireless headphones*
+</NoteTitle>
+
+<MDInclude>[Accessories category listing excluding *Wireless headphones*](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding.md)</MDInclude>
+
+</Note>
+
+### Referenced entity
+
+If the hierarchy constraint targets a non-hierarchical entity that references the hierarchical one (typical example is
+a product assigned to a category), the `excluding` constraint is evaluated against the hierarchical entity (category), 
+but affects the queried non-hierarchical entities (products). It excludes all products referencing categories that 
+satisfy the `excluding` inner constraints.
+
+Let's go back to our example query that excludes the *Wireless Headphones* category subtree. To list all products 
+available in the *Accessories* category except those related to the *Wireless Headphones* category or its subcategories,
+issue the following query:
+
+<SourceCodeTabs>
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-reference-except.evitaql)
+</SourceCodeTabs>
+
+You can see that wireless headphone products like *Huawei FreeBuds 4*, *Jabra Elite 3* or *Adidas FWD-02 Sport* are not 
+present in the listing.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all *Accessories* products except *Wireless headphones*
+</NoteTitle>
+
+<MDInclude>[Accessories category product listing except *Wireless headphones*](docs/user/en/query/filtering/examples/hierarchy-within-reference-except.md)</MDInclude>
+
+</Note>
+
+When the product is assigned to two categories - one excluded and one part of the visible category tree, the product
+remains in the result. See [example](#what-if-the-product-is-linked-to-two-categories---one-that-meets-the-constraint-and-one-that-does-not).
