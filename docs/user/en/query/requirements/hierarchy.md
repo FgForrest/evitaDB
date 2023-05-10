@@ -40,10 +40,10 @@ There are two type of top hierarchy requirements:
         and is used to compute data structures from the data of the directly queried hierarchical entity
     </dd>
     <dt>[`hierarchyOfReference`](#hierarchy-of-reference)</dt>
-    <dt>
+    <dd>
         realized by <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/HierarchyOfReference.java</SourceClass>
         and is used to compute data structures from the data of the entities referencing hierarchical entity
-    </dt>
+    </dd>
 </dl>
 
 These top hierarchy requirements must have at least one of the following hierarchy sub-constraints:
