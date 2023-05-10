@@ -34,7 +34,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -98,7 +98,7 @@ public class EntityConverter {
 		@Nonnull GrpcSealedEntity grpcEntity
 	) {
 		final SealedEntitySchema entitySchema = entitySchemaFetcher.apply(grpcEntity);
-		final EntityClassifier parentEntity;
+		final EntityClassifierWithParent parentEntity;
 		if (grpcEntity.getParentEntityCount() > 0) {
 			parentEntity = toSealedEntityWithParent(entitySchemaFetcher, evitaRequest, grpcEntity.getParentEntityList());
 		} else if (grpcEntity.getParentReferenceCount() > 0) {
@@ -492,10 +492,10 @@ public class EntityConverter {
 		@Nonnull GrpcSealedEntity.Builder entityBuilder,
 		@Nonnull EntityReferenceWithParent entityReference
 	) {
-		if (entityReference.parent() != null) {
+		if (entityReference.getParentEntity().isPresent()) {
 			buildParentReferenceList(
 				entityBuilder,
-				(EntityReferenceWithParent) entityReference.parent()
+				(EntityReferenceWithParent) entityReference.getParentEntity().get()
 			);
 		}
 		entityBuilder.addParentReference(
