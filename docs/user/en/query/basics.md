@@ -95,18 +95,18 @@ In the documentation, constraints are described by a **Syntax** section that fol
 
 ```
 constraintName(
-    argument:specification,
-    constraint:specification
+    argument:type,specification
+    constraint:type,specification
 )
 ```
 
 <dl>
-  <dt>argument:specification</dt>
+  <dt>argument:type,specification</dt>
   <dd>
     argument represents an argument of a particular type, for example: `argument:string` represents a string argument at
     a particular position.
   </dd>
-  <dt>constraint:specification</dt>
+  <dt>constraint:type,specification</dt>
   <dd>
     constraint represents an argument of constraint type - the supertype (`filter`/`order`/`require`) of the constraint 
     is always specified before the colon, for example: `filterConstraint:any`;
