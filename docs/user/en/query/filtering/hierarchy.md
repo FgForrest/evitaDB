@@ -1,5 +1,10 @@
 ---
 title: Hierarchy filtering
+perex: |
+  Hierarchy filtering allows you to query tree-oriented structures or items that refer to a node in that structure. 
+  In e-commerce projects, the hierarchy structure is represented by a category tree and the items that refer to it are
+  usually products or some kind of "inventory". This functionality is closely related to menu traversal and listing 
+  the items relevant to the currently viewed category.
 date: '5.5.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
@@ -634,7 +639,7 @@ their children, whether they satisfy them or not) are excluded from the result.
 For demonstration purposes, let's list all categories within the *Accessories* category, but exclude exactly
 the *Wireless headphones* subcategory.
 
-![Accessories category listing excluding *Wireless headphones* subcategory](assets/accessories-category-listing-exluding.png "Accessories category listing excluding *Wireless headphones* subcategory")
+![Accessories category listing excluding *Wireless headphones* subcategory](assets/accessories-category-listing-excluding.png "Accessories category listing excluding *Wireless headphones* subcategory")
 
 <SourceCodeTabs>
 [Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding.evitaql)
