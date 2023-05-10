@@ -21,22 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.dto;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity;
 
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
- * Flattened DTO of originally recursive {@link io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo}.
+ * Descriptor for header parameters of {@link io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor#PARENTS}
+ * field.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record LevelInfoDto(@Nullable Integer parentPrimaryKey,
-						   int level,
-                           @Nonnull EntityClassifier entity,
-                           @Nullable Integer queriedEntityCount,
-                           @Nullable Integer childrenCount,
-                           boolean hasChildren) {
+public interface ParentsFieldHeaderDescriptor {
+
+	PropertyDescriptor STOP_AT = PropertyDescriptor.builder()
+		.name("stopAt")
+		// TOBEDONE JNO: stopAt constraint docs
+		.description("""
+			Defines how many parents in hierarchy will be returned.
+			""")
+		// type is expected to be a `stopAt` constraint
+		.build();
 }

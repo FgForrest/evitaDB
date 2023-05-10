@@ -26,7 +26,10 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Child;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -137,10 +140,10 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 		);
 	}
 
-	/*@Creator(suffix = "self", silentImplicitClassifier = true)*/
+	@Creator(suffix = "self", silentImplicitClassifier = true)
 	public HierarchyWithin(
-		@Nonnull /*@Child*/ FilterConstraint ofParent,
-		@Nonnull /*@Child(uniqueChildren = true)*/ HierarchySpecificationFilterConstraint... with
+		@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint ofParent,
+		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
 	) {
 		this(
 			NO_ARGS,
@@ -151,11 +154,11 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 		);
 	}
 
-	/*@Creator*/
+	@Creator
 	public HierarchyWithin(
-		@Nonnull /* @Classifier */ String referenceName,
-		@Nonnull /* @Child */ FilterConstraint ofParent,
-		@Nonnull /* @Child(uniqueChildren = true) */ HierarchySpecificationFilterConstraint... with
+		@Nonnull @Classifier String referenceName,
+		@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint ofParent,
+		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
 	) {
 		this(
 			new Serializable[]{referenceName},

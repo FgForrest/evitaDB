@@ -210,7 +210,7 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 	public HierarchyOfReference(
 		@Nonnull @Classifier String referenceName,
 		@Nonnull @Value EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nullable @AdditionalChild(domain = ConstraintDomain.HIERARCHY_TARGET) OrderBy orderBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
 		// todo lho we cannot use uniqueChildren here because we need duplicate constraints, but we dont have any generic joining containers here. What to do?
 		@Nonnull @Child HierarchyRequireConstraint... requirement
 	) {

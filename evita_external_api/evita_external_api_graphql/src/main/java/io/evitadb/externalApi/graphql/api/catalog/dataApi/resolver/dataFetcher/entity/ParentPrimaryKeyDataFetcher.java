@@ -21,22 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.dto;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
+import graphql.schema.DataFetcher;
+import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.EntityContract;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Flattened DTO of originally recursive {@link io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo}.
+ * Returns {@link EntityContract#getParent()} as nullable int.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record LevelInfoDto(@Nullable Integer parentPrimaryKey,
-						   int level,
-                           @Nonnull EntityClassifier entity,
-                           @Nullable Integer queriedEntityCount,
-                           @Nullable Integer childrenCount,
-                           boolean hasChildren) {
+public class ParentPrimaryKeyDataFetcher implements DataFetcher<Integer> {
+
+	@Nullable
+	@Override
+	public Integer get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		final EntityClassifierWithParent entity = environment.getSource();
+		return entity.getParentEntity()
+			.map(EntityClassifier::getPrimaryKey)
+			.orElse(null);
+	}
 }

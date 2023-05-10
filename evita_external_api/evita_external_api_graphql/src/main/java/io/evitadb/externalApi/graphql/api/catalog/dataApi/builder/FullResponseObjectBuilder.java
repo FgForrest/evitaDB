@@ -113,7 +113,6 @@ import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.OBJECT;
 import static io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars.STRING;
 
@@ -699,7 +698,7 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private BuiltFieldDescriptor buildSelfLevelInfoEntityField(@Nonnull EntitySchemaContract entitySchema) {
-		final String referencedEntityObjectName = entitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
+		final String referencedEntityObjectName = EntityDescriptor.THIS.name(entitySchema);
 
 		final GraphQLFieldDefinition entityField = LevelInfoDescriptor.ENTITY
 			.to(fieldBuilderTransformer)
@@ -816,7 +815,7 @@ public class FullResponseObjectBuilder {
 		final EntitySchemaContract referencedEntitySchema = buildingContext
 			.getSchema()
 			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-		final String referencedEntityObjectName = referencedEntitySchema.getNameVariant(TYPE_NAME_NAMING_CONVENTION);
+		final String referencedEntityObjectName = EntityDescriptor.THIS.name(referencedEntitySchema);
 
 		final GraphQLFieldDefinition entityField = LevelInfoDescriptor.ENTITY
 			.to(fieldBuilderTransformer)

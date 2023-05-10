@@ -44,7 +44,7 @@ class RequireQueryConstraintsBuilderTest {
 	@Test
 	void shouldBuildRequireToFetchAll() {
 		final Require require = RequireConstraintFromRequestQueryBuilder.buildRequire(Collections.singletonMap(FetchEntityEndpointHeaderDescriptor.FETCH_ALL.name(), Boolean.TRUE));
-		assertEquals("require(entityFetch(attributeContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", require.toString());
+		assertEquals("require(entityFetch(attributeContent(),hierarchyContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", require.toString());
 
 		assertNull(RequireConstraintFromRequestQueryBuilder.buildRequire(Collections.singletonMap(FetchEntityEndpointHeaderDescriptor.FETCH_ALL.name(), Boolean.FALSE)));
 	}

@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface EntityContract extends EntityClassifier, ContentComparator<EntityContract>, AttributesContract, AssociatedDataContract, PricesContract, Versioned, Droppable {
+public interface EntityContract extends EntityClassifierWithParent, ContentComparator<EntityContract>, AttributesContract, AssociatedDataContract, PricesContract, Versioned, Droppable {
 
 	/**
 	 * Returns schema of the entity, that fully describes its structure and capabilities. Schema is up-to-date to the
@@ -80,8 +80,6 @@ public interface EntityContract extends EntityClassifier, ContentComparator<Enti
 	 * Hierarchy can limit returned entities by using filtering constraints {@link HierarchyWithin}. It's also used for
 	 * computation of extra data - such as {@link HierarchyOfSelf}. It can also invert type of returned entities in case
 	 * requirement {@link HierarchyOfReference} is used.
-	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
 	 */
 	@Nonnull
 	OptionalInt getParent();
@@ -91,7 +89,7 @@ public interface EntityContract extends EntityClassifier, ContentComparator<Enti
 	 * The property allows to fetch entire parent axis of the entity to the root if requested.
 	 */
 	@Nonnull
-	Optional<EntityClassifier> getParentEntity();
+	Optional<EntityClassifierWithParent> getParentEntity();
 
 	/**
 	 * Returns collection of {@link Reference} of this entity. The references represent relations to other evitaDB

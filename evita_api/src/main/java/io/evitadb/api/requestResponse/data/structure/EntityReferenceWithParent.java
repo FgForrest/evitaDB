@@ -23,11 +23,13 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
-import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.MemoryMeasuringConstants;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -36,39 +38,47 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * This class is used as nested object in {@link EntityContract} to reference parent entity. It's almost the same as
  * {@link EntityReference} but it contains an optional parent reference.
  *
  * Class is immutable on purpose - we want to support caching the entities in a shared cache and accessed by many threads.
- *
- * @param type       reference to {@link Entity#getType()} of the referenced entity. Might be also any {@link String}
- *                   that identifies type some external resource not maintained by Evita.
- * @param primaryKey reference to {@link Entity#getPrimaryKey()} of the referenced entity. Might be also any integer
- *                   that uniquely identifies some external resource of type {@link #getType()} not maintained by Evita.
- * @param parent     optional reference to {@link Entity#getParent()} of the referenced entity.
+
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Immutable
 @ThreadSafe
-public record EntityReferenceWithParent(
-	@Nonnull String type,
-	int primaryKey,
-	@Nullable EntityClassifier parent
-) implements EntityReferenceContract<EntityReferenceWithParent>, Serializable {
+@RequiredArgsConstructor
+public class EntityReferenceWithParent implements EntityReferenceContract<EntityReferenceWithParent>, EntityClassifierWithParent, Serializable {
 	@Serial private static final long serialVersionUID = -4893251747273825997L;
 
-	@Nonnull
-	@Override
-	public String getType() {
-		return type;
-	}
+	/**
+	 * Reference to {@link Entity#getType()} of the referenced entity. Might be also any {@link String}
+	 * that identifies type some external resource not maintained by Evita.
+	 */
+	@Getter private final @Nonnull String type;
+	/**
+	 * Reference to {@link Entity#getPrimaryKey()} of the referenced entity. Might be also any integer
+	 * that uniquely identifies some external resource of type {@link #getType()} not maintained by Evita.
+	 */
+	private final int primaryKey;
+	/**
+	 * Optional reference to {@link Entity#getParent()} of the referenced entity.
+	 */
+	private final @Nullable EntityClassifierWithParent parentEntity;
 
-	@Override
 	@Nonnull
+	@Override
 	public Integer getPrimaryKey() {
 		return primaryKey;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<EntityClassifierWithParent> getParentEntity() {
+		return Optional.ofNullable(parentEntity);
 	}
 
 	@Override
@@ -81,17 +91,17 @@ public record EntityReferenceWithParent(
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		EntityReferenceWithParent that = (EntityReferenceWithParent) o;
-		return primaryKey == that.primaryKey && Objects.equals(type, that.type) && Objects.equals(parent, that.parent);
+		return primaryKey == that.primaryKey && Objects.equals(type, that.type) && Objects.equals(parentEntity, that.parentEntity);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(type, primaryKey, parent);
+		return Objects.hash(type, primaryKey, parentEntity);
 	}
 
 	@Override
 	public String toString() {
-		return type + ": " + primaryKey + (parent != null ? " (↰ " + parent.getPrimaryKey() + ")" : "");
+		return type + ": " + primaryKey + (parentEntity != null ? " (↰ " + parentEntity.getPrimaryKey() + ")" : "");
 	}
 
 	/**

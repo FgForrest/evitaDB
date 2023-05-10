@@ -45,6 +45,7 @@ import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -153,7 +154,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * by the {@link EntityDecorator} constructor. The key is parent {@link EntityContract#getPrimaryKey()}, the value
 	 * is either {@link EntityReferenceWithParent} if bodies were not requested, or full {@link SealedEntity} otherwise.
 	 */
-	@Nullable private IntObjectMap<EntityClassifier> parentEntities;
+	@Nullable private IntObjectMap<EntityClassifierWithParent> parentEntities;
 
 	/**
 	 * Utility function that fetches and returns filtered map of {@link SealedEntity} indexed by their primary key
@@ -766,9 +767,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	@Nullable
 	@Override
-	public Function<Integer, EntityClassifier> getParentEntityFetcher() {
+	public Function<Integer, EntityClassifierWithParent> getParentEntityFetcher() {
 		return ofNullable(parentEntities)
-			.map(prefetchedEntities -> (Function<Integer, EntityClassifier>) prefetchedEntities::get)
+			.map(prefetchedEntities -> (Function<Integer, EntityClassifierWithParent>) prefetchedEntities::get)
 			.orElse(null);
 	}
 
@@ -940,7 +941,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private void prefetchParents(@Nullable HierarchyContent hierarchyContent, @Nonnull QueryContext queryContext, int[] parentsId) {
 		// prefetch only if there is any requirement
 		if (hierarchyContent != null) {
-			final IntObjectHashMap<EntityClassifier> parentEntityReferences = new IntObjectHashMap<>(parentsId.length);
+			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(parentsId.length);
 			final boolean bodyRequired = hierarchyContent.getEntityFetch().isPresent();
 			final IntHashSet allReferencedParents = bodyRequired ?
 				new IntHashSet(parentsId.length * 3) : null;
@@ -986,8 +987,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 
 				// replace the previous EntityReferenceWithParent with EntityDecorator with filled parent
-				final IntObjectHashMap<EntityClassifier> parentSealedEntities = new IntObjectHashMap<>(parentsId.length);
-				for (IntObjectCursor<EntityClassifier> parentRef : parentEntityReferences) {
+				final IntObjectHashMap<EntityClassifierWithParent> parentSealedEntities = new IntObjectHashMap<>(parentsId.length);
+				for (IntObjectCursor<EntityClassifierWithParent> parentRef : parentEntityReferences) {
 					parentSealedEntities.put(
 						parentRef.key,
 						ofNullable(parentRef.value)
@@ -1014,21 +1015,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntityReferenceWithParent entityReference,
 		@Nonnull Map<Integer, SealedEntity> parentBodies
 	) {
-		if (entityReference.parent() != null) {
-			final EntityDecorator entityDecorator = (EntityDecorator) parentBodies.get(entityReference.getPrimaryKey());
-			return Entity.decorate(
-				entityDecorator,
-				replaceWithSealedEntities((EntityReferenceWithParent) entityReference.parent(), parentBodies),
-				entityDecorator.getLocalePredicate(),
-				entityDecorator.getAttributePredicate(),
-				entityDecorator.getAssociatedDataPredicate(),
-				entityDecorator.getReferencePredicate(),
-				entityDecorator.getPricePredicate(),
-				entityDecorator.getAlignedNow()
-			);
-		} else {
-			return parentBodies.get(entityReference.getPrimaryKey());
-		}
+		return entityReference.getParentEntity()
+			.map(parentEntity -> {
+				final EntityDecorator entityDecorator = (EntityDecorator) parentBodies.get(entityReference.getPrimaryKey());
+				return (SealedEntity) Entity.decorate(
+					entityDecorator,
+					replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies),
+					entityDecorator.getLocalePredicate(),
+					entityDecorator.getAttributePredicate(),
+					entityDecorator.getAssociatedDataPredicate(),
+					entityDecorator.getReferencePredicate(),
+					entityDecorator.getPricePredicate(),
+					entityDecorator.getAlignedNow()
+				);
+			})
+			.orElse(parentBodies.get(entityReference.getPrimaryKey()));
 	}
 
 	/**

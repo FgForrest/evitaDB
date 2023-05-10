@@ -157,10 +157,10 @@ public interface HierarchyDescriptor {
 	 */
 	interface LevelInfoDescriptor {
 
-		PropertyDescriptor PARENT_ID = PropertyDescriptor.builder()
-			.name("parentId")
+		PropertyDescriptor PARENT_PRIMARY_KEY = PropertyDescriptor.builder()
+			.name("parentPrimaryKey")
 			.description("""
-				ID of parent hierarchical entity if this entity is not root entity.
+				Primary key of parent hierarchical entity if this entity is not root entity.
 				""")
 			.type(nullable(Integer.class))
 			.build();
@@ -210,7 +210,7 @@ public interface HierarchyDescriptor {
 				This DTO represents single hierarchical entity in the hierarchy tree. It contains identification of the entity,
 				the cardinality of queried entities that refer to it and information about children level.
 				""")
-			.staticFields(List.of(PARENT_ID, LEVEL, QUERIED_ENTITY_COUNT, CHILDREN_COUNT, HAS_CHILDREN))
+			.staticFields(List.of(PARENT_PRIMARY_KEY, LEVEL, QUERIED_ENTITY_COUNT, CHILDREN_COUNT, HAS_CHILDREN))
 			.build();
 	}
 }

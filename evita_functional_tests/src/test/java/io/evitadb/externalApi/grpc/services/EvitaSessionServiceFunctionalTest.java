@@ -366,7 +366,6 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return one entity when using queryOne and only one matches")
-	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnOneEntityWhenUsingQueryOneAndProperlySpecified(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);

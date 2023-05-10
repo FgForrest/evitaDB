@@ -129,8 +129,9 @@ public class EntityJsonSerializer {
 		rootNode.putIfAbsent(EntityDescriptor.LOCALES.name(), objectJsonSerializer.serializeObject(entity.getLocales()));
 		rootNode.putIfAbsent(EntityDescriptor.ALL_LOCALES.name(), objectJsonSerializer.serializeObject(entity.getAllLocales()));
 
-		entity.getParent()
-			.ifPresent(it -> rootNode.putIfAbsent(EntityDescriptor.PARENT.name(), objectJsonSerializer.serializeObject(it)));
+		// todo lho new parents
+//		entity.getParentEntity()
+//			.ifPresent(it -> rootNode.putIfAbsent(EntityDescriptor.PARENT.name(), objectJsonSerializer.serializeObject(it)));
 		rootNode.putIfAbsent(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), objectJsonSerializer.serializeObject(entity.getPriceInnerRecordHandling()));
 	}
 

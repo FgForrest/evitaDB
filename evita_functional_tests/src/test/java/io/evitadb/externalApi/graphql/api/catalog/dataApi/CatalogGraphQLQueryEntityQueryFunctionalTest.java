@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
@@ -101,7 +102,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private static final int SEED = 40;
 
 	private static final String PRODUCT_QUERY_PATH = "data.queryProduct";
+	public static final String PRODUCT_QUERY_DATA_PATH = PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
 	private static final String CATEGORY_QUERY_PATH = "data.queryCategory";
+	public static final String CATEGORY_QUERY_DATA_PATH = CATEGORY_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
 
 	private static final String CATEGORY_HIERARCHY_PATH = CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
 	private static final String SELF_HIERARCHY_PATH = CATEGORY_HIERARCHY_PATH + "." + HierarchyDescriptor.SELF.name();
@@ -506,6 +509,460 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entity references")
+	void shouldReturnAllDirectCategoryParentEntityReferences(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent()
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has at least 2 parents
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
+				return c;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithSelfParentsDto(category, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityPrimaryKeyInSet: 16
+						}
+					) {
+						recordPage {
+							data {
+								parentPrimaryKey
+								parents {
+									primaryKey
+									parentPrimaryKey
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(CATEGORY_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entities")
+	void shouldReturnAllDirectCategoryParentEntities(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									entityFetch(
+										attributeContent(ATTRIBUTE_CODE)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has at least 2 parents
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
+				return c;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithSelfParentsDto(category, true)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityPrimaryKeyInSet: 16
+						}
+					) {
+						recordPage {
+							data {
+								parentPrimaryKey
+								parents {
+									primaryKey
+									parentPrimaryKey
+									allLocales
+									attributes {
+										code
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(CATEGORY_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return only direct category parent")
+	void shouldReturnOnlyDirectCategoryParent(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(distance(1))
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has only one direct parent
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isEmpty());
+				return c;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithSelfParentsDto(category, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityPrimaryKeyInSet: 16
+						}
+					) {
+						recordPage {
+							data {
+								parentPrimaryKey
+								parents(
+									stopAt: {
+										distance: 1
+									}
+							    ) {
+									primaryKey
+									parentPrimaryKey
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(CATEGORY_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all direct product parent entity references")
+	void shouldReturnAllDirectProductParentEntityReferences(Evita evita, GraphQLTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> products = session.queryList(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent()
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, products.size());
+				final SealedEntity p = products.get(0);
+				// check that it has at least 2 referenced parents
+				assertTrue(p.getReferences(Entities.CATEGORY)
+					.iterator()
+					.next()
+					.getReferencedEntity()
+					.orElseThrow()
+					.getParentEntity()
+					.get()
+					.getParentEntity()
+					.isPresent());
+				return p;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithReferencedParentsDto(product, Entities.CATEGORY, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							hierarchyCategoryWithin: {
+								ofParent: {
+									entityPrimaryKeyInSet: 16
+								}
+							}
+						}
+					) {
+						recordPage(size: 1) {
+							data {
+								category {
+									referencedEntity {
+										parentPrimaryKey
+										parents {
+											primaryKey
+											parentPrimaryKey
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all direct product parent entities")
+	void shouldReturnAllDirectProductParentEntities(Evita evita, GraphQLTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> products = session.queryList(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											entityFetch(
+												attributeContent(ATTRIBUTE_CODE)
+											)
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, products.size());
+				final SealedEntity p = products.get(0);
+				// check that it has at least 2 referenced parents
+				assertTrue(p.getReferences(Entities.CATEGORY)
+					.iterator()
+					.next()
+					.getReferencedEntity()
+					.orElseThrow()
+					.getParentEntity()
+					.get()
+					.getParentEntity()
+					.isPresent());
+				return p;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithReferencedParentsDto(product, Entities.CATEGORY, true)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							hierarchyCategoryWithin: {
+								ofParent: {
+									entityPrimaryKeyInSet: 16
+								}
+							}
+						}
+					) {
+						recordPage(size: 1) {
+							data {
+								category {
+									referencedEntity {
+										parentPrimaryKey
+										parents {
+											primaryKey
+											parentPrimaryKey
+											allLocales
+											attributes {
+												code
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return only direct product parent")
+	void shouldReturnOnlyDirectProductParent(Evita evita, GraphQLTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> products = session.queryList(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											stopAt(distance(1))
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, products.size());
+				final SealedEntity p = products.get(0);
+				// check that it has only one referenced parents
+				assertTrue(p.getReferences(Entities.CATEGORY)
+					.iterator()
+					.next()
+					.getReferencedEntity()
+					.orElseThrow()
+					.getParentEntity()
+					.get()
+					.getParentEntity()
+					.isEmpty());
+				return p;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithReferencedParentsDto(product, Entities.CATEGORY, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							hierarchyCategoryWithin: {
+								ofParent: {
+									entityPrimaryKeyInSet: 16
+								}
+							}
+						}
+					) {
+						recordPage(size: 1) {
+							data {
+								category {
+									referencedEntity {
+										parentPrimaryKey
+										parents(
+											stopAt: {
+												distance: 1
+											}
+									    ) {
+											primaryKey
+											parentPrimaryKey
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
 	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
@@ -784,9 +1241,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+			.executeAndExpectErrorsAndThen();
 	}
 
 	@Test
@@ -2740,7 +3195,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryCategory(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyWithinSelf: { ofParent: 6 }
+							hierarchyWithinSelf: { ofParent: { entityPrimaryKeyInSet: 6 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -2816,7 +3271,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryCategory(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyWithinSelf: { ofParent: 1 }
+							hierarchyWithinSelf: { ofParent: { entityPrimaryKeyInSet: 1 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -2890,7 +3345,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryCategory(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyWithinSelf: { ofParent: 30 }
+							hierarchyWithinSelf: { ofParent: { entityPrimaryKeyInSet: 30 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -2970,7 +3425,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryCategory(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyWithinSelf: { ofParent: 30 }
+							hierarchyWithinSelf: { ofParent: { entityPrimaryKeyInSet: 30 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3327,7 +3782,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryProduct(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyCategoryWithin: { ofParent: 6 }
+							hierarchyCategoryWithin: { ofParent: { entityPrimaryKeyInSet: 6 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3407,7 +3862,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryProduct(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyCategoryWithin: { ofParent: 1 }
+							hierarchyCategoryWithin: { ofParent: { entityPrimaryKeyInSet: 1 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3485,7 +3940,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryProduct(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyCategoryWithin: { ofParent: 30 }
+							hierarchyCategoryWithin: { ofParent: { entityPrimaryKeyInSet: 30 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3569,7 +4024,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryProduct(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyCategoryWithin: { ofParent: 30 }
+							hierarchyCategoryWithin: { ofParent: { entityPrimaryKeyInSet: 30 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -4298,7 +4753,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                      @Nonnull LevelInfo levelInfo,
 	                                      int currentLevel) {
 		final MapBuilder currentLevelInfoDto = map()
-			.e(LevelInfoDescriptor.PARENT_ID.name(), parentLevelInfo != null
+			.e(LevelInfoDescriptor.PARENT_PRIMARY_KEY.name(), parentLevelInfo != null
 				? parentLevelInfo.entity().getPrimaryKey()
 				: null)
 			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
@@ -4420,7 +4875,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private static String getLevelInfoFragment(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
 		return String.format(
             """
-				parentId
+				parentPrimaryKey
 				level
 				entity {
 					primaryKey

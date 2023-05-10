@@ -21,22 +21,36 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.dto;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import io.evitadb.api.requestResponse.data.EntityClassifier;
+import graphql.schema.DataFetcher;
+import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Deque;
+import java.util.LinkedList;
 
 /**
- * Flattened DTO of originally recursive {@link io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo}.
+ * Returns flattened list of all parents of particular entity.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record LevelInfoDto(@Nullable Integer parentPrimaryKey,
-						   int level,
-                           @Nonnull EntityClassifier entity,
-                           @Nullable Integer queriedEntityCount,
-                           @Nullable Integer childrenCount,
-                           boolean hasChildren) {
+public class ParentsDataFetcher implements DataFetcher<Deque<EntityClassifierWithParent>> {
+
+	@Nonnull
+	@Override
+	public Deque<EntityClassifierWithParent> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+		EntityClassifierWithParent entity = environment.getSource();
+
+		// gather all recursive parents and flatten it into list sorted from root
+		final Deque<EntityClassifierWithParent> parents = new LinkedList<>();
+		EntityClassifierWithParent parent;
+		while ((parent = entity.getParentEntity().orElse(null)) != null) {
+			parents.addFirst(parent);
+			entity = parent;
+		}
+
+		return parents;
+	}
 }

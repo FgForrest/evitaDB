@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -717,7 +718,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
 		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
 		// fetch parents if requested
-		final EntityClassifier parentEntity;
+		final EntityClassifierWithParent parentEntity;
 		if (partiallyLoadedEntity.getParentEntity().isPresent()) {
 			parentEntity = partiallyLoadedEntity.getParentEntity().get();
 		} else {
@@ -1188,7 +1189,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nullable Boolean contextAvailable
 	) {
 		// fetch parents if requested
-		final EntityClassifier parentEntity = fullEntity.getParent().isPresent() ?
+		final EntityClassifierWithParent parentEntity = fullEntity.getParent().isPresent() ?
 			ofNullable(referenceFetcher.getParentEntityFetcher())
 				.map(it -> it.apply(fullEntity.getParent().getAsInt()))
 				.orElse(null) : null;

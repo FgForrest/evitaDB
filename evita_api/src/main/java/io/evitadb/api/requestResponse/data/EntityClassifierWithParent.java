@@ -21,22 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.dto;
+package io.evitadb.api.requestResponse.data;
 
-import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.structure.Entity;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
- * Flattened DTO of originally recursive {@link io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo}.
+ * Common ancestor for contracts that either directly represent {@link EntityContract} or reference to it and may
+ * contain reference to parent entities. We don't use sealed interface here because there are multiple implementations
+ * of those interfaces but only these two aforementioned extending interfaces could extend from this one.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record LevelInfoDto(@Nullable Integer parentPrimaryKey,
-						   int level,
-                           @Nonnull EntityClassifier entity,
-                           @Nullable Integer queriedEntityCount,
-                           @Nullable Integer childrenCount,
-                           boolean hasChildren) {
+public interface EntityClassifierWithParent extends EntityClassifier {
+
+	/**
+	 * Optional reference to {@link Entity#getParent()} of the referenced entity.
+	 */
+	@Nonnull
+	Optional<EntityClassifierWithParent> getParentEntity();
 }

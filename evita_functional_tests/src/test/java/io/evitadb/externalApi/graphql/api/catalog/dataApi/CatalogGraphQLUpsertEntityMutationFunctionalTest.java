@@ -28,10 +28,10 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ParentDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -408,10 +408,8 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 
 		final int parent = entityInTree.getParent().orElseThrow();
 		final Map<String, Object> expectedBodyWithHierarchicalPlacement = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
-			.e(EntityDescriptor.PARENT.name(), map()
-				.e(ParentDescriptor.PARENT_PRIMARY_KEY.name(), parent + 10)
-				.build())
+			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
+			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), parent + 10)
 			.build();
 
 		tester.test(TEST_CATALOG)
@@ -430,9 +428,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                        ]
                         ) {
 	                        primaryKey
-	                        hierarchicalPlacement {
-	                            orderAmongSiblings
-	                        }
+	                        parentPrimaryKey
 	                    }
 	                }
 					""",
@@ -448,11 +444,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 					expectedBodyWithHierarchicalPlacement
 				)
 			);
-		assertHierarchicalPlacement(tester, entityInTree.getPrimaryKey(), expectedBodyWithHierarchicalPlacement);
+		assertParentPrimaryKey(tester, entityInTree.getPrimaryKey(), expectedBodyWithHierarchicalPlacement);
 
 		final Map<String, Object> expectedBodyAfterRemoving = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
-			.e(EntityDescriptor.PARENT.name(), null)
+			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
+			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), null)
 			.build();
 
 		tester.test(TEST_CATALOG)
@@ -469,9 +465,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                        ]
                         ) {
 	                        primaryKey
-	                        hierarchicalPlacement {
-	                            orderAmongSiblings
-	                        }
+	                        parentPrimaryKey
 	                    }
 	                }
 					""",
@@ -481,7 +475,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(UPSERT_CATEGORY_PATH, equalTo(expectedBodyAfterRemoving));
-		assertHierarchicalPlacement(tester, entityInTree.getPrimaryKey(), expectedBodyAfterRemoving);
+		assertParentPrimaryKey(tester, entityInTree.getPrimaryKey(), expectedBodyAfterRemoving);
 	}
 
 	@Test
@@ -947,16 +941,14 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	}
 
 
-	private void assertHierarchicalPlacement(@Nonnull GraphQLTester tester, int primaryKey, @Nonnull Map<String, Object> expectedBodyAfterRemoving) {
+	private void assertParentPrimaryKey(@Nonnull GraphQLTester tester, int primaryKey, @Nonnull Map<String, Object> expectedBodyAfterRemoving) {
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
 	                query {
 	                    getCategory(primaryKey: %d) {
 	                        primaryKey
-	                        hierarchicalPlacement {
-	                            orderAmongSiblings
-	                        }
+	                        parentPrimaryKey
 	                    }
 	                }
 					""",

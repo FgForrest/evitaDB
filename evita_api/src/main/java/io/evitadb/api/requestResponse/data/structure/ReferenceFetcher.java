@@ -24,7 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.EntityCollectionContract;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -59,7 +59,7 @@ public interface ReferenceFetcher {
 
 		@Nullable
 		@Override
-		public Function<Integer, EntityClassifier> getParentEntityFetcher() {
+		public Function<Integer, EntityClassifierWithParent> getParentEntityFetcher() {
 			return null;
 		}
 
@@ -133,7 +133,7 @@ public interface ReferenceFetcher {
 	 * If none the init methods is not called, the exception is thrown.
 	 */
 	@Nullable
-	Function<Integer, EntityClassifier> getParentEntityFetcher();
+	Function<Integer, EntityClassifierWithParent> getParentEntityFetcher();
 
 	/**
 	 * Creates a fetcher lambda that for passed referenced entity primary key fetches the rich form of the entity.

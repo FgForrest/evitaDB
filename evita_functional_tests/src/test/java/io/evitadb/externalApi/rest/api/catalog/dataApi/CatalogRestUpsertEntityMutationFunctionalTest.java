@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ParentDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
@@ -42,6 +41,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -389,6 +389,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update category with hierarchical placement mutations")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldUpdateCategoryWithHierarchicalPlacementMutations(Evita evita, RestTester tester) {
 		final SealedEntity entityInTree = evita.queryCatalog(
 			TEST_CATALOG,
@@ -431,9 +432,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
 			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			.e(EntityDescriptor.PARENT.name(), map()
-				.e(ParentDescriptor.PARENT_PRIMARY_KEY.name(), parent + 10)
-				.build())
+			// todo lho reimplement parents
+//			.e(EntityDescriptor.PARENT.name(), map()
+//				.e(ParentDescriptor.PARENT_PRIMARY_KEY.name(), parent + 10)
+//				.build())
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
 			.build();
 

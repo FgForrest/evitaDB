@@ -141,7 +141,7 @@ public class ConstraintProcessingUtils {
 	@Nonnull
 	public static ConstraintValueStructure getValueStructureForConstraintCreator(@Nonnull ConstraintCreator creator) {
 		final List<ValueParameterDescriptor> valueParameters = creator.valueParameters();
-		final Optional<ChildParameterDescriptor> childParameter = creator.childParameter();
+		final List<ChildParameterDescriptor> childParameter = creator.childParameters();
 		final List<AdditionalChildParameterDescriptor> additionalChildParameters = creator.additionalChildParameters();
 
 		final ConstraintValueStructure valueStructure;
@@ -155,7 +155,7 @@ public class ConstraintProcessingUtils {
 			valueParameters.stream().filter(p -> p.name().equals(WRAPPER_RANGE_FROM_VALUE_PARAMETER) || p.name().equals(WRAPPER_RANGE_TO_VALUE_PARAMETER)).count() == WRAPPER_RANGE_PARAMETERS_COUNT &&
 			valueParameters.get(0).type().equals(valueParameters.get(1).type())) {
 			valueStructure = ConstraintValueStructure.WRAPPER_RANGE;
-		} else if (valueParameters.isEmpty() && childParameter.isPresent() && additionalChildParameters.isEmpty()) {
+		} else if (valueParameters.isEmpty() && childParameter.size() == 1 && additionalChildParameters.isEmpty()) {
 			valueStructure = ConstraintValueStructure.CHILD;
 		} else {
 			valueStructure = ConstraintValueStructure.WRAPPER_OBJECT;

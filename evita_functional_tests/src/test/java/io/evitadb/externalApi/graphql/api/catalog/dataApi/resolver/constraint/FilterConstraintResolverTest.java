@@ -111,32 +111,37 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		assertEquals(
 			hierarchyWithin(
 				"CATEGORY",
-				entityPrimaryKeyInSet(1),
+				and(
+					entityPrimaryKeyInSet(1)
+				),
 				directRelation()
 			),
 			resolver.resolve(
 				Entities.PRODUCT,
 				"hierarchyCategoryWithin",
-				Map.of(
-					"ofParent", 1,
-					"with", Map.of(
-						"hierarchyDirectRelation", true
-					)
-				)
+				map()
+					.e("ofParent", map()
+						.e("entityPrimaryKeyInSet", List.of(1)))
+					.e("with", map()
+						.e("hierarchyDirectRelation", true))
+					.build()
 			)
 		);
 
 		assertEquals(
 			hierarchyWithin(
 				"CATEGORY",
-				entityPrimaryKeyInSet(1)
+				and(
+					entityPrimaryKeyInSet(1)
+				)
 			),
 			resolver.resolve(
 				Entities.PRODUCT,
 				"hierarchyCategoryWithin",
-				Map.of(
-					"ofParent", 1
-				)
+				map()
+					.e("ofParent", map()
+						.e("entityPrimaryKeyInSet", List.of(1)))
+					.build()
 			)
 		);
 	}

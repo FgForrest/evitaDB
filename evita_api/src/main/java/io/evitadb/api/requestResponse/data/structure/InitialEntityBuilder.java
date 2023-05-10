@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -247,7 +247,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 
 	@Nonnull
 	@Override
-	public Optional<EntityClassifier> getParentEntity() {
+	public Optional<EntityClassifierWithParent> getParentEntity() {
 		return Optional.empty();
 	}
 

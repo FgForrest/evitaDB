@@ -291,6 +291,7 @@ public interface RestRandomQueryGenerator {
 			specification.add(new RestConstraint(HierarchyDirectRelation.class, true));
 		}
 		final int parentId = categoryIds.get(rndKey % categoryIds.size());
+		// todo lho update ofParent value
 		hierarchyConstraint = new RestConstraint(hierarchyEntityType, HierarchyWithin.class, Map.of("ofParent", parentId, "with", specification.toArray(EMPTY_HSFC_ARRAY)));
 
 		return new RestQuery(
@@ -1207,7 +1208,7 @@ public interface RestRandomQueryGenerator {
 
 		@Nonnull
 		private static String convertChildren(@Nonnull RestConstraint[] children, @Nonnull ConstraintDescriptor constraintDescriptor) {
-			final ChildParameterDescriptor childrenParameterDescriptor = constraintDescriptor.creator().childParameter().orElseThrow();
+			final ChildParameterDescriptor childrenParameterDescriptor = constraintDescriptor.creator().childParameters().get(0);
 			if (childrenParameterDescriptor.uniqueChildren() || constraintDescriptor.type() == ConstraintType.ORDER || constraintDescriptor.type() == ConstraintType.REQUIRE) {
 				return "{\n" +
 					Arrays.stream(children)

@@ -54,7 +54,7 @@ public class HierarchyNode extends AbstractRequireConstraintContainer implements
 	private static final String CONSTRAINT_NAME = "node";
 
 	@Creator
-	public HierarchyNode(@Nonnull @AdditionalChild(domain = ConstraintDomain.HIERARCHY_TARGET) FilterBy filterBy) {
+	public HierarchyNode(@Nonnull @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy) {
 		super(CONSTRAINT_NAME, new Serializable[0], new RequireConstraint[0], filterBy);
 	}
 

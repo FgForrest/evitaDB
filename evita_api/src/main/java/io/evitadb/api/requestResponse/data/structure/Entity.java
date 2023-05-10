@@ -41,7 +41,7 @@ import io.evitadb.api.query.require.HierarchyOfSelf;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -411,7 +411,7 @@ public class Entity implements SealedEntity {
 	 */
 	public static EntityDecorator decorate(
 		@Nonnull EntityDecorator entityDecorator,
-		@Nullable EntityClassifier parentEntity,
+		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
@@ -435,7 +435,7 @@ public class Entity implements SealedEntity {
 	public static EntityDecorator decorate(
 		@Nonnull Entity entity,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable EntityClassifier parentEntity,
+		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataValuePredicate,
@@ -778,7 +778,7 @@ public class Entity implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public Optional<EntityClassifier> getParentEntity() {
+	public Optional<EntityClassifierWithParent> getParentEntity() {
 		return empty();
 	}
 
