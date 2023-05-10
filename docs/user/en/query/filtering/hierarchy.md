@@ -38,7 +38,7 @@ focus on the category *Accessories* in our [demo dataset](https://demo.evitadb.i
 ```evitaql
 hierarchyWithin(
     filterConstraint:any!,
-    filterConstraint:(directRelation|having|excluding|excludingRoot)*
+    filterConstraint:(directRelation|having|excluding|<li>[having](#having)</li>)*
 )
 ```
 
@@ -48,7 +48,7 @@ hierarchyWithin(
         a single mandatory filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
         multiple constraints must be enclosed in [AND](../logical.md#and) / [OR](../logical.md#or) containers
     </dd>
-    <dt>filterConstraint:(directRelation|excluding|excludingRoot)*</dt>
+    <dt>filterConstraint:(directRelation|having|excluding|excludingRoot)*</dt>
     <dd>
         optional constraints allow you to narrow the scope of the hierarchy; 
         none or all of the constraints may be present:
@@ -134,12 +134,13 @@ hierarchyWithin(
         a single mandatory filter constraint that identifies **one or more** hierarchy nodes that act as hierarchy roots; 
         multiple constraints must be enclosed in [AND](../logical.md#and) / [OR](../logical.md#or) containers
     </dd>
-    <dt>filterConstraint:(directRelation|excluding|excludingRoot)*</dt>
+    <dt>filterConstraint:(directRelation|having|excluding|excludingRoot)*</dt>
     <dd>
         optional constraints allow you to narrow the scope of the hierarchy; 
         none or all of the constraints may be present:
         <ul>
             <li>[directRelation](#direct-relation)</li>
+            <li>[having](#having)</li>
             <li>[excluding](#excluding)</li>
             <li>[excludingRoot](#excluding-root)</li>
         </ul>
