@@ -195,7 +195,7 @@ disjunction meaning (boolean OR) and `()` signs for aggregation.
 <dl>
   <dt>`filterConstraint:(having|excluding)`</dt>
   <dd>
-    either `having' or `excluding', or none, but not both, and no filtering constraint of other type 
+    either `having` or `excluding`, or none, but not both, and no filtering constraint of other type 
     is allowed
   </dd>
   <dt>`filterConstraint:(having|excluding)!`</dt>
@@ -204,11 +204,11 @@ disjunction meaning (boolean OR) and `()` signs for aggregation.
   </dd>
   <dt>`filterConstraint:(having|excluding)*`</dt>
   <dd>
-    either `having' or `excluding' a filter constraint, or both, or none, but no other filter constraint is allowed.
+    either `having` or `excluding` a filter constraint, or both, or none, but no other filter constraint is allowed.
   </dd>
   <dt>`filterConstraint:(having|excluding)+`</dt>
   <dd>
-    either `having' or `excluding' a filter constraint, or both, but at least one of them and no filter constraint 
+    either `having` or `excluding` a filter constraint, or both, but at least one of them and no filter constraint 
     of other type is allowed
   </dd>
 </dl>
