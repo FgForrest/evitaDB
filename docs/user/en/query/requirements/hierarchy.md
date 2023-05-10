@@ -80,7 +80,84 @@ extra result data structure and are available under the labels that correspond t
 </Note>
 
 ## Hierarchy of self
+
+```evitaql
+hierarchyOfSelf(
+    orderConstraint:any,
+    requireConstraint:(fromRoot|fromNode|siblings|children|parents)+
+)
+```
+
+<dl>
+    <dt>orderConstraint:any</dt>
+    <dd>
+        optional ordering constraint that allows you to specify an order of 
+        <SourceClass>io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo</SourceClass> elements in the result
+        hierarchy data structure; the order can be overridden per sub-constraint if necessary
+    </dd>
+    <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
+    <dd>
+        mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; 
+        one or all of the constraints may be present:
+        <ul>
+            <li>[fromRoot](#from-root)</li>
+            <li>[fromNode](#from-node)</li>
+            <li>[siblings](#siblings)</li>
+            <li>[children](#children)</li>
+            <li>[parents](#parents)</li>
+        </ul>
+    </dd>
+</dl>
+
 ## Hierarchy of reference
+
+```evitaql
+hierarchyOfReference(
+    argument:string+,
+    argument:enum,
+    orderConstraint:any,
+    requireConstraint:(fromRoot|fromNode|siblings|children|parents)+
+)
+```
+
+<dl>
+    <dt>argument:string+</dt>
+    <dd>
+        specification of one or more [reference names](../../use/schema.md#reference) that identify the reference
+        to the target hierarchical entity for which the menu calculation should be performed;
+        usually only one reference name makes sense, but to adapt the constraint to the behavior of other similar 
+        constraints, evitaQL accepts multiple reference names for the case that the same requirements apply to different 
+        references of the queried entity.
+    </dd>
+    <dt>argument:enum</dt>
+    <dd>
+        optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/EmptyHierarchicalEntityBehaviour.java</SourceClass>
+        enum allowing you to specify whether or not to return empty hierarchical entities (e.g., those that do not have
+        any queried entities that satisfy the current query filter constraint assigned to them - either directly or 
+        transitively):
+
+        - **LEAVE_EMPTY**: empty hierarchical nodes will remain in computed data structures 
+        - **REMOVE_EMPTY**: empty hierarchical nodes are omitted from computed data structures
+    </dd>
+    <dt>orderConstraint:any</dt>
+    <dd>
+        optional ordering constraint that allows you to specify an order of 
+        <SourceClass>io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo</SourceClass> elements in the result
+        hierarchy data structure; the order can be overridden per sub-constraint if necessary
+    </dd>
+    <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
+    <dd>
+        mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; 
+        one or all of the constraints may be present:
+        <ul>
+            <li>[fromRoot](#from-root)</li>
+            <li>[fromNode](#from-node)</li>
+            <li>[siblings](#siblings)</li>
+            <li>[children](#children)</li>
+            <li>[parents](#parents)</li>
+        </ul>
+    </dd>
+</dl>
 
 ## From root
 ## From node

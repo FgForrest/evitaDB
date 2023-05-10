@@ -43,7 +43,7 @@ focus on the category *Accessories* in our [demo dataset](https://demo.evitadb.i
 ```evitaql
 hierarchyWithin(
     filterConstraint:any!,
-    filterConstraint:(directRelation|having|excluding|<li>[having](#having)</li>)*
+    filterConstraint:(directRelation|having|excluding|excludingRoot)*
 )
 ```
 
