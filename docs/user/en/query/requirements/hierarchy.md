@@ -220,13 +220,17 @@ fromRoot(
 </dl>
 
 The `fromRoot` requirement computes the hierarchy tree starting from the root of the hierarchy, regardless of 
-the potential use of the `hierarchyWithin` constraint in the filtering part of the query.
+the potential use of the `hierarchyWithin` constraint in the filtering part of the query. The scope of the calculated
+information can be controlled by the [`stopAt`](#stop-at) constraint. If you need to access statistical data, use
+[`statistics`](#statistics) constraint. Please keep in mind that the full statistic calculation can be particularly 
+expensive in the case of the `fromRoot` requirement - it usually requires aggregation for the entire queried dataset
+(see [more information about the calculation](#computational-complexity-of-statistical-data-calculation)).
 
 <Note type="info">
 
 <NoteTitle toggles="true">
 
-##### How the result would look like when using `hierarchyWithin` and `fromRoot` in a single query
+##### How the result would look like when using `hierarchyWithin` and `fromRoot` in a single query?
 </NoteTitle>
 
 The following query lists products in category *Audio* and its subcategories. Along with the returned products, it also
@@ -244,11 +248,11 @@ The computed result of the *megaMenu* looks like this (visualized in JSON format
 </Note>
 
 The calculated result for `fromRoot` is not affected by the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
-pivot hierarchy node. When the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+pivot hierarchy node. If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
 [`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `fromRoot` respects
-it. The reason is simple, when you render a menu for the result of the query you want the calculated [statistics](#statistics)
-to respect the rules that apply for the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) so that
-the calculated number remain consistent for the end user.
+them. The reason is simple: when you render a menu for the query result, you want the calculated [statistics](#statistics)
+to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) so that
+the calculated number remains consistent for the end user.
 
 ## From node
 ## Children
@@ -259,3 +263,12 @@ the calculated number remain consistent for the end user.
 ## Level
 ## Node
 ## Statistics
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Computational complexity of statistical data calculation
+</NoteTitle>
+
+</Note>
