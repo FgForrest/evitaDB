@@ -206,9 +206,9 @@ fromRoot(
     </dd>
     <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
     <dd>
-        optional one or more constraints allowing you define the completeness of the hierarchy entities, scope of 
-        the traversed hierarchy tree and statistics computed along the way; 
-        one or all of the constraints may be present:
+        Optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        of the traversed hierarchy tree, and the statistics computed along the way; 
+        any or all of the constraints may be present:
         <ul>
             <li>[entityFetch](fetching.md#entity-fetch)</li>
             <li>[stopAt](#stop-at)</li>
@@ -216,6 +216,37 @@ fromRoot(
         </ul>
     </dd>
 </dl>
+
+The `fromRoot` requirement computes the hierarchy tree starting from the root of the hierarchy, regardless of 
+the potential use of the `hierarchyWithin` constraint in the filtering part of the query.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How the result would look like when using `hierarchyWithin` and `fromRoot` in a single query
+</NoteTitle>
+
+The following query lists products in category *Audio* and its subcategories. Along with the returned products, it also
+requires a computed *megaMenu* data structure that lists the top 2 levels of the *Category* hierarchy tree with 
+a computed count of child categories for each menu item and an aggregated count of all filtered products that would 
+fall into the given category.
+
+<SourceCodeTabs>
+[Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.java)
+</SourceCodeTabs>
+
+The computed result of the *megaMenu* looks like this (visualized in JSON format):
+
+<MDInclude>[Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.md)</MDInclude>
+</Note>
+
+The calculated result for `fromRoot` is not affected by the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+pivot hierarchy node. When the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+[`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `fromRoot` respects
+it. The reason is simple, when you render a menu for the result of the query you want the calculated [statistics](#statistics)
+to respect the rules that apply for the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) so that
+the calculated number remain consistent for the end user.
 
 ## From node
 ## Children
