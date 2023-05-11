@@ -54,6 +54,8 @@ These top hierarchy requirements must have at least one of the following hierarc
 - [`children`](#children)
 - [`parents`](#parents)
 
+#### Constraint to result association
+
 There can be multiple sub-constraints, and each constraint can be duplicated (usually with different settings).
 Each hierarchy sub-constraint defines a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) 
 argument with a named value that allows to associate the request constraint with the computed result data structure
@@ -82,6 +84,8 @@ extra result data structure and are available under the labels that correspond t
 </Note>
 
 ## Hierarchy of self
+
+**Syntax:**
 
 ```evitaql
 hierarchyOfSelf(
@@ -120,6 +124,8 @@ is a hierarchical entity that is also connected to another hierarchical entity. 
 reality.
 
 ## Hierarchy of reference
+
+**Syntax:**
 
 ```evitaql
 hierarchyOfReference(
@@ -181,6 +187,36 @@ The `hierarchyOfReference` can be repeated multiple times in a single query if y
 settings for different reference types.
 
 ## From root
+
+**Syntax:**
+
+```evitaql
+fromRoot(
+    argument:string!,
+    requireConstraint:(entityFetch|stopAt|statistics)*
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
+        specifying the output name for the calculated data structure 
+        (see [constraint to result association](#constraint-to-result-association))
+    </dd>
+    <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
+    <dd>
+        optional one or more constraints allowing you define the completeness of the hierarchy entities, scope of 
+        the traversed hierarchy tree and statistics computed along the way; 
+        one or all of the constraints may be present:
+        <ul>
+            <li>[entityFetch](fetching.md#entity-fetch)</li>
+            <li>[stopAt](#stop-at)</li>
+            <li>[statistics](#statistics)</li>
+        </ul>
+    </dd>
+</dl>
+
 ## From node
 ## Children
 ## Siblings
