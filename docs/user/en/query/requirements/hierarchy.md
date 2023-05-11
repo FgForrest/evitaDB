@@ -222,7 +222,7 @@ fromRoot(
 The `fromRoot` requirement computes the hierarchy tree starting from the "virtual" invisible top root of the hierarchy, 
 regardless of the potential use of the `hierarchyWithin` constraint in the filtering part of the query. The scope of 
 the calculated information can be controlled by the [`stopAt`](#stop-at) constraint. By default, the traversal goes all 
-the way to the bottom of the hierarchy tree unless you tell it to stop somewhere. If you need to access statistical data, 
+the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access statistical data, 
 use [`statistics`](#statistics) constraint. Please keep in mind that the full statistic calculation can be
 particularly expensive in the case of the `fromRoot` requirement - it usually requires aggregation for the entire
 queried dataset (see [more information about the calculation](#computational-complexity-of-statistical-data-calculation)).
@@ -296,7 +296,7 @@ The `fromNode` requirement computes the hierarchy tree starting from the pivot n
 by the [`node`](#node) inner constraint. The `fromNode` calculates the result regardless of the potential use of 
 the `hierarchyWithin` constraint in the filtering part of the query. The scope of the calculated
 information can be controlled by the [`stopAt`](#stop-at) constraint. By default, the traversal goes all the way to
-the bottom of the hierarchy tree unless you tell it to stop somewhere. If you need to access statistical data, use
+the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access statistical data, use
 [`statistics`](#statistics) constraint.
 
 <Note type="info">
@@ -362,7 +362,7 @@ The `children` requirement computes the hierarchy tree starting at the same hier
 filtering part of the same query using the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) or 
 [`hierarchyWithinRoot`](../filtering/hierarchy.md#hierarchy-within-root) constraints. The scope of the calculated
 information can be controlled by the [`stopAt`](#stop-at) constraint. By default, the traversal goes all the way to 
-the bottom of the hierarchy tree unless you tell it to stop somewhere. If you need to access statistical data, use
+the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access statistical data, use
 the [`statistics`](#statistics) constraint.
 
 <Note type="info">
@@ -394,6 +394,88 @@ If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains 
 will respect them as well. The reason is simple: when you render a menu for the query result, you want the calculated 
 [statistics](#statistics) to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) 
 so that the calculated number remains consistent for the end user.
+
+## Parents
+
+**Syntax:**
+
+```evitaql
+parents
+    argument:string!,   
+    requireConstraint:(silings|entityFetch|stopAt|statistics)*
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
+        specifying the output name for the calculated data structure 
+        (see [constraint to result association](#constraint-to-result-association))
+    </dd>
+    <dt>requireConstraint:(siblings|entityFetch|stopAt|statistics)*</dt>
+    <dd>
+        Optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        of the traversed hierarchy tree, and the statistics computed along the way; 
+        any or all of the constraints may be present:
+        <ul>
+            <li>[siblings](#siblings)</li>
+            <li>[entityFetch](fetching.md#entity-fetch)</li>
+            <li>[stopAt](#stop-at)</li>
+            <li>[statistics](#statistics)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `parents` requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by the
+filtering part of the same query using the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) constraint
+towards the root of the hierarchy. The scope of the calculated information can be controlled by the [`stopAt`](#stop-at)
+constraint. By default, the traversal goes all the way to the top of the hierarchy tree unless you tell it to stop at
+anywhere. If you need to access statistical data, use the [`statistics`](#statistics) constraint.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How to get direct parents of current category using a `parents` requirement?
+</NoteTitle>
+
+The following query lists products in the category *Audio* and its subcategories. Along with the products returned, it 
+also returns a computed *parentAxis* data structure that lists all the parent nodes of the currently focused category
+*Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
+would fall into the given category.
+
+<SourceCodeTabs>
+[Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-parents.java)
+</SourceCodeTabs>
+
+The computed result *parentAxis* looks like this (visualized in JSON format):
+
+<MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents.md)</MDInclude>
+
+You can also list all siblings of the parent node as you move up the tree:
+
+<SourceCodeTabs>
+[Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-parents-siblings.java)
+</SourceCodeTabs>
+
+The computed result *parentAxis* looks like this (visualized in JSON format):
+
+<MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents-siblings.md)</MDInclude>
+
+If you need each of these siblings to fetch their child nodes as well (no matter if they are only one level deep or 
+more), you can do this by adding a `stopAt` constraint to the `siblings` constraint container. However, this scenario 
+is too complex to cover in this documentation.
+
+</Note>
+
+The calculated result for `parents` is connected with the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+pivot hierarchy node. If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+[`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `parents`
+will respect them as well during child nodes / queried entities statistics calculation. The reason is simple: when you 
+render a menu for the query result, you want the calculated [statistics](#statistics) to respect the rules that apply 
+to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) so that the calculated number remains consistent 
+for the end user.
 
 ## Siblings
 
@@ -495,7 +577,6 @@ will respect them as well. The reason is simple: when you render a menu for the 
 [statistics](#statistics) to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
 so that the calculated number remains consistent for the end user.
 
-## Parents
 ## Stop at
 ## Distance
 ## Level
