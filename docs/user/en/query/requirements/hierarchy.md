@@ -363,7 +363,7 @@ filtering part of the same query using the [`hierarchyWithin`](../filtering/hier
 [`hierarchyWithinRoot`](../filtering/hierarchy.md#hierarchy-within-root) constraints. The scope of the calculated
 information can be controlled by the [`stopAt`](#stop-at) constraint. By default, the traversal goes all the way to 
 the bottom of the hierarchy tree unless you tell it to stop somewhere. If you need to access statistical data, use
-[`statistics`](#statistics) constraint.
+the [`statistics`](#statistics) constraint.
 
 <Note type="info">
 
@@ -387,11 +387,11 @@ The computed result *subcategories* looks like this (visualized in JSON format):
 </Note>
 
 The calculated result for `children` is connected with the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
-pivot hierarchy node (or the "virtual" invisible top root referred by 
+pivot hierarchy node (or the "virtual" invisible top root referred to by the 
 [`hierarchyWithinRoot`](../filtering/hierarchy.md#hierarchy-within-root) constraint). 
 If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
 [`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `children` 
-respects them as well. The reason is simple: when you render a menu for the query result, you want the calculated 
+will respect them as well. The reason is simple: when you render a menu for the query result, you want the calculated 
 [statistics](#statistics) to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) 
 so that the calculated number remains consistent for the end user.
 
