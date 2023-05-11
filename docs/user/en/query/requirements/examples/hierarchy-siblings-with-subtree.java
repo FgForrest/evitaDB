@@ -11,9 +11,10 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 		),
 		require(
 			hierarchyOfSelf(
-				// request computation of direct children of Audio category
-				children(
-					"subcategories",
+				// request computation of Audio category siblings
+				// and their direct children
+				siblings(
+					"audioSiblings",
 					entityFetch(attributeContent(code)),
 					stopAt(distance(1)),
 					statistics(
@@ -28,4 +29,4 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 
 final Hierarchy hierarchyResult = result.getExtraResult(Hierarchy.class);
 // mega menu listing
-final List<LevelInfo> megaMenu = hierarchyResult.getReferenceHierarchy("categories", "subcategories");
+final List<LevelInfo> megaMenu = hierarchyResult.getReferenceHierarchy("categories", "siblings");

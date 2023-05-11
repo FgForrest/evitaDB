@@ -396,6 +396,105 @@ will respect them as well. The reason is simple: when you render a menu for the 
 so that the calculated number remains consistent for the end user.
 
 ## Siblings
+
+**Syntax:**
+
+```evitaql
+siblings
+    argument:string!,   
+    requireConstraint:(entityFetch|stopAt|statistics)*
+)
+```
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Different `siblings` syntax when used within `parents` parent constraint
+</NoteTitle>
+
+```evitaql
+siblings      
+    requireConstraint:(entityFetch|stopAt|statistics)*
+)
+```
+
+The `siblings` constraint can be used separately as a child of `hierarchyOfSelf` or `hierarchyOfReference`, or it can be
+used as a child constraint of [`parents`](#parents). In such a case, the `siblings` constraint lacks the first string 
+argument that defines the name for the output data structure. The reason is that this name is already defined on the 
+enclosing `parents` constraint, and the `siblings` constraint simply extends the data available in its data structure.
+
+</Note>
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
+        specifying the output name for the calculated data structure 
+        (see [constraint to result association](#constraint-to-result-association))
+    </dd>
+    <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
+    <dd>
+        Optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        of the traversed hierarchy tree, and the statistics computed along the way; 
+        any or all of the constraints may be present:
+        <ul>
+            <li>[entityFetch](fetching.md#entity-fetch)</li>
+            <li>[stopAt](#stop-at)</li>
+            <li>[statistics](#statistics)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `siblings` requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by the
+filtering part of the same query using the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within). 
+It lists all sibling nodes to the node that is requested by `hierarchyWithin` constraint (that's why the `siblings`
+has no sense with `hierarchyWithinRoot` constraint - "virtual" top level node cannot have any siblings). Siblings
+will produce a flat list of siblings unless the [`stopAt`](#stop-at) constraint is used as an inner constraint. 
+The [`stopAt`](#stop-at) constraint triggers a top-down hierarchy traversal from each of the sibling nodes until 
+the [`stopAt`](#stop-at) is satisfied. If you need to access statistical data, use the [`statistics`](#statistics) 
+constraint.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How to get sibling nodes of current category using a `siblings` requirement?
+</NoteTitle>
+
+The following query lists products in category *Audio* and its subcategories. Along with the products returned, it also
+returns a computed *audioSiblings* data structure that lists the flat category list the currently focused category
+*Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
+would fall into the given category.
+
+<SourceCodeTabs>
+[Example of using `siblings` requirement](docs/user/en/query/requirements/examples/hierarchy-siblings.java)
+</SourceCodeTabs>
+
+The computed result *audioSiblings* looks like this (visualized in JSON format):
+
+<MDInclude>[Example of using `siblings` requirement](docs/user/en/query/requirements/examples/hierarchy-siblings.md)</MDInclude>
+
+If you need to return all siblings and also the level below them (their children), just use `stopAt` constraint and
+extend the default scope of the `siblings` constraint.
+
+<SourceCodeTabs>
+[Example of using `siblings` subtree requirement](docs/user/en/query/requirements/examples/hierarchy-siblings-with-subtree.java)
+</SourceCodeTabs>
+
+The computed result *audioSiblings* with their direct children looks like this (visualized in JSON format):
+
+<MDInclude>[Example of using `siblings` subtree requirement](docs/user/en/query/requirements/examples/hierarchy-siblings-with-subtree.md)</MDInclude>
+
+</Note>
+
+The calculated result for `siblings` is connected with the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+pivot hierarchy node. If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+[`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `children`
+will respect them as well. The reason is simple: when you render a menu for the query result, you want the calculated
+[statistics](#statistics) to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+so that the calculated number remains consistent for the end user.
+
 ## Parents
 ## Stop at
 ## Distance
