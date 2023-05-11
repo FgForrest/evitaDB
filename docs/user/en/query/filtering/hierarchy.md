@@ -26,6 +26,10 @@ compute data to help render (dynamic or static) menus that describe the hierarch
 - [render category menus](../../solve/render-category-menu.md)
 - [list categories for products of a specific brand](../../solve/render-referenced-brand.md)
 
+<Note type="warning">
+There could be at most one single `hierarchyWithin' or `hierarchyRoot' filter constraint in the entire query.
+</Note>
+
 ## Hierarchy within
 
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyWithin.java</SourceClass> 

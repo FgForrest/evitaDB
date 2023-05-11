@@ -11,7 +11,7 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 		),
 		require(
 			hierarchyOfSelf(
-				// request computation of direct children of the category
+				// request computation top 2 level category tree
 				fromRoot(
 					"megaMenu",
 					entityFetch(attributeContent(code)),
@@ -28,4 +28,4 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 
 final Hierarchy hierarchyResult = result.getExtraResult(Hierarchy.class);
 // mega menu listing
-final List<LevelInfo> megaMenu = hierarchyResult.getSelfHierarchy("megaMenu");
+final List<LevelInfo> megaMenu = hierarchyResult.getReferenceHierarchy("categories", "megaMenu");

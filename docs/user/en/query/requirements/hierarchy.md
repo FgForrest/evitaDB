@@ -219,12 +219,12 @@ fromRoot(
     </dd>
 </dl>
 
-The `fromRoot` requirement computes the hierarchy tree starting from the root of the hierarchy, regardless of 
-the potential use of the `hierarchyWithin` constraint in the filtering part of the query. The scope of the calculated
-information can be controlled by the [`stopAt`](#stop-at) constraint. If you need to access statistical data, use
-[`statistics`](#statistics) constraint. Please keep in mind that the full statistic calculation can be particularly 
-expensive in the case of the `fromRoot` requirement - it usually requires aggregation for the entire queried dataset
-(see [more information about the calculation](#computational-complexity-of-statistical-data-calculation)).
+The `fromRoot` requirement computes the hierarchy tree starting from the "virtual" invisible top root of the hierarchy, 
+regardless of the potential use of the `hierarchyWithin` constraint in the filtering part of the query. The scope of 
+the calculated information can be controlled by the [`stopAt`](#stop-at) constraint. If you need to access statistical 
+data, use [`statistics`](#statistics) constraint. Please keep in mind that the full statistic calculation can be
+particularly expensive in the case of the `fromRoot` requirement - it usually requires aggregation for the entire
+queried dataset (see [more information about the calculation](#computational-complexity-of-statistical-data-calculation)).
 
 <Note type="info">
 
@@ -255,6 +255,76 @@ to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarch
 the calculated number remains consistent for the end user.
 
 ## From node
+
+**Syntax:**
+
+```evitaql
+fromNode(
+    argument:string!,
+    requireConstraint:node!,
+    requireConstraint:(entityFetch|stopAt|statistics)*
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
+        specifying the output name for the calculated data structure 
+        (see [constraint to result association](#constraint-to-result-association))
+    </dd>
+    <dt>requireConstraint:node!</dt>
+    <dd>
+        mandatory require constraint [`node`](#node) that must match exactly one pivot hierarchical entity that 
+        represents the root node of the traversed hierarchy subtree.
+    </dd>
+    <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
+    <dd>
+        Optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        of the traversed hierarchy tree, and the statistics computed along the way; 
+        any or all of the constraints may be present:
+        <ul>
+            <li>[entityFetch](fetching.md#entity-fetch)</li>
+            <li>[stopAt](#stop-at)</li>
+            <li>[statistics](#statistics)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `fromNode` requirement computes the hierarchy tree starting from the pivot node of the hierarchy, that is identified
+by the [`node`](#node) inner constraint. The `fromNode` calculates the result regardless of the potential use of 
+the `hierarchyWithin` constraint in the filtering part of the query. The scope of the calculated
+information can be controlled by the [`stopAt`](#stop-at) constraint. If you need to access statistical data, use
+[`statistics`](#statistics) constraint.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How to compute different sub-menus using `hierarchyWithin` and `fromNode` in a single query?
+</NoteTitle>
+
+The following query lists products in category *Audio* and its subcategories. Along with the products returned, it also 
+a computed *sideMenu1* and *sideMenu2* data structure that lists the flat category list for the categories *Portables* 
+and *Laptops* with a computed count of child categories for each menu item and an aggregated count of all products that 
+would fall into the given category.
+
+<SourceCodeTabs>
+[Example of using `hierarchyWithin` and `fromNode` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-node.java)
+</SourceCodeTabs>
+
+The computed result both of the *sideMenu1* and *sideMenu2* looks like this (visualized in JSON format):
+
+<MDInclude>[Example of using `hierarchyWithin` and `fromNode` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-node.md)</MDInclude>
+</Note>
+
+The calculated result for `fromNode` is not affected by the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+pivot hierarchy node. If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+[`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `fromNode` respects
+them. The reason is simple: when you render a menu for the query result, you want the calculated [statistics](#statistics)
+to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) so that
+the calculated number remains consistent for the end user.
+
 ## Children
 ## Siblings
 ## Parents
