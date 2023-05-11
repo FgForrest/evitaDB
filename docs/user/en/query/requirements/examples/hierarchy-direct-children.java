@@ -15,17 +15,9 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 				children(
 					"subcategories",
 					entityFetch(attributeContent(code)),
-					stopAt(distance(1)),
-					statistics(
-						CHILDREN_COUNT,
-						QUERIED_ENTITY_COUNT
-					)
+					stopAt(distance(1))
 				)
 			)
 		)
 	)
 );
-
-final Hierarchy hierarchyResult = result.getExtraResult(Hierarchy.class);
-// mega menu listing
-final List<LevelInfo> megaMenu = hierarchyResult.getReferenceHierarchy("categories", "subcategories");

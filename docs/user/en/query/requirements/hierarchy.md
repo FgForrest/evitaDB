@@ -208,7 +208,7 @@ fromRoot(
     </dd>
     <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
     <dd>
-        Optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
         of the traversed hierarchy tree, and the statistics computed along the way; 
         any or all of the constraints may be present:
         <ul>
@@ -281,7 +281,7 @@ fromNode(
     </dd>
     <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
     <dd>
-        Optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
         of the traversed hierarchy tree, and the statistics computed along the way; 
         any or all of the constraints may be present:
         <ul>
@@ -347,7 +347,7 @@ children
     </dd>
     <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
     <dd>
-        Optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
         of the traversed hierarchy tree, and the statistics computed along the way; 
         any or all of the constraints may be present:
         <ul>
@@ -415,7 +415,7 @@ parents
     </dd>
     <dt>requireConstraint:(siblings|entityFetch|stopAt|statistics)*</dt>
     <dd>
-        Optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
         of the traversed hierarchy tree, and the statistics computed along the way; 
         any or all of the constraints may be present:
         <ul>
@@ -517,7 +517,7 @@ enclosing `parents` constraint, and the `siblings` constraint simply extends the
     </dd>
     <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
     <dd>
-        Optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
         of the traversed hierarchy tree, and the statistics computed along the way; 
         any or all of the constraints may be present:
         <ul>
@@ -578,9 +578,127 @@ will respect them as well. The reason is simple: when you render a menu for the 
 so that the calculated number remains consistent for the end user.
 
 ## Stop at
+
+**Syntax:**
+
+```evitaql
+stopAt(
+    requireConstraint:(distance|level|node)!
+)
+```
+
+<dl>
+    <dt>requireConstraint:(distance|level|node)!</dt>
+    <dd>
+        mandatory constraint that defines the constraint that stops traversing the hierarchy tree when it's satisfied by 
+        a currently traversed node; one of the following constraints must be present
+        <ul>
+            <li>[distance](#distance)</li>
+            <li>[level](#level)</li>
+            <li>[node](#node)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `stopAt` container constraint is a service wrapping constraint container that only makes sense in combination with 
+one of the allowed nested constraints. See the usage examples for specific nested constraints.
+
 ## Distance
+
+```evitaql
+distance(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        defines a maximum relative distance from the pivot node that can be traversed; 
+        the pivot node itself is at distance zero, its direct child or direct parent is at distance one, each additional 
+        step adds a one to the distance
+    </dd>
+</dl>
+
+The `distance` constraint can only be used within the `stopAt` container and limits the hierarchy traversal to stop when
+the number of levels traversed reaches the specified constant. The distance is always relative to the pivot node 
+(the node where the hierarchy traversal starts) and is the same whether we are traversing the hierarchy top-down or 
+bottom-up. The distance between any two nodes in the hierarchy can be calculated as `abs(level(nodeA) - level(nodeB))`.
+See the following figure when the pivot node is *Audio*:
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What are the significant usage examples of the `distance` constraint?
+</NoteTitle>
+
+The following query lists products in category *Audio* and its subcategories. Along with the products returned, it also
+returns a computed *subcategories* data structure that lists the flat category list the currently focused category
+*Audio*.
+
+<SourceCodeTabs>
+[Example of using `distance` with `children` requirement](docs/user/en/query/requirements/examples/hierarchy-direct-children.java)
+</SourceCodeTabs>
+
+The following query lists products in the category *Audio* and its subcategories. Along with the products returned, it
+also returns a computed *parent* data structure that lists single direct parent category of the currently focused 
+*Audio* category.
+
+<SourceCodeTabs>
+[Example of using `distance` with `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parent.java)
+</SourceCodeTabs>
+
+</Note>
+
 ## Level
+
+```evitaql
+level(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        defines an absolute level number where the traversal should stop;
+        if the level is equal to or less (for top-down traversals) / equal to or greater (for bottom-up traversals)
+        than the level of the starting (pivot) node, the traversal stops immediately.
+    </dd>
+</dl>
+
+The `level` constraint can only be used within the `stopAt` container and limits the hierarchy traversal to stop when
+the actual level of the traversed node is equal to a specified constant. The "virtual" top invisible node has level 
+zero, the top nodes (nodes with `NULL` parent) have level one, their children have level two, and so on. See the 
+following figure:
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What are the significant usage examples of the `level` constraint?
+</NoteTitle>
+
+The following query lists products in *Audio* category and its subcategories. Along with the products returned, it also
+returns a computed *subcategories* data structure that lists top two levels of the entire hierarchy.
+
+<SourceCodeTabs>
+[Example of using `level` with `fromRoot` requirement](docs/user/en/query/requirements/examples/hierarchy-level.java)
+</SourceCodeTabs>
+
+The following query lists products in the *Audio* category and its subcategories. Along with the products returned, it
+also returns a computed *parent* data structure that lists all the parents of the currently focused *True wireless*
+category up to level two.
+
+<SourceCodeTabs>
+[Example of using `level` with `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-level-parent.java)
+</SourceCodeTabs>
+
+</Note>
+
 ## Node
+
 ## Statistics
 
 <Note type="warning">
