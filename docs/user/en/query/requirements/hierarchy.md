@@ -98,8 +98,9 @@ hierarchyOfSelf(
     <dt>orderConstraint:any</dt>
     <dd>
         optional ordering constraint that allows you to specify an order of 
-        <SourceClass>io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo</SourceClass> elements in the result
-        hierarchy data structure; the order can be overridden per sub-constraint if necessary
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> 
+        `LevelInfo` elements in the result hierarchy data structure; the order can be overridden per sub-constraint 
+        if necessary
     </dd>
     <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
     <dd>
@@ -158,8 +159,9 @@ hierarchyOfReference(
     <dt>orderConstraint:any</dt>
     <dd>
         optional ordering constraint that allows you to specify an order of 
-        <SourceClass>io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo</SourceClass> elements in the result
-        hierarchy data structure; the order can be overridden per sub-constraint if necessary
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> 
+        `LevelInfo` elements in the result hierarchy data structure; the order can be overridden per sub-constraint if
+        necessary
     </dd>
     <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
     <dd>
