@@ -240,6 +240,7 @@ public class TestDataGenerator {
 									Entities.PARAMETER,
 									Cardinality.EXACTLY_ONE,
 									whichIs -> whichIs
+										.faceted()
 										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class)
 										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
 								);

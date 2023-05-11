@@ -35,7 +35,9 @@ import io.evitadb.api.requestResponse.data.structure.predicate.HierarchicalContr
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -53,8 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * Mock implementation of the {@link FilterByVisitor} that is used in alternative predicate tests.
  *
@@ -65,13 +65,13 @@ public class TestFilterByVisitor extends FilterByVisitor {
 	@Getter private final EvitaRequest evitaRequest;
 	private final Map<Integer, Entity> entities;
 
-	public TestFilterByVisitor(EntitySchemaContract entitySchema, Query query, Map<Integer, Entity> entities) {
+	public TestFilterByVisitor(CatalogSchemaContract catalogSchema, EntitySchemaContract entitySchema, Query query, Map<Integer, Entity> entities) {
 		super(
 			new ProcessingScope(
 				Collections.emptyList(),
 				AttributeContent.ALL_ATTRIBUTES,
-				null, null,
-				(theEntitySchema, theAttributeName) -> ofNullable(theEntitySchema).orElse(entitySchema).getAttribute(theAttributeName).orElseThrow(),
+				entitySchema, null, null,
+				new AttributeSchemaAccessor(catalogSchema, entitySchema),
 				(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale))
 			),
 			Mockito.mock(QueryContext.class),

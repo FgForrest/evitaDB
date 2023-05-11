@@ -29,11 +29,10 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
-import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
@@ -48,8 +47,8 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class FilterConstraintSchemaBuilder extends OpenApiConstraintSchemaBuilder {
 
-	private static final Set<Class<? extends Constraint<?>>> FORBIDDEN_CONSTRAINTS = Set.of(FilterBy.class);
-	private static final Set<Class<? extends Constraint<?>>> FORBIDDEN_CONSTRAINTS_WITH_LOCALE = Set.of(FilterBy.class, EntityLocaleEquals.class);
+	private static final Set<Class<? extends Constraint<?>>> FORBIDDEN_CONSTRAINTS = Set.of(FilterBy.class, FilterGroupBy.class);
+	private static final Set<Class<? extends Constraint<?>>> FORBIDDEN_CONSTRAINTS_WITH_LOCALE = Set.of(FilterBy.class, FilterGroupBy.class, EntityLocaleEquals.class);
 
 	public FilterConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
 	                                     boolean forbidLocaleInQuery) {

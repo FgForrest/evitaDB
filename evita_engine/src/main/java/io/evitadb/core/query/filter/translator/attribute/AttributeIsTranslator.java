@@ -25,6 +25,7 @@ package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeIs;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -64,9 +65,10 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 		};
 	}
 
-	private Formula translateIsNull(@Nonnull String attributeName, @Nonnull FilterByVisitor filterByVisitor) {
+	@Nonnull
+	private static Formula translateIsNull(@Nonnull String attributeName, @Nonnull FilterByVisitor filterByVisitor) {
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName);
+			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 			// if attribute is unique prefer O(1) hash map lookup over inverted index
 			if (attributeDefinition.isUnique()) {
 				return FutureNotFormula.postProcess(
@@ -118,7 +120,8 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 		}
 	}
 
-	private Formula translateIsNotNull(@Nonnull String attributeName, @Nonnull FilterByVisitor filterByVisitor) {
+	@Nonnull
+	private static Formula translateIsNotNull(@Nonnull String attributeName, @Nonnull FilterByVisitor filterByVisitor) {
 		if (filterByVisitor.isEntityTypeKnown()) {
 			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName);
 			// if attribute is unique prefer O(1) hash map lookup over histogram
@@ -163,7 +166,8 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 			processingScope.getRequirements(),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
-			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent)
+			attributeSchema -> optionalStream -> optionalStream.noneMatch(Optional::isPresent),
+			AttributeTrait.FILTERABLE
 		);
 	}
 
@@ -175,7 +179,8 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 			processingScope.getRequirements(),
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
-			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent)
+			attributeSchema -> optionalStream -> optionalStream.anyMatch(Optional::isPresent),
+			AttributeTrait.FILTERABLE
 		);
 	}
 

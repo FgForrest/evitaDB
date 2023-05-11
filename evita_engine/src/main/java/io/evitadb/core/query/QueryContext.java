@@ -33,8 +33,12 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetchRequire;
+import io.evitadb.api.query.require.FacetGroupsConjunction;
+import io.evitadb.api.query.require.FacetGroupsDisjunction;
+import io.evitadb.api.query.require.FacetGroupsNegation;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
@@ -51,6 +55,7 @@ import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
@@ -59,6 +64,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
+import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.exception.EvitaInternalError;
@@ -218,6 +224,12 @@ public class QueryContext {
 	 */
 	@Getter
 	private HierarchyFilteringPredicate hierarchyExclusionPredicate;
+	/**
+	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
+	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
+	 * to mark the group id involved in special relation handling.
+	 */
+	private final Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples = new HashMap<>();
 	/**
 	 * Internal flag that singalizes the query context is already within {@link #computingOnce} scope.
 	 */
@@ -955,6 +967,69 @@ public class QueryContext {
 	}
 
 	/**
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by conjunction (AND) instead
+	 * of default disjunction (OR).
+	 */
+	public boolean isFacetGroupConjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
+		final String referenceName = referenceSchema.getName();
+		final Optional<FilterBy> facetGroupConjunction = getEvitaRequest().getFacetGroupConjunction(referenceName);
+		if (groupId == null || facetGroupConjunction.isEmpty()) {
+			return false;
+		} else {
+			return facetRelationTuples.computeIfAbsent(
+				new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
+				refName -> new FilteringFormulaPredicate(
+					this, facetGroupConjunction.get(),
+					referenceSchema.getReferencedGroupType(),
+					() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupConjunction.get()
+				)
+			).test(groupId);
+		}
+	}
+
+	/**
+	 * Returns true if passed `groupId` of `referenceName` is requested to be joined with other facet groups by
+	 * disjunction (OR) instead of default conjunction (AND).
+	 */
+	public boolean isFacetGroupDisjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
+		final String referenceName = referenceSchema.getName();
+		final Optional<FilterBy> facetGroupDisjunction = getEvitaRequest().getFacetGroupDisjunction(referenceName);
+		if (groupId == null || facetGroupDisjunction.isEmpty()) {
+			return false;
+		} else {
+			return facetRelationTuples.computeIfAbsent(
+				new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
+				refName -> new FilteringFormulaPredicate(
+					this, facetGroupDisjunction.get(),
+					referenceSchema.getReferencedGroupType(),
+					() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupDisjunction.get()
+				)
+			).test(groupId);
+		}
+	}
+
+	/**
+	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by negation (AND NOT) instead
+	 * of default disjunction (OR).
+	 */
+	public boolean isFacetGroupNegation(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
+		final String referenceName = referenceSchema.getName();
+		final Optional<FilterBy> facetGroupNegation = getEvitaRequest().getFacetGroupNegation(referenceName);
+		if (groupId == null || facetGroupNegation.isEmpty()) {
+			return false;
+		} else {
+			return facetRelationTuples.computeIfAbsent(
+				new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
+				refName -> new FilteringFormulaPredicate(
+					this, facetGroupNegation.get(),
+					referenceSchema.getReferencedGroupType(),
+					() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetGroupNegation.get()
+				)
+			).test(groupId);
+		}
+	}
+
+	/**
 	 * Method retrieves already assigned masking id for the {@link EntityReference} or creates brand new. This virtual
 	 * id is necessary because our filtering logic works with {@link Bitmap} objects that contains plain integers. In
 	 * situation when no target entity collection is specified and filters targeting global attributes retrieves
@@ -1159,6 +1234,28 @@ public class QueryContext {
 	@Nonnull
 	private EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {
 		return evitaRequest.deriveCopyWith(entityType, requirements);
+	}
+
+	/**
+	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelation} into one object used as
+	 * the {@link #facetRelationTuples} key.
+	 */
+	private record FacetRelationTuple(
+		@Nonnull String referenceName,
+		@Nonnull FacetRelation relation
+	) {
+
+	}
+
+	/**
+	 * The relation that refers to constraint types:
+	 *
+	 * - {@link FacetGroupsConjunction}
+	 * - {@link FacetGroupsDisjunction}
+	 * - {@link FacetGroupsNegation}
+	 */
+	private enum FacetRelation {
+		CONJUNCTION, DISJUNCTION, NEGATION
 	}
 
 }

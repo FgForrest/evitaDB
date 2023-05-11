@@ -1,0 +1,11 @@
+query(
+    collection('Category'),
+    filterBy(
+        hierarchyWithinRoot()
+    ),
+    require(
+        entityFetch(
+            attributes('code')
+        )
+    )
+)

@@ -29,7 +29,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link HierarchyOfSelf} query.
+ * This tests verifies basic properties of {@link io.evitadb.api.query.require.HierarchyOfSelf} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -75,7 +75,7 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(AttributeEquals.class, new AttributeEqualsSerializer<>(), index++);
 		kryo.register(HierarchyExcluding.class, new HierarchyExcludingSerializer(), index++);
 		kryo.register(HierarchyExcludingRoot.class, new HierarchyExcludingRootSerializer(), index++);
-		kryo.register(FacetInSet.class, new FacetInSetSerializer(), index++);
+		kryo.register(FacetHaving.class, new FacetHavingSerializer(), index++);
 		kryo.register(FilterBy.class, new FilterBySerializer(), index++);
 		kryo.register(AttributeGreaterThan.class, new AttributeGreaterThanSerializer<>(), index++);
 		kryo.register(AttributeGreaterThanEquals.class, new AttributeGreaterThanEqualsSerializer<>(), index++);

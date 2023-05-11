@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
+import javax.annotation.Nullable;
+
 /**
  * Data locator for all reference-based data.
  *
@@ -30,5 +32,6 @@ package io.evitadb.externalApi.api.catalog.dataApi.constraint;
  */
 public interface DataLocatorWithReference extends DataLocator {
 
+	@Nullable
 	String referenceName();
 }

@@ -42,7 +42,6 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
-import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -104,9 +103,9 @@ public class EvitaRequest {
 	private Boolean requiresHierarchyParents;
 	private Integer limit;
 	private EvitaRequest.ResultForm resultForm;
-	private Map<String, Set<Integer>> facetGroupConjunction;
-	private Map<String, Set<Integer>> facetGroupDisjunction;
-	private Map<String, Set<Integer>> facetGroupNegation;
+	private Map<String, FilterBy> facetGroupConjunction;
+	private Map<String, FilterBy> facetGroupDisjunction;
+	private Map<String, FilterBy> facetGroupNegation;
 	private Boolean queryTelemetryRequested;
 	private EnumSet<DebugMode> debugModes;
 	private Map<String, RequirementContext> entityFetchRequirements;
@@ -587,63 +586,54 @@ public class EvitaRequest {
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by conjunction (AND) instead
-	 * of default disjunction (OR).
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * joined by conjunction (AND) instead of default disjunction (OR).
 	 */
-	public boolean isFacetGroupConjunction(@Nonnull String referenceName, int groupId) {
+	@Nonnull
+	public Optional<FilterBy> getFacetGroupConjunction(@Nonnull String referenceName) {
 		if (this.facetGroupConjunction == null) {
 			this.facetGroupConjunction = new HashMap<>();
 			QueryUtils.findRequires(query, FacetGroupsConjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					final Set<Integer> reqFacetGroups = CollectionUtils.createHashSet(it.getFacetGroups().length);
-					Arrays.stream(it.getFacetGroups()).forEach(reqFacetGroups::add);
-					this.facetGroupConjunction.put(reqReferenceName, reqFacetGroups);
+					this.facetGroupConjunction.put(reqReferenceName, it.getFacetGroups());
 				});
 		}
-		return ofNullable(this.facetGroupConjunction.get(referenceName))
-			.map(it -> it.contains(groupId))
-			.orElse(false);
+		return ofNullable(this.facetGroupConjunction.get(referenceName));
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` is requested to be joined with other facet groups by
-	 * disjunction (OR) instead of default conjunction (AND).
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * joined with other facet groups by disjunction (OR) instead of default conjunction (AND).
 	 */
-	public boolean isFacetGroupDisjunction(@Nonnull String referenceName, Integer groupId) {
+	@Nonnull
+	public Optional<FilterBy> getFacetGroupDisjunction(@Nonnull String referenceName) {
 		if (this.facetGroupDisjunction == null) {
 			this.facetGroupDisjunction = new HashMap<>();
 			QueryUtils.findRequires(query, FacetGroupsDisjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					final Set<Integer> reqFacetGroups = CollectionUtils.createHashSet(it.getFacetGroups().length);
-					Arrays.stream(it.getFacetGroups()).forEach(reqFacetGroups::add);
-					this.facetGroupDisjunction.put(reqReferenceName, reqFacetGroups);
+					this.facetGroupDisjunction.put(reqReferenceName, it.getFacetGroups());
 				});
 		}
-		return ofNullable(this.facetGroupDisjunction.get(referenceName))
-			.map(it -> it.contains(groupId))
-			.orElse(false);
+		return ofNullable(this.facetGroupDisjunction.get(referenceName));
 	}
 
 	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by negation (AND NOT) instead
-	 * of default disjunction (OR).
+	 * Returns filter by representing group entity primary keys of `referenceName` facets, that are requested to be
+	 * joined by negation (AND NOT) instead of default disjunction (OR).
 	 */
-	public boolean isFacetGroupNegation(@Nonnull String referenceName, Integer groupId) {
+	@Nonnull
+	public Optional<FilterBy> getFacetGroupNegation(@Nonnull String referenceName) {
 		if (this.facetGroupNegation == null) {
 			this.facetGroupNegation = new HashMap<>();
 			QueryUtils.findRequires(query, FacetGroupsNegation.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					final Set<Integer> reqFacetGroups = CollectionUtils.createHashSet(it.getFacetGroups().length);
-					Arrays.stream(it.getFacetGroups()).forEach(reqFacetGroups::add);
-					this.facetGroupNegation.put(reqReferenceName, reqFacetGroups);
+					this.facetGroupNegation.put(reqReferenceName, it.getFacetGroups());
 				});
 		}
-		return ofNullable(this.facetGroupNegation.get(referenceName))
-			.map(it -> it.contains(groupId))
-			.orElse(false);
+		return ofNullable(this.facetGroupNegation.get(referenceName));
 	}
 
 	/**

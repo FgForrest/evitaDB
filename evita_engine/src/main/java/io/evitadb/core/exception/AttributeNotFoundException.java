@@ -23,6 +23,7 @@
 
 package io.evitadb.core.exception;
 
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -39,7 +40,11 @@ public class AttributeNotFoundException extends EvitaInvalidUsageException {
 
 	@Serial private static final long serialVersionUID = -776076988391967761L;
 
-	public AttributeNotFoundException(@Nonnull String attributeName, EntitySchemaContract entitySchema) {
+	public AttributeNotFoundException(@Nonnull String attributeName, @Nonnull CatalogSchemaContract catalogSchema) {
+		super("Global attribute with name `" + attributeName + "` is not present in schema of catalog `" + catalogSchema.getName() + "`.");
+	}
+
+	public AttributeNotFoundException(@Nonnull String attributeName, @Nonnull EntitySchemaContract entitySchema) {
 		super("Attribute with name `" + attributeName + "` is not present in schema of `" + entitySchema.getName() + "` entity.");
 	}
 

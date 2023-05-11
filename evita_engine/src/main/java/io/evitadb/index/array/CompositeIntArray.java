@@ -161,8 +161,15 @@ public class CompositeIntArray implements Serializable {
 		for (int[] chunk : chunks) {
 			if (monotonic) {
 				// use fast binary search if array contains only monotonic record ids
-				if (Arrays.binarySearch(chunk, recordId) >= 0) {
-					return true;
+				//noinspection ArrayEquality
+				if (chunk == currentChunk) {
+					if (Arrays.binarySearch(chunk, 0, chunkPeek + 1, recordId) >= 0) {
+						return true;
+					}
+				} else {
+					if (Arrays.binarySearch(chunk, recordId) >= 0) {
+						return true;
+					}
 				}
 			} else {
 				// else array must be full scanned

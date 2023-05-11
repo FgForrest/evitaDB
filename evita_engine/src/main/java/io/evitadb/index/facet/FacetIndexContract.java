@@ -74,8 +74,8 @@ public interface FacetIndexContract {
 	 */
 	List<FacetGroupFormula> getFacetReferencingEntityIdsFormula(
 		@Nonnull String entityType,
-		@Nonnull TriFunction<Integer, int[], Bitmap[], FacetGroupFormula> formulaFactory,
-		@Nonnull int... facetId
+		@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> formulaFactory,
+		@Nonnull Bitmap facetId
 	);
 
 	/**

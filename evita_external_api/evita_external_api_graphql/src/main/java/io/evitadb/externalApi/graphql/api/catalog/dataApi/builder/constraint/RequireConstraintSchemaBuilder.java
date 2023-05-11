@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint;
 
+import graphql.schema.GraphQLInputObjectField;
 import graphql.schema.GraphQLInputType;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
@@ -35,17 +36,14 @@ import io.evitadb.api.query.require.FacetGroupsNegation;
 import io.evitadb.api.query.require.PriceType;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
-import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
-
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Implementation of {@link GraphQLConstraintSchemaBuilder} for building require query tree starting from {@link io.evitadb.api.query.require.Require}.
@@ -59,28 +57,41 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 	 * few left constraints that cannot be resolved from output structure because they usually change whole Evita
 	 * query behaviour.
 	 */
-	private static final Set<Class<? extends Constraint<?>>> ALLOWED_CONSTRAINTS = Set.of(
+	private static final Set<Class<? extends Constraint<?>>> MAIN_REQUIRE_ALLOWED_CONSTRAINTS = Set.of(
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
 		PriceType.class
 	);
 
-	public RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx) {
+	protected RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
+	                                         @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintSchemaBuilder<GraphQLConstraintSchemaBuildingContext, GraphQLInputType, GraphQLInputType, GraphQLInputObjectField>>> additionalBuilders,
+	                                         @Nonnull Set<Class<? extends Constraint<?>>> allowedConstraints) {
 		super(
-			constraintSchemaBuildingCtx,
-			createHashMap(0), // currently, in GraphQL API we don't support any require constraint with additional children
-			ALLOWED_CONSTRAINTS,
-			Set.of()
+			sharedContext, additionalBuilders, allowedConstraints, Set.of());
+	}
+
+	/**
+	 * Creates schema builder for require container used in main query. This require is limited because rest of requires
+	 * are resolved from input fields.
+	 */
+	public static RequireConstraintSchemaBuilder forMainRequire(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
+	                                                            @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
+		return new RequireConstraintSchemaBuilder(
+			sharedContext,
+			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
+			MAIN_REQUIRE_ALLOWED_CONSTRAINTS
 		);
 	}
 
-	public RequireConstraintSchemaBuilder(@Nonnull GraphQLConstraintSchemaBuildingContext constraintSchemaBuildingCtx,
-	                                      @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
-		super(
-			constraintSchemaBuildingCtx,
+	/**
+	 * Creates schema builder for require containers used in many places in extra result fields which often all constraints.
+	 */
+	public static RequireConstraintSchemaBuilder forExtraResultsRequire(@Nonnull GraphQLConstraintSchemaBuildingContext sharedContext,
+	                                                                    @Nonnull AtomicReference<FilterConstraintSchemaBuilder> filterConstraintSchemaBuilder) {
+		return new RequireConstraintSchemaBuilder(
+			sharedContext,
 			Map.of(ConstraintType.FILTER, filterConstraintSchemaBuilder),
-			Set.of(),
 			Set.of()
 		);
 	}

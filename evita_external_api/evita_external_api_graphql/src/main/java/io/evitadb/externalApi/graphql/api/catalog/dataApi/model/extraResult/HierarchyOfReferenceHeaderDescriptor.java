@@ -29,9 +29,9 @@ import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * TODO lho docs
+ * Field arguments descriptor for {@link io.evitadb.api.query.require.HierarchyOfReference} in GraphQL
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface HierarchyOfReferenceHeaderDescriptor extends HierarchyHeaderDescriptor {
 

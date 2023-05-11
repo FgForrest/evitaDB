@@ -14,3 +14,7 @@ This article will contain copy of:
 - [not](https://evitadb.io/research/assignment/querying/query_language#not)
 
 once it's proof-read.
+
+## And
+## Or
+## Not

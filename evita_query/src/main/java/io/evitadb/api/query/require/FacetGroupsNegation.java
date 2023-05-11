@@ -23,12 +23,18 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -57,21 +63,24 @@ import java.util.Arrays;
 	shortDescription = "[Negates](https://en.wikipedia.org/wiki/Negation) the meaning of selected facets in specified " +
 		"facet groups in the sense that their selection would return entities that don't have any of those facets."
 )
-public class FacetGroupsNegation extends AbstractRequireConstraintLeaf implements FacetConstraint<RequireConstraint> {
+public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 3993873252481237893L;
 
-	private FacetGroupsNegation(Serializable... arguments) {
-		super(arguments);
+	private FacetGroupsNegation(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
+		super(arguments, NO_CHILDREN, additionalChildren);
+		for (Constraint<?> child : additionalChildren) {
+			Assert.isPremiseValid(child instanceof FilterBy, "Only FilterBy constraints are allowed in FacetGroupsConjunction.");
+		}
 	}
 
 	@Creator
 	public FacetGroupsNegation(@Nonnull @Classifier String referenceName,
-	                           @Nonnull @Value Integer... facetGroups) {
-		super(concat(referenceName, facetGroups));
+	                           @Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy) {
+		super(new Serializable[]{referenceName}, NO_CHILDREN, filterBy);
 	}
 
 	/**
-	 * Returns name of the reference name this query relates to.
+	 * Returns name of the reference name this constraint relates to.
 	 */
 	@Nonnull
 	public String getReferenceName() {
@@ -79,23 +88,32 @@ public class FacetGroupsNegation extends AbstractRequireConstraintLeaf implement
 	}
 
 	/**
-	 * Returns ids of facet groups.
+	 * Returns filter constraint that can be resolved to array of facet groups primary keys.
 	 */
-	public int[] getFacetGroups() {
-		return Arrays.stream(getArguments())
-			.skip(1)
-			.mapToInt(Integer.class::cast)
-			.toArray();
+	@Nonnull
+	public FilterBy getFacetGroups() {
+		return Arrays.stream(getAdditionalChildren())
+			.filter(child -> child instanceof FilterBy)
+			.map(FilterBy.class::cast)
+			.findAny()
+			.orElseThrow(() -> new EvitaInvalidUsageException("FacetGroupsNegation requires FilterBy constraint."));
 	}
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 1;
+		return isArgumentsNonNull() && getArguments().length > 0 && getAdditionalChildrenCount() > 0;
 	}
 
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		return new FacetGroupsNegation(newArguments);
+		return new FacetGroupsNegation(newArguments, getAdditionalChildren());
+	}
+
+	@Nonnull
+	@Override
+	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+		Assert.isPremiseValid(ArrayUtils.isEmpty(children), "Children must be empty");
+		return new FacetGroupsNegation(getArguments(), additionalChildren);
 	}
 }

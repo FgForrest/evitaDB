@@ -62,7 +62,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@SuppressWarnings({"ResultOfMethodCallIgnored", "UnusedParameters"})
 @DisplayName("Evita gRPC integration test")
 @ExtendWith(EvitaParameterResolver.class)
 @Tag(FUNCTIONAL_TEST)
@@ -70,7 +69,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class EvitaGrpcIntegrationTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaGrpcIntegrationTest";
 
-	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, readOnly = false, destroyAfterClass = true)
+	@DataSet(value = GRPC_THOUSAND_PRODUCTS, openWebApi = {GrpcProvider.CODE, SystemProvider.CODE}, destroyAfterClass = true)
 	ManagedChannel setUp(Evita evita, EvitaServer evitaServer) {
 		new TestDataProvider().generateEntities(evita, 1);
 		return TestChannelCreator.getChannel(new ClientSessionInterceptor(), evitaServer.getExternalApiServer());
@@ -89,7 +88,7 @@ public class EvitaGrpcIntegrationTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to get a session id from EvitaService and with its usage should be able to get valid response from EvitaSessionService")
-	void shouldBeAbleToGetSessionAndWithItCallSessionDependentMethods(Evita evita, ManagedChannel channel) {
+	void shouldBeAbleToGetSessionAndWithItCallSessionDependentMethods(ManagedChannel channel) {
 		final EvitaServiceGrpc.EvitaServiceBlockingStub evitaBlockingStub = EvitaServiceGrpc.newBlockingStub(channel);
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 

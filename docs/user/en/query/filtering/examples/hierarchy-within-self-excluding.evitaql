@@ -1,0 +1,17 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'accessories'),
+            excluding(
+                attributeEquals('code', 'wireless-headphones')
+            )
+        )
+    ),
+    require(
+        entityFetch(
+            attributes('code')
+        )
+    )
+)

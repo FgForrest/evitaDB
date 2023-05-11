@@ -34,10 +34,8 @@ import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
@@ -78,18 +76,6 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 		Assert.isPremiseValid(
 			numberOfChildParameters <= 1,
 			() -> new EvitaInternalError("Constraint cannot have multiple child parameters.")
-		);
-
-		final List<AdditionalChildParameterDescriptor> additionalChildParameters = parameters.stream()
-			.filter(AdditionalChildParameterDescriptor.class::isInstance)
-			.map(AdditionalChildParameterDescriptor.class::cast)
-			.toList();
-		final Set<ConstraintType> additionalChildParameterTypes = additionalChildParameters.stream()
-			.map(AdditionalChildParameterDescriptor::constraintType)
-			.collect(Collectors.toUnmodifiableSet());
-		Assert.isPremiseValid(
-			additionalChildParameters.size() == additionalChildParameterTypes.size(),
-			() -> new EvitaInternalError("Constraint cannot have multiple additional child parameters of same constraint type.")
 		);
 	}
 
@@ -134,7 +120,7 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	/**
 	 * Whether this constraint requires classifier, either fixed {@link #implicitClassifier()} or dynamic {@link #classifierParameter()}.
 	 */
-	public boolean needsClassifier() {
+	public boolean hasClassifier() {
 		return hasClassifierParameter() || hasImplicitClassifier();
 	}
 

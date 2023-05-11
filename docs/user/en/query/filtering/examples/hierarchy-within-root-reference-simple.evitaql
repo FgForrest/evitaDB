@@ -1,0 +1,11 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithinRoot('categories')
+    ),
+    require(
+        entityFetch(
+            attributes('code')
+        )
+    )
+)

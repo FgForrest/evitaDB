@@ -14,3 +14,7 @@ This article will contain copy of:
 
 once it's proof-read.
 It might also better document the `DataChunk` variants.
+
+## Page
+
+## Strip

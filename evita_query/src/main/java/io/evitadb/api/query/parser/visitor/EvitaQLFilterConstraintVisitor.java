@@ -428,12 +428,12 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 	}
 
 	@Override
-	public FilterConstraint visitFacetInSetConstraint(@Nonnull EvitaQLParser.FacetInSetConstraintContext ctx) {
+	public FilterConstraint visitFacetHavingConstraint(@Nonnull EvitaQLParser.FacetHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FacetInSet(
+			() -> new FacetHaving(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+				ctx.args.filterConstraint().accept(this)
 			)
 		);
 	}

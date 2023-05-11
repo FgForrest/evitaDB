@@ -23,7 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema;
 
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -46,7 +46,7 @@ import java.util.function.Function;
  * process where you can also at any moment see which fields and methods are available for the class.
  *
  * The references refer to other entities (of same or different entity type).
- * Allows entity filtering (but not sorting) of the entities by using {@link FacetInSet} query
+ * Allows entity filtering (but not sorting) of the entities by using {@link FacetHaving} query
  * and statistics computation if when {@link FacetStatistics} requirement is used. Reference
  * is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and {@link Serializable} entity type and can be
  * part of multiple reference groups, that are also represented by int and {@link Serializable} entity type.
@@ -186,7 +186,7 @@ public interface ReferenceSchemaContract extends NamedSchemaWithDeprecationContr
 
 	/**
 	 * Contains TRUE if the statistics data for this reference should be maintained and this allowing to get
-	 * {@link FacetSummary} for this reference or use {@link FacetInSet}
+	 * {@link FacetSummary} for this reference or use {@link FacetHaving}
 	 * filtering query.
 	 *
 	 * Do not mark reference as faceted unless you want it among {@link FacetStatistics}. Each faceted reference

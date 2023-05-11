@@ -23,6 +23,7 @@
 
 package io.evitadb.core.exception;
 
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -37,6 +38,13 @@ import java.io.Serial;
  */
 public class AttributeNotFilterableException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -3203744435079737216L;
+
+	public AttributeNotFilterableException(@Nonnull String attributeName, @Nonnull CatalogSchemaContract catalogSchema) {
+		super(
+			"Global attribute with name `" + attributeName + "` in catalog `" + catalogSchema.getName() + "` is not " +
+				"marked as \"filterable\" or \"unique\" and cannot be filtered by. Filtering by without having an index would be slow."
+		);
+	}
 
 	public AttributeNotFilterableException(@Nonnull String attributeName, @Nonnull EntitySchemaContract entitySchema) {
 		super(

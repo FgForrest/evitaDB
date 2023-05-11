@@ -26,6 +26,8 @@ package io.evitadb.core.query.sort.attribute.translator;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
@@ -40,7 +42,6 @@ import io.evitadb.index.attribute.SortIndex;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -62,7 +63,6 @@ public class AttributeNaturalTranslator
 		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
 		final Locale locale = orderByVisitor.getLocale();
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
-		final Consumer<String> attributeSchemaAccessor = processingScope.attributeSchemaVerifier();
 		final AttributeExtractor attributeSchemaEntityAccessor = processingScope.attributeEntityAccessor();
 
 		final Supplier<SortedRecordsProvider> sortedRecordsSupplier;
@@ -70,8 +70,9 @@ public class AttributeNaturalTranslator
 		if (orderDirection == ASC) {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getAscendingOrderRecordsSupplier,
-				attributeSchemaAccessor, orderByVisitor.getIndexForSort(),
-				attributeName, orderByVisitor, locale
+				() -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+				orderByVisitor.getIndexForSort(),
+				orderByVisitor, locale
 			);
 			//noinspection unchecked,rawtypes
 			comparator = new AttributeComparator(
@@ -81,8 +82,9 @@ public class AttributeNaturalTranslator
 		} else {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getDescendingOrderRecordsSupplier,
-				attributeSchemaAccessor, orderByVisitor.getIndexForSort(),
-				attributeName, orderByVisitor, locale
+				() -> processingScope.getAttributeSchema(attributeName, AttributeTrait.SORTABLE),
+				orderByVisitor.getIndexForSort(),
+				orderByVisitor, locale
 			);
 			//noinspection unchecked,rawtypes
 			comparator = new AttributeComparator(
@@ -134,17 +136,15 @@ public class AttributeNaturalTranslator
 
 	private record AttributeSortedRecordsProviderSupplier(
 		@Nonnull Function<SortIndex, SortedRecordsProvider> extractor,
-		@Nonnull Consumer<String> attributeSchemaVerifier,
+		@Nonnull Supplier<AttributeSchemaContract> attributeSchemaSupplier,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull String attributeName,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull Locale locale
 	) implements Supplier<SortedRecordsProvider> {
 		@Override
 		public SortedRecordsProvider get() {
-			// verify schema
-			attributeSchemaVerifier.accept(attributeName);
-			final SortIndex sortIndex = targetIndex.getSortIndex(attributeName, locale);
+			final AttributeSchemaContract attributeSchema = attributeSchemaSupplier.get();
+			final SortIndex sortIndex = targetIndex.getSortIndex(attributeSchema.getName(), locale);
 			return sortIndex == null ? SortedRecordsProvider.EMPTY : extractor.apply(sortIndex);
 		}
 	}

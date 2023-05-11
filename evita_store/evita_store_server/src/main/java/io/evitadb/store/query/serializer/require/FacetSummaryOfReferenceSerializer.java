@@ -27,6 +27,10 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
@@ -47,20 +51,41 @@ public class FacetSummaryOfReferenceSerializer extends Serializer<FacetSummaryOf
 		kryo.writeObject(output, object.getReferenceName());
 		kryo.writeObject(output, object.getFacetStatisticsDepth());
 
-		final EntityFetch facetEntityRequirement = object.getFacetEntityRequirement();
-		kryo.writeClassAndObject(output, facetEntityRequirement);
+		final FilterBy filterBy = object.getFilterBy().orElse(null);
+		kryo.writeObjectOrNull(output, filterBy, FilterBy.class);
 
-		final EntityGroupFetch groupEntityRequirement = object.getGroupEntityRequirement();
-		kryo.writeClassAndObject(output, groupEntityRequirement);
+		final FilterGroupBy filterGroupBy = object.getFilterGroupBy().orElse(null);
+		kryo.writeObjectOrNull(output, filterGroupBy, FilterGroupBy.class);
+
+		final OrderBy orderBy = object.getOrderBy().orElse(null);
+		kryo.writeObjectOrNull(output, orderBy, OrderBy.class);
+
+		final OrderGroupBy orderGroupBy = object.getOrderGroupBy().orElse(null);
+		kryo.writeObjectOrNull(output, orderGroupBy, OrderGroupBy.class);
+
+		final EntityFetch facetEntityRequirement = object.getFacetEntityRequirement().orElse(null);
+		kryo.writeObjectOrNull(output, facetEntityRequirement, EntityFetch.class);
+
+		final EntityGroupFetch groupEntityRequirement = object.getGroupEntityRequirement().orElse(null);
+		kryo.writeObjectOrNull(output, groupEntityRequirement, EntityGroupFetch.class);
 	}
 
 	@Override
 	public FacetSummaryOfReference read(Kryo kryo, Input input, Class<? extends FacetSummaryOfReference> type) {
 		final String referenceName = kryo.readObject(input, String.class);
 		final FacetStatisticsDepth statisticsDepth = kryo.readObject(input, FacetStatisticsDepth.class);
-		final EntityFetch facetEntityRequirement = (EntityFetch) kryo.readClassAndObject(input);
-		final EntityGroupFetch groupEntityRequirement = (EntityGroupFetch) kryo.readClassAndObject(input);
-		return new FacetSummaryOfReference(referenceName, statisticsDepth, facetEntityRequirement, groupEntityRequirement);
+		final FilterBy filterBy = kryo.readObjectOrNull(input, FilterBy.class);
+		final FilterGroupBy filterGroupBy = kryo.readObjectOrNull(input, FilterGroupBy.class);
+		final OrderBy orderBy = kryo.readObjectOrNull(input, OrderBy.class);
+		final OrderGroupBy orderGroupBy = kryo.readObjectOrNull(input, OrderGroupBy.class);
+		final EntityFetch facetEntityRequirement = kryo.readObjectOrNull(input, EntityFetch.class);
+		final EntityGroupFetch groupEntityRequirement = kryo.readObjectOrNull(input, EntityGroupFetch.class);
+		return new FacetSummaryOfReference(
+			referenceName, statisticsDepth,
+			filterBy, filterGroupBy,
+			orderBy, orderGroupBy,
+			facetEntityRequirement, groupEntityRequirement
+		);
 	}
 
 }

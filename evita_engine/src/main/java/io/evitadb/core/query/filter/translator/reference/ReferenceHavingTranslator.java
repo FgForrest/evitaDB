@@ -53,7 +53,6 @@ import java.util.Optional;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
-import static java.util.Optional.ofNullable;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link EntityPrimaryKeyInSet} to {@link AbstractFormula}.
@@ -80,31 +79,37 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		} else {
 			return filterByVisitor.computeOnlyOnce(
 				referenceHaving,
-				() -> applySearchOnIndexes(referenceHaving, filterByVisitor, referenceSchema, referencedEntityIndexes)
+				() -> applySearchOnIndexes(
+					referenceHaving, filterByVisitor, entitySchema, referenceSchema, referencedEntityIndexes
+				)
 			);
 		}
 	}
 
-	private Formula applySearchOnIndexes(
+	@Nonnull
+	private static Formula applySearchOnIndexes(
 		@Nonnull ReferenceHaving filterConstraint,
 		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull List<EntityIndex> referencedEntityIndexes
 	) {
 		final List<Formula> referencedEntityFormulas = new ArrayList<>(referencedEntityIndexes.size());
 		for (EntityIndex referencedEntityIndex : referencedEntityIndexes) {
 			final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
+			final String referenceName = referenceSchema.getName();
 			referencedEntityFormulas.add(
-				filterByVisitor.executeInContext(
+				filterByVisitor.executeInContextAndIsolatedFormulaStack(
 					Collections.singletonList(referencedEntityIndex),
 					ReferenceContent.ALL_REFERENCES,
+					entitySchema,
 					referenceSchema,
 					processingScope.getNestedQueryFormulaEnricher(),
 					processingScope.getEntityNestedQueryComparator(),
-					(theEntitySchema, attributeName) -> FilterByVisitor.getReferenceAttributeSchema(
-						attributeName, ofNullable(theEntitySchema).orElseGet(filterByVisitor::getSchema), referenceSchema
-					),
-					(entityContract, attributeName, locale) -> entityContract.getReferences(referenceSchema.getName()).stream().map(it -> it.getAttributeValue(attributeName, locale)),
+					processingScope.withReferenceSchemaAccessor(referenceName),
+					(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
+						.stream()
+						.map(it -> it.getAttributeValue(attributeName, locale)),
 					() -> {
 						getFilterByFormula(filterConstraint).ifPresent(it -> it.accept(filterByVisitor));
 						final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
@@ -136,7 +141,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 	}
 
 	@Nonnull
-	private List<EntityIndex> getTargetIndexes(
+	private static List<EntityIndex> getTargetIndexes(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull ReferenceHaving referenceHaving
 	) {

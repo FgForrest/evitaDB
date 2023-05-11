@@ -527,8 +527,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -790,8 +790,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -893,8 +893,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -987,8 +987,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(@currency),
 						priceInPriceLists(@priceListVip, @priceListBasic),
 						userFilter(
-							facetInSet(@entitiesStore, @facetId1, @facetId2),
-							facetInSet(@entitiesBrand, @facetId1, @facetId2)
+							facetHaving(@entitiesStore, entityPrimaryKeyInSet(@facetId1, @facetId2)),
+							facetHaving(@entitiesBrand, entityPrimaryKeyInSet(@facetId1, @facetId2))
 						)
 					)
 				),
@@ -1078,8 +1078,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -1126,6 +1126,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return extra result of parents consisting of products referencing to its categories")
+	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnParentsOfProductsReferencingToItsCategories(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -1166,8 +1167,8 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?),
 						userFilter(
-							facetInSet(?, ?, ?),
-							facetInSet(?, ?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?, ?)),
+							facetHaving(?, entityPrimaryKeyInSet(?, ?))
 						)
 					)
 				),
@@ -1260,7 +1261,7 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?, ?, ?, ?),
 						userFilter(
-							facetInSet(?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?))
 						)
 					)
 				),
@@ -1331,7 +1332,7 @@ class EvitaSessionServiceFunctionalTest {
 						priceInCurrency(?),
 						priceInPriceLists(?, ?, ?, ?, ?),
 						userFilter(
-							facetInSet(?, ?)
+							facetHaving(?, entityPrimaryKeyInSet(?))
 						)
 					)
 				),

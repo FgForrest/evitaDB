@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.AttributeGreaterThan;
 import io.evitadb.api.query.filter.AttributeGreaterThanEquals;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -59,7 +60,7 @@ public class AttributeGreaterThanEqualsTranslator implements FilteringConstraint
 		final Serializable attributeValue = attributeGreaterThanEquals.getAttributeValue();
 
 		if (filterByVisitor.isEntityTypeKnown()) {
-			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName);
+			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 			final Comparable comparableValue = (Comparable) EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getPlainType());
 
 			final AttributeFormula filteringFormula = new AttributeFormula(

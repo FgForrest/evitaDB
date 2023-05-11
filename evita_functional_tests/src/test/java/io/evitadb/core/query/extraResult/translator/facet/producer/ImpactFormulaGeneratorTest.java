@@ -60,9 +60,9 @@ class ImpactFormulaGeneratorTest {
 	@BeforeEach
 	void setUp() {
 		impactFormulaGenerator = new ImpactFormulaGenerator(
-			(entityType, facetGroupId) -> ofNullable(facetGroupConjunction.get(new EntityReference(entityType, facetGroupId))).orElse(false),
-			(entityType, facetGroupId) -> ofNullable(facetGroupDisjunction.get(new EntityReference(entityType, facetGroupId))).orElse(false),
-			(entityType, facetGroupId) -> ofNullable(facetGroupNegation.get(new EntityReference(entityType, facetGroupId))).orElse(false)
+			(referenceSchema, facetGroupId) -> ofNullable(facetGroupConjunction.get(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
+			(referenceSchema, facetGroupId) -> ofNullable(facetGroupDisjunction.get(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false),
+			(referenceSchema, facetGroupId) -> ofNullable(facetGroupNegation.get(new EntityReference(referenceSchema.getReferencedEntityType(), facetGroupId))).orElse(false)
 		);
 	}
 
@@ -73,7 +73,7 @@ class ImpactFormulaGeneratorTest {
 			new AndFormula(
 				baseFormula,
 				new UserFilterFormula(
-					new FacetGroupOrFormula(Entities.BRAND, 5, new int[]{10}, new ArrayBitmap(9))
+					new FacetGroupOrFormula(Entities.BRAND, 5, new ArrayBitmap(10), new ArrayBitmap(9))
 				)
 			),
 			baseFormula,
@@ -99,7 +99,7 @@ class ImpactFormulaGeneratorTest {
 			new AndFormula(
 				baseFormula,
 				new UserFilterFormula(
-					new FacetGroupOrFormula(Entities.BRAND, 8, new int[]{10}, new ArrayBitmap(9))
+					new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(9))
 				)
 			),
 			baseFormula,
@@ -128,7 +128,7 @@ class ImpactFormulaGeneratorTest {
 			new AndFormula(
 				baseFormula,
 				new UserFilterFormula(
-					new FacetGroupOrFormula(Entities.BRAND, 8, new int[]{10}, new ArrayBitmap(9))
+					new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(9))
 				)
 			),
 			baseFormula,
@@ -158,7 +158,7 @@ class ImpactFormulaGeneratorTest {
 				baseFormula,
 				new UserFilterFormula(
 					baseFormula,
-					new FacetGroupOrFormula(Entities.BRAND, 8, new int[]{10}, new ArrayBitmap(9))
+					new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(9))
 				)
 			),
 			baseFormula,
@@ -191,7 +191,7 @@ class ImpactFormulaGeneratorTest {
 				baseFormula,
 				new UserFilterFormula(
 					baseFormula,
-					new FacetGroupOrFormula(Entities.BRAND, 8, new int[]{10}, new ArrayBitmap(9))
+					new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(9))
 				)
 			),
 			baseFormula,
@@ -208,7 +208,7 @@ class ImpactFormulaGeneratorTest {
 			         [#4] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
 			         [#5] AND
 			            [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-			            [#6] FACET BRAND OR (8 - [10]):  ↦ [9]			
+			            [#6] FACET BRAND OR (8 - [10]):  ↦ [9]
 			""",
 			PrettyPrintingFormulaVisitor.toString(updatedFormula)
 		);

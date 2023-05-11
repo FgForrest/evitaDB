@@ -37,6 +37,8 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FacetSummaryProducer;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.collection.BitmapIntoBitmapCollector;
 import io.evitadb.index.facet.FacetReferenceIndex;
 
 import java.util.Arrays;
@@ -49,6 +51,11 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+
+import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator.createFacetGroupPredicate;
+import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator.createFacetGroupSorter;
+import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator.createFacetPredicate;
+import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator.createFacetSorter;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link FacetSummary} to {@link FacetSummaryProducer}.
@@ -66,7 +73,7 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 			Set.of(extraResultPlanner.getFilteringFormula()) :
 			extraResultPlanner.getUserFilteringFormula();
 		// find all requested facets
-		final Map<String, IntSet> requestedFacets = formulaScope
+		final Map<String, Bitmap> requestedFacets = formulaScope
 			.stream()
 			.flatMap(it -> FormulaFinder.find(it, FacetGroupFormula.class, LookUp.SHALLOW).stream())
 			.collect(
@@ -74,7 +81,7 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 					FacetGroupFormula::getReferenceName,
 					Collectors.mapping(
 						FacetGroupFormula::getFacetIds,
-						new IntArrayToIntSetCollector()
+						BitmapIntoBitmapCollector.INSTANCE
 					)
 				)
 			);
@@ -102,8 +109,12 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 
 		facetSummaryProducer.requireDefaultFacetSummary(
 			facetSummary.getFacetStatisticsDepth(),
-			facetSummary.getFacetEntityRequirement(),
-			facetSummary.getGroupEntityRequirement()
+			referenceSchema -> facetSummary.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
+			referenceSchema -> facetSummary.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
+			referenceSchema -> facetSummary.getOrderBy().map(it -> createFacetSorter(it, extraResultPlanner, referenceSchema)).orElse(null),
+			referenceSchema -> facetSummary.getOrderGroupBy().map(it -> createFacetGroupSorter(it, extraResultPlanner, referenceSchema)).orElse(null),
+			facetSummary.getFacetEntityRequirement().orElse(null),
+			facetSummary.getGroupEntityRequirement().orElse(null)
 		);
 		return facetSummaryProducer;
 	}

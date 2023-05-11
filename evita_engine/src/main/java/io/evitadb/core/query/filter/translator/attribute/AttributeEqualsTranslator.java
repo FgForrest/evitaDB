@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -57,7 +58,7 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 	public Formula translate(@Nonnull AttributeEquals attributeEquals, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeEquals.getAttributeName();
 		final Serializable attributeValue = attributeEquals.getAttributeValue();
-		final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName);
+		final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 		final Serializable targetType = EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getPlainType());
 		final Comparable comparableValue = targetType instanceof Comparable comparable ? comparable : targetType.toString();
 

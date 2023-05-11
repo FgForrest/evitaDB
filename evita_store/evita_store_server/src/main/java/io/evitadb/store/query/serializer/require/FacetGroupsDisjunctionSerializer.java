@@ -27,10 +27,9 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.FacetGroupsDisjunction;
 import lombok.RequiredArgsConstructor;
-
-import java.util.Arrays;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link FacetGroupsDisjunction} from/to binary format.
@@ -43,17 +42,15 @@ public class FacetGroupsDisjunctionSerializer extends Serializer<FacetGroupsDisj
 	@Override
 	public void write(Kryo kryo, Output output, FacetGroupsDisjunction object) {
 		output.writeString(object.getReferenceName());
-		final int[] facetGroups = object.getFacetGroups();
-		output.writeVarInt(facetGroups.length, true);
-		output.writeInts(facetGroups, 0, facetGroups.length);
+		final FilterBy facetGroups = object.getFacetGroups();
+		kryo.writeObjectOrNull(output, facetGroups, FilterBy.class);
 	}
 
 	@Override
 	public FacetGroupsDisjunction read(Kryo kryo, Input input, Class<? extends FacetGroupsDisjunction> type) {
 		final String entityType = input.readString();
-		final int facetGroupsLength = input.readVarInt(true);
-		final Integer[] facetGroupIds = Arrays.stream(input.readInts(facetGroupsLength)).boxed().toArray(Integer[]::new);
-		return new FacetGroupsDisjunction(entityType, facetGroupIds);
+		final FilterBy facetGroupFilter = kryo.readObjectOrNull(input, FilterBy.class);
+		return new FacetGroupsDisjunction(entityType, facetGroupFilter);
 	}
 
 }

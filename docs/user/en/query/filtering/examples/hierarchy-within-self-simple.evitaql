@@ -1,0 +1,13 @@
+query(
+    collection('Category'),
+    filterBy(
+        hierarchyWithin(
+            attributeEquals('code', 'accessories')
+        )
+    ),
+    require(
+        entityFetch(
+            attributes('code')
+        )
+    )
+)

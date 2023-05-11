@@ -16,6 +16,16 @@ This article will contain copy of:
 
 once it's proof-read.
 
+## Price in currency
+
+## Price in price lists
+
+## Price valid in
+
+## Price between
+
+### Price for sale computation algorithm
+
 <UsedTerms>
     <h4>Terms used in this document</h4>
     <dl>
@@ -32,8 +42,6 @@ once it's proof-read.
         </dd>
     </dl>
 </UsedTerms>
-
-## Price for sale computation algorithm
 
 The primary source of pricing information is usually a company's
 <Term>ERP</Term> system. There is a wide variety of such <Term>ERP</Term> systems,

@@ -35,6 +35,7 @@ import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -184,16 +185,16 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 	 * This method should be used only internally to provide access to concrete additional children in implementations.
 	 */
 	@Nullable
-	protected <C extends Constraint<?>> C getAdditionalChild(@Nonnull Class<C> additionalChildType) {
+	protected <C extends Constraint<?>> Optional<C> getAdditionalChild(@Nonnull Class<C> additionalChildType) {
 		if (getType().isAssignableFrom(additionalChildType) ||
 			additionalChildType.isAssignableFrom(getType())) {
 			throw new IllegalArgumentException("Type of additional child must be different from type of children of the main container.");
 		}
 		//noinspection unchecked
-		return (C) Arrays.stream(additionalChildren)
+		return Arrays.stream(additionalChildren)
 			.filter(additionalChildType::isInstance)
 			.findFirst()
-			.orElse(null);
+			.map(it -> (C) it);
 	}
 
 	@Nonnull
@@ -226,29 +227,19 @@ public abstract class ConstraintContainer<T extends Constraint<T>> extends BaseC
 		if (Arrays.stream(additionalChildren).anyMatch(Objects::isNull)) {
 			newAdditionalChildren = Arrays.stream(additionalChildren)
 				.filter(Objects::nonNull)
-				.toArray(size -> (Constraint<?>[]) Array.newInstance(getType(), size));
+				.toArray(size -> new Constraint<?>[size]);
 		} else {
 			newAdditionalChildren = additionalChildren;
 		}
 
 		// validate additional child is not of same type as container and validate that there are distinct children
 		for (int i = 0; i < newAdditionalChildren.length; i++) {
-			final Class<?> additionalChildType = additionalChildren[i].getType();
+			final Class<?> additionalChildType = newAdditionalChildren[i].getType();
 
 			Assert.isTrue(
 				!getType().isAssignableFrom(additionalChildType),
 				"Type of additional child must be different from type of children of the main container."
 			);
-
-			for (int j = i + 1; j < newAdditionalChildren.length; j++) {
-				final Class<?> comparingAdditionalChildType = additionalChildren[j].getType();
-				if (additionalChildType.isAssignableFrom(comparingAdditionalChildType) ||
-					comparingAdditionalChildType.isAssignableFrom(additionalChildType)) {
-					throw new EvitaInvalidUsageException(
-						"There are multiple additional children of same type: " + additionalChildType + " and " + comparingAdditionalChildType
-					);
-				}
-			}
 		}
 
 		return newAdditionalChildren;

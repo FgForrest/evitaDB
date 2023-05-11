@@ -9,6 +9,8 @@ proofreading: 'needed'
 
 This article will contain copy of:
 
-- [language](https://evitadb.io/research/assignment/querying/query_language#and)
+- [locale](https://evitadb.io/research/assignment/querying/query_language#language)
 
 once it's proof-read.
+
+## Entity locale equals

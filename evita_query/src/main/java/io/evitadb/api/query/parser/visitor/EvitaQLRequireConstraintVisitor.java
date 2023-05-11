@@ -617,7 +617,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 			ctx,
 			() -> new FacetGroupsConjunction(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+				(FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
 		);
 	}
@@ -628,7 +628,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 			ctx,
 			() -> new FacetGroupsDisjunction(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+				(FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
 		);
 	}
@@ -639,7 +639,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 			ctx,
 			() -> new FacetGroupsNegation(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+				(FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
 		);
 	}
@@ -666,7 +666,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyStatisticsOfSelfConstraint(@Nonnull EvitaQLParser.HierarchyStatisticsOfSelfConstraintContext ctx) {
+	public RequireConstraint visitHierarchyOfSelfConstraint(@Nonnull EvitaQLParser.HierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {
@@ -681,7 +681,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseVisitor<RequireC
 	}
 
 	@Override
-	public RequireConstraint visitHierarchyStatisticsOfReferenceConstraint(@Nonnull EvitaQLParser.HierarchyStatisticsOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitHierarchyOfReferenceConstraint(@Nonnull EvitaQLParser.HierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> {

@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="EntryPointsManager">
+    <list size="2">
+      <item index="0" class="java.lang.String" itemvalue="io.evitadb.test.annotation.DataSet" />
+      <item index="1" class="java.lang.String" itemvalue="io.evitadb.test.annotation.OnDataSetTearDown" />
+    </list>
+  </component>
   <component name="ExternalStorageConfigurationManager" enabled="true" />
   <component name="MavenProjectsManager">
     <option name="originalFiles">
       <list>
         <option value="$PROJECT_DIR$/pom.xml" />
+        <option value="$PROJECT_DIR$/workaround/grpc/pom.xml" />
       </list>
     </option>
     <option name="ignoredFiles">
@@ -23,7 +30,7 @@
     <option name="myDefaultNotNull" value="javax.annotation.Nonnull" />
     <option name="myNullables">
       <value>
-        <list size="15">
+        <list size="16">
           <item index="0" class="java.lang.String" itemvalue="android.support.annotation.Nullable" />
           <item index="1" class="java.lang.String" itemvalue="androidx.annotation.Nullable" />
           <item index="2" class="java.lang.String" itemvalue="androidx.annotation.RecentlyNullable" />
@@ -39,12 +46,13 @@
           <item index="12" class="java.lang.String" itemvalue="org.eclipse.jdt.annotation.Nullable" />
           <item index="13" class="java.lang.String" itemvalue="org.jetbrains.annotations.Nullable" />
           <item index="14" class="java.lang.String" itemvalue="org.jspecify.nullness.Nullable" />
+          <item index="15" class="java.lang.String" itemvalue="jakarta.annotation.Nullable" />
         </list>
       </value>
     </option>
     <option name="myNotNulls">
       <value>
-        <list size="15">
+        <list size="16">
           <item index="0" class="java.lang.String" itemvalue="android.support.annotation.NonNull" />
           <item index="1" class="java.lang.String" itemvalue="androidx.annotation.NonNull" />
           <item index="2" class="java.lang.String" itemvalue="androidx.annotation.RecentlyNonNull" />
@@ -60,6 +68,7 @@
           <item index="12" class="java.lang.String" itemvalue="org.eclipse.jdt.annotation.NonNull" />
           <item index="13" class="java.lang.String" itemvalue="org.jetbrains.annotations.NotNull" />
           <item index="14" class="java.lang.String" itemvalue="org.jspecify.nullness.NonNull" />
+          <item index="15" class="java.lang.String" itemvalue="jakarta.annotation.Nonnull" />
         </list>
       </value>
     </option>

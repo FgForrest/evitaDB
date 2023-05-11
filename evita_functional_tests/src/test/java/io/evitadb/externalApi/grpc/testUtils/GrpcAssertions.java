@@ -418,7 +418,7 @@ public class GrpcAssertions {
 				final FacetStatistics expectedFacetStatistics = expectedFacetGroupStatistics.getFacetStatistics(facetId);
 				assertNotNull(expectedFacetStatistics);
 
-				final EntityClassifier expectedEntity = expectedFacetStatistics.facetEntity();
+				final EntityClassifier expectedEntity = expectedFacetStatistics.getFacetEntity();
 				if (expectedEntity instanceof EntityReference) {
 					assertEquals(expectedEntity.getType(), actualFacetStatistics.getFacetEntityReference().getEntityType());
 					assertEquals(expectedEntity.getPrimaryKey(), actualFacetStatistics.getFacetEntityReference().getPrimaryKey());
@@ -428,14 +428,14 @@ public class GrpcAssertions {
 					assertFalse(actualFacetStatistics.hasFacetEntityReference());
 				}
 
-				assertEquals(expectedFacetStatistics.count(), actualFacetStatistics.getCount());
-				assertEquals(expectedFacetStatistics.requested(), actualFacetStatistics.getRequested());
-				final RequestImpact facetImpact = expectedFacetStatistics.impact();
+				assertEquals(expectedFacetStatistics.getCount(), actualFacetStatistics.getCount());
+				assertEquals(expectedFacetStatistics.isRequested(), actualFacetStatistics.getRequested());
+				final RequestImpact facetImpact = expectedFacetStatistics.getImpact();
 				if (facetImpact == null) {
 					assertFalse(actualFacetStatistics.hasImpact());
 				} else {
-					assertNotNull(expectedFacetStatistics.impact());
-					assertEquals(expectedFacetStatistics.impact().difference(), actualFacetStatistics.getImpact().getValue());
+					assertNotNull(expectedFacetStatistics.getImpact());
+					assertEquals(expectedFacetStatistics.getImpact().difference(), actualFacetStatistics.getImpact().getValue());
 				}
 
 			}

@@ -75,7 +75,7 @@ the first version to the general public.
 
 1. [Basics](query/basics.md)
 2. **Filtering**
-   1. [Bitwise](query/filtering/bitwise.md)
+   1. [Bitwise](query/filtering/logical.md)
    2. [Boolean](query/filtering/boolean.md)
    3. [Comparable](query/filtering/comparable.md)
    4. [String](query/filtering/string.md)
@@ -84,7 +84,7 @@ the first version to the general public.
    7. [Price](query/filtering/price.md)
    8. [References](query/filtering/references.md)
    9. [Hierarchy](query/filtering/hierarchy.md)
-   10. [Facet](query/filtering/facet.md)
+   10. [Facet](query/filtering/special.md)
 3. **Ordering**
    1. [Natural](query/ordering/natural.md)
    2. [Price](query/ordering/price.md)

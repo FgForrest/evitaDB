@@ -23,7 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema;
 
-import io.evitadb.api.query.filter.FacetInSet;
+import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.Versioned;
@@ -107,7 +107,7 @@ public interface ReferenceSchemaEditor<S extends ReferenceSchemaEditor<S>>
 
 	/**
 	 * Makes reference faceted. That means that statistics data for this reference should be maintained and this
-	 * allowing to get {@link FacetStatistics} for this reference or use {@link FacetInSet} filtering query. When
+	 * allowing to get {@link FacetStatistics} for this reference or use {@link FacetHaving} filtering query. When
 	 * reference is faceted it is also automatically made {@link #filterable()} as well.
 	 *
 	 * Do not mark reference as faceted unless you know that you'll need to filter entities by this reference. Each
