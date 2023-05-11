@@ -27,7 +27,7 @@ compute data to help render (dynamic or static) menus that describe the hierarch
 - [list categories for products of a specific brand](../../solve/render-referenced-brand.md)
 
 <Note type="warning">
-There could be at most one single `hierarchyWithin' or `hierarchyRoot' filter constraint in the entire query.
+There could be at most one single `hierarchyWithin` or `hierarchyRoot` filter constraint in the entire query.
 </Note>
 
 ## Hierarchy within
