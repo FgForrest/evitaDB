@@ -58,7 +58,9 @@ There can be multiple sub-constraints, and each constraint can be duplicated (us
 Each hierarchy sub-constraint defines a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) 
 argument with a named value that allows to associate the request constraint with the computed result data structure
 in <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
-extra result.
+extra result. Calculated data is not affected by the `hierarchyWithin` filter constraint - the query can filter entities 
+using `hierarchyWithin` from category *Accessories*, while still allowing you to calculate menu at root level (using 
+[`fromRoot`](#from-root)) or menu specific to different parent of the hierarchical tree (using [`fromNode`](#from-node)).
 
 <Note type="info">
 
@@ -109,6 +111,14 @@ hierarchyOfSelf(
     </dd>
 </dl>
 
+The requirement triggers the calculation of the 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> data 
+structure for the hierarchy of which it is a part.
+
+The hierarchy of self can still be combined with [`hierarchyOfReference`](#hierarchy-of-reference) if the queried entity 
+is a hierarchical entity that is also connected to another hierarchical entity. Such situations are rather sporadic in 
+reality.
+
 ## Hierarchy of reference
 
 ```evitaql
@@ -158,6 +168,17 @@ hierarchyOfReference(
         </ul>
     </dd>
 </dl>
+
+The requirement triggers the calculation of the
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> data
+structure for the hierarchies of the [referenced entity type](../../use/schema.md#reference).
+
+The hierarchy of reference can still be combined with [`hierarchyOfSelf`](#hierarchy-of-self) if the queried entity
+is a hierarchical entity that is also connected to another hierarchical entity. Such situations are rather sporadic in
+reality. 
+
+The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
+settings for different reference types.
 
 ## From root
 ## From node
