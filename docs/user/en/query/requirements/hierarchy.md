@@ -573,7 +573,11 @@ would fall into the given category.
 [Example of using `siblings` requirement](docs/user/en/query/requirements/examples/hierarchy-siblings.java)
 </SourceCodeTabs>
 
-The computed result *audioSiblings* looks like this (visualized in JSON format):
+The computed result *audioSiblings* looks like this:
+
+![Siblings listing visualization](assets/hierarchy-siblings.png "Siblings listing visualization")
+
+... and here is the data structure output in JSON format:
 
 <MDInclude>[Example of using `siblings` requirement](docs/user/en/query/requirements/examples/hierarchy-siblings.md)</MDInclude>
 
