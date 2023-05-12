@@ -243,7 +243,11 @@ fall into the given category.
 [Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.java)
 </SourceCodeTabs>
 
-The computed result of the *megaMenu* looks like this (visualized in JSON format):
+The computed result of the *megaMenu* looks like this:
+
+![Top 2 categories visualization](assets/hierarchy-top-two-menu.png "Top 2 categories visualization")
+
+... and here is the data structure output in JSON format:
 
 <MDInclude>[Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.md)</MDInclude>
 </Note>
@@ -315,7 +319,11 @@ products that would fall into the given category.
 [Example of using `hierarchyWithin` and `fromNode` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-node.java)
 </SourceCodeTabs>
 
-The computed result both of the *sideMenu1* and *sideMenu2* looks like this (visualized in JSON format):
+The computed result both of the *sideMenu1* and *sideMenu2* looks like this:
+
+![From node query visualization](assets%2Fhierarchy-from-node.png "From node query visualization")
+
+... and here is the data structure output in JSON format:
 
 <MDInclude>[Example of using `hierarchyWithin` and `fromNode` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-node.md)</MDInclude>
 </Note>
