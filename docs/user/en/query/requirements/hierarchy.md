@@ -454,14 +454,18 @@ anywhere. If you need to access statistical data, use the [`statistics`](#statis
 
 The following query lists products in the category *Audio* and its subcategories. Along with the products returned, it 
 also returns a computed *parentAxis* data structure that lists all the parent nodes of the currently focused category
-*Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
+*True wireless* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
 <SourceCodeTabs>
 [Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-parents.java)
 </SourceCodeTabs>
 
-The computed result *parentAxis* looks like this (visualized in JSON format):
+The computed result *parentAxis* looks like this:
+
+![Parents listing visualization](assets/hierarchy-parents.png "Parents listing visualization")
+
+... and here is the data structure output in JSON format:
 
 <MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents.md)</MDInclude>
 
@@ -471,7 +475,11 @@ You can also list all siblings of the parent node as you move up the tree:
 [Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-parents-siblings.java)
 </SourceCodeTabs>
 
-The computed result *parentAxis* looks like this (visualized in JSON format):
+The computed result *parentAxis* with siblings now looks like this:
+
+![Parents with siblings listing visualization](assets/hierarchy-parents-siblings.png "Parents with siblings listing visualization")
+
+... and here is the data structure output in JSON format:
 
 <MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents-siblings.md)</MDInclude>
 

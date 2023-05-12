@@ -2,16 +2,16 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 	query(
 		// query hierarchy entity type
 		collection("Product"),
-		// target "Accessories" category
+		// target "True wireless" category
 		filterBy(
 			hierarchyWithin(
 				"categories",
-				attributeEquals("code", "audio")
+				attributeEquals("code", "true-wireless")
 			)
 		),
 		require(
 			hierarchyOfSelf(
-				// request computation of all the parents of the Audio category
+				// request computation of all the parents of the "True wireless" category
 				parents(
 					"parentAxis",
 					entityFetch(attributeContent(code)),
