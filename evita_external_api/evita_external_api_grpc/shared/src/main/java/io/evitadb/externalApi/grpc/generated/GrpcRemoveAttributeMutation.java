@@ -135,7 +135,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs = 
+      com.google.protobuf.ByteString bs =
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       attributeName_ = s;
@@ -151,7 +151,7 @@ private static final long serialVersionUID = 0L;
       getAttributeNameBytes() {
     java.lang.Object ref = attributeName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b = 
+      com.google.protobuf.ByteString b =
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       attributeName_ = b;
@@ -544,7 +544,7 @@ private static final long serialVersionUID = 0L;
         getAttributeNameBytes() {
       java.lang.Object ref = attributeName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b = 
+        com.google.protobuf.ByteString b =
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         attributeName_ = b;
@@ -563,7 +563,7 @@ private static final long serialVersionUID = 0L;
       if (value == null) {
     throw new NullPointerException();
   }
-  
+
       attributeName_ = value;
       onChanged();
       return this;
@@ -573,7 +573,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearAttributeName() {
-      
+
       attributeName_ = getDefaultInstance().getAttributeName();
       onChanged();
       return this;
@@ -589,7 +589,7 @@ private static final long serialVersionUID = 0L;
     throw new NullPointerException();
   }
   checkByteStringIsUtf8(value);
-      
+
       attributeName_ = value;
       onChanged();
       return this;
@@ -682,7 +682,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder getAttributeLocaleBuilder() {
-      
+
       onChanged();
       return getAttributeLocaleFieldBuilder().getBuilder();
     }
@@ -701,7 +701,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocale attributeLocale = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcLocale, io.evitadb.externalApi.grpc.generated.GrpcLocale.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
         getAttributeLocaleFieldBuilder() {
       if (attributeLocaleBuilder_ == null) {
         attributeLocaleBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

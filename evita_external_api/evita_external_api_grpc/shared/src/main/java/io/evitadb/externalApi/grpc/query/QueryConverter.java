@@ -26,9 +26,12 @@ package io.evitadb.externalApi.grpc.query;
 import io.evitadb.api.query.QueryParser;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -38,10 +41,13 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray;
+import io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray;
 import io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray;
 import io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray;
 import io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray;
+import io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray;
+import io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray;
 import io.evitadb.externalApi.grpc.generated.QueryParam;
 import io.evitadb.externalApi.grpc.generated.QueryParam.Builder;
 import io.evitadb.externalApi.grpc.generated.QueryParam.QueryParamCase;
@@ -150,6 +156,12 @@ public final class QueryConverter {
 			return EvitaEnumConverter.toAttributeSpecialValue(queryParam.getAttributeSpecialValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.ORDERDIRECTIONVALUE) {
 			return EvitaEnumConverter.toOrderDirection(queryParam.getOrderDirectionValue());
+		} else if (queryParam.getQueryParamCase() == QueryParamCase.EMPTYHIERARCHICALENTITYBEHAVIOUR) {
+			return EvitaEnumConverter.toEmptyHierarchicalEntityBehaviour(queryParam.getEmptyHierarchicalEntityBehaviour());
+		} else if (queryParam.getQueryParamCase() == QueryParamCase.STATISTICSBASE) {
+			return EvitaEnumConverter.toStatisticsBase(queryParam.getStatisticsBase());
+		} else if (queryParam.getQueryParamCase() == QueryParamCase.STATISTICSTYPE) {
+			return EvitaEnumConverter.toStatisticsType(queryParam.getStatisticsType());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
 			return toStringArray(queryParam.getStringArrayValue());
 		} else if (queryParam.getQueryParamCase() == QueryParamCase.INTEGERARRAYVALUE) {
@@ -204,6 +216,24 @@ public final class QueryConverter {
 				.stream()
 				.map(EvitaEnumConverter::toOrderDirection)
 				.toArray(OrderDirection[]::new);
+		} else if (queryParam.getQueryParamCase() == QueryParamCase.EMPTYHIERARCHICALENTITYBEHAVIOURARRAYVALUE) {
+			return queryParam.getEmptyHierarchicalEntityBehaviourArrayValue()
+				.getValueList()
+				.stream()
+				.map(EvitaEnumConverter::toEmptyHierarchicalEntityBehaviour)
+				.toArray(EmptyHierarchicalEntityBehaviour[]::new);
+		} else if (queryParam.getQueryParamCase() == QueryParamCase.STATISTICSBASEARRAYVALUE) {
+			return queryParam.getStatisticsBaseArrayValue()
+				.getValueList()
+				.stream()
+				.map(EvitaEnumConverter::toStatisticsBase)
+				.toArray(StatisticsBase[]::new);
+		} else if (queryParam.getQueryParamCase() == QueryParamCase.STATISTICSTYPEARRAYVALUE) {
+			return queryParam.getStatisticsTypeArrayValue()
+				.getValueList()
+				.stream()
+				.map(EvitaEnumConverter::toStatisticsType)
+				.toArray(StatisticsType[]::new);
 		}
 		throw new EvitaInvalidUsageException("Unsupported Evita data type `" + queryParam + "` in gRPC API.");
 	}
@@ -219,101 +249,119 @@ public final class QueryConverter {
 		final Builder builder = QueryParam.newBuilder();
 		if (parameter instanceof String stringValue) {
 			builder.setStringValue(stringValue);
-		} else if (parameter instanceof Integer integerValue) {
+		} else if (parameter instanceof final Integer integerValue) {
 			builder.setIntegerValue(integerValue);
-		} else if (parameter instanceof Long longValue) {
+		} else if (parameter instanceof final Long longValue) {
 			builder.setLongValue(longValue);
-		} else if (parameter instanceof Boolean booleanValue) {
+		} else if (parameter instanceof final Boolean booleanValue) {
 			builder.setBooleanValue(booleanValue);
-		} else if (parameter instanceof BigDecimal bigDecimalValue) {
+		} else if (parameter instanceof final BigDecimal bigDecimalValue) {
 			builder.setBigDecimalValue(toGrpcBigDecimal(bigDecimalValue));
-		} else if (parameter instanceof DateTimeRange dateTimeRangeValue) {
+		} else if (parameter instanceof final DateTimeRange dateTimeRangeValue) {
 			builder.setDateTimeRangeValue(toGrpcDateTimeRange(dateTimeRangeValue));
-		} else if (parameter instanceof ByteNumberRange byteNumberRangeValue) {
+		} else if (parameter instanceof final ByteNumberRange byteNumberRangeValue) {
 			builder.setIntegerNumberRangeValue(toGrpcIntegerNumberRange(byteNumberRangeValue));
-		} else if (parameter instanceof ShortNumberRange shortNumberRangeValue) {
+		} else if (parameter instanceof final ShortNumberRange shortNumberRangeValue) {
 			builder.setIntegerNumberRangeValue(toGrpcIntegerNumberRange(shortNumberRangeValue));
-		} else if (parameter instanceof IntegerNumberRange integerNumberRangeValue) {
+		} else if (parameter instanceof final IntegerNumberRange integerNumberRangeValue) {
 			builder.setIntegerNumberRangeValue(toGrpcIntegerNumberRange(integerNumberRangeValue));
-		} else if (parameter instanceof LongNumberRange longNumberRangeValue) {
+		} else if (parameter instanceof final LongNumberRange longNumberRangeValue) {
 			builder.setLongNumberRangeValue(toGrpcLongNumberRange(longNumberRangeValue));
-		} else if (parameter instanceof BigDecimalNumberRange bigDecimalNumberRangeValue) {
+		} else if (parameter instanceof final BigDecimalNumberRange bigDecimalNumberRangeValue) {
 			builder.setBigDecimalNumberRangeValue(toGrpcBigDecimalNumberRange(bigDecimalNumberRangeValue));
-		} else if (parameter instanceof OffsetDateTime offsetDateTimeValue) {
+		} else if (parameter instanceof final OffsetDateTime offsetDateTimeValue) {
 			builder.setOffsetDateTimeValue(toGrpcOffsetDateTime(offsetDateTimeValue));
-		} else if (parameter instanceof LocalDateTime localDateTimeValue) {
+		} else if (parameter instanceof final LocalDateTime localDateTimeValue) {
 			builder.setOffsetDateTimeValue(toGrpcLocalDateTime(localDateTimeValue));
-		} else if (parameter instanceof LocalDate localDateValue) {
+		} else if (parameter instanceof final LocalDate localDateValue) {
 			builder.setOffsetDateTimeValue(toGrpcLocalDate(localDateValue));
-		} else if (parameter instanceof LocalTime localTimeValue) {
+		} else if (parameter instanceof final LocalTime localTimeValue) {
 			builder.setOffsetDateTimeValue(toGrpcLocalTime(localTimeValue));
-		} else if (parameter instanceof Locale localeValue) {
+		} else if (parameter instanceof final Locale localeValue) {
 			builder.setLocaleValue(toGrpcLocale(localeValue));
-		} else if (parameter instanceof Currency currencyValue) {
+		} else if (parameter instanceof final Currency currencyValue) {
 			builder.setCurrencyValue(toGrpcCurrency(currencyValue));
-		} else if (parameter instanceof FacetStatisticsDepth facetStatisticsDepth) {
+		} else if (parameter instanceof final FacetStatisticsDepth facetStatisticsDepth) {
 			builder.setFacetStatisticsDepthValue(EvitaEnumConverter.toGrpcFacetStatisticsDepth(facetStatisticsDepth));
-		} else if (parameter instanceof QueryPriceMode queryPriceModeValue) {
+		} else if (parameter instanceof final QueryPriceMode queryPriceModeValue) {
 			builder.setQueryPriceModelValue(EvitaEnumConverter.toGrpcQueryPriceMode(queryPriceModeValue));
-		} else if (parameter instanceof PriceContentMode priceContentModeValue) {
+		} else if (parameter instanceof final PriceContentMode priceContentModeValue) {
 			builder.setPriceContentModeValue(EvitaEnumConverter.toGrpcPriceContentMode(priceContentModeValue));
-		} else if (parameter instanceof AttributeSpecialValue attributeSpecialValue) {
+		} else if (parameter instanceof final AttributeSpecialValue attributeSpecialValue) {
 			builder.setAttributeSpecialValue(EvitaEnumConverter.toGrpcAttributeSpecialValue(attributeSpecialValue));
-		} else if (parameter instanceof OrderDirection orderDirectionValue) {
+		} else if (parameter instanceof final OrderDirection orderDirectionValue) {
 			builder.setOrderDirectionValue(EvitaEnumConverter.toGrpcOrderDirection(orderDirectionValue));
-		} else if (parameter instanceof String[] stringArrayValue) {
+		} else if (parameter instanceof final EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour) {
+			builder.setEmptyHierarchicalEntityBehaviour(EvitaEnumConverter.toGrpcEmptyHierarchicalEntityBehaviour(emptyHierarchicalEntityBehaviour));
+		} else if (parameter instanceof final StatisticsBase statisticsBase) {
+			builder.setStatisticsBase(EvitaEnumConverter.toGrpcStatisticsBase(statisticsBase));
+		} else if (parameter instanceof final StatisticsType statisticsType) {
+			builder.setStatisticsType(EvitaEnumConverter.toGrpcStatisticsType(statisticsType));
+		} else if (parameter instanceof final String[] stringArrayValue) {
 			builder.setStringArrayValue(toGrpcStringArray(stringArrayValue));
-		} else if (parameter instanceof Integer[] integerArrayValue) {
+		} else if (parameter instanceof final Integer[] integerArrayValue) {
 			builder.setIntegerArrayValue(toGrpcIntegerArray(integerArrayValue));
-		} else if (parameter instanceof Long[] longArrayValue) {
+		} else if (parameter instanceof final Long[] longArrayValue) {
 			builder.setLongArrayValue(toGrpcLongArray(longArrayValue));
-		} else if (parameter instanceof Boolean[] booleanArrayValue) {
+		} else if (parameter instanceof final Boolean[] booleanArrayValue) {
 			builder.setBooleanArrayValue(toGrpcBooleanArray(booleanArrayValue));
-		} else if (parameter instanceof BigDecimal[] bigDecimalArrayValue) {
+		} else if (parameter instanceof final BigDecimal[] bigDecimalArrayValue) {
 			builder.setBigDecimalArrayValue(toGrpcBigDecimalArray(bigDecimalArrayValue));
-		} else if (parameter instanceof DateTimeRange[] dateTimeRangeArrayValue) {
+		} else if (parameter instanceof final DateTimeRange[] dateTimeRangeArrayValue) {
 			builder.setDateTimeRangeArrayValue(toGrpcDateTimeRangeArray(dateTimeRangeArrayValue));
-		} else if (parameter instanceof ByteNumberRange[] byteNumberRangeArrayValue) {
+		} else if (parameter instanceof final ByteNumberRange[] byteNumberRangeArrayValue) {
 			builder.setIntegerNumberRangeArrayValue(toGrpcByteNumberRangeArray(byteNumberRangeArrayValue));
-		} else if (parameter instanceof ShortNumberRange[] shortNumberRangeArrayValue) {
+		} else if (parameter instanceof final ShortNumberRange[] shortNumberRangeArrayValue) {
 			builder.setIntegerNumberRangeArrayValue(toGrpcShortNumberRangeArray(shortNumberRangeArrayValue));
-		} else if (parameter instanceof IntegerNumberRange[] integerNumberRangeArrayValue) {
+		} else if (parameter instanceof final IntegerNumberRange[] integerNumberRangeArrayValue) {
 			builder.setIntegerNumberRangeArrayValue(toGrpcIntegerNumberRangeArray(integerNumberRangeArrayValue));
-		} else if (parameter instanceof LongNumberRange[] longNumberRangeArrayValue) {
+		} else if (parameter instanceof final LongNumberRange[] longNumberRangeArrayValue) {
 			builder.setLongNumberRangeArrayValue(toGrpcLongNumberRangeArray(longNumberRangeArrayValue));
-		} else if (parameter instanceof BigDecimalNumberRange[] bigDecimalNumberRangeArrayValue) {
+		} else if (parameter instanceof final BigDecimalNumberRange[] bigDecimalNumberRangeArrayValue) {
 			builder.setBigDecimalNumberRangeArrayValue(toGrpcBigDecimalNumberRangeArray(bigDecimalNumberRangeArrayValue));
-		} else if (parameter instanceof OffsetDateTime[] offsetDateTimeArrayValue) {
+		} else if (parameter instanceof final OffsetDateTime[] offsetDateTimeArrayValue) {
 			builder.setOffsetDateTimeArrayValue(toGrpcOffsetDateTimeArray(offsetDateTimeArrayValue));
-		} else if (parameter instanceof LocalDateTime[] localDateTimeArrayValue) {
+		} else if (parameter instanceof final LocalDateTime[] localDateTimeArrayValue) {
 			builder.setOffsetDateTimeArrayValue(toGrpcLocalDateTimeArray(localDateTimeArrayValue));
-		} else if (parameter instanceof LocalDate[] localDateArrayValue) {
+		} else if (parameter instanceof final LocalDate[] localDateArrayValue) {
 			builder.setOffsetDateTimeArrayValue(toGrpcLocalDateArray(localDateArrayValue));
-		} else if (parameter instanceof LocalTime[] localTimeArrayValue) {
+		} else if (parameter instanceof final LocalTime[] localTimeArrayValue) {
 			builder.setOffsetDateTimeArrayValue(toGrpcLocalTimeArray(localTimeArrayValue));
-		} else if (parameter instanceof Locale[] localeArrayValue) {
+		} else if (parameter instanceof final Locale[] localeArrayValue) {
 			builder.setLocaleArrayValue(toGrpcLocaleArray(localeArrayValue));
-		} else if (parameter instanceof Currency[] currencyArrayValue) {
+		} else if (parameter instanceof final Currency[] currencyArrayValue) {
 			builder.setCurrencyArrayValue(toGrpcCurrencyArray(currencyArrayValue));
-		} else if (parameter instanceof FacetStatisticsDepth[] facetStatisticsArrayDepth) {
+		} else if (parameter instanceof final FacetStatisticsDepth[] facetStatisticsArrayDepth) {
 			builder.setFacetStatisticsDepthArrayValue(GrpcFacetStatisticsDepthArray.newBuilder().addAllValue(
 				Arrays.stream(facetStatisticsArrayDepth).map(EvitaEnumConverter::toGrpcFacetStatisticsDepth).toList()
 			));
-		} else if (parameter instanceof QueryPriceMode[] queryPriceModeArrayValue) {
+		} else if (parameter instanceof final QueryPriceMode[] queryPriceModeArrayValue) {
 			builder.setQueryPriceModelArrayValue(GrpcQueryPriceModeArray.newBuilder().addAllValue(
 				Arrays.stream(queryPriceModeArrayValue).map(EvitaEnumConverter::toGrpcQueryPriceMode).toList()
 			));
-		} else if (parameter instanceof PriceContentMode[] priceContentModeArrayValue) {
+		} else if (parameter instanceof final PriceContentMode[] priceContentModeArrayValue) {
 			builder.setPriceContentModeArrayValue(GrpcPriceContentModeArray.newBuilder().addAllValue(
 				Arrays.stream(priceContentModeArrayValue).map(EvitaEnumConverter::toGrpcPriceContentMode).toList()
 			));
-		} else if (parameter instanceof AttributeSpecialValue[] attributeSpecialArrayValue) {
+		} else if (parameter instanceof final AttributeSpecialValue[] attributeSpecialArrayValue) {
 			builder.setAttributeSpecialArrayValue(GrpcAttributeSpecialValueArray.newBuilder().addAllValue(
 				Arrays.stream(attributeSpecialArrayValue).map(EvitaEnumConverter::toGrpcAttributeSpecialValue).toList()
 			));
-		} else if (parameter instanceof OrderDirection[] orderDirectionArrayValue) {
+		} else if (parameter instanceof final OrderDirection[] orderDirectionArrayValue) {
 			builder.setOrderDirectionArrayValue(GrpcOrderDirectionArray.newBuilder().addAllValue(
 				Arrays.stream(orderDirectionArrayValue).map(EvitaEnumConverter::toGrpcOrderDirection).toList()
+			));
+		} else if (parameter instanceof final EmptyHierarchicalEntityBehaviour[] emptyHierarchicalEntityBehaviourArrayValue) {
+			builder.setEmptyHierarchicalEntityBehaviourArrayValue(GrpcEmptyHierarchicalEntityBehaviourArray.newBuilder().addAllValue(
+				Arrays.stream(emptyHierarchicalEntityBehaviourArrayValue).map(EvitaEnumConverter::toGrpcEmptyHierarchicalEntityBehaviour).toList()
+			));
+		} else if (parameter instanceof final StatisticsBase[] statisticsBaseArrayValue) {
+			builder.setStatisticsBaseArrayValue(GrpcStatisticsBaseArray.newBuilder().addAllValue(
+				Arrays.stream(statisticsBaseArrayValue).map(EvitaEnumConverter::toGrpcStatisticsBase).toList()
+			));
+		} else if (parameter instanceof final StatisticsType[] statisticsTypeArrayValue) {
+			builder.setStatisticsTypeArrayValue(GrpcStatisticsTypeArray.newBuilder().addAllValue(
+				Arrays.stream(statisticsTypeArrayValue).map(EvitaEnumConverter::toGrpcStatisticsType).toList()
 			));
 		} else {
 			throw new EvitaInvalidUsageException("Unsupported Evita data type `" + parameter + "` in gRPC API.");

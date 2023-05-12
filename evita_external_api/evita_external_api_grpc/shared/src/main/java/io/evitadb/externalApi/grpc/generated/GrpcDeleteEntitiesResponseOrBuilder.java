@@ -39,7 +39,7 @@ public interface GrpcDeleteEntitiesResponseOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcSealedEntity>
       getDeletedEntityBodiesList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
@@ -52,7 +52,7 @@ public interface GrpcDeleteEntitiesResponseOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
       getDeletedEntityBodiesOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcSealedEntity deletedEntityBodies = 2;</code>

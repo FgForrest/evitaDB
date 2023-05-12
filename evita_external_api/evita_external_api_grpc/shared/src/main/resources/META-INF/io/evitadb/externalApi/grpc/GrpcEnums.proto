@@ -34,6 +34,21 @@ enum GrpcFacetStatisticsDepth {
   IMPACT = 1;
 }
 
+enum GrpcEmptyHierarchicalEntityBehaviour {
+  LEAVE_EMPTY = 0;
+  REMOVE_EMPTY = 1;
+}
+
+enum GrpcStatisticsBase {
+  COMPLETE_FILTER = 0;
+  WITHOUT_USER_FILTER = 1;
+}
+
+enum GrpcStatisticsType {
+  CHILDREN_COUNT = 0;
+  QUERIED_ENTITY_COUNT = 1;
+}
+
 enum GrpcPriceInnerRecordHandling {
   NONE = 0;
   FIRST_OCCURRENCE = 1;

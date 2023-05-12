@@ -378,6 +378,27 @@ public class EntityFetchingFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should not return missing entity")
+	@Test
+	// TODO JNO: fix negative PKs
+	void shouldNotReturnMissingEntity(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Optional<EntityReference> productByPk = session.queryOneEntityReference(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(-100)
+						)
+					)
+				);
+				assertTrue(productByPk.isEmpty());
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should check existence of multiple entities")
 	@Test
 	void shouldReturnOnlyPrimaryKeys(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {

@@ -37,10 +37,10 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class SetParentConverter extends LocalMutationConverter<SetParentMutation> {
+public class SetParentMutationConverter extends LocalMutationConverter<SetParentMutation> {
 
-	public SetParentConverter(@Nonnull MutationObjectParser objectParser,
-	                          @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public SetParentMutationConverter(@Nonnull MutationObjectParser objectParser,
+	                                  @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 

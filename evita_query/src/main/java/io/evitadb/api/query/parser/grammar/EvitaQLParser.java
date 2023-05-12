@@ -1050,9 +1050,9 @@ public class EvitaQLParser extends Parser {
 		}
 	}
 	public static class FilterByConstraintContext extends FilterConstraintContext {
-		public FilterConstraintArgsContext args;
-		public FilterConstraintArgsContext filterConstraintArgs() {
-			return getRuleContext(FilterConstraintArgsContext.class,0);
+		public FilterConstraintListArgsContext args;
+		public FilterConstraintListArgsContext filterConstraintListArgs() {
+			return getRuleContext(FilterConstraintListArgsContext.class,0);
 		}
 		public FilterByConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
 		@Override
@@ -1592,7 +1592,7 @@ public class EvitaQLParser extends Parser {
 				setState(163);
 				match(T__2);
 				setState(164);
-				((FilterByConstraintContext)_localctx).args = filterConstraintArgs();
+				((FilterByConstraintContext)_localctx).args = filterConstraintListArgs();
 				}
 				break;
 			case T__3:
@@ -8331,7 +8331,7 @@ public class EvitaQLParser extends Parser {
 		"\2\u009d\u00a1\5\26\f\2\u009e\u00a1\5\30\r\2\u009f\u00a1\5\32\16\2\u00a0"+
 		"\u009c\3\2\2\2\u00a0\u009d\3\2\2\2\u00a0\u009e\3\2\2\2\u00a0\u009f\3\2"+
 		"\2\2\u00a1\23\3\2\2\2\u00a2\u00a3\7\4\2\2\u00a3\u00a4\5\62\32\2\u00a4"+
-		"\25\3\2\2\2\u00a5\u00a6\7\5\2\2\u00a6\u0101\5*\26\2\u00a7\u00aa\7\6\2"+
+		"\25\3\2\2\2\u00a5\u00a6\7\5\2\2\u00a6\u0101\5(\25\2\u00a7\u00aa\7\6\2"+
 		"\2\u00a8\u00ab\5&\24\2\u00a9\u00ab\5(\25\2\u00aa\u00a8\3\2\2\2\u00aa\u00a9"+
 		"\3\2\2\2\u00ab\u0101\3\2\2\2\u00ac\u00af\7\7\2\2\u00ad\u00b0\5&\24\2\u00ae"+
 		"\u00b0\5(\25\2\u00af\u00ad\3\2\2\2\u00af\u00ae\3\2\2\2\u00b0\u0101\3\2"+

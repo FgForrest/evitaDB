@@ -117,7 +117,7 @@ public enum GrpcEntityExistence
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(13);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(16);
   }
 
   private static final GrpcEntityExistence[] VALUES = values();

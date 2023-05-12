@@ -436,7 +436,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPrimaryKey(int value) {
-      
+
       primaryKey_ = value;
       onChanged();
       return this;
@@ -446,7 +446,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPrimaryKey() {
-      
+
       primaryKey_ = 0;
       onChanged();
       return this;

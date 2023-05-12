@@ -42,7 +42,7 @@ public class AttributeAlreadyPresentInCatalogSchemaException extends EvitaInvali
 	@Getter private final AttributeSchemaContract existingSchema;
 
 	public AttributeAlreadyPresentInCatalogSchemaException(@Nonnull String catalogName, @Nonnull AttributeSchemaContract existingSchema) {
-		super("Attribute `" + existingSchema.getName() + "` is already defined as global attribute of catalog `" + catalogName + "`, use `withCatalogAttribute` method to reuse it!");
+		super("Attribute `" + existingSchema.getName() + "` is already defined as global attribute of catalog `" + catalogName + "`, use `withGlobalAttribute` method to reuse it!");
 		this.catalogName = catalogName;
 		this.existingSchema = existingSchema;
 	}

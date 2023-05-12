@@ -39,17 +39,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link SetParentConverter}.
+ * Tests for {@link SetParentMutationConverter}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 class SetParentMutationConverterTest {
 
-	private SetParentConverter converter;
+	private SetParentMutationConverter converter;
 
 	@BeforeEach
 	void init() {
-		converter =  new SetParentConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		converter =  new SetParentMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test

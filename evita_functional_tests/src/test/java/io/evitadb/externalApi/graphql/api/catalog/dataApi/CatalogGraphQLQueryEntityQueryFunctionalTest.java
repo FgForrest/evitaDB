@@ -3072,7 +3072,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
 
-	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return self hierarchy from root")
 	@ParameterizedTest

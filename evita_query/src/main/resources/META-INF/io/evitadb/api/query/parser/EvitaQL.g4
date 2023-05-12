@@ -41,7 +41,7 @@ headConstraint
     ;
 
 filterConstraint
-    : 'filterBy'                        args = filterConstraintArgs                             # filterByConstraint
+    : 'filterBy'                        args = filterConstraintListArgs                         # filterByConstraint
     | 'and'                             (emptyArgs | args = filterConstraintListArgs)           # andConstraint
     | 'or'                              (emptyArgs | args = filterConstraintListArgs)           # orConstraint
     | 'not'                             args = filterConstraintArgs                             # notConstraint

@@ -26,9 +26,12 @@ package io.evitadb.externalApi.grpc.requestResponse;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
@@ -129,6 +132,60 @@ public class EvitaEnumConverter {
 		return switch (orderDirection) {
 			case ASC -> GrpcOrderDirection.ASC;
 			case DESC -> GrpcOrderDirection.DESC;
+		};
+	}
+
+	@Nonnull
+	public static EmptyHierarchicalEntityBehaviour toEmptyHierarchicalEntityBehaviour(@Nonnull GrpcEmptyHierarchicalEntityBehaviour grpcEmptyHierarchicalEntityBehaviour) {
+		return switch (grpcEmptyHierarchicalEntityBehaviour.getNumber()) {
+			case 0 -> EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY;
+			case 1 -> EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote empty hierarchical entity behaviour: " + grpcEmptyHierarchicalEntityBehaviour);
+		};
+	}
+
+	@Nonnull
+	public static GrpcEmptyHierarchicalEntityBehaviour toGrpcEmptyHierarchicalEntityBehaviour(@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour) {
+		return switch (emptyHierarchicalEntityBehaviour) {
+			case LEAVE_EMPTY -> GrpcEmptyHierarchicalEntityBehaviour.LEAVE_EMPTY;
+			case REMOVE_EMPTY -> GrpcEmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
+		};
+	}
+
+	@Nonnull
+	public static StatisticsBase toStatisticsBase(@Nonnull GrpcStatisticsBase grpcStatisticsBase) {
+		return switch (grpcStatisticsBase.getNumber()) {
+			case 0 -> StatisticsBase.COMPLETE_FILTER;
+			case 1 -> StatisticsBase.WITHOUT_USER_FILTER;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote statistics base: " + grpcStatisticsBase);
+		};
+	}
+
+	@Nonnull
+	public static GrpcStatisticsBase toGrpcStatisticsBase(@Nonnull StatisticsBase statisticsBase) {
+		return switch (statisticsBase) {
+			case COMPLETE_FILTER -> GrpcStatisticsBase.COMPLETE_FILTER;
+			case WITHOUT_USER_FILTER -> GrpcStatisticsBase.WITHOUT_USER_FILTER;
+		};
+	}
+
+	@Nonnull
+	public static StatisticsType toStatisticsType(@Nonnull GrpcStatisticsType grpcStatisticsType) {
+		return switch (grpcStatisticsType.getNumber()) {
+			case 0 -> StatisticsType.CHILDREN_COUNT;
+			case 1 -> StatisticsType.QUERIED_ENTITY_COUNT;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote statistics type: " + grpcStatisticsType);
+		};
+	}
+
+	@Nonnull
+	public static GrpcStatisticsType toGrpcStatisticsType(@Nonnull StatisticsType statisticsType) {
+		return switch (statisticsType) {
+			case CHILDREN_COUNT -> GrpcStatisticsType.CHILDREN_COUNT;
+			case QUERIED_ENTITY_COUNT -> GrpcStatisticsType.QUERIED_ENTITY_COUNT;
 		};
 	}
 

@@ -340,6 +340,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			)
 		);
 		if (EntityReferenceContract.class.isAssignableFrom(expectedType)) {
+			if (!grpcResponse.hasEntityReference()) {
+				return empty();
+			}
 			final GrpcEntityReference entityReference = grpcResponse.getEntityReference();
 			//noinspection unchecked
 			return (Optional<S>) of(new EntityReference(
@@ -352,6 +355,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 				//noinspection unchecked
 				return (Optional<S>) of(EntityConverter.parseBinaryEntity(grpcResponse.getBinaryEntity()));
 			} else {
+				if (!grpcResponse.hasSealedEntity()) {
+					return empty();
+				}
 				// convert to Sealed entity
 				final GrpcSealedEntity sealedEntity = grpcResponse.getSealedEntity();
 				//noinspection unchecked

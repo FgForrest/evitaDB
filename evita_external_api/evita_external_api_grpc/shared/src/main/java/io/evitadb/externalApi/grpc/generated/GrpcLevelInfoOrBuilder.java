@@ -93,7 +93,7 @@ public interface GrpcLevelInfoOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo>
       getItemsList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
@@ -106,7 +106,7 @@ public interface GrpcLevelInfoOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
       getItemsOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>

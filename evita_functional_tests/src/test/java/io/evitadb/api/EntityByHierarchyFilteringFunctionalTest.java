@@ -262,6 +262,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 	@DisplayName("Should return all subcategories of shortcuts")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
+	// TODO JNO: returns invalid PKs
 	void shouldReturnSubCategoriesInAllShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Map<Integer, SealedEntity> originalCategoryIndex) {
 		evita.queryCatalog(
 			TEST_CATALOG,

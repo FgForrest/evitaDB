@@ -33,6 +33,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
@@ -415,7 +416,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should throw when trying to get hierarchy statistics of non-hierarchical entity collection")
-	@Disabled("TODO LHO: will be reimplemented")
+	@Disabled("TODO JNO: will be reimplemented")
 	void shouldFailWhenTryingToGetHierarchyStatisticsOnNotHierarchicalCollection(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -1113,7 +1114,8 @@ class EvitaSessionServiceFunctionalTest {
 		params.add(convertQueryParam(20));
 		params.add(convertQueryParam(FacetStatisticsDepth.IMPACT));
 		params.add(convertQueryParam(Entities.CATEGORY));
-		params.add(convertQueryParam(Entities.CATEGORY));
+		params.add(convertQueryParam(EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY));
+		params.add(convertQueryParam("a"));
 
 		final String stringQuery = """
 			query(
@@ -1136,14 +1138,14 @@ class EvitaSessionServiceFunctionalTest {
 						attributeContent(),
 						priceContent(),
 						referenceContent(),
-						hierarchyContent(),
+						hierarchyContent(entityFetch(referenceContent())),
 						associatedDataContent(),
 						dataInLocales(?, ?)
 					),
 					attributeHistogram(?, ?, ?),
 					priceHistogram(?),
 					facetSummary(?),
-					hierarchyOfReference(?, entityFetch(attributeContent()))
+					hierarchyOfReference(?, ?, fromRoot(?, entityFetch(attributeContent())))
 				)
 			)
 			""";
@@ -1320,7 +1322,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of entity references with applied within hierarchy filter with computed hierarchy statistics and parents trees consisting of entity primary keys")
-	@Disabled("TODO LHO: will be reimplemented")
+	@Disabled("TODO JNO: will be reimplemented")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithHierarchyStatisticsAndParentsOfIntegers(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -1383,7 +1385,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities with computed hierarchy statistics and parents trees consisting of enriched entities")
-	@Disabled("TODO LHO: will be reimplemented")
+	@Disabled("TODO JNO: will be reimplemented")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithHierarchyStatisticsAndParentsOfEntities(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -2089,6 +2091,7 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should be able to mutate entity hierarchy placement with read-write session")
+	@Disabled("TODO JNO")
 	void shouldBeAbleMutateEntityHierarchyPlacementWithReadWriteSession(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);

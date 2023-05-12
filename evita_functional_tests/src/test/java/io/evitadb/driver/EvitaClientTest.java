@@ -73,6 +73,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -406,7 +407,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				assertTrue(session.getAllEntityTypes().contains(Entities.PRODUCT));
 				assertFalse(session.getAllEntityTypes().contains(newCollection));
 				session.defineEntitySchema(newCollection)
-					.withAttribute(ATTRIBUTE_CODE, String.class)
+					.withGlobalAttribute(ATTRIBUTE_CODE)
 					.updateVia(session);
 				assertTrue(session.getAllEntityTypes().contains(newCollection));
 				productSchemaVersion.set(session.getEntitySchemaOrThrow(Entities.PRODUCT).getVersion());
@@ -502,12 +503,33 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals(1, entityReference.getPrimaryKey());
 	}
 
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	// TODO JNO: should be fixed when negative PKs are fixed
+	void shouldNotQueryOneMissingEntity(EvitaClient evitaClient) {
+		final Optional<EntityReference> entityReference = evitaClient.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneEntityReference(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(-100)
+						)
+					)
+				);
+			}
+		);
+
+		assertTrue(entityReference.isEmpty());
+	}
+
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	@ParameterizedTest()
 	@MethodSource("returnRandomSeed")
 	void shouldQueryOneSealedEntity(long seed, EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
 		final Random rnd = new Random(seed);
-		final int primaryKey = rnd.nextInt(products.size());
+		final int primaryKey = new ArrayList<>(products.keySet()).get(rnd.nextInt(products.size()));
 		final boolean referencesOnly = rnd.nextBoolean();
 		final SealedEntity sealedEntity = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -670,6 +692,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
 		assertNotNull(priceHistogram);
+		// TODO JNO: here min and max are the same, idk if it is legal or there is some other bug
 		assertTrue(priceHistogram.getMax().compareTo(priceHistogram.getMin()) > 0);
 		assertTrue(priceHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
 		assertTrue(priceHistogram.getBuckets().length > 0);

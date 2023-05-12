@@ -371,10 +371,10 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update category with hierarchical placement mutations")
 	void shouldUpdateCategoryWithHierarchicalPlacementMutations(Evita evita, GraphQLTester tester) {
-		final SealedEntity entityInTree = evita.queryCatalog(
+		final SealedEntity rootEntity = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity rootEntity = session.queryOneSealedEntity(
+				return session.queryOneSealedEntity(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
@@ -386,6 +386,11 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 						)
 					)
 				).orElseThrow();
+			}
+		);
+		final SealedEntity entityInTree = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
 				return session.queryOneSealedEntity(
 					query(
 						collection(Entities.CATEGORY),
@@ -396,61 +401,22 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 							)
 						),
 						require(
-							strip(0, 1),
+							strip(1, 1),
 							entityFetch()
 						)
 					)
-				);
+				).orElseThrow();
 			}
-		).orElseThrow();
+		);
 
-		assertTrue(entityInTree.getParent().isPresent());
+		assertTrue(rootEntity.getParent().isEmpty());
+		assertEquals(rootEntity.getPrimaryKey(), entityInTree.getParent().orElseThrow());
 
-		final int parent = entityInTree.getParent().orElseThrow();
-		final Map<String, Object> expectedBodyWithHierarchicalPlacement = map()
-			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
-			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), parent + 10)
-			.build();
-
-		tester.test(TEST_CATALOG)
-			.document(
-				"""
-	                mutation {
-	                    upsertCategory(
-	                        primaryKey: %d
-	                        entityExistence: MUST_EXIST
-	                        mutations: [
-	                            {
-	                                setHierarchicalPlacementMutation: {
-	                                    orderAmongSiblings: %d
-	                                }
-	                            }
-	                        ]
-                        ) {
-	                        primaryKey
-	                        parentPrimaryKey
-	                    }
-	                }
-					""",
-				entityInTree.getPrimaryKey(),
-				parent + 10
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
-			.body(
-				UPSERT_CATEGORY_PATH,
-				equalTo(
-					expectedBodyWithHierarchicalPlacement
-				)
-			);
-		assertParentPrimaryKey(tester, entityInTree.getPrimaryKey(), expectedBodyWithHierarchicalPlacement);
-
-		final Map<String, Object> expectedBodyAfterRemoving = map()
+		// remove existing parent reference
+		final Map<String, Object> expectedBodyWithoutParent = map()
 			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
 			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), null)
 			.build();
-
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
@@ -460,7 +426,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 	                        entityExistence: MUST_EXIST
 	                        mutations: [
 	                            {
-	                                removeHierarchicalPlacementMutation: true
+	                                removeParentMutation: true
 	                            }
 	                        ]
                         ) {
@@ -474,8 +440,42 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(UPSERT_CATEGORY_PATH, equalTo(expectedBodyAfterRemoving));
-		assertParentPrimaryKey(tester, entityInTree.getPrimaryKey(), expectedBodyAfterRemoving);
+			.body(UPSERT_CATEGORY_PATH, equalTo(expectedBodyWithoutParent));
+		assertParentPrimaryKey(tester, entityInTree.getPrimaryKey(), expectedBodyWithoutParent);
+
+		// revert original parent
+		final Map<String, Object> expectedBodyReverted = map()
+			.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityInTree.getPrimaryKey())
+			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), null)
+			.build();
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                mutation {
+	                    upsertCategory(
+	                        primaryKey: %d
+	                        entityExistence: MUST_EXIST
+	                        mutations: [
+	                            {
+	                                setParentMutation: {
+	                                    parentPrimaryKey: %d
+	                                }
+	                            }
+	                        ]
+                        ) {
+	                        primaryKey
+	                        parentPrimaryKey
+	                    }
+	                }
+					""",
+				entityInTree.getPrimaryKey(),
+				rootEntity.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(UPSERT_CATEGORY_PATH, equalTo(expectedBodyReverted));
+		assertParentPrimaryKey(tester, entityInTree.getPrimaryKey(), expectedBodyReverted);
 	}
 
 	@Test

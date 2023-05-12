@@ -33,7 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute.Ap
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute.RemoveAttributeMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute.UpsertAttributeMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity.RemoveParentMutationConverter;
-import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity.SetParentConverter;
+import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity.SetParentMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price.RemovePriceMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price.SetPriceInnerRecordHandlingMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price.UpsertPriceMutationConverter;
@@ -85,7 +85,7 @@ public class LocalMutationAggregateConverter extends MutationAggregateConverter<
 		this.resolvers.put(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
 		// entity
 		this.resolvers.put(REMOVE_PARENT_MUTATION.name(), new RemoveParentMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_PARENT_MUTATION.name(), new SetParentConverter(objectParser, exceptionFactory));
+		this.resolvers.put(SET_PARENT_MUTATION.name(), new SetParentMutationConverter(objectParser, exceptionFactory));
 		// price
 		this.resolvers.put(SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), new SetPriceInnerRecordHandlingMutationConverter(objectParser, exceptionFactory));
 		this.resolvers.put(REMOVE_PRICE_MUTATION.name(), new RemovePriceMutationConverter(objectParser, exceptionFactory));

@@ -82,7 +82,12 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitFilterByConstraint(@Nonnull EvitaQLParser.FilterByConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FilterBy(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+			() -> new FilterBy(
+				ctx.args.constraints
+					.stream()
+					.map(c -> visitChildConstraint(c, FilterConstraint.class))
+					.toArray(FilterConstraint[]::new)
+			)
 		);
 	}
 

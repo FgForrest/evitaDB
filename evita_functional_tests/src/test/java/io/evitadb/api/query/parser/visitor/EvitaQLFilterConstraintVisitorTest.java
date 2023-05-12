@@ -65,6 +65,33 @@ class EvitaQLFilterConstraintVisitorTest {
 
         final FilterConstraint constraint2 = parseFilterConstraintUnsafe("filterBy ( attributeEquals('a',1)  )");
         assertEquals(filterBy(attributeEquals("a", 1L)), constraint2);
+
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("filterBy(attributeEquals('a',1),entityPrimaryKeyInSet(1))");
+        assertEquals(filterBy(attributeEquals("a", 1L), entityPrimaryKeyInSet(1)), constraint3);
+
+        final FilterConstraint constraint4 = parseFilterConstraint(
+            "filterBy(attributeEquals(?,?))",
+            "a", 1L
+        );
+        assertEquals(filterBy(attributeEquals("a", 1L)), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraint(
+            "filterBy(attributeEquals(?,?),entityPrimaryKeyInSet(?))",
+            "a", 1L, 1L
+        );
+        assertEquals(filterBy(attributeEquals("a", 1L), entityPrimaryKeyInSet(1)), constraint5);
+
+        final FilterConstraint constraint6 = parseFilterConstraint(
+            "filterBy(attributeEquals(@name,@val))",
+            Map.of("name", "a", "val", 1L)
+        );
+        assertEquals(filterBy(attributeEquals("a", 1L)), constraint6);
+
+        final FilterConstraint constraint7 = parseFilterConstraint(
+            "filterBy(attributeEquals(@name,@val),entityPrimaryKeyInSet(@pk))",
+            Map.of("name", "a", "val", 1L, "pk", 1L)
+        );
+        assertEquals(filterBy(attributeEquals("a", 1L), entityPrimaryKeyInSet(1)), constraint7);
     }
 
     @Test
@@ -72,7 +99,6 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy(collection('a'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy(attributeEquals('a',1),attributeEquals('b','c'))"));
     }
 
     @Test
