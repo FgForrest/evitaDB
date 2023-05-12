@@ -741,8 +741,6 @@ The computed result *subMenu* looks like this (visualized in JSON format):
 
 ## Statistics
 
-## Node
-
 ```evitaql
 statistics(
     argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER),
