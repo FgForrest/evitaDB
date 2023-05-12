@@ -1,0 +1,18 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'accessories')
+        )
+    ),
+    require(
+        hierarchyOfSelf(
+            children(
+                'subMenu',
+                entityFetch(attributeContent(code)),
+                stopAt(node(attributeStartsWith('code', 'w')))
+            )
+        )
+    )
+)
