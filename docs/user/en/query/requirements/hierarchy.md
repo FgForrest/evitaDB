@@ -321,7 +321,7 @@ products that would fall into the given category.
 
 The computed result both of the *sideMenu1* and *sideMenu2* looks like this:
 
-![From node query visualization](assets%2Fhierarchy-from-node.png "From node query visualization")
+![From node query visualization](assets/hierarchy-from-node.png "From node query visualization")
 
 ... and here is the data structure output in JSON format:
 
@@ -389,7 +389,11 @@ would fall into the given category.
 [Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-children.java)
 </SourceCodeTabs>
 
-The computed result *subcategories* looks like this (visualized in JSON format):
+The computed result *subcategories* looks like this:
+
+![Children listing visualization](assets/hierarchy-children.png "Children listing visualization")
+
+... and here is the data structure output in JSON format:
 
 <MDInclude>[Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-children.md)</MDInclude>
 </Note>
