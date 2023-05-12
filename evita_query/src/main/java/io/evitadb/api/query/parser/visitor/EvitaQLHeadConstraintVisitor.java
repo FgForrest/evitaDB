@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  * @see EvitaQLConstraintVisitor
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
-public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseVisitor<HeadConstraint> {
+public class EvitaQLHeadConstraintVisitor extends EvitaQLBaseConstraintVisitor<HeadConstraint> {
 
     protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
 

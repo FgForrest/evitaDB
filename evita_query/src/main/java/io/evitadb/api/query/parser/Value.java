@@ -276,6 +276,30 @@ public class Value {
         }
     }
 
+    @Nonnull
+    public <T extends Enum<T>> T[] asEnumArray(@Nonnull Class<T> enumType) {
+        try {
+            return asArray(
+                v -> {
+                    if (v instanceof Enum<?>) {
+                        return variadicValueItemAsSpecificType(v, enumType);
+                    } else if (v instanceof EnumWrapper) {
+                        return variadicValueItemAsSpecificType(v, EnumWrapper.class).toEnum(enumType);
+                    } else {
+                        throw new EvitaInvalidUsageException(
+                            "Expected enum value but got `" + v.getClass().getName() + "`."
+                        );
+                    }
+                },
+                enumType
+            );
+        } catch (ClassCastException e) {
+            // correct passed type from client should be checked at visitor level, here should be should correct checked type
+            // if everything is correct on parser side
+            throw new EvitaInternalError("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+        }
+    }
+
     private void assertValueIsOfType(@Nonnull Class<?> type) {
         // correct passed type from client should be checked at visitor level, here should be should correct checked type
         // if everything is correct on parser side

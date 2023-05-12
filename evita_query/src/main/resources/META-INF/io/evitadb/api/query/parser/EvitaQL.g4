@@ -106,10 +106,9 @@ requireConstraint
     | 'referenceContent'                args = singleRefWithFilterReferenceContentArgs          # singleRefWithFilterReferenceContentConstraint
     | 'referenceContent'                args = singleRefWithOrderReferenceContentArgs           # singleRefWithOrderReferenceContentConstraint
     | 'referenceContent'                args = singleRefWithFilterAndOrderReferenceContentArgs  # singleRefWithFilterAndOrderReferenceContentConstraint
-    | 'hierarchyContent'                (emptyArgs | args = allRefsHierarchyContentArgs)        # allRefsHierarchyContentConstraint
-    | 'hierarchyContent'                args = multipleRefsHierarchyContentArgs                 # multipleRefsHierarchyContentConstraint
-    | 'hierarchyContent'                args = singleRefHierarchyContentArgs                    # singleRefHierarchyContentConstraint
-    | 'hierarchyContent'                args = singleRefWithFilterHierarchyContentArgs          # singleRefWithFilterHierarchyContentConstraint
+    | 'hierarchyContent'                emptyArgs                                               # emptyHierarchyContentConstraint
+    | 'hierarchyContent'                args = singleRequireHierarchyContentArgs                # singleRequireHierarchyContentConstraint
+    | 'hierarchyContent'                args = allRequiresHierarchyContentArgs                  # allRequiresHierarchyContentConstraint
     | 'priceType'                       args = valueArgs                                        # priceTypeConstraint
     | 'dataInLocales'                   (emptyArgs | args = valueListArgs)                      # dataInLocalesConstraint
     | 'facetSummary'                    (emptyArgs | args = facetSummaryArgs)                   # facetSummaryConstraint
@@ -119,8 +118,23 @@ requireConstraint
     | 'facetGroupsNegation'             args = classifierWithFilterConstraintArgs               # facetGroupsNegationConstraint
     | 'attributeHistogram'              args = valueWithClassifierListArgs                      # attributeHistogramConstraint
     | 'priceHistogram'                  args = valueArgs                                        # priceHistogramConstraint
-    | 'hierarchyOfSelf'                 (emptyArgs | args = requireConstraintArgs)              # hierarchyOfSelfConstraint
-    | 'hierarchyOfReference'            args = classifierListWithOptionalRequireConstraintArgs  # hierarchyOfReferenceConstraint
+    | 'distance'                        args = valueArgs                                        # hierarchyDistanceConstraint
+    | 'level'                           args = valueArgs                                        # hierarchyLevelConstraint
+    | 'node'                            args = filterConstraintArgs                             # hierarchyNodeConstraint
+    | 'stopAt'                          args = requireConstraintArgs                            # hierarchyStopAtConstraint
+    | 'statistics'                      emptyArgs                                               # emptyHierarchyStatisticsConstraint
+    | 'statistics'                      args = fullHierarchyStatisticsArgs                      # fullHierarchyStatisticsConstraint
+    | 'fromRoot'                        args = hierarchyRequireConstraintArgs                   # hierarchyFromRootConstraint
+    | 'fromNode'                        args = hierarchyFromNodeArgs                            # hierarchyFromNodeConstraint
+    | 'children'                        args = hierarchyRequireConstraintArgs                   # hierarchyChildrenConstraint
+    | 'siblings'                        emptyArgs                                               # emptyHierarchySiblingsConstraint
+    | 'siblings'                        args = requireConstraintListArgs                        # basicHierarchySiblingsConstraint
+    | 'siblings'                        args = hierarchyRequireConstraintArgs                   # fullHierarchySiblingsConstraint
+    | 'parents'                         args = hierarchyRequireConstraintArgs                   # hierarchyParentsConstraint
+    | 'hierarchyOfSelf'                 args = requireConstraintListArgs                        # basicHierarchyOfSelfConstraint
+    | 'hierarchyOfSelf'                 args = fullHierarchyOfSelfArgs                          # fullHierarchyOfSelfConstraint
+    | 'hierarchyOfReference'            args = basicHierarchyOfReferenceArgs                    # basicHierarchyOfReferenceConstraint
+    | 'hierarchyOfReference'            args = fullHierarchyOfReferenceArgs                     # fullHierarchyOfReferenceConstraint
     | 'queryTelemetry'                  emptyArgs                                               # queryTelemetryConstraint
     ;
 
@@ -169,13 +183,11 @@ classifierListArgs :                                ARGS_OPENING classifiers = v
 
 valueWithClassifierListArgs :                       ARGS_OPENING value = valueToken ARGS_DELIMITER classifiers = variadicClassifierTokens ARGS_CLOSING ;
 
-classifierWithFilterConstraintArgs :                ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filterConstraint ARGS_CLOSING ;
+classifierWithFilterConstraintArgs :                ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filter = filterConstraint ARGS_CLOSING ;
 
 classifierWithOrderConstraintListArgs :             ARGS_OPENING classifier = classifierToken (ARGS_DELIMITER constrains += orderConstraint)+ ARGS_CLOSING ;
 
 valueWithRequireConstraintListArgs:                 ARGS_OPENING value = valueToken (ARGS_DELIMITER requirements += requireConstraint)* ARGS_CLOSING ;
-
-classifierListWithOptionalRequireConstraintArgs :   ARGS_OPENING classifiers = variadicClassifierTokens (ARGS_DELIMITER requirement = requireConstraint)? ARGS_CLOSING ;
 
 hierarchyWithinConstraintArgs :                     ARGS_OPENING classifier = classifierToken ARGS_DELIMITER ofParent = filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* ARGS_CLOSING ;
 
@@ -218,26 +230,10 @@ allRefsReferenceContentArgs :                       ARGS_OPENING (
                                                         (requirement = requireConstraint) |
                                                         (facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
                                                     ) ARGS_CLOSING ;
-                                                    
-singleRefHierarchyContentArgs :                     ARGS_OPENING (
-                                                        (classifier = classifierToken (ARGS_DELIMITER requirement = requireConstraint)?) |
-                                                        (classifier = classifierToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
 
-singleRefWithFilterHierarchyContentArgs :           ARGS_OPENING (
-                                                        (classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint (ARGS_DELIMITER requirement = requireConstraint)?) |
-                                                        (classifier = classifierToken ARGS_DELIMITER filterBy = filterConstraint ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+singleRequireHierarchyContentArgs :                 ARGS_OPENING requirement = requireConstraint ARGS_CLOSING ;
 
-multipleRefsHierarchyContentArgs :                  ARGS_OPENING (
-                                                        (classifiers = variadicClassifierTokens (ARGS_DELIMITER requirement = requireConstraint)?) |
-                                                        (classifiers = variadicClassifierTokens ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
-
-allRefsHierarchyContentArgs :                       ARGS_OPENING (
-                                                        (requirement = requireConstraint) |
-                                                        (facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
-                                                    ) ARGS_CLOSING ;
+allRequiresHierarchyContentArgs :                   ARGS_OPENING stopAt = requireConstraint ARGS_DELIMITER entityRequirement = requireConstraint ARGS_CLOSING ;
 
 facetSummaryArgs :                                  ARGS_OPENING (
                                                         (depth = valueToken) |
@@ -251,6 +247,18 @@ facetSummaryOfReferenceArgs :                       ARGS_OPENING (
                                                         (referenceName = classifierToken ARGS_DELIMITER depth = valueToken ARGS_DELIMITER requirement = requireConstraint) |
                                                         (referenceName = classifierToken ARGS_DELIMITER depth = valueToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
                                                     ) ARGS_CLOSING ;
+
+fullHierarchyStatisticsArgs :                       ARGS_OPENING statisticsBase = valueToken (ARGS_DELIMITER statisticsTypes = variadicValueTokens)? ARGS_CLOSING ;
+
+hierarchyRequireConstraintArgs :                    ARGS_OPENING outputName = classifierToken (ARGS_DELIMITER requirements += requireConstraint)* ARGS_CLOSING ;
+
+hierarchyFromNodeArgs :                             ARGS_OPENING outputName = classifierToken ARGS_DELIMITER node = requireConstraint (ARGS_DELIMITER requirements += requireConstraint)* ARGS_CLOSING ;
+
+fullHierarchyOfSelfArgs :                           ARGS_OPENING orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING;
+
+basicHierarchyOfReferenceArgs :                     ARGS_OPENING referenceNames = variadicClassifierTokens ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING ;
+
+fullHierarchyOfReferenceArgs :                      ARGS_OPENING referenceNames = variadicClassifierTokens ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING ;
 
 
 /**

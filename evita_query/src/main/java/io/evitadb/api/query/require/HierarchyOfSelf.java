@@ -124,10 +124,6 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 
 	@Serial private static final long serialVersionUID = -4394552939743167661L;
 
-	public HierarchyOfSelf() {
-		super();
-	}
-
 	private HierarchyOfSelf(
 		@Nonnull RequireConstraint[] children,
 		@Nonnull Constraint<?>... additionalChildren

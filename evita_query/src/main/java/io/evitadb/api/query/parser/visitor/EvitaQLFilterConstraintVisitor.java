@@ -44,7 +44,7 @@ import java.util.Locale;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  * @see EvitaQLConstraintVisitor
  */
-public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterConstraint> {
+public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor<FilterConstraint> {
 
 	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
 	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
@@ -82,7 +82,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 	public FilterConstraint visitFilterByConstraint(@Nonnull EvitaQLParser.FilterByConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new FilterBy(ctx.args.filter.accept(this))
+			() -> new FilterBy(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 
@@ -97,7 +97,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 				return new And(
 					ctx.args.constraints
 						.stream()
-						.map(fc -> fc.accept(this))
+						.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
 						.toArray(FilterConstraint[]::new)
 				);
 			}
@@ -115,7 +115,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 				return new Or(
 					ctx.args.constraints
 						.stream()
-						.map(fc -> fc.accept(this))
+						.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
 						.toArray(FilterConstraint[]::new)
 				);
 			}
@@ -126,7 +126,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 	public FilterConstraint visitNotConstraint(@Nonnull EvitaQLParser.NotConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new Not(ctx.args.filter.accept(this))
+			() -> new Not(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 
@@ -141,7 +141,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 				return new UserFilter(
 					ctx.args.constraints
 						.stream()
-						.map(fc -> fc.accept(this))
+						.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
 						.toArray(FilterConstraint[]::new)
 				);
 			}
@@ -444,7 +444,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 			ctx,
 			() -> new ReferenceHaving(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.filterConstraint().accept(this)
+				visitChildConstraint(ctx.args.filter, FilterConstraint.class)
 			)
 		);
 	}
@@ -457,10 +457,10 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 				ctx.args.classifier
 					.accept(classifierTokenVisitor)
 					.asSingleClassifier(),
-				ctx.args.ofParent.accept(this),
+				visitChildConstraint(ctx.args.ofParent, FilterConstraint.class),
 				ctx.args.constrains
 					.stream()
-					.map(c -> (HierarchySpecificationFilterConstraint) c.accept(this))
+					.map(c -> visitChildConstraint(c, HierarchySpecificationFilterConstraint.class))
 					.toArray(HierarchySpecificationFilterConstraint[]::new)
 			)
 		);
@@ -471,10 +471,10 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 		return parse(
 			ctx,
 			() -> new HierarchyWithin(
-				ctx.args.ofParent.accept(this),
+				visitChildConstraint(ctx.args.ofParent, FilterConstraint.class),
 				ctx.args.constrains
 					.stream()
-					.map(c -> (HierarchySpecificationFilterConstraint) c.accept(this))
+					.map(c -> visitChildConstraint(c, HierarchySpecificationFilterConstraint.class))
 					.toArray(HierarchySpecificationFilterConstraint[]::new)
 			)
 		);
@@ -490,7 +490,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 					.asSingleClassifier(),
 				ctx.args.constrains
 					.stream()
-					.map(c -> (HierarchySpecificationFilterConstraint) c.accept(this))
+					.map(c -> visitChildConstraint(c, HierarchySpecificationFilterConstraint.class))
 					.toArray(HierarchySpecificationFilterConstraint[]::new)
 			)
 		);
@@ -503,7 +503,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 			() -> new HierarchyWithinRoot(
 				ctx.args.constrains
 					.stream()
-					.map(c -> (HierarchySpecificationFilterConstraint) c.accept(this))
+					.map(c -> visitChildConstraint(c, HierarchySpecificationFilterConstraint.class))
 					.toArray(HierarchySpecificationFilterConstraint[]::new)
 			)
 		);
@@ -526,7 +526,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 			() -> new HierarchyExcluding(
 				ctx.args.constraints
 					.stream()
-					.map(fc -> fc.accept(this))
+					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
 					.toArray(FilterConstraint[]::new)
 			)
 		);
@@ -536,7 +536,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseVisitor<FilterCon
 	public FilterConstraint visitEntityHavingConstraint(@Nonnull EvitaQLParser.EntityHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new EntityHaving(ctx.args.filter.accept(this))
+			() -> new EntityHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 }
