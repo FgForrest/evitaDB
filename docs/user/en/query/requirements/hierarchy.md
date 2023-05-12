@@ -717,6 +717,8 @@ The `node` filtering container is an alternative to the [`distance`](#distance) 
 constraints, which is much more dynamic and can produce hierarchy trees of non-uniform depth. Because the filtering 
 constraint can be satisfied by nodes of widely varying depths, traversal can be highly dynamic.
 
+<Note type="info">
+
 <NoteTitle toggles="true">
 
 ##### How to dynamically limit hierarchy traversal by `node` filter constraint?
