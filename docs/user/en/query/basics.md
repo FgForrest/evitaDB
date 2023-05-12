@@ -89,6 +89,132 @@ query(
 )
 ```
 
+### Syntax format
+
+In the documentation, constraints are described by a **Syntax** section that follows this format:
+
+```
+constraintName(
+    argument:type,specification
+    constraint:type,specification
+)
+```
+
+<dl>
+  <dt>argument:type,specification</dt>
+  <dd>
+    argument represents an argument of a particular type, for example: `argument:string` represents a string argument at
+    a particular position.
+  </dd>
+  <dt>constraint:type,specification</dt>
+  <dd>
+    constraint represents an argument of constraint type - the supertype (`filter`/`order`/`require`) of the constraint 
+    is always specified before the colon, for example: `filterConstraint:any`;
+    
+    after the colon, the exact type of allowed constraint is listed, or the keyword `any' is used if any of 
+    the standalone constraints can be used
+  </dd>
+</dl>
+
+#### Variadic arguments
+
+If the argument can be multiple values of the same type (an array type), the specification is appended with a special 
+character:
+
+<dl>
+  <dt>`*` (asterisk)</dt>
+  <dd>denoting the argument must occur zero, one, or more times (optional multi-value argument).</dd>
+  <dt>`+` (plus)</dt>
+  <dd>denoting the argument must one, or more times (mandatory multi-value argument).</dd>
+</dl>
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### Example of variadic arguments
+</NoteTitle>
+
+<dl>
+  <dt>`argument:string+`</dt>
+  <dd>
+    argument at this position accepts an array of [Strings](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+    that has to have at least one item
+  </dd>
+  <dt>`argument:int*`</dt>
+  <dd>
+    argument at this position accepts an array of [ints](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
+    and may have zero or multiple items
+  </dd>
+  <dt>`filterConstraint:any*`</dt>
+  <dd>
+    argument at this position accepts an array of any standalone filter constraints with zero or more occurrences
+  </dd>
+</dl>
+
+</Note>
+
+#### Mandatory arguments
+
+Mandatory argument is denoted by `!` (exclamation) sign or in case of variadic arguments by a `+` (plus) sign.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### Example of mandatory arguments
+</NoteTitle>
+
+<dl>
+  <dt>`argument:string`</dt>
+  <dd>
+    argument at this position accepts a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+    value, that may be null
+  </dd>
+  <dt>`argument:int!`</dt>
+  <dd>
+    argument at this position accepts an [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
+    value that is mandatory and must be provided
+  </dd>
+</dl>
+
+</Note>
+
+#### Combined arguments
+
+The specification list might have a combined expression using `|` for combining multiple specification in logical 
+disjunction meaning (boolean OR) and `()` signs for aggregation.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### Example of combined arguments
+</NoteTitle>
+
+<dl>
+  <dt>`filterConstraint:(having|excluding)`</dt>
+  <dd>
+    either `having` or `excluding`, or none, but not both, and no filtering constraint of other type 
+    is allowed
+  </dd>
+  <dt>`filterConstraint:(having|excluding)!`</dt>
+  <dd>
+    either `with` or `exclude` filter constraint, but not both, and not none, but no other filter constraint is allowed
+  </dd>
+  <dt>`filterConstraint:(having|excluding)*`</dt>
+  <dd>
+    either `having` or `excluding` a filter constraint, or both, or none, but no other filter constraint is allowed.
+  </dd>
+  <dt>`filterConstraint:(having|excluding)+`</dt>
+  <dd>
+    either `having` or `excluding` a filter constraint, or both, but at least one of them and no filter constraint 
+    of other type is allowed
+  </dd>
+</dl>
+
+</Note>
+
 ### Constraint naming rules
 
 To make constraints more understandable, we have created a set of internal rules for naming constraints:

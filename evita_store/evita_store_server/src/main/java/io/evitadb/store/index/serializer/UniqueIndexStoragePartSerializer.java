@@ -56,7 +56,9 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(uniqueIndex.getAttributeKey()), true);
-		kryo.writeClass(output, uniqueIndex.getType());
+
+		final Class plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
+		kryo.writeClass(output, plainType);
 		kryo.writeObject(output, uniqueIndex.getRecordIds());
 
 		final Map<Serializable, Integer> uniqueValueToRecordId = uniqueIndex.getUniqueValueToRecordId();
