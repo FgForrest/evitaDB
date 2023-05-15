@@ -1334,7 +1334,7 @@ class EvitaSessionServiceFunctionalTest {
 			query(
 				collection(?),
 				filterBy(
-					hierarchyWithinSelf(?)
+					hierarchyWithinSelf(entityPrimaryKeyInSet(?))
 				),
 				require(
 					page(?, ?),
