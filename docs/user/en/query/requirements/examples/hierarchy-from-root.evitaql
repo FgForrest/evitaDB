@@ -1,0 +1,22 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'audio')
+        )
+    ),
+    require(
+        hierarchyOfSelf(
+            fromRoot(
+                'megaMenu',
+                entityFetch(attributeContent(code)),
+                stopAt(level(2)),
+                statistics(
+                    CHILDREN_COUNT,
+                    QUERIED_ENTITY_COUNT
+                )
+            )
+        )
+    )
+)

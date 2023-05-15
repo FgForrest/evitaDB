@@ -200,6 +200,6 @@ display.
 Our documentation portal is always evolving to meet the needs of our developers. Currently, we're working on
 implementing more sophisticated error handling and reporting to make sure everything runs smoothly. Right now, when an
 error occurs, developers have to dig through the production server logs to find the problem, which is far from ideal.
-Although there is already a guide on [how to torubleshoot MDX](https://mdxjs.com/docs/troubleshooting-mdx/) and what to
+Although there is already a guide on [how to troubleshoot MDX](https://mdxjs.com/docs/troubleshooting-mdx/) and what to
 look out for, we're dedicated to improving our workflows and adding even more features and functionalities. So stay
 tuned, because the best is yet to come!
