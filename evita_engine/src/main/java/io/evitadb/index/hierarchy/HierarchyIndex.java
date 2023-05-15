@@ -208,25 +208,25 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Formula getListHierarchyNodesFromRootFormula(@Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public Formula getListHierarchyNodesFromRootFormula(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		return new DeferredFormula(
 			new HierarchyRootsDownBitmapSupplier(
 				this, new long[]{this.roots.getId(), this.levelIndex.getId()},
-				excludedNodeTrees
+				hierarchyFilteringPredicate
 			)
 		);
 	}
 
 	@Override
 	@Nonnull
-	public Bitmap listHierarchyNodesFromRoot(@Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public Bitmap listHierarchyNodesFromRoot(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
 		for (Integer nodeId : this.roots) {
-			if (!excludedNodeTrees.test(nodeId)) {
+			if (hierarchyFilteringPredicate.test(nodeId)) {
 				result.add(nodeId);
 				final int[] children = this.levelIndex.get(nodeId);
 				if (children != null) {
-					addRecursively(excludedNodeTrees, result, children, Integer.MAX_VALUE);
+					addRecursively(hierarchyFilteringPredicate, result, children, Integer.MAX_VALUE);
 				}
 			}
 		}
@@ -246,14 +246,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Bitmap listHierarchyNodesFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public Bitmap listHierarchyNodesFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
 		for (Integer nodeId : this.roots) {
-			if (!excludedNodeTrees.test(nodeId)) {
+			if (hierarchyFilteringPredicate.test(nodeId)) {
 				result.add(nodeId);
 				final int[] children = this.levelIndex.get(nodeId);
 				if (children != null) {
-					addRecursively(excludedNodeTrees, result, children, levels - 1);
+					addRecursively(hierarchyFilteringPredicate, result, children, levels - 1);
 				}
 			}
 		}
@@ -273,13 +273,13 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
-		if (!excludedNodeTrees.test(parentNode)) {
+		if (hierarchyFilteringPredicate.test(parentNode)) {
 			result.add(parentNode);
 			final int[] children = this.levelIndex.get(parentNode);
 			if (children != null) {
-				addRecursively(excludedNodeTrees, result, children, Integer.MAX_VALUE);
+				addRecursively(hierarchyFilteringPredicate, result, children, Integer.MAX_VALUE);
 			}
 		}
 		return new BaseBitmap(result.toArray());
@@ -298,13 +298,13 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Bitmap listHierarchyNodesFromParentIncludingItselfDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public Bitmap listHierarchyNodesFromParentIncludingItselfDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
-		if (!excludedNodeTrees.test(parentNode)) {
+		if (hierarchyFilteringPredicate.test(parentNode)) {
 			result.add(parentNode);
 			final int[] children = this.levelIndex.get(parentNode);
 			if (children != null) {
-				addRecursively(excludedNodeTrees, result, children, levels - 1);
+				addRecursively(hierarchyFilteringPredicate, result, children, levels - 1);
 			}
 		}
 		return new BaseBitmap(result.toArray());
@@ -323,12 +323,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Bitmap listHierarchyNodesFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public Bitmap listHierarchyNodesFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
-		if (!excludedNodeTrees.test(parentNode)) {
+		if (hierarchyFilteringPredicate.test(parentNode)) {
 			final int[] children = this.levelIndex.get(parentNode);
 			if (children != null) {
-				addRecursively(excludedNodeTrees, result, children, Integer.MAX_VALUE);
+				addRecursively(hierarchyFilteringPredicate, result, children, Integer.MAX_VALUE);
 			}
 		}
 		return new BaseBitmap(result.toArray());
@@ -347,14 +347,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		assertNodeInIndex(parentNode);
 		final CompositeIntArray result = new CompositeIntArray();
-		if (!excludedNodeTrees.test(parentNode)) {
+		if (hierarchyFilteringPredicate.test(parentNode)) {
 			final int[] children = this.levelIndex.get(parentNode);
 			// requested node might be in the orphans
 			if (children != null) {
-				addRecursively(excludedNodeTrees, result, children, levels);
+				addRecursively(hierarchyFilteringPredicate, result, children, levels);
 			}
 		}
 		return new BaseBitmap(result.toArray());
@@ -413,10 +413,10 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Bitmap getRootHierarchyNodes(@Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public Bitmap getRootHierarchyNodes(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		return this.roots.isEmpty() ?
 			EmptyBitmap.INSTANCE :
-			new BaseBitmap(this.roots.stream().mapToInt(it -> it).filter(it -> !excludedNodeTrees.test(it)).toArray());
+			new BaseBitmap(this.roots.stream().mapToInt(it -> it).filter(hierarchyFilteringPredicate).toArray());
 	}
 
 	@Nonnull
@@ -433,7 +433,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	@Override
 	@Nonnull
-	public Bitmap getHierarchyNodesForParent(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public Bitmap getHierarchyNodesForParent(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final HierarchyNode theParentNode = this.itemIndex.get(parentNode);
 		if (theParentNode == null) {
 			return EmptyBitmap.INSTANCE;
@@ -446,7 +446,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 							IntStream.of(parentNode),
 							Arrays.stream(childrenIds)
 						)
-						.filter(nodeId -> !excludedNodeTrees.test(nodeId))
+						.filter(hierarchyFilteringPredicate)
 						.toArray()
 				);
 		}
@@ -462,10 +462,9 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	@Override
-	public void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot, @Nonnull HierarchyFilteringPredicate excludingNodes) {
+	public void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot, @Nonnull HierarchyFilteringPredicate havingPredicate) {
 		traverseHierarchyInternal(
-			visitor, rootNode, excludingRoot,
-			excludingNodes.negate()
+			visitor, rootNode, excludingRoot, havingPredicate
 		);
 	}
 
@@ -514,10 +513,9 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	@Override
-	public void traverseHierarchy(@Nonnull HierarchyVisitor visitor, @Nonnull HierarchyFilteringPredicate excludingNodes) {
+	public void traverseHierarchy(@Nonnull HierarchyVisitor visitor, @Nonnull HierarchyFilteringPredicate havingPredicate) {
 		traverseHierarchyInternal(
-			visitor, null, null,
-			excludingNodes.negate()
+			visitor, null, null, havingPredicate
 		);
 	}
 
@@ -561,14 +559,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	/**
 	 * Returns count of children nodes from root down to specified count of levels.
 	 */
-	public int getHierarchyNodeCountFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public int getHierarchyNodeCountFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		int sum = 0;
 		for (Integer nodeId : this.roots) {
-			if (!excludedNodeTrees.test(nodeId)) {
+			if (hierarchyFilteringPredicate.test(nodeId)) {
 				sum++;
 				final int[] children = this.levelIndex.get(nodeId);
 				if (children != null) {
-					sum += countRecursively(excludedNodeTrees, children, levels - 1);
+					sum += countRecursively(hierarchyFilteringPredicate, children, levels - 1);
 				}
 			}
 		}
@@ -576,14 +574,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	/**
-	 * Returns count of children of the `parentNode` excluding the subtrees defined in `excludedNodeTrees`.
+	 * Returns count of children of the `parentNode` excluding the subtrees defined in `hierarchyFilteringPredicate`.
 	 */
-	public int getHierarchyNodeCountFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public int getHierarchyNodeCountFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		int sum = 0;
-		if (!excludedNodeTrees.test(parentNode)) {
+		if (hierarchyFilteringPredicate.test(parentNode)) {
 			final int[] children = this.levelIndex.get(parentNode);
 			if (children != null) {
-				sum += countRecursively(excludedNodeTrees, children, Integer.MAX_VALUE);
+				sum += countRecursively(hierarchyFilteringPredicate, children, Integer.MAX_VALUE);
 			}
 		}
 		return sum;
@@ -591,17 +589,17 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	/**
 	 * Returns count of children of the `parentNode` down to specified count of `levels` excluding the subtrees defined
-	 * in `excludedNodeTrees`.
+	 * in `hierarchyFilteringPredicate`.
 	 */
-	public int getHierarchyNodeCountFromParentDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public int getHierarchyNodeCountFromParentDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		assertNodeInIndex(parentNode);
 		int sum = 0;
-		if (!excludedNodeTrees.test(parentNode)) {
+		if (hierarchyFilteringPredicate.test(parentNode)) {
 			final int[] children = this.levelIndex.get(parentNode);
 			// requested node might be in the orphans
 			if (children != null) {
 				sum += children.length;
-				sum += countRecursively(excludedNodeTrees, children, levels);
+				sum += countRecursively(hierarchyFilteringPredicate, children, levels);
 			}
 		}
 		return sum;
@@ -610,14 +608,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	/**
 	 * Returns count of root hierarchy nodes.
 	 */
-	public int getRootHierarchyNodeCount(@Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
-		return this.roots.isEmpty() ? 0 : (int) this.roots.stream().filter(it -> !excludedNodeTrees.test(it)).count();
+	public int getRootHierarchyNodeCount(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
+		return this.roots.isEmpty() ? 0 : (int) this.roots.stream().filter(hierarchyFilteringPredicate::test).count();
 	}
 
 	/**
 	 * Returns count of children for passed parent.
 	 */
-	public int getHierarchyNodeCountForParent(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees) {
+	public int getHierarchyNodeCountForParent(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final HierarchyNode theParentNode = this.itemIndex.get(parentNode);
 		if (theParentNode == null) {
 			return 0;
@@ -629,7 +627,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 						IntStream.of(parentNode),
 						Arrays.stream(childrenIds)
 					)
-					.filter(nodeId -> !excludedNodeTrees.test(nodeId))
+					.filter(hierarchyFilteringPredicate)
 					.count();
 		}
 	}
@@ -794,29 +792,29 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		}
 	}
 
-	private void addRecursively(@Nonnull HierarchyFilteringPredicate excludedNodeTrees, @Nonnull CompositeIntArray result, @Nonnull int[] children, int levels) {
+	private void addRecursively(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate, @Nonnull CompositeIntArray result, @Nonnull int[] children, int levels) {
 		for (int childId : children) {
-			if (!excludedNodeTrees.test(childId)) {
+			if (hierarchyFilteringPredicate.test(childId)) {
 				result.add(childId);
 				if (levels > 0) {
 					final int[] childrenOfChildren = this.levelIndex.get(childId);
 					if (childrenOfChildren != null) {
-						addRecursively(excludedNodeTrees, result, childrenOfChildren, levels - 1);
+						addRecursively(hierarchyFilteringPredicate, result, childrenOfChildren, levels - 1);
 					}
 				}
 			}
 		}
 	}
 
-	private int countRecursively(@Nonnull HierarchyFilteringPredicate excludedNodeTrees, @Nonnull int[] children, int levels) {
+	private int countRecursively(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate, @Nonnull int[] children, int levels) {
 		int sum = 0;
 		for (int childId : children) {
-			if (!excludedNodeTrees.test(childId)) {
+			if (hierarchyFilteringPredicate.test(childId)) {
 				sum++;
 				if (levels > 0) {
 					final int[] childrenOfChildren = this.levelIndex.get(childId);
 					if (childrenOfChildren != null) {
-						sum += countRecursively(excludedNodeTrees, childrenOfChildren, levels - 1);
+						sum += countRecursively(hierarchyFilteringPredicate, childrenOfChildren, levels - 1);
 					}
 				}
 			}

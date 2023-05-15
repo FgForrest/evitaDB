@@ -80,7 +80,7 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 			// if there is within hierarchy root query we start at root nodes
 			context.entityIndex().traverseHierarchy(
 				childrenVisitor,
-				filterPredicate.negate()
+				filterPredicate
 			);
 		} else if (context.hierarchyFilter() instanceof HierarchyWithin) {
 			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodesFormula().compute();
@@ -96,13 +96,13 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 				childrenVisitor,
 				parentNodeId,
 				false,
-				filterPredicate.negate()
+				filterPredicate
 			);
 		} else {
 			// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
 			context.entityIndex().traverseHierarchy(
 				childrenVisitor,
-				filterPredicate.negate()
+				filterPredicate
 			);
 		}
 

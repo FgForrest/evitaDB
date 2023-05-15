@@ -25,7 +25,9 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -143,7 +145,8 @@ public class HierarchySet {
 			// collect all entity primary keys
 			unsortedResult.values().forEach(it -> collect(it, writer));
 			// create sorted array using the sorter
-			final ConstantFormula levelIdFormula = new ConstantFormula(new BaseBitmap(writer.get()));
+			final RoaringBitmap bitmap = writer.get();
+			final Formula levelIdFormula = bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
 			final int[] sortedEntities = sorter.sortAndSlice(queryContext, levelIdFormula, 0, levelIdFormula.compute().size());
 			// replace the output with the sorted one
 			for (Entry<String, List<LevelInfo>> entry : unsortedResult.entrySet()) {

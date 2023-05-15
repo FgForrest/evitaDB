@@ -97,8 +97,11 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 							.map(
 								nodeId -> createFormulaFromHierarchyIndex(
 									nodeId,
-									createAndStoreExclusionPredicate(
+									createAndStoreHavingPredicate(
 										queryContext,
+										of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
+											.filter(ConstraintContainer::isApplicable)
+											.orElse(null),
 										of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
 											.filter(ConstraintContainer::isApplicable)
 											.orElse(null),

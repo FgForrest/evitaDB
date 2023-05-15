@@ -67,21 +67,39 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * for later use.
 	 */
 	@Nullable
-	protected static HierarchyFilteringPredicate createAndStoreExclusionPredicate(
+	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
 		@Nonnull QueryContext queryContext,
+		@Nullable FilterBy havingFilter,
 		@Nullable FilterBy exclusionFilter,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
-		if (exclusionFilter == null || !exclusionFilter.isApplicable()) {
+		final boolean havingNotPresent = havingFilter == null || !havingFilter.isApplicable();
+		final boolean exclusionNotPresent = exclusionFilter == null || !exclusionFilter.isApplicable();
+		Assert.isTrue(
+			havingNotPresent || exclusionNotPresent,
+			() -> "Having and exclusion filters are mutually exclusive! " +
+				"The query contains both having: " + havingFilter + " and exclusion: " + exclusionFilter + " constraints."
+		);
+		if (exclusionNotPresent && havingNotPresent) {
 			return null;
 		} else {
-			final FilteringFormulaHierarchyEntityPredicate exclusionPredicate = new FilteringFormulaHierarchyEntityPredicate(
-				queryContext,
-				exclusionFilter,
-				referenceSchema
-			);
-			queryContext.setHierarchyExclusionPredicate(exclusionPredicate);
-			return exclusionPredicate;
+			final HierarchyFilteringPredicate predicate;
+			if (havingNotPresent) {
+				predicate = new FilteringFormulaHierarchyEntityPredicate(
+					queryContext,
+					exclusionFilter,
+					referenceSchema
+				).negate();
+			} else {
+				predicate = new FilteringFormulaHierarchyEntityPredicate(
+					queryContext,
+					havingFilter,
+					referenceSchema
+				);
+			}
+
+			queryContext.setHierarchyHavingPredicate(predicate);
+			return predicate;
 		}
 	}
 

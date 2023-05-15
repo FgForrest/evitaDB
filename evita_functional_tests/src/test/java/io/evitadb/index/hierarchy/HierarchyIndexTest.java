@@ -191,7 +191,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 				levels.append(level).append("|");
 				distances.append(distance).append("|");
 			},
-			6, false, new MatchNodeIdHierarchyFilteringPredicate(9)
+			6, false, new MatchNodeIdHierarchyFilteringPredicate(9).negate()
 		);
 		assertEquals("|1|2|3|8|6|", nodeIds.toString());
 		assertEquals("|3|3|2|2|1|", levels.toString());
@@ -281,6 +281,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromRoot(
 			new MatchNodeIdHierarchyFilteringPredicate(9)
 				.or(new MatchNodeIdHierarchyFilteringPredicate(5))
+				.negate()
 		);
 		assertArrayEquals(
 			new int[]{1, 2, 3, 4, 6, 7, 8},
@@ -303,6 +304,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 			6,
 			new MatchNodeIdHierarchyFilteringPredicate(3)
 				.or(new MatchNodeIdHierarchyFilteringPredicate(9))
+				.negate()
 		);
 		assertArrayEquals(
 			new int[]{6, 8},
@@ -323,7 +325,9 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 	void shouldListSubTreeExcludingSubTrees() {
 		final Bitmap nodeIds = hierarchyIndex.listHierarchyNodesFromParent(
 			6,
-			new MatchNodeIdHierarchyFilteringPredicate(3).or(new MatchNodeIdHierarchyFilteringPredicate(9))
+			new MatchNodeIdHierarchyFilteringPredicate(3)
+				.or(new MatchNodeIdHierarchyFilteringPredicate(9))
+				.negate()
 		);
 		assertArrayEquals(
 			new int[]{8},

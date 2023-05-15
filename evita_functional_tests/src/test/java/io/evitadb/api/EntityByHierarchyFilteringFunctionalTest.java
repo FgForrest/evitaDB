@@ -56,6 +56,7 @@ import javax.annotation.Nonnull;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -216,6 +217,49 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								.stream()
 								.map(it -> Integer.parseInt(it.getCode()))
 								.noneMatch(excluded::contains),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return all categories having specified subtrees")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnAllCategoriesHavingSpecifiedSubtrees(Evita evita, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> excluded = new HashSet<>(Arrays.asList(1, 7, 13, 16, 40, 55));
+		final Predicate<SealedEntity> includedPredicate = sealedEntity ->
+			// is not directly excluded node
+			!excluded.contains(sealedEntity.getPrimaryKey()) &&
+				// has no parent node that is in excluded set
+				categoryHierarchy.getParentItems(sealedEntity.getPrimaryKey().toString())
+					.stream()
+					.map(it -> Integer.parseInt(it.getCode()))
+					.noneMatch(excluded::contains);
+		final Set<Integer> included = originalCategoryEntities.stream()
+			.filter(includedPredicate)
+			.map(EntityContract::getPrimaryKey)
+			.collect(Collectors.toSet());
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(hierarchyWithinRootSelf(having(entityPrimaryKeyInSet(included.toArray(new Integer[0]))))),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalCategoryEntities,
+					includedPredicate,
 					result.getRecordData()
 				);
 				return null;

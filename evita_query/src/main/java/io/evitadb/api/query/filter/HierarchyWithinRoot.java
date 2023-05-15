@@ -110,16 +110,17 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 		for (FilterConstraint filterConstraint : fineGrainedConstraints) {
 			Assert.isTrue(
 				filterConstraint instanceof HierarchyExcluding ||
+						filterConstraint instanceof HierarchyHaving ||
 					(filterConstraint instanceof HierarchyDirectRelation && getReferenceName() == null),
 				() -> "Constraint hierarchyWithinRoot accepts only " +
-					(getReferenceName() == null ? "Excluding, or DirectRelation when it targets same entity type" :
+					(getReferenceName() == null ? "Excluding, Having, or DirectRelation when it targets same entity type" :
 						"Excluding when it targets different entity type") + " as inner query!"
 			);
 		}
 		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
 			() -> "Constraint hierarchyWithinRoot accepts only " +
-				(getReferenceName() == null ? "Excluding, or DirectRelation when it targets same entity type" :
+				(getReferenceName() == null ? "Excluding, Having, or DirectRelation when it targets same entity type" :
 					"Excluding when it targets different entity type") + " as inner query!"
 		);
 	}
@@ -154,6 +155,19 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 	public boolean isDirectRelation() {
 		return Arrays.stream(getChildren())
 			.anyMatch(HierarchyDirectRelation.class::isInstance);
+	}
+
+	/**
+	 * Returns filtering constraints that return entities whose trees should be included from hierarchy query.
+	 */
+	@Override
+	@Nonnull
+	public FilterConstraint[] getHavingChildrenFilter() {
+		return Arrays.stream(getChildren())
+			.filter(HierarchyHaving.class::isInstance)
+			.map(it -> ((HierarchyHaving) it).getFiltering())
+			.findFirst()
+			.orElseGet(() -> new FilterConstraint[0]);
 	}
 
 	/**

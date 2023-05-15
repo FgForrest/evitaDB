@@ -265,8 +265,15 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 								filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), entityHaving(filter)));
 							if (constraint instanceof HierarchyFilterConstraint hfc) {
 								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
+								final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
 								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
-									return null;
+									if (ArrayUtils.isEmpty(havingChildrenFilter)) {
+										return null;
+									} else if (havingChildrenFilter.length == 1){
+										return wrapper.apply(havingChildrenFilter[0]);
+									} else {
+										return wrapper.apply(and(havingChildrenFilter));
+									}
 								} else if (excludedChildrenFilter.length == 1){
 									return wrapper.apply(not(excludedChildrenFilter[0]));
 								} else {
@@ -302,8 +309,15 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 									Function.identity() :
 									filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), entityHaving(filter)));
 								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
+								final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
 								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
-									return null;
+									if (ArrayUtils.isEmpty(havingChildrenFilter)) {
+										return null;
+									} else if (havingChildrenFilter.length == 1){
+										return wrapper.apply(havingChildrenFilter[0]);
+									} else {
+										return wrapper.apply(and(havingChildrenFilter));
+									}
 								} else if (excludedChildrenFilter.length == 1){
 									return wrapper.apply(not(excludedChildrenFilter[0]));
 								} else {

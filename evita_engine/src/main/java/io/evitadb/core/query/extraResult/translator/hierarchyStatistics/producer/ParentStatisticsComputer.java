@@ -79,7 +79,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
+		if (context.hierarchyFilter() instanceof HierarchyWithin) {
 			final EntityIndex entityIndex = context.entityIndex();
 
 			final ChildrenStatisticsHierarchyVisitor childVisitor = new ChildrenStatisticsHierarchyVisitor(
@@ -104,7 +104,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				childVisitor,
 				parentNodeId,
 				false,
-				filterPredicate.negate()
+				filterPredicate
 			);
 
 			final List<Accumulator> children = childVisitor.getAccumulators();
@@ -120,7 +120,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				siblingsComputerToUse = new SiblingsStatisticsTravelingComputer(
 					context, entityPk -> new EntityReference(context.entitySchema().getName(), entityPk),
 					context.hierarchyFilterPredicateProducer(),
-					exclusionPredicate,
+					havingPredicate,
 					HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS,
 					statisticsBase, statisticsType
 				);

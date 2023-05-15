@@ -278,6 +278,59 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		);
 	}
 
+	@DisplayName("Should return all products in categories having specified category subtrees")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnAllProductsInCategoriesHavingSpecifiedSubtrees(Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> excluded = new HashSet<>(Arrays.asList(1, 7, 13, 16, 40, 55));
+		final Set<Integer> includedCategories = originalCategoryIndex.values().stream()
+			.filter(sealedEntity ->
+				// is not directly excluded node
+				!excluded.contains(sealedEntity.getPrimaryKey()) &&
+					// has no parent node that is in excluded set
+					categoryHierarchy.getParentItems(sealedEntity.getPrimaryKey().toString())
+						.stream()
+						.map(it -> Integer.parseInt(it.getCode()))
+						.noneMatch(excluded::contains))
+			.map(EntityContract::getPrimaryKey)
+			.collect(Collectors.toSet());
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(hierarchyWithinRoot(Entities.CATEGORY, having(entityPrimaryKeyInSet(includedCategories.toArray(new Integer[0]))))),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.CATEGORY)
+						.stream()
+						.anyMatch(category -> {
+								// is not directly excluded node
+								return !excluded.contains(category.getReferenceKey().primaryKey()) &&
+									// has no parent node that is in excluded set
+									categoryHierarchy.getParentItems(String.valueOf(category.getReferenceKey().primaryKey()))
+										.stream()
+										.map(it -> Integer.parseInt(it.getCode()))
+										.noneMatch(excluded::contains);
+							}),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products in category")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test

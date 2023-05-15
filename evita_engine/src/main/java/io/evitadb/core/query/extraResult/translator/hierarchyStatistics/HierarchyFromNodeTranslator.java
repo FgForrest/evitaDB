@@ -72,7 +72,7 @@ public class HierarchyFromNodeTranslator
 					producer.getContext(fromNode.getName())
 				),
 				context.hierarchyFilterPredicateProducer(),
-				extraResultPlanningVisitor.getQueryContext().getHierarchyExclusionPredicate(),
+				extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(),
 				scopePredicate,
 				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 				statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class)),

@@ -220,10 +220,10 @@ public class QueryContext {
 	private Map<Constraint<?>, Formula> internalCache;
 	/**
 	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
-	 * that should be excluded from traversal.
+	 * that should be included/excluded from traversal.
 	 */
 	@Getter
-	private HierarchyFilteringPredicate hierarchyExclusionPredicate;
+	private HierarchyFilteringPredicate hierarchyHavingPredicate;
 	/**
 	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
 	 * the query result to be reused in other query evaluation phases (require).
@@ -982,11 +982,11 @@ public class QueryContext {
 	}
 
 	/**
-	 * Sets resolved hierarchy exclusion predicate to be shared among filter and requirement phase.
+	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase.
 	 */
-	public void setHierarchyExclusionPredicate(@Nonnull HierarchyFilteringPredicate hierarchyExclusionPredicate) {
-		Assert.isPremiseValid(this.hierarchyExclusionPredicate == null, "The hierarchy exclusion predicate can be set only once!");
-		this.hierarchyExclusionPredicate = hierarchyExclusionPredicate;
+	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
+		Assert.isPremiseValid(this.hierarchyHavingPredicate == null, "The hierarchy exclusion predicate can be set only once!");
+		this.hierarchyHavingPredicate = hierarchyHavingPredicate;
 	}
 
 	/**

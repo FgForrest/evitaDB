@@ -99,7 +99,7 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				visitor,
 				parentId.getFirst(),
 				false,
-				filterPredicate.negate()
+				filterPredicate
 			);
 			return visitor.getAccumulators();
 		} else {

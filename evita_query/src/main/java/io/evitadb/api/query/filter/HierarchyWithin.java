@@ -196,6 +196,19 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 	}
 
 	/**
+	 * Returns filtering constraints that return entities whose trees should be included from hierarchy query.
+	 */
+	@Override
+	@Nonnull
+	public FilterConstraint[] getHavingChildrenFilter() {
+		return Arrays.stream(getChildren())
+			.filter(HierarchyHaving.class::isInstance)
+			.map(it -> ((HierarchyHaving) it).getFiltering())
+			.findFirst()
+			.orElseGet(() -> new FilterConstraint[0]);
+	}
+
+	/**
 	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
 	 */
 	@Override

@@ -75,7 +75,7 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 		);
 		context.entityIndex().traverseHierarchy(
 			visitor,
-			filterPredicate.negate()
+			filterPredicate
 		);
 
 		return visitor.getAccumulators();

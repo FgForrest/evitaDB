@@ -80,8 +80,11 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 				return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
 					.map(
 						index -> createFormulaFromHierarchyIndex(
-							createAndStoreExclusionPredicate(
+							createAndStoreHavingPredicate(
 								queryContext,
+								of(new FilterBy(hierarchyWithinRoot.getHavingChildrenFilter()))
+									.filter(ConstraintContainer::isApplicable)
+									.orElse(null),
 								of(new FilterBy(hierarchyWithinRoot.getExcludedChildrenFilter()))
 									.filter(ConstraintContainer::isApplicable)
 									.orElse(null),
