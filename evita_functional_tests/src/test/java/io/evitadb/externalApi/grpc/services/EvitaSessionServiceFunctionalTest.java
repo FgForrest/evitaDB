@@ -33,6 +33,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
@@ -47,7 +48,6 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -60,7 +60,6 @@ import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
-import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
@@ -77,7 +76,6 @@ import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -368,7 +366,6 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return one entity when using queryOne and only one matches")
-	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnOneEntityWhenUsingQueryOneAndProperlySpecified(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -418,7 +415,6 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should throw when trying to get hierarchy statistics of non-hierarchical entity collection")
-	@Disabled("TODO LHO: will be reimplemented")
 	void shouldFailWhenTryingToGetHierarchyStatisticsOnNotHierarchicalCollection(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -451,44 +447,6 @@ class EvitaSessionServiceFunctionalTest {
 			.addAllPositionalQueryParams(params)
 			.build()
 		));
-	}
-
-	@Test
-	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
-	@DisplayName("Should throw when trying to get parents of non-hierarchical entity collection")
-	void shouldFailWhenTryingToGetParentsOfNotHierarchicalCollection(Evita evita, ManagedChannel channel) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
-
-		final List<QueryParam> params = new ArrayList<>(8);
-		params.add(convertQueryParam(Entities.PRODUCT));
-		params.add(convertQueryParam(1));
-		params.add(convertQueryParam(2));
-		params.add(convertQueryParam(3));
-		params.add(convertQueryParam(4));
-		params.add(convertQueryParam(5));
-		params.add(convertQueryParam(1));
-		params.add(convertQueryParam(Integer.MAX_VALUE));
-
-		final String stringQuery = """
-			query(
-				collection(?),
-				filterBy(
-					entityPrimaryKeyInSet(?, ?, ?, ?, ?)
-				),
-				require(
-					page(?, ?),
-					hierarchyParentsOfSelf()
-				)
-			)
-			""";
-
-		assertThrows(StatusRuntimeException.class,
-			() -> evitaSessionBlockingStub.query(GrpcQueryRequest.newBuilder()
-				.setQuery(stringQuery)
-				.addAllPositionalQueryParams(params)
-				.build()
-			));
 	}
 
 	@Test
@@ -1126,7 +1084,6 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return extra result of parents consisting of products referencing to its categories")
-	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnParentsOfProductsReferencingToItsCategories(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -1155,7 +1112,8 @@ class EvitaSessionServiceFunctionalTest {
 		params.add(convertQueryParam(20));
 		params.add(convertQueryParam(FacetStatisticsDepth.IMPACT));
 		params.add(convertQueryParam(Entities.CATEGORY));
-		params.add(convertQueryParam(Entities.CATEGORY));
+		params.add(convertQueryParam(EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY));
+		params.add(convertQueryParam("a"));
 
 		final String stringQuery = """
 			query(
@@ -1178,14 +1136,14 @@ class EvitaSessionServiceFunctionalTest {
 						attributeContent(),
 						priceContent(),
 						referenceContent(),
+						hierarchyContent(entityFetch(referenceContent())),
 						associatedDataContent(),
 						dataInLocales(?, ?)
 					),
 					attributeHistogram(?, ?, ?),
 					priceHistogram(?),
 					facetSummary(?),
-					hierarchyParentsOfReference(?, entityFetch(referenceContent())),
-					hierarchyStatisticsOfReference(?, entityFetch(attributeContent()))
+					hierarchyOfReference(?, ?, fromRoot(?, entityFetch(attributeContent())))
 				)
 			)
 			""";
@@ -1214,15 +1172,6 @@ class EvitaSessionServiceFunctionalTest {
 			final SealedEntity entity = entityResponse.getRecordData().get(i);
 			final GrpcSealedEntity enrichedEntity = response.get().getRecordPage().getSealedEntitiesList().get(i);
 			assertEntity(entity, enrichedEntity);
-		}
-
-		final HierarchyParents hierarchyParentsOfSelf = entityResponse.getExtraResult(HierarchyParents.class);
-
-		if (hierarchyParentsOfSelf != null) {
-			assertParents(
-				hierarchyParentsOfSelf.ofType(Entities.CATEGORY),
-				response.get().getExtraResults().getHierarchyParentsOrThrow(Entities.CATEGORY)
-			);
 		}
 	}
 
@@ -1371,7 +1320,6 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of entity references with applied within hierarchy filter with computed hierarchy statistics and parents trees consisting of entity primary keys")
-	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithHierarchyStatisticsAndParentsOfIntegers(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -1386,12 +1334,13 @@ class EvitaSessionServiceFunctionalTest {
 			query(
 				collection(?),
 				filterBy(
-					hierarchyWithinSelf(?)
+					hierarchyWithinSelf(entityPrimaryKeyInSet(?))
 				),
 				require(
 					page(?, ?),
-					hierarchyOfSelf(),
-					hierarchyParentsOfSelf()
+					hierarchyOfSelf(
+						children('children')
+					)
 				)
 			)
 			""";
@@ -1414,19 +1363,13 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaResponse<EntityReference> referenceResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, EntityReference.class);
 
 		final Hierarchy hierarchyOfSelf = referenceResponse.getExtraResult(Hierarchy.class);
-		final HierarchyParents hierarchyParentsOfSelf = referenceResponse.getExtraResult(HierarchyParents.class);
 
 		if (hierarchyOfSelf != null) {
-			GrpcAssertions.assertStatistics(
-				hierarchyOfSelf.getSelfStatistics(),
-				response.get().getExtraResults().getSelfHierarchyStatistics()
-			);
-		}
-
-		if (hierarchyParentsOfSelf != null) {
-			assertParents(
-				hierarchyParentsOfSelf.ofSelf(),
-				response.get().getExtraResults().getSelfHierarchyParents()
+			final GrpcExtraResults extraResults = response.get().getExtraResults();
+			assertHierarchy(
+				hierarchyOfSelf,
+				extraResults.getSelfHierarchy(),
+				extraResults.getHierarchyMap()
 			);
 		}
 
@@ -1441,7 +1384,6 @@ class EvitaSessionServiceFunctionalTest {
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should return data chunk of enriched entities with computed hierarchy statistics and parents trees consisting of enriched entities")
-	@Disabled("TODO LHO: will be reimplemented")
 	void shouldReturnDataChunkOfEnrichedEntitiesWithHierarchyStatisticsAndParentsOfEntities(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
@@ -1457,8 +1399,12 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					entityFetch(),
-					hierarchyOfSelf(entityFetch(attributeContent())),
-					hierarchyParentsOfSelf(entityFetch(attributeContent()))
+					hierarchyOfSelf(
+						fromRoot(
+							'megaMenu',
+							entityFetch(attributeContent())
+						)
+					)
 				)
 			)
 			""";
@@ -1480,14 +1426,11 @@ class EvitaSessionServiceFunctionalTest {
 
 		final EvitaResponse<SealedEntity> entityResponse = evita.createReadOnlySession(TEST_CATALOG).query(query, SealedEntity.class);
 
-		assertStatistics(
-			Objects.requireNonNull(entityResponse.getExtraResult(Hierarchy.class)).getSelfStatistics(),
-			response.get().getExtraResults().getSelfHierarchyStatistics()
-		);
-
-		assertParents(
-			entityResponse.getExtraResult(HierarchyParents.class).ofSelf(),
-			response.get().getExtraResults().getSelfHierarchyParents()
+		final GrpcExtraResults extraResults = response.get().getExtraResults();
+		assertHierarchy(
+			entityResponse.getExtraResult(Hierarchy.class),
+			extraResults.getSelfHierarchy(),
+			extraResults.getHierarchyMap()
 		);
 
 		for (int i = 0; i < entityResponse.getRecordData().size(); i++) {
@@ -2155,19 +2098,26 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
 
-		List<SealedEntity> originalCategoryEntities = evita.createReadOnlySession(TEST_CATALOG)
+		final List<SealedEntity> originalCategoryEntities = evita.createReadOnlySession(TEST_CATALOG)
 			.queryListOfSealedEntities(Query.query(
 				collection(Entities.CATEGORY), require(entityFetch())
 			));
-
+		final Map<Integer, Integer> parentChildIndex = originalCategoryEntities
+			.stream()
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getParent().orElse(0)
+				)
+			);
 		final String entityType = Entities.CATEGORY;
 
 		final SealedEntity categoryWithoutHierarchyPlacement = originalCategoryEntities.stream().filter(e -> e.getType().equals(entityType) &&
-				e.getHierarchicalPlacement().isEmpty() || e.getHierarchicalPlacement().orElseThrow().getParentPrimaryKey() == null)
+				e.getParent().isEmpty())
 			.findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable category not found!"));
 
-		final SealedEntity categoryWithHierarchyPlacement = originalCategoryEntities.stream().filter(e -> e.getType().equals(entityType) &&
-				e.getHierarchicalPlacement().isPresent() && e.getHierarchicalPlacement().orElseThrow().getParentPrimaryKey() != null)
+		final SealedEntity categoryWithHierarchyPlacement = originalCategoryEntities.stream()
+			.filter(e -> e.getType().equals(entityType) && e.getParent().isPresent() && !relatesTo(e.getPrimaryKey(), categoryWithoutHierarchyPlacement.getPrimaryKey(), parentChildIndex))
 			.findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable category not found!"));
 
 		//noinspection ConstantConditions
@@ -2185,7 +2135,6 @@ class EvitaSessionServiceFunctionalTest {
 		//noinspection ConstantConditions
 		final int parentPrimaryKey = originalCategoryEntities.stream().filter(e -> !Objects.equals(e.getPrimaryKey(), categoryWithoutHierarchyPlacement.getPrimaryKey()))
 			.findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable category not found!")).getPrimaryKey();
-		final int orderAmongSibling = 5;
 
 		//adding hierarchy to non-hierarchical entity
 		final GrpcEntityResponse originalToAddHierarchyEntity = evitaSessionBlockingStub.getEntity(toAddHierarchyEntityRequest);
@@ -2211,10 +2160,9 @@ class EvitaSessionServiceFunctionalTest {
 										.setEntityPrimaryKey(Int32Value.of(originalToAddHierarchyEntity.getEntity().getPrimaryKey()))
 										.addMutations(
 											GrpcLocalMutation.newBuilder()
-												.setSetHierarchicalPlacementMutation(
-													GrpcSetHierarchicalPlacementMutation.newBuilder()
-														.setPrimaryKey(Int32Value.of(parentPrimaryKey))
-														.setOrderAmongSiblings(orderAmongSibling)
+												.setSetParentMutation(
+													GrpcSetParentMutation.newBuilder()
+														.setPrimaryKey(parentPrimaryKey)
 												)
 												.build()
 										)
@@ -2229,14 +2177,8 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(addHierarchyExecutable);
 
-		final GrpcHierarchicalPlacement hierarchicalPlacement = originalToAddHierarchyEntity.getEntity().getHierarchicalPlacement();
-		final GrpcHierarchicalPlacement returnedHierarchicalPlacement = upsertToAddHierarchyEntityResponse.get().getEntity().getHierarchicalPlacement();
-		assertTrue(
-			hierarchicalPlacement.getOrderAmongSiblings() != returnedHierarchicalPlacement.getOrderAmongSiblings() ||
-				hierarchicalPlacement.hasParentPrimaryKey() != returnedHierarchicalPlacement.hasParentPrimaryKey()
-		);
-		assertFalse(hierarchicalPlacement.hasParentPrimaryKey());
-		assertTrue(returnedHierarchicalPlacement.hasParentPrimaryKey());
+		assertFalse(originalToAddHierarchyEntity.getEntity().hasParent());
+		assertTrue(upsertToAddHierarchyEntityResponse.get().getEntity().hasParent());
 
 		//removing hierarchy from hierarchical entity
 		final GrpcEntityResponse originalToRemoveHierarchyEntity = evitaSessionBlockingStub.getEntity(toRemoveHierarchyEntityRequest);
@@ -2252,8 +2194,8 @@ class EvitaSessionServiceFunctionalTest {
 									.setEntityPrimaryKey(Int32Value.of(originalToRemoveHierarchyEntity.getEntity().getPrimaryKey()))
 									.addMutations(
 										GrpcLocalMutation.newBuilder()
-											.setRemoveHierarchicalPlacementMutation(
-												GrpcRemoveHierarchicalPlacementMutation.newBuilder().build()
+											.setRemoveParentMutation(
+												GrpcRemoveParentMutation.newBuilder().build()
 											)
 											.build()
 									)
@@ -2267,14 +2209,21 @@ class EvitaSessionServiceFunctionalTest {
 
 		assertDoesNotThrow(removeHierarchyExecutable);
 
-		final GrpcHierarchicalPlacement hierarchicalPlacementAgain = originalToRemoveHierarchyEntity.getEntity().getHierarchicalPlacement();
-		final GrpcHierarchicalPlacement returnedHierarchicalPlacementAgain = upsertToRemoveHierarchyEntityResponse.get().getEntity().getHierarchicalPlacement();
-		assertTrue(
-			hierarchicalPlacementAgain.getOrderAmongSiblings() != returnedHierarchicalPlacementAgain.getOrderAmongSiblings() ||
-				hierarchicalPlacementAgain.hasParentPrimaryKey() != returnedHierarchicalPlacementAgain.hasParentPrimaryKey()
-		);
-		assertTrue(hierarchicalPlacementAgain.hasParentPrimaryKey());
-		assertFalse(returnedHierarchicalPlacementAgain.hasParentPrimaryKey());
+		assertTrue(originalToRemoveHierarchyEntity.getEntity().hasParent());
+		assertFalse(upsertToRemoveHierarchyEntityResponse.get().getEntity().hasParent());
+	}
+
+	private boolean relatesTo(int primaryKey, int parentPrimaryKey, Map<Integer, Integer> parentChildIndex) {
+		if (primaryKey == parentPrimaryKey) {
+			return true;
+		} else {
+			final Integer nextPrimaryKey = parentChildIndex.get(primaryKey);
+			if (nextPrimaryKey == 0) {
+				return false;
+			} else {
+				return relatesTo(nextPrimaryKey, parentPrimaryKey, parentChildIndex);
+			}
+		}
 	}
 
 	@Test

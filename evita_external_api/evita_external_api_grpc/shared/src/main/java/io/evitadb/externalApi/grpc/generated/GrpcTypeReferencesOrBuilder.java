@@ -33,7 +33,7 @@ public interface GrpcTypeReferencesOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference>
       getReferencesList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 1;</code>
@@ -46,7 +46,7 @@ public interface GrpcTypeReferencesOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
       getReferencesOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 1;</code>

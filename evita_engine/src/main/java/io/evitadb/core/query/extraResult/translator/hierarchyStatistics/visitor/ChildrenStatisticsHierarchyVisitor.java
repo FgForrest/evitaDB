@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor
 
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.algebra.Formula;
@@ -152,32 +153,35 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 			} else {
 				if (scopePredicate.test(entityPrimaryKey, level, distance + distanceCompensation)) {
 					// and create element in accumulator that will be filled in
-					accumulator.push(
-						new Accumulator(
-							entityFetcher.apply(entityPrimaryKey),
-							() -> queriedEntityComputer.apply(node.entityPrimaryKey())
-						)
-					);
-					// traverse subtree - filling up the accumulator on previous row
-					traverser.run();
-					// now remove current accumulator from stack
-					final Accumulator finalizedAccumulator = accumulator.pop();
-					// and if its cardinality is greater than zero (contains at least one queried entity)
-					// add it to the result
-					if (removeEmptyResults) {
-						if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
-							// we need to fully compute cardinality of queried entities
-							if (!finalizedAccumulator.getQueriedEntitiesFormula().compute().isEmpty()) {
-								topAccumulator.add(finalizedAccumulator);
+					final EntityClassifier entityRef = entityFetcher.apply(entityPrimaryKey);
+					if (entityRef != null) {
+						accumulator.push(
+							new Accumulator(
+								entityRef,
+								() -> queriedEntityComputer.apply(node.entityPrimaryKey())
+							)
+						);
+						// traverse subtree - filling up the accumulator on previous row
+						traverser.run();
+						// now remove current accumulator from stack
+						final Accumulator finalizedAccumulator = accumulator.pop();
+						// and if its cardinality is greater than zero (contains at least one queried entity)
+						// add it to the result
+						if (removeEmptyResults) {
+							if (statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
+								// we need to fully compute cardinality of queried entities
+								if (!finalizedAccumulator.getQueriedEntitiesFormula().compute().isEmpty()) {
+									topAccumulator.add(finalizedAccumulator);
+								}
+							} else {
+								// we may choose more optimal path finding at least one queried entity
+								if (finalizedAccumulator.hasQueriedEntity()) {
+									topAccumulator.add(finalizedAccumulator);
+								}
 							}
 						} else {
-							// we may choose more optimal path finding at least one queried entity
-							if (finalizedAccumulator.hasQueriedEntity()) {
-								topAccumulator.add(finalizedAccumulator);
-							}
+							topAccumulator.add(finalizedAccumulator);
 						}
-					} else {
-						topAccumulator.add(finalizedAccumulator);
 					}
 				} else if (!statisticsType.isEmpty()) {
 					// and create element in accumulator that will be filled in

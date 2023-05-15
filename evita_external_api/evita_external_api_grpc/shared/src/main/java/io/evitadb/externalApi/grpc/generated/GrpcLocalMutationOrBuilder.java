@@ -151,34 +151,34 @@ public interface GrpcLocalMutationOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcSetPriceInnerRecordHandlingMutationOrBuilder getSetPriceInnerRecordHandlingMutationOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
-   * @return Whether the setHierarchicalPlacementMutation field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
+   * @return Whether the setParentMutation field is set.
    */
-  boolean hasSetHierarchicalPlacementMutation();
+  boolean hasSetParentMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
-   * @return The setHierarchicalPlacementMutation.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
+   * @return The setParentMutation.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation getSetHierarchicalPlacementMutation();
+  io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation getSetParentMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutation setHierarchicalPlacementMutation = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetParentMutation setParentMutation = 9;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcSetHierarchicalPlacementMutationOrBuilder getSetHierarchicalPlacementMutationOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcSetParentMutationOrBuilder getSetParentMutationOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
-   * @return Whether the removeHierarchicalPlacementMutation field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
+   * @return Whether the removeParentMutation field is set.
    */
-  boolean hasRemoveHierarchicalPlacementMutation();
+  boolean hasRemoveParentMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
-   * @return The removeHierarchicalPlacementMutation.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
+   * @return The removeParentMutation.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation getRemoveHierarchicalPlacementMutation();
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation getRemoveParentMutation();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutation removeHierarchicalPlacementMutation = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutation removeParentMutation = 10;</code>
    */
-  io.evitadb.externalApi.grpc.generated.GrpcRemoveHierarchicalPlacementMutationOrBuilder getRemoveHierarchicalPlacementMutationOrBuilder();
+  io.evitadb.externalApi.grpc.generated.GrpcRemoveParentMutationOrBuilder getRemoveParentMutationOrBuilder();
 
   /**
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcInsertReferenceMutation insertReferenceMutation = 11;</code>

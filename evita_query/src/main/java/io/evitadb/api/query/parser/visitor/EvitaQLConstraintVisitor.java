@@ -42,7 +42,7 @@ import javax.annotation.Nonnull;
  * @see EvitaQLRequireConstraintVisitor
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
-public class EvitaQLConstraintVisitor extends EvitaQLBaseVisitor<Constraint<?>> {
+public class EvitaQLConstraintVisitor extends EvitaQLBaseConstraintVisitor<Constraint<?>> {
 
     protected final EvitaQLHeadConstraintVisitor headConstraintVisitor = new EvitaQLHeadConstraintVisitor();
     protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();

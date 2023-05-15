@@ -33,7 +33,7 @@ public interface GrpcAllowLocaleInEntitySchemaMutationOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocale>
       getLocalesList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
@@ -46,7 +46,7 @@ public interface GrpcAllowLocaleInEntitySchemaMutationOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocaleOrBuilder>
       getLocalesOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocale locales = 1;</code>

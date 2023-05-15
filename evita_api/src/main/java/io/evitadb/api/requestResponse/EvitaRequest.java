@@ -83,6 +83,8 @@ public class EvitaRequest {
 	private Boolean priceValidInTimeSet;
 	private OffsetDateTime priceValidInTime;
 	private Boolean requiresEntity;
+	private Boolean requiresParent;
+	private HierarchyContent parentContent;
 	private EntityFetch entityRequirement;
 	private Boolean entityAttributes;
 	private Set<String> entityAttributeSet;
@@ -111,7 +113,7 @@ public class EvitaRequest {
 	private Map<String, RequirementContext> entityFetchRequirements;
 
 	public EvitaRequest(@Nonnull Query query, @Nonnull OffsetDateTime alignedNow) {
-		final Collection header = query.getEntities();
+		final Collection header = query.getCollection();
 		this.entityType = ofNullable(header).map(Collection::getEntityType).orElse(null);
 		this.query = query;
 		this.alignedNow = alignedNow;
@@ -154,6 +156,8 @@ public class EvitaRequest {
 		this.facetGroupDisjunction = evitaRequest.facetGroupDisjunction;
 		this.facetGroupNegation = evitaRequest.facetGroupNegation;
 		this.requiresEntity = evitaRequest.requiresEntity;
+		this.requiresParent = evitaRequest.requiresParent;
+		this.parentContent = evitaRequest.parentContent;
 		this.entityRequirement = evitaRequest.entityRequirement;
 	}
 
@@ -181,6 +185,8 @@ public class EvitaRequest {
 		this.queryPriceMode = evitaRequest.queryPriceMode;
 		this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
 		this.priceValidInTime = evitaRequest.priceValidInTime;
+		this.requiresParent = null;
+		this.parentContent = null;
 		this.entityAttributes = null;
 		this.entityAttributeSet = null;
 		this.entityAssociatedData = null;
@@ -236,6 +242,8 @@ public class EvitaRequest {
 		this.locale = evitaRequest.getLocale();
 		this.requiredLocales = null;
 		this.requiredLocaleSet = null;
+		this.requiresParent = null;
+		this.parentContent = null;
 		this.entityAttributes = null;
 		this.entityAttributeSet = null;
 		this.entityAssociatedData = null;
@@ -275,7 +283,7 @@ public class EvitaRequest {
 	 */
 	@Nonnull
 	public String getEntityTypeOrThrowException(@Nonnull String purpose) {
-		final Collection header = query.getEntities();
+		final Collection header = query.getCollection();
 		return ofNullable(header)
 			.map(Collection::getEntityType)
 			.orElseThrow(() -> new EntityCollectionRequiredException(purpose));
@@ -380,7 +388,7 @@ public class EvitaRequest {
 
 	/**
 	 * Method will find all requirement specifying richness of main entities. The constraints inside
-	 * {@link ExtraResultRequireConstraint} implementing of same type are ignored because they relate to the different entity context.
+	 * {@link SeparateEntityContentRequireContainer} implementing of same type are ignored because they relate to the different entity context.
 	 */
 	@Nullable
 	public EntityFetch getEntityRequirement() {
@@ -388,6 +396,36 @@ public class EvitaRequest {
 			isRequiresEntity();
 		}
 		return this.entityRequirement;
+	}
+
+	/**
+	 * Method will determine if parent body is required for main entities.
+	 */
+	public boolean isRequiresParent() {
+		if (this.requiresParent == null) {
+			final EntityFetch entityFetch = getEntityRequirement();
+			if (entityFetch == null) {
+				this.parentContent = null;
+				this.requiresParent = false;
+			} else {
+				this.parentContent = QueryUtils.findConstraint(entityFetch, HierarchyContent.class, SeparateEntityContentRequireContainer.class);
+				this.requiresParent = this.parentContent != null;
+			}
+		}
+		return this.requiresParent;
+	}
+
+	/**
+	 * Method will find all requirement specifying richness of main entities. The constraints inside
+	 * {@link SeparateEntityContentRequireContainer} implementing of same type are ignored because they relate to the
+	 * different entity context.
+	 */
+	@Nullable
+	public HierarchyContent getHierarchyContent() {
+		if (this.requiresParent == null) {
+			isRequiresParent();
+		}
+		return this.parentContent;
 	}
 
 	/**

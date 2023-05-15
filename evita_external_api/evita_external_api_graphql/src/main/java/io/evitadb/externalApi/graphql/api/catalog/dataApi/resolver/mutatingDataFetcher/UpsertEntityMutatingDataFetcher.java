@@ -41,6 +41,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UpsertEntityMuta
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
@@ -53,6 +54,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Mutating data fetcher that firstly applies entity mutations to selected entity and then returns updated entity to client.
@@ -77,10 +79,17 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	                                       @Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
 		this.entityUpsertMutationResolver = new GraphQLEntityUpsertMutationConverter(objectMapper, entitySchema);
+		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
+		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
-			new FilterConstraintResolver(catalogSchema),
-			new OrderConstraintResolver(catalogSchema)
+			filterConstraintResolver,
+			orderConstraintResolver,
+			requireConstraintResolver
 		);
 	}
 

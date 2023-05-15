@@ -42,7 +42,7 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttribut
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.HierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
@@ -165,8 +165,8 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 			updatePrices(entitySchema, setPriceInnerRecordHandlingMutation);
 		} else if (localMutation instanceof PriceMutation priceMutation) {
 			updatePriceIndex(entitySchema, priceMutation);
-		} else if (localMutation instanceof HierarchicalPlacementMutation hierarchicalPlacementMutation) {
-			updateHierarchyPlacement(entitySchema, hierarchicalPlacementMutation);
+		} else if (localMutation instanceof ParentMutation parentMutation) {
+			updateParent(entitySchema, parentMutation);
 		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
 			updateReferences(entitySchema, referenceMutation);
 		} else if (localMutation instanceof AttributeMutation attributeMutation) {
@@ -819,15 +819,22 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	}
 
 	/**
-	 * Method processes mutation where {@link EntityBodyStoragePart#getHierarchicalPlacement()} is modified. It replaces
+	 * Method processes mutation where {@link EntityBodyStoragePart#getParent()} is modified. It replaces
 	 * original container preserving all data but changing the hierarchy placement in it.
 	 */
-	private void updateHierarchyPlacement(@Nonnull EntitySchemaContract entitySchema, @Nonnull HierarchicalPlacementMutation localMutation) {
+	private void updateParent(@Nonnull EntitySchemaContract entitySchema, @Nonnull ParentMutation localMutation) {
 		// get entity container
 		final EntityBodyStoragePart entityStorageContainer = getEntityStoragePart(entityType, entityPrimaryKey, requiresExisting);
 		// update hierarchical placement there
-		entityStorageContainer.setHierarchicalPlacement(
-			localMutation.mutateLocal(entitySchema, entityStorageContainer.getHierarchicalPlacement())
+		entityStorageContainer.setParent(
+			localMutation.mutateLocal(
+				entitySchema,
+					ofNullable(entityStorageContainer.getParent())
+						.map(OptionalInt::of)
+						.orElseGet(OptionalInt::empty)
+				)
+				.stream().boxed().findAny()
+				.orElse(null)
 		);
 	}
 

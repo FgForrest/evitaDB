@@ -150,49 +150,6 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 
 	public HierarchyOfReference(
 		@Nonnull String referenceName,
-		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour
-	) {
-		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, NO_CHILDREN);
-	}
-
-	public HierarchyOfReference(
-		@Nonnull String[] referenceName,
-		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour
-	) {
-		super(
-			ArrayUtils.mergeArrays(
-				new Serializable[]{emptyHierarchicalEntityBehaviour},
-				referenceName
-			),
-			NO_CHILDREN
-		);
-	}
-
-	public HierarchyOfReference(
-		@Nonnull String referenceName,
-		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nonnull OrderBy orderBy
-		) {
-		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, NO_CHILDREN, orderBy);
-	}
-
-	public HierarchyOfReference(
-		@Nonnull String[] referenceName,
-		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nonnull OrderBy orderBy
-	) {
-		super(
-			ArrayUtils.mergeArrays(
-				new Serializable[]{emptyHierarchicalEntityBehaviour},
-				referenceName
-			),
-			NO_CHILDREN,
-			orderBy
-		);
-	}
-
-	public HierarchyOfReference(
-		@Nonnull String referenceName,
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nonnull HierarchyRequireConstraint... requirement
 	) {
@@ -200,17 +157,25 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 	}
 
 	public HierarchyOfReference(
-		@Nonnull String[] referenceName,
+		@Nonnull String[] referenceNames,
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nonnull HierarchyRequireConstraint... requirement) {
-		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement);
+		super(
+			ArrayUtils.mergeArrays(
+				Arrays.stream(referenceNames)
+					.map(it -> (Serializable) it)
+					.toArray(Serializable[]::new),
+				new Serializable[] {emptyHierarchicalEntityBehaviour}
+			),
+			requirement
+		);
 	}
 
 	@Creator
 	public HierarchyOfReference(
 		@Nonnull @Classifier String referenceName,
 		@Nonnull @Value EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nullable @AdditionalChild(domain = ConstraintDomain.HIERARCHY_TARGET) OrderBy orderBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
 		// todo lho we cannot use uniqueChildren here because we need duplicate constraints, but we dont have any generic joining containers here. What to do?
 		@Nonnull @Child HierarchyRequireConstraint... requirement
 	) {
@@ -218,11 +183,20 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 	}
 
 	public HierarchyOfReference(
-		@Nonnull String[] referenceName,
+		@Nonnull String[] referenceNames,
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nonnull OrderBy orderBy,
 		@Nonnull HierarchyRequireConstraint... requirement) {
-		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement, orderBy);
+		super(
+			ArrayUtils.mergeArrays(
+				Arrays.stream(referenceNames)
+					.map(it -> (Serializable) it)
+					.toArray(Serializable[]::new),
+				new Serializable[] {emptyHierarchicalEntityBehaviour}
+			),
+			requirement,
+			orderBy
+		);
 	}
 
 	/**

@@ -33,22 +33,14 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
 import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc;
+import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
-import io.evitadb.externalApi.grpc.generated.GrpcCatalogNamesResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcDeleteCatalogIfExistsResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
-import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
-import io.evitadb.externalApi.grpc.generated.GrpcTopLevelCatalogSchemaMutation;
-import io.evitadb.externalApi.grpc.generated.GrpcUpdateEvitaRequest;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -327,17 +319,31 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public void renameCatalog(@Nonnull String catalogName, @Nonnull String newCatalogName) {
 		assertActive();
-		update(new ModifyCatalogSchemaNameMutation(catalogName, newCatalogName, false));
-		this.entitySchemaCache.remove(catalogName);
-		this.entitySchemaCache.remove(newCatalogName);
+		final GrpcRenameCatalogRequest request = GrpcRenameCatalogRequest.newBuilder()
+			.setCatalogName(catalogName)
+			.setNewCatalogName(newCatalogName)
+			.build();
+		final GrpcRenameCatalogResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.renameCatalog(request));
+		final boolean success = grpcResponse.getSuccess();
+		if (success) {
+			this.entitySchemaCache.remove(catalogName);
+			this.entitySchemaCache.remove(newCatalogName);
+		}
 	}
 
 	@Override
 	public void replaceCatalog(@Nonnull String catalogNameToBeReplacedWith, @Nonnull String catalogNameToBeReplaced) {
 		assertActive();
-		update(new ModifyCatalogSchemaNameMutation(catalogNameToBeReplacedWith, catalogNameToBeReplaced, true));
-		this.entitySchemaCache.remove(catalogNameToBeReplaced);
-		this.entitySchemaCache.remove(catalogNameToBeReplacedWith);
+		final GrpcReplaceCatalogRequest request = GrpcReplaceCatalogRequest.newBuilder()
+			.setCatalogNameToBeReplacedWith(catalogNameToBeReplacedWith)
+			.setCatalogNameToBeReplaced(catalogNameToBeReplaced)
+			.build();
+		final GrpcReplaceCatalogResponse grpcResponse = executeWithEvitaService(evitaService -> evitaService.replaceCatalog(request));
+		final boolean success = grpcResponse.getSuccess();
+		if (success) {
+			this.entitySchemaCache.remove(catalogNameToBeReplaced);
+			this.entitySchemaCache.remove(catalogNameToBeReplacedWith);
+		}
 	}
 
 	@Override

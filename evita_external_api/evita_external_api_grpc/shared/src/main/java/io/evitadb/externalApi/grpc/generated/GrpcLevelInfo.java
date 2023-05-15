@@ -39,7 +39,7 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcLevelInfo() {
-    childrenStatistics_ = java.util.Collections.emptyList();
+    items_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -99,17 +99,38 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
-          case 24: {
+          case 26: {
+            com.google.protobuf.Int32Value.Builder subBuilder = null;
+            if (queriedEntityCount_ != null) {
+              subBuilder = queriedEntityCount_.toBuilder();
+            }
+            queriedEntityCount_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(queriedEntityCount_);
+              queriedEntityCount_ = subBuilder.buildPartial();
+            }
 
-            cardinality_ = input.readInt32();
             break;
           }
           case 34: {
+            com.google.protobuf.Int32Value.Builder subBuilder = null;
+            if (childrenCount_ != null) {
+              subBuilder = childrenCount_.toBuilder();
+            }
+            childrenCount_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(childrenCount_);
+              childrenCount_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
+          case 42: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              childrenStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo>();
+              items_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo>();
               mutable_bitField0_ |= 0x00000001;
             }
-            childrenStatistics_.add(
+            items_.add(
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.parser(), extensionRegistry));
             break;
           }
@@ -129,7 +150,7 @@ private static final long serialVersionUID = 0L;
           e).setUnfinishedMessage(this);
     } finally {
       if (((mutable_bitField0_ & 0x00000001) != 0)) {
-        childrenStatistics_ = java.util.Collections.unmodifiableList(childrenStatistics_);
+        items_ = java.util.Collections.unmodifiableList(items_);
       }
       this.unknownFields = unknownFields.build();
       makeExtensionsImmutable();
@@ -200,55 +221,96 @@ private static final long serialVersionUID = 0L;
     return getEntity();
   }
 
-  public static final int CARDINALITY_FIELD_NUMBER = 3;
-  private int cardinality_;
+  public static final int QUERIEDENTITYCOUNT_FIELD_NUMBER = 3;
+  private com.google.protobuf.Int32Value queriedEntityCount_;
   /**
-   * <code>int32 cardinality = 3;</code>
-   * @return The cardinality.
+   * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+   * @return Whether the queriedEntityCount field is set.
    */
   @java.lang.Override
-  public int getCardinality() {
-    return cardinality_;
+  public boolean hasQueriedEntityCount() {
+    return queriedEntityCount_ != null;
+  }
+  /**
+   * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+   * @return The queriedEntityCount.
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32Value getQueriedEntityCount() {
+    return queriedEntityCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : queriedEntityCount_;
+  }
+  /**
+   * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getQueriedEntityCountOrBuilder() {
+    return getQueriedEntityCount();
   }
 
-  public static final int CHILDRENSTATISTICS_FIELD_NUMBER = 4;
-  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> childrenStatistics_;
+  public static final int CHILDRENCOUNT_FIELD_NUMBER = 4;
+  private com.google.protobuf.Int32Value childrenCount_;
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+   * @return Whether the childrenCount field is set.
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> getChildrenStatisticsList() {
-    return childrenStatistics_;
+  public boolean hasChildrenCount() {
+    return childrenCount_ != null;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+   * @return The childrenCount.
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
-      getChildrenStatisticsOrBuilderList() {
-    return childrenStatistics_;
+  public com.google.protobuf.Int32Value getChildrenCount() {
+    return childrenCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : childrenCount_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
    */
   @java.lang.Override
-  public int getChildrenStatisticsCount() {
-    return childrenStatistics_.size();
+  public com.google.protobuf.Int32ValueOrBuilder getChildrenCountOrBuilder() {
+    return getChildrenCount();
+  }
+
+  public static final int ITEMS_FIELD_NUMBER = 5;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> items_;
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> getItemsList() {
+    return items_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getChildrenStatistics(int index) {
-    return childrenStatistics_.get(index);
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
+      getItemsOrBuilderList() {
+    return items_;
   }
   /**
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getChildrenStatisticsOrBuilder(
+  public int getItemsCount() {
+    return items_.size();
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getItems(int index) {
+    return items_.get(index);
+  }
+  /**
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getItemsOrBuilder(
       int index) {
-    return childrenStatistics_.get(index);
+    return items_.get(index);
   }
 
   private byte memoizedIsInitialized = -1;
@@ -271,11 +333,14 @@ private static final long serialVersionUID = 0L;
     if (entity_ != null) {
       output.writeMessage(2, getEntity());
     }
-    if (cardinality_ != 0) {
-      output.writeInt32(3, cardinality_);
+    if (queriedEntityCount_ != null) {
+      output.writeMessage(3, getQueriedEntityCount());
     }
-    for (int i = 0; i < childrenStatistics_.size(); i++) {
-      output.writeMessage(4, childrenStatistics_.get(i));
+    if (childrenCount_ != null) {
+      output.writeMessage(4, getChildrenCount());
+    }
+    for (int i = 0; i < items_.size(); i++) {
+      output.writeMessage(5, items_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -294,13 +359,17 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getEntity());
     }
-    if (cardinality_ != 0) {
+    if (queriedEntityCount_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, cardinality_);
+        .computeMessageSize(3, getQueriedEntityCount());
     }
-    for (int i = 0; i < childrenStatistics_.size(); i++) {
+    if (childrenCount_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(4, childrenStatistics_.get(i));
+        .computeMessageSize(4, getChildrenCount());
+    }
+    for (int i = 0; i < items_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(5, items_.get(i));
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -327,10 +396,18 @@ private static final long serialVersionUID = 0L;
       if (!getEntity()
           .equals(other.getEntity())) return false;
     }
-    if (getCardinality()
-        != other.getCardinality()) return false;
-    if (!getChildrenStatisticsList()
-        .equals(other.getChildrenStatisticsList())) return false;
+    if (hasQueriedEntityCount() != other.hasQueriedEntityCount()) return false;
+    if (hasQueriedEntityCount()) {
+      if (!getQueriedEntityCount()
+          .equals(other.getQueriedEntityCount())) return false;
+    }
+    if (hasChildrenCount() != other.hasChildrenCount()) return false;
+    if (hasChildrenCount()) {
+      if (!getChildrenCount()
+          .equals(other.getChildrenCount())) return false;
+    }
+    if (!getItemsList()
+        .equals(other.getItemsList())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -350,11 +427,17 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + ENTITY_FIELD_NUMBER;
       hash = (53 * hash) + getEntity().hashCode();
     }
-    hash = (37 * hash) + CARDINALITY_FIELD_NUMBER;
-    hash = (53 * hash) + getCardinality();
-    if (getChildrenStatisticsCount() > 0) {
-      hash = (37 * hash) + CHILDRENSTATISTICS_FIELD_NUMBER;
-      hash = (53 * hash) + getChildrenStatisticsList().hashCode();
+    if (hasQueriedEntityCount()) {
+      hash = (37 * hash) + QUERIEDENTITYCOUNT_FIELD_NUMBER;
+      hash = (53 * hash) + getQueriedEntityCount().hashCode();
+    }
+    if (hasChildrenCount()) {
+      hash = (37 * hash) + CHILDRENCOUNT_FIELD_NUMBER;
+      hash = (53 * hash) + getChildrenCount().hashCode();
+    }
+    if (getItemsCount() > 0) {
+      hash = (37 * hash) + ITEMS_FIELD_NUMBER;
+      hash = (53 * hash) + getItemsList().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -484,7 +567,7 @@ private static final long serialVersionUID = 0L;
     private void maybeForceBuilderInitialization() {
       if (com.google.protobuf.GeneratedMessageV3
               .alwaysUseFieldBuilders) {
-        getChildrenStatisticsFieldBuilder();
+        getItemsFieldBuilder();
       }
     }
     @java.lang.Override
@@ -502,13 +585,23 @@ private static final long serialVersionUID = 0L;
         entity_ = null;
         entityBuilder_ = null;
       }
-      cardinality_ = 0;
-
-      if (childrenStatisticsBuilder_ == null) {
-        childrenStatistics_ = java.util.Collections.emptyList();
+      if (queriedEntityCountBuilder_ == null) {
+        queriedEntityCount_ = null;
+      } else {
+        queriedEntityCount_ = null;
+        queriedEntityCountBuilder_ = null;
+      }
+      if (childrenCountBuilder_ == null) {
+        childrenCount_ = null;
+      } else {
+        childrenCount_ = null;
+        childrenCountBuilder_ = null;
+      }
+      if (itemsBuilder_ == null) {
+        items_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00000001);
       } else {
-        childrenStatisticsBuilder_.clear();
+        itemsBuilder_.clear();
       }
       return this;
     }
@@ -547,15 +640,24 @@ private static final long serialVersionUID = 0L;
       } else {
         result.entity_ = entityBuilder_.build();
       }
-      result.cardinality_ = cardinality_;
-      if (childrenStatisticsBuilder_ == null) {
+      if (queriedEntityCountBuilder_ == null) {
+        result.queriedEntityCount_ = queriedEntityCount_;
+      } else {
+        result.queriedEntityCount_ = queriedEntityCountBuilder_.build();
+      }
+      if (childrenCountBuilder_ == null) {
+        result.childrenCount_ = childrenCount_;
+      } else {
+        result.childrenCount_ = childrenCountBuilder_.build();
+      }
+      if (itemsBuilder_ == null) {
         if (((bitField0_ & 0x00000001) != 0)) {
-          childrenStatistics_ = java.util.Collections.unmodifiableList(childrenStatistics_);
+          items_ = java.util.Collections.unmodifiableList(items_);
           bitField0_ = (bitField0_ & ~0x00000001);
         }
-        result.childrenStatistics_ = childrenStatistics_;
+        result.items_ = items_;
       } else {
-        result.childrenStatistics_ = childrenStatisticsBuilder_.build();
+        result.items_ = itemsBuilder_.build();
       }
       onBuilt();
       return result;
@@ -611,32 +713,35 @@ private static final long serialVersionUID = 0L;
       if (other.hasEntity()) {
         mergeEntity(other.getEntity());
       }
-      if (other.getCardinality() != 0) {
-        setCardinality(other.getCardinality());
+      if (other.hasQueriedEntityCount()) {
+        mergeQueriedEntityCount(other.getQueriedEntityCount());
       }
-      if (childrenStatisticsBuilder_ == null) {
-        if (!other.childrenStatistics_.isEmpty()) {
-          if (childrenStatistics_.isEmpty()) {
-            childrenStatistics_ = other.childrenStatistics_;
+      if (other.hasChildrenCount()) {
+        mergeChildrenCount(other.getChildrenCount());
+      }
+      if (itemsBuilder_ == null) {
+        if (!other.items_.isEmpty()) {
+          if (items_.isEmpty()) {
+            items_ = other.items_;
             bitField0_ = (bitField0_ & ~0x00000001);
           } else {
-            ensureChildrenStatisticsIsMutable();
-            childrenStatistics_.addAll(other.childrenStatistics_);
+            ensureItemsIsMutable();
+            items_.addAll(other.items_);
           }
           onChanged();
         }
       } else {
-        if (!other.childrenStatistics_.isEmpty()) {
-          if (childrenStatisticsBuilder_.isEmpty()) {
-            childrenStatisticsBuilder_.dispose();
-            childrenStatisticsBuilder_ = null;
-            childrenStatistics_ = other.childrenStatistics_;
+        if (!other.items_.isEmpty()) {
+          if (itemsBuilder_.isEmpty()) {
+            itemsBuilder_.dispose();
+            itemsBuilder_ = null;
+            items_ = other.items_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            childrenStatisticsBuilder_ = 
+            itemsBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
-                 getChildrenStatisticsFieldBuilder() : null;
+                 getItemsFieldBuilder() : null;
           } else {
-            childrenStatisticsBuilder_.addAllMessages(other.childrenStatistics_);
+            itemsBuilder_.addAllMessages(other.items_);
           }
         }
       }
@@ -757,7 +862,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getEntityReferenceBuilder() {
-      
+
       onChanged();
       return getEntityReferenceFieldBuilder().getBuilder();
     }
@@ -776,7 +881,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference entityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getEntityReferenceFieldBuilder() {
       if (entityReferenceBuilder_ == null) {
         entityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -876,7 +981,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getEntityBuilder() {
-      
+
       onChanged();
       return getEntityFieldBuilder().getBuilder();
     }
@@ -895,7 +1000,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity entity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getEntityFieldBuilder() {
       if (entityBuilder_ == null) {
         entityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -908,275 +1013,482 @@ private static final long serialVersionUID = 0L;
       return entityBuilder_;
     }
 
-    private int cardinality_ ;
+    private com.google.protobuf.Int32Value queriedEntityCount_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> queriedEntityCountBuilder_;
     /**
-     * <code>int32 cardinality = 3;</code>
-     * @return The cardinality.
+     * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+     * @return Whether the queriedEntityCount field is set.
      */
-    @java.lang.Override
-    public int getCardinality() {
-      return cardinality_;
+    public boolean hasQueriedEntityCount() {
+      return queriedEntityCountBuilder_ != null || queriedEntityCount_ != null;
     }
     /**
-     * <code>int32 cardinality = 3;</code>
-     * @param value The cardinality to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+     * @return The queriedEntityCount.
      */
-    public Builder setCardinality(int value) {
-      
-      cardinality_ = value;
-      onChanged();
+    public com.google.protobuf.Int32Value getQueriedEntityCount() {
+      if (queriedEntityCountBuilder_ == null) {
+        return queriedEntityCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : queriedEntityCount_;
+      } else {
+        return queriedEntityCountBuilder_.getMessage();
+      }
+    }
+    /**
+     * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+     */
+    public Builder setQueriedEntityCount(com.google.protobuf.Int32Value value) {
+      if (queriedEntityCountBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        queriedEntityCount_ = value;
+        onChanged();
+      } else {
+        queriedEntityCountBuilder_.setMessage(value);
+      }
+
       return this;
     }
     /**
-     * <code>int32 cardinality = 3;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
      */
-    public Builder clearCardinality() {
-      
-      cardinality_ = 0;
-      onChanged();
+    public Builder setQueriedEntityCount(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (queriedEntityCountBuilder_ == null) {
+        queriedEntityCount_ = builderForValue.build();
+        onChanged();
+      } else {
+        queriedEntityCountBuilder_.setMessage(builderForValue.build());
+      }
+
       return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+     */
+    public Builder mergeQueriedEntityCount(com.google.protobuf.Int32Value value) {
+      if (queriedEntityCountBuilder_ == null) {
+        if (queriedEntityCount_ != null) {
+          queriedEntityCount_ =
+            com.google.protobuf.Int32Value.newBuilder(queriedEntityCount_).mergeFrom(value).buildPartial();
+        } else {
+          queriedEntityCount_ = value;
+        }
+        onChanged();
+      } else {
+        queriedEntityCountBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+     */
+    public Builder clearQueriedEntityCount() {
+      if (queriedEntityCountBuilder_ == null) {
+        queriedEntityCount_ = null;
+        onChanged();
+      } else {
+        queriedEntityCount_ = null;
+        queriedEntityCountBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getQueriedEntityCountBuilder() {
+
+      onChanged();
+      return getQueriedEntityCountFieldBuilder().getBuilder();
+    }
+    /**
+     * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getQueriedEntityCountOrBuilder() {
+      if (queriedEntityCountBuilder_ != null) {
+        return queriedEntityCountBuilder_.getMessageOrBuilder();
+      } else {
+        return queriedEntityCount_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : queriedEntityCount_;
+      }
+    }
+    /**
+     * <code>.google.protobuf.Int32Value queriedEntityCount = 3;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        getQueriedEntityCountFieldBuilder() {
+      if (queriedEntityCountBuilder_ == null) {
+        queriedEntityCountBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getQueriedEntityCount(),
+                getParentForChildren(),
+                isClean());
+        queriedEntityCount_ = null;
+      }
+      return queriedEntityCountBuilder_;
     }
 
-    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> childrenStatistics_ =
+    private com.google.protobuf.Int32Value childrenCount_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> childrenCountBuilder_;
+    /**
+     * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+     * @return Whether the childrenCount field is set.
+     */
+    public boolean hasChildrenCount() {
+      return childrenCountBuilder_ != null || childrenCount_ != null;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+     * @return The childrenCount.
+     */
+    public com.google.protobuf.Int32Value getChildrenCount() {
+      if (childrenCountBuilder_ == null) {
+        return childrenCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : childrenCount_;
+      } else {
+        return childrenCountBuilder_.getMessage();
+      }
+    }
+    /**
+     * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+     */
+    public Builder setChildrenCount(com.google.protobuf.Int32Value value) {
+      if (childrenCountBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        childrenCount_ = value;
+        onChanged();
+      } else {
+        childrenCountBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+     */
+    public Builder setChildrenCount(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (childrenCountBuilder_ == null) {
+        childrenCount_ = builderForValue.build();
+        onChanged();
+      } else {
+        childrenCountBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+     */
+    public Builder mergeChildrenCount(com.google.protobuf.Int32Value value) {
+      if (childrenCountBuilder_ == null) {
+        if (childrenCount_ != null) {
+          childrenCount_ =
+            com.google.protobuf.Int32Value.newBuilder(childrenCount_).mergeFrom(value).buildPartial();
+        } else {
+          childrenCount_ = value;
+        }
+        onChanged();
+      } else {
+        childrenCountBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+     */
+    public Builder clearChildrenCount() {
+      if (childrenCountBuilder_ == null) {
+        childrenCount_ = null;
+        onChanged();
+      } else {
+        childrenCount_ = null;
+        childrenCountBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getChildrenCountBuilder() {
+
+      onChanged();
+      return getChildrenCountFieldBuilder().getBuilder();
+    }
+    /**
+     * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getChildrenCountOrBuilder() {
+      if (childrenCountBuilder_ != null) {
+        return childrenCountBuilder_.getMessageOrBuilder();
+      } else {
+        return childrenCount_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : childrenCount_;
+      }
+    }
+    /**
+     * <code>.google.protobuf.Int32Value childrenCount = 4;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        getChildrenCountFieldBuilder() {
+      if (childrenCountBuilder_ == null) {
+        childrenCountBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getChildrenCount(),
+                getParentForChildren(),
+                isClean());
+        childrenCount_ = null;
+      }
+      return childrenCountBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> items_ =
       java.util.Collections.emptyList();
-    private void ensureChildrenStatisticsIsMutable() {
+    private void ensureItemsIsMutable() {
       if (!((bitField0_ & 0x00000001) != 0)) {
-        childrenStatistics_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo>(childrenStatistics_);
+        items_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo>(items_);
         bitField0_ |= 0x00000001;
        }
     }
 
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> childrenStatisticsBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> itemsBuilder_;
 
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> getChildrenStatisticsList() {
-      if (childrenStatisticsBuilder_ == null) {
-        return java.util.Collections.unmodifiableList(childrenStatistics_);
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> getItemsList() {
+      if (itemsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(items_);
       } else {
-        return childrenStatisticsBuilder_.getMessageList();
+        return itemsBuilder_.getMessageList();
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public int getChildrenStatisticsCount() {
-      if (childrenStatisticsBuilder_ == null) {
-        return childrenStatistics_.size();
+    public int getItemsCount() {
+      if (itemsBuilder_ == null) {
+        return items_.size();
       } else {
-        return childrenStatisticsBuilder_.getCount();
+        return itemsBuilder_.getCount();
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getChildrenStatistics(int index) {
-      if (childrenStatisticsBuilder_ == null) {
-        return childrenStatistics_.get(index);
+    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo getItems(int index) {
+      if (itemsBuilder_ == null) {
+        return items_.get(index);
       } else {
-        return childrenStatisticsBuilder_.getMessage(index);
+        return itemsBuilder_.getMessage(index);
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public Builder setChildrenStatistics(
+    public Builder setItems(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo value) {
-      if (childrenStatisticsBuilder_ == null) {
+      if (itemsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        ensureChildrenStatisticsIsMutable();
-        childrenStatistics_.set(index, value);
+        ensureItemsIsMutable();
+        items_.set(index, value);
         onChanged();
       } else {
-        childrenStatisticsBuilder_.setMessage(index, value);
+        itemsBuilder_.setMessage(index, value);
       }
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public Builder setChildrenStatistics(
+    public Builder setItems(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder builderForValue) {
-      if (childrenStatisticsBuilder_ == null) {
-        ensureChildrenStatisticsIsMutable();
-        childrenStatistics_.set(index, builderForValue.build());
+      if (itemsBuilder_ == null) {
+        ensureItemsIsMutable();
+        items_.set(index, builderForValue.build());
         onChanged();
       } else {
-        childrenStatisticsBuilder_.setMessage(index, builderForValue.build());
+        itemsBuilder_.setMessage(index, builderForValue.build());
       }
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public Builder addChildrenStatistics(io.evitadb.externalApi.grpc.generated.GrpcLevelInfo value) {
-      if (childrenStatisticsBuilder_ == null) {
+    public Builder addItems(io.evitadb.externalApi.grpc.generated.GrpcLevelInfo value) {
+      if (itemsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        ensureChildrenStatisticsIsMutable();
-        childrenStatistics_.add(value);
+        ensureItemsIsMutable();
+        items_.add(value);
         onChanged();
       } else {
-        childrenStatisticsBuilder_.addMessage(value);
+        itemsBuilder_.addMessage(value);
       }
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public Builder addChildrenStatistics(
+    public Builder addItems(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo value) {
-      if (childrenStatisticsBuilder_ == null) {
+      if (itemsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
         }
-        ensureChildrenStatisticsIsMutable();
-        childrenStatistics_.add(index, value);
+        ensureItemsIsMutable();
+        items_.add(index, value);
         onChanged();
       } else {
-        childrenStatisticsBuilder_.addMessage(index, value);
+        itemsBuilder_.addMessage(index, value);
       }
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public Builder addChildrenStatistics(
+    public Builder addItems(
         io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder builderForValue) {
-      if (childrenStatisticsBuilder_ == null) {
-        ensureChildrenStatisticsIsMutable();
-        childrenStatistics_.add(builderForValue.build());
+      if (itemsBuilder_ == null) {
+        ensureItemsIsMutable();
+        items_.add(builderForValue.build());
         onChanged();
       } else {
-        childrenStatisticsBuilder_.addMessage(builderForValue.build());
+        itemsBuilder_.addMessage(builderForValue.build());
       }
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public Builder addChildrenStatistics(
+    public Builder addItems(
         int index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder builderForValue) {
-      if (childrenStatisticsBuilder_ == null) {
-        ensureChildrenStatisticsIsMutable();
-        childrenStatistics_.add(index, builderForValue.build());
+      if (itemsBuilder_ == null) {
+        ensureItemsIsMutable();
+        items_.add(index, builderForValue.build());
         onChanged();
       } else {
-        childrenStatisticsBuilder_.addMessage(index, builderForValue.build());
+        itemsBuilder_.addMessage(index, builderForValue.build());
       }
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public Builder addAllChildrenStatistics(
+    public Builder addAllItems(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfo> values) {
-      if (childrenStatisticsBuilder_ == null) {
-        ensureChildrenStatisticsIsMutable();
+      if (itemsBuilder_ == null) {
+        ensureItemsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
-            values, childrenStatistics_);
+            values, items_);
         onChanged();
       } else {
-        childrenStatisticsBuilder_.addAllMessages(values);
+        itemsBuilder_.addAllMessages(values);
       }
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public Builder clearChildrenStatistics() {
-      if (childrenStatisticsBuilder_ == null) {
-        childrenStatistics_ = java.util.Collections.emptyList();
+    public Builder clearItems() {
+      if (itemsBuilder_ == null) {
+        items_ = java.util.Collections.emptyList();
         bitField0_ = (bitField0_ & ~0x00000001);
         onChanged();
       } else {
-        childrenStatisticsBuilder_.clear();
+        itemsBuilder_.clear();
       }
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public Builder removeChildrenStatistics(int index) {
-      if (childrenStatisticsBuilder_ == null) {
-        ensureChildrenStatisticsIsMutable();
-        childrenStatistics_.remove(index);
+    public Builder removeItems(int index) {
+      if (itemsBuilder_ == null) {
+        ensureItemsIsMutable();
+        items_.remove(index);
         onChanged();
       } else {
-        childrenStatisticsBuilder_.remove(index);
+        itemsBuilder_.remove(index);
       }
       return this;
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder getChildrenStatisticsBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder getItemsBuilder(
         int index) {
-      return getChildrenStatisticsFieldBuilder().getBuilder(index);
+      return getItemsFieldBuilder().getBuilder(index);
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getChildrenStatisticsOrBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getItemsOrBuilder(
         int index) {
-      if (childrenStatisticsBuilder_ == null) {
-        return childrenStatistics_.get(index);  } else {
-        return childrenStatisticsBuilder_.getMessageOrBuilder(index);
+      if (itemsBuilder_ == null) {
+        return items_.get(index);  } else {
+        return itemsBuilder_.getMessageOrBuilder(index);
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
-         getChildrenStatisticsOrBuilderList() {
-      if (childrenStatisticsBuilder_ != null) {
-        return childrenStatisticsBuilder_.getMessageOrBuilderList();
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
+         getItemsOrBuilderList() {
+      if (itemsBuilder_ != null) {
+        return itemsBuilder_.getMessageOrBuilderList();
       } else {
-        return java.util.Collections.unmodifiableList(childrenStatistics_);
+        return java.util.Collections.unmodifiableList(items_);
       }
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder addChildrenStatisticsBuilder() {
-      return getChildrenStatisticsFieldBuilder().addBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder addItemsBuilder() {
+      return getItemsFieldBuilder().addBuilder(
           io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder addChildrenStatisticsBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder addItemsBuilder(
         int index) {
-      return getChildrenStatisticsFieldBuilder().addBuilder(
+      return getItemsFieldBuilder().addBuilder(
           index, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.getDefaultInstance());
     }
     /**
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo childrenStatistics = 4;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLevelInfo items = 5;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder> 
-         getChildrenStatisticsBuilderList() {
-      return getChildrenStatisticsFieldBuilder().getBuilderList();
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder>
+         getItemsBuilderList() {
+      return getItemsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder> 
-        getChildrenStatisticsFieldBuilder() {
-      if (childrenStatisticsBuilder_ == null) {
-        childrenStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>
+        getItemsFieldBuilder() {
+      if (itemsBuilder_ == null) {
+        itemsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
             io.evitadb.externalApi.grpc.generated.GrpcLevelInfo, io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.Builder, io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder>(
-                childrenStatistics_,
+                items_,
                 ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
                 isClean());
-        childrenStatistics_ = null;
+        items_ = null;
       }
-      return childrenStatisticsBuilder_;
+      return itemsBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

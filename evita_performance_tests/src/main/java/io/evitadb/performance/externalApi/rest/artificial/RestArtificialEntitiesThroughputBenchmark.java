@@ -102,11 +102,6 @@ public class RestArtificialEntitiesThroughputBenchmark extends RestArtificialEnt
 	}
 
 	@Override
-	public void parentsComputation(RestArtificialHierarchyBenchmarkState benchmarkState, RestArtificialParentsComputationState state, Blackhole blackhole) {
-		super.parentsComputation(benchmarkState, state, blackhole);
-	}
-
-	@Override
 	public void hierarchyStatisticsComputation(RestArtificialHierarchyBenchmarkState benchmarkState, RestArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(benchmarkState, state, blackhole);
 	}

@@ -33,7 +33,7 @@ public interface GrpcPricesInPriceListOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice>
       getPricesList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 1;</code>
@@ -46,7 +46,7 @@ public interface GrpcPricesInPriceListOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
       getPricesOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 1;</code>

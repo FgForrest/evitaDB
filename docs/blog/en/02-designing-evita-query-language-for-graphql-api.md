@@ -231,7 +231,9 @@ filterBy: {
       {
          attributeCodeStartsWith: "ipho",
          hierarchyCategoryWithin: {
-            parentOf: 20
+            ofParent: {
+                entityPrimaryKeyInSet: [20]
+            }
          },
          priceBetween: ["100.0", "250.0"]
       }

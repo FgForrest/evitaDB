@@ -106,11 +106,6 @@ public class JavaDriverArtificialEntitiesLatencyBenchmark extends JavaDriverArti
 	}
 
 	@Override
-	public void parentsComputation(JavaDriverArtificialHierarchyBenchmarkState benchmarkState, JavaDriverArtificialParentsComputationState state, Blackhole blackhole) {
-		super.parentsComputation(benchmarkState, state, blackhole);
-	}
-
-	@Override
 	public void hierarchyStatisticsComputation(JavaDriverArtificialHierarchyBenchmarkState benchmarkState, JavaDriverArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(benchmarkState, state, blackhole);
 	}

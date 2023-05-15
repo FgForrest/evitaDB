@@ -24,7 +24,6 @@
 package io.evitadb.api.requestResponse.data.mutation;
 
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 

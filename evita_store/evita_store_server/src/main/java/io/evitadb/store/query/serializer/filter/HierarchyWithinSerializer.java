@@ -32,6 +32,8 @@ import io.evitadb.api.query.filter.HierarchySpecificationFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Arrays;
+
 /**
  * This {@link Serializer} implementation reads/writes {@link HierarchyWithin} from/to binary format.
  *
@@ -49,7 +51,6 @@ public class HierarchyWithinSerializer extends Serializer<HierarchyWithin> {
 			output.writeBoolean(true);
 			output.writeString(entityType);
 		}
-		output.writeInt(object.getParentId());
 		final FilterConstraint[] children = object.getChildren();
 		output.writeVarInt(children.length, true);
 		for (FilterConstraint child : children) {
@@ -65,12 +66,21 @@ public class HierarchyWithinSerializer extends Serializer<HierarchyWithin> {
 		} else {
 			entityType = null;
 		}
-		final int parentId = input.readInt();
-		final HierarchySpecificationFilterConstraint[] children = new HierarchySpecificationFilterConstraint[input.readVarInt(true)];
+		final FilterConstraint[] children = new FilterConstraint[input.readVarInt(true)];
 		for (int i = 0; i < children.length; i++) {
 			children[i] = (HierarchySpecificationFilterConstraint) kryo.readClassAndObject(input);
 		}
-		return entityType == null ? new HierarchyWithin(parentId, children) : new HierarchyWithin(entityType, parentId, children);
+
+		final FilterConstraint parentFilter = Arrays.stream(children)
+			.filter(it -> !(it instanceof HierarchySpecificationFilterConstraint))
+			.findFirst()
+			.orElseThrow();
+		final HierarchySpecificationFilterConstraint[] specs = Arrays.stream(children)
+			.filter(HierarchySpecificationFilterConstraint.class::isInstance)
+			.map(HierarchySpecificationFilterConstraint.class::cast)
+			.toArray(HierarchySpecificationFilterConstraint[]::new);
+
+		return entityType == null ? new HierarchyWithin(parentFilter, specs) : new HierarchyWithin(entityType, parentFilter, specs);
 	}
 
 }

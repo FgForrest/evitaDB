@@ -24,23 +24,19 @@
 package io.evitadb.core.query.extraResult.translator.facet.producer;
 
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
-import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
-import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
+
+import static io.evitadb.core.query.filter.FilterByVisitor.createFormulaForTheFilter;
 
 /**
  * The predicate evaluates the nested query filter function to get the {@link Bitmap} of all hierarchy entity primary
@@ -66,55 +62,25 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		this.filterBy = filterBy;
-		try {
-			queryContext.pushStep(
-				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
-				stepDescriptionSupplier
-			);
-			// create a visitor
-			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
-				queryContext,
-				Collections.emptyList(),
-				TargetIndexes.EMPTY,
-				false
-			);
-
-			// now analyze the filter by in a nested context with exchanged primary entity index
-			final GlobalEntityIndex entityIndex = queryContext.getGlobalEntityIndex(entityType);
-			final Formula theFormula = queryContext.analyse(
-				theFilterByVisitor.executeInContext(
-					Collections.singletonList(entityIndex),
-					null,
-					entityIndex.getEntitySchema(),
-					null,
-					null,
-					null,
-					new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
-					AttributesContract::getAttribute,
-					() -> {
-						filterBy.accept(theFilterByVisitor);
-						// get the result and clear the visitor internal structures
-						return theFilterByVisitor.getFormulaAndClear();
+		// create a deferred formula that will log the execution time to query telemetry
+		filteringFormula = new DeferredFormula(
+			new FormulaWrapper(
+				createFormulaForTheFilter(
+					queryContext,
+					filterBy,
+					entityType,
+					stepDescriptionSupplier
+				),
+				formula -> {
+					try {
+						queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+						return formula.compute();
+					} finally {
+						queryContext.popStep();
 					}
-				)
-			);
-			// create a deferred formula that will log the execution time to query telemetry
-			this.filteringFormula = new DeferredFormula(
-				new FormulaWrapper(
-					theFormula,
-					formula -> {
-						try {
-							queryContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-							return formula.compute();
-						} finally {
-							queryContext.popStep();
-						}
-					}
-				)
-			);
-		} finally {
-			queryContext.popStep();
-		}
+				}
+			)
+		);
 	}
 
 	@Override

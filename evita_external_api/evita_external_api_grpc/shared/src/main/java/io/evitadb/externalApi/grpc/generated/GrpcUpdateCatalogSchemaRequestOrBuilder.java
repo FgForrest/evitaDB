@@ -33,7 +33,7 @@ public interface GrpcUpdateCatalogSchemaRequestOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation>
       getSchemaMutationsList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
@@ -46,7 +46,7 @@ public interface GrpcUpdateCatalogSchemaRequestOrBuilder extends
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutationOrBuilder>
       getSchemaMutationsOrBuilderList();
   /**
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcLocalCatalogSchemaMutation schemaMutations = 1;</code>

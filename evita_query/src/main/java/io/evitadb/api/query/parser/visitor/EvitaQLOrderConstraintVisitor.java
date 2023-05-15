@@ -45,7 +45,7 @@ import javax.annotation.Nonnull;
  * @see EvitaQLConstraintVisitor
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
-public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseVisitor<OrderConstraint> {
+public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<OrderConstraint> {
 
 	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
 	protected final EvitaQLValueTokenVisitor orderDirectionValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OrderDirection.class);
@@ -62,7 +62,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseVisitor<OrderConst
 				return new OrderBy(
 					ctx.args.constraints
 						.stream()
-						.map(oc -> oc.accept(this))
+						.map(oc -> visitChildConstraint(oc, OrderConstraint.class))
 						.toArray(OrderConstraint[]::new)
 				);
 			}
@@ -120,7 +120,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseVisitor<OrderConst
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
 				ctx.args.constrains
 					.stream()
-					.map(c -> c.accept(this))
+					.map(c -> visitChildConstraint(c, OrderConstraint.class))
 					.toArray(OrderConstraint[]::new)
 			)
 		);
@@ -133,7 +133,7 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseVisitor<OrderConst
 			() -> new EntityProperty(
 				ctx.args.constraints
 					.stream()
-					.map(c -> c.accept(this))
+					.map(c -> visitChildConstraint(c, OrderConstraint.class))
 					.toArray(OrderConstraint[]::new)
 			)
 		);

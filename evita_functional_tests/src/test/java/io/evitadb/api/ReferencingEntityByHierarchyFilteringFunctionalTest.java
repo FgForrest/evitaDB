@@ -31,15 +31,11 @@ import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -79,12 +75,11 @@ import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.LEAV
 import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.extension.DataCarrier.tuple;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
@@ -102,54 +97,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	private static final String ATTRIBUTE_FOUNDED = "founded";
 	private static final String ATTRIBUTE_CAPACITY = "capacity";
 	private static final String ATTRIBUTE_SHORTCUT = "shortcut";
-	private static final String ATTRIBUTE_TRANSIENT = "transient";
 	private static final int SEED = 40;
 	private final DataGenerator dataGenerator = new DataGenerator();
-
-	@Nonnull
-	private static Map<Integer, Integer> getCardinalityIndex(Integer parentCategoryId, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy, List<SealedEntity> allProducts, List<SealedEntity> allCategories, Predicate<SealedEntity> filterPredicate, Predicate<SealedEntity> treePredicate) {
-		final Map<Integer, SealedEntity> categoriesById = allCategories.stream()
-			.collect(
-				Collectors.toMap(
-					EntityContract::getPrimaryKey,
-					Function.identity()
-				)
-			);
-
-		final Map<Integer, Integer> categoryCardinalities = new HashMap<>();
-		for (SealedEntity product : allProducts) {
-			if (filterPredicate.test(product)) {
-				final Collection<ReferenceContract> categoryReferences = product.getReferences(Entities.CATEGORY);
-				for (ReferenceContract category : categoryReferences) {
-					final boolean pathValid = categoryHierarchy.getParentItems(String.valueOf(category.getReferenceKey().primaryKey()))
-						.stream()
-						.map(HierarchyItem::getCode)
-						.map(Integer::parseInt)
-						.map(categoriesById::get)
-						.allMatch(treePredicate) &&
-						treePredicate.test(categoriesById.get(category.getReferenceKey().primaryKey()));
-					if (pathValid) {
-						final int categoryId = category.getReferenceKey().primaryKey();
-						final List<Integer> categoryPath = Stream.concat(
-							categoryHierarchy.getParentItems(String.valueOf(categoryId))
-								.stream()
-								.map(it -> Integer.parseInt(it.getCode())),
-							Stream.of(categoryId)
-						).toList();
-						for (int i = categoryPath.size() - 1; i >= 0; i--) {
-							int cid = categoryPath.get(i);
-							categoryCardinalities.merge(cid, 1, Integer::sum);
-							if (parentCategoryId != null && cid == parentCategoryId) {
-								// we have encountered requested parent
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
-		return categoryCardinalities;
-	}
 
 	@DataSet(value = THOUSAND_PRODUCTS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
@@ -208,12 +157,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								.withReferenceToEntity(
 									Entities.CATEGORY,
 									Entities.CATEGORY,
-									Cardinality.ZERO_OR_MORE,
-									whichIs ->
-										/* we can specify special attributes on relation */
-										whichIs.filterable()
-											.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().nullable())
-											.withAttribute(ATTRIBUTE_TRANSIENT, Boolean.class, thatIs -> thatIs.filterable())
+									Cardinality.ZERO_OR_MORE
 								)
 								.withReferenceToEntity(
 									Entities.BRAND,
@@ -238,17 +182,28 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				.map(session::upsertEntity)
 				.toList();
 
+			final List<SealedEntity> categoriesAvailable = storedCategories.stream()
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent(), dataInLocales()).orElseThrow())
+				.toList();
 			return new DataCarrier(
-				"originalProductEntities",
-				storedProducts.stream()
-					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent(), dataInLocales()).orElseThrow())
-					.collect(Collectors.toList()),
-				"originalCategoryEntities",
-				storedCategories.stream()
-					.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent(), dataInLocales()).orElseThrow())
-					.collect(Collectors.toList()),
-				"categoryHierarchy",
-				dataGenerator.getHierarchy(Entities.CATEGORY)
+				tuple(
+					"originalProductEntities",
+					storedProducts.stream()
+						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent(), dataInLocales()).orElseThrow())
+						.collect(Collectors.toList())
+				),
+				tuple(
+					"originalCategoryIndex",
+					categoriesAvailable
+				),
+				tuple(
+					"originalCategoryIndex",
+					categoriesAvailable.stream().collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()))
+				),
+				tuple(
+					"categoryHierarchy",
+					dataGenerator.getHierarchy(Entities.CATEGORY)
+				)
 			);
 		});
 	}
@@ -323,35 +278,30 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		);
 	}
 
-	@DisplayName("Should return all products in categories ignoring relations in specified category subtrees")
+	@DisplayName("Should return all products in categories having specified category subtrees")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test
-	void shouldReturnAllProductsInCategoriesExceptCertainRelationsToSpecifiedSubtrees(Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
-		final Map<Integer, SealedEntity> categoryIndex = originalCategoryEntities
-			.stream()
-			.collect(
-				Collectors.toMap(
-					EntityContract::getPrimaryKey,
-					Function.identity()
-				)
-			);
+	void shouldReturnAllProductsInCategoriesHavingSpecifiedSubtrees(Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> excluded = new HashSet<>(Arrays.asList(1, 7, 13, 16, 40, 55));
+		final Set<Integer> includedCategories = originalCategoryIndex.values().stream()
+			.filter(sealedEntity ->
+				// is not directly excluded node
+				!excluded.contains(sealedEntity.getPrimaryKey()) &&
+					// has no parent node that is in excluded set
+					categoryHierarchy.getParentItems(sealedEntity.getPrimaryKey().toString())
+						.stream()
+						.map(it -> Integer.parseInt(it.getCode()))
+						.noneMatch(excluded::contains))
+			.map(EntityContract::getPrimaryKey)
+			.collect(Collectors.toSet());
+
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(
-							hierarchyWithinRoot(
-								Entities.CATEGORY,
-								excluding(
-									attributeEqualsTrue(ATTRIBUTE_TRANSIENT),
-									entityHaving(
-										attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
-									)
-								)
-							)
-						),
+						filterBy(hierarchyWithinRoot(Entities.CATEGORY, having(entityPrimaryKeyInSet(includedCategories.toArray(new Integer[0]))))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -365,18 +315,15 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					sealedEntity -> sealedEntity
 						.getReferences(Entities.CATEGORY)
 						.stream()
-						.anyMatch(it -> {
-							final boolean isTransient = it.getAttribute(ATTRIBUTE_TRANSIENT, Boolean.class);
-							final List<SealedEntity> categoryPath = Stream.concat(
-									Stream.of(it.getReferencedPrimaryKey()),
-									categoryHierarchy.getParentItems(String.valueOf(it.getReferencedPrimaryKey()))
+						.anyMatch(category -> {
+								// is not directly excluded node
+								return !excluded.contains(category.getReferenceKey().primaryKey()) &&
+									// has no parent node that is in excluded set
+									categoryHierarchy.getParentItems(String.valueOf(category.getReferenceKey().primaryKey()))
 										.stream()
-										.map(node -> Integer.parseInt(node.getCode()))
-								).map(categoryIndex::get)
-								.toList();
-							return !isTransient &&
-								categoryPath.stream().noneMatch(theCategory -> theCategory.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
-						}),
+										.map(it -> Integer.parseInt(it.getCode()))
+										.noneMatch(excluded::contains);
+							}),
 					result.getRecordData()
 				);
 				return null;
@@ -394,7 +341,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 7, directRelation())),
+						filterBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7), directRelation())),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -419,6 +366,94 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		);
 	}
 
+	@DisplayName("Should return products in shortcut categories")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsInAllShortcutCategories(Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+									attributeEqualsTrue(ATTRIBUTE_SHORTCUT),
+								directRelation()
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.CATEGORY)
+						.stream()
+						.map(categoryRel -> originalCategoryIndex.get(categoryRel.getReferencedPrimaryKey()))
+						.anyMatch(category -> category.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class)),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return all subcategories of shortcuts and their children")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnSubCategoriesInAllShortCutsAndTheirChildren(Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.CATEGORY)
+						.stream()
+						.flatMap(
+							categoryRel -> {
+								final SealedEntity referencedCategory = originalCategoryIndex.get(categoryRel.getReferencedPrimaryKey());
+								return Stream.concat(
+									Stream.of(referencedCategory),
+									categoryHierarchy.getParentItems(String.valueOf(referencedCategory.getPrimaryKey()))
+										.stream()
+										.map(it -> Integer.parseInt(it.getCode()))
+										.map(originalCategoryIndex::get)
+								);
+							}
+						)
+						.anyMatch(category -> category.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class)),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products in selected category subtree")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test
@@ -429,7 +464,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 7)),
+						filterBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -469,7 +504,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 7, excludingRoot())),
+						filterBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(7), excludingRoot())),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -510,7 +545,13 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 1, excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))))),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(1),
+								excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0])))
+							)
+						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
@@ -576,7 +617,11 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									Entities.STORE,
 									attributeGreaterThan(ATTRIBUTE_CAPACITY, 50000)
 								),
-								hierarchyWithin(Entities.CATEGORY, 1, excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))))
+								hierarchyWithin(
+									Entities.CATEGORY,
+									entityPrimaryKeyInSet(1),
+									excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0])))
+								)
 							)
 						),
 						require(
@@ -649,168 +694,17 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		);
 	}
 
-	@DisplayName("Should return category parents for returned products when only primary keys are returned")
-	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
-	void shouldReturnCategoryParentsForReturnedProductsWhenOnlyPrimaryKeysAreReturned(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<EntityReference> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 94)),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							hierarchyParentsOfReference(Entities.CATEGORY)
-						)
-					),
-					EntityReference.class
-				);
-
-				assertFalse(result.getRecordData().isEmpty());
-
-				final HierarchyParents hierarchyParents = result.getExtraResult(HierarchyParents.class);
-				assertNotNull(hierarchyParents, "No parents DTO was returned!");
-				final ParentsByReference categoryParents = hierarchyParents.ofType(Entities.CATEGORY);
-
-				final Map<Integer, SealedEntity> originalProductIndex = originalProductEntities.stream()
-					.collect(
-						Collectors.toMap(
-							EntityContract::getPrimaryKey,
-							Function.identity()
-						)
-					);
-
-				for (EntityReference entity : result.getRecordData()) {
-					final SealedEntity originalEntity = originalProductIndex.get(entity.getPrimaryKey());
-					final Collection<ReferenceContract> references = originalEntity.getReferences(Entities.CATEGORY);
-					assertFalse(references.isEmpty());
-					references.forEach(relatedCategory -> {
-						final int referencedCategoryId = relatedCategory.getReferenceKey().primaryKey();
-						final Integer[] relatedParentIds = Arrays.stream(categoryParents.getParentsFor(entity.getPrimaryKey(), referencedCategoryId))
-							.map(it -> it.getPrimaryKey())
-							.toArray(Integer[]::new);
-						assertArrayEquals(
-							getParentIds(categoryHierarchy, referencedCategoryId),
-							relatedParentIds
-						);
-					});
-				}
-
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return category parents for returned products")
-	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
-	void shouldReturnCategoryParentsForReturnedProducts(Evita evita, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<SealedEntity> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 94)),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							entityFetch(
-								referenceContent(Entities.CATEGORY)
-							),
-							hierarchyParentsOfReference(Entities.CATEGORY)
-						)
-					),
-					SealedEntity.class
-				);
-
-				assertFalse(result.getRecordData().isEmpty());
-
-				final HierarchyParents hierarchyParents = result.getExtraResult(HierarchyParents.class);
-				assertNotNull(hierarchyParents, "No parents DTO was returned!");
-				final ParentsByReference categoryParents = hierarchyParents.ofType(Entities.CATEGORY);
-
-				for (SealedEntity entity : result.getRecordData()) {
-					final Collection<ReferenceContract> references = entity.getReferences(Entities.CATEGORY);
-					assertFalse(references.isEmpty());
-					references.forEach(relatedCategory -> {
-						final int referencedCategoryId = relatedCategory.getReferenceKey().primaryKey();
-						final Integer[] relatedParentIds = Arrays.stream(categoryParents.getParentsFor(entity.getPrimaryKey(), referencedCategoryId))
-							.map(it -> it.getPrimaryKey())
-							.toArray(Integer[]::new);
-						final Integer[] parentIds = getParentIds(categoryHierarchy, referencedCategoryId);
-						assertArrayEquals(parentIds, relatedParentIds);
-					});
-				}
-
-				return null;
-			}
-		);
-	}
-
-	@DisplayName("Should return category parent bodies for returned products")
-	@UseDataSet(THOUSAND_PRODUCTS)
-	@Test
-	void shouldReturnCategoryParentBodiesForReturnedProducts(Evita evita, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				final EvitaResponse<SealedEntity> result = session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 94)),
-						require(
-							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
-							entityFetch(
-								referenceContent(Entities.CATEGORY)
-							),
-							hierarchyParentsOfReference(Entities.CATEGORY, entityFetch())
-						)
-					),
-					SealedEntity.class
-				);
-
-				assertFalse(result.getRecordData().isEmpty());
-
-				final HierarchyParents hierarchyParents = result.getExtraResult(HierarchyParents.class);
-				assertNotNull(hierarchyParents, "No parents DTO was returned!");
-				final ParentsByReference categoryParents = hierarchyParents.ofType(Entities.CATEGORY);
-
-				// all results should start with same parents when we query by hierarchy
-				for (SealedEntity entity : result.getRecordData()) {
-					final Collection<ReferenceContract> references = entity.getReferences(Entities.CATEGORY);
-					assertFalse(references.isEmpty());
-					references.forEach(relatedCategory -> {
-						final int referencedCategoryId = relatedCategory.getReferenceKey().primaryKey();
-						final EntityClassifier[] relatedParents = categoryParents.getParentsFor(entity.getPrimaryKey(), referencedCategoryId);
-						final Integer[] relatedParentIds = Arrays.stream(relatedParents).map(EntityClassifier::getPrimaryKey).toArray(Integer[]::new);
-						assertArrayEquals(
-							getParentIds(categoryHierarchy, referencedCategoryId),
-							relatedParentIds
-						);
-					});
-				}
-
-				return null;
-			}
-		);
-	}
-
 	@DisplayName("Should return cardinalities for products when filter constraint is eliminated")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test
-	void shouldReturnCardinalitiesForProductsWhenFilterConstraintIsEliminated(Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+	void shouldReturnCardinalitiesForProductsWhenFilterConstraintIsEliminated(Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(hierarchyWithin(Entities.CATEGORY, 1)),
+						filterBy(hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
@@ -829,7 +723,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					entity -> entity.getLocales().contains(CZECH_LOCALE),
 					languagePredicate,
 					languagePredicate,
@@ -859,7 +753,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
-	void shouldReturnCardinalitiesForProducts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+	void shouldReturnCardinalitiesForProducts(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -892,7 +786,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					entity -> entity.getLocales().contains(CZECH_LOCALE) &&
 						ofNullable((Boolean) entity.getAttribute(ATTRIBUTE_ALIAS)).orElse(false),
 					languagePredicate,
@@ -921,7 +815,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
-	void shouldReturnCardinalitiesForProductsLeavingEmptyCategories(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalProductEntities, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+	void shouldReturnCardinalitiesForProductsLeavingEmptyCategories(EnumSet<StatisticsType> statisticsType, Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -955,7 +849,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					entity -> entity.getLocales().contains(CZECH_LOCALE) &&
 						ofNullable((Boolean) entity.getAttribute(ATTRIBUTE_ALIAS)).orElse(false),
 					languagePredicate,
@@ -989,7 +883,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1002,7 +896,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							and(
 								attributeEquals(ATTRIBUTE_ALIAS, true),
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 2)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))
 							)
 						),
 						require(
@@ -1025,7 +919,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					entity -> entity.getLocales().contains(CZECH_LOCALE) &&
 						ofNullable((Boolean) entity.getAttribute(ATTRIBUTE_ALIAS)).orElse(false),
 					languagePredicate,
@@ -1059,7 +953,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1071,7 +965,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 6)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -1098,7 +992,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					return parentItems.size() == 1 && "1".equals(parentItems.get(0).getCode());
 				};
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate,
 					(category, parentItems) -> categoryPredicate.test(category, parentItems) && languagePredicate.test(category, parentItems),
@@ -1130,7 +1024,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1142,7 +1036,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 6)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -1176,7 +1070,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					);
 				};
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate,
 					(category, parentItems) -> categoryPredicate.test(category, parentItems) && languagePredicate.test(category, parentItems),
@@ -1208,7 +1102,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1220,7 +1114,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 2)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2))
 							)
 						),
 						require(
@@ -1249,7 +1143,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate,
 					treePredicate,
@@ -1281,7 +1175,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1293,7 +1187,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 1)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1))
 							)
 						),
 						require(
@@ -1328,7 +1222,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1359,7 +1253,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1371,7 +1265,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 6)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -1406,7 +1300,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1437,7 +1331,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1449,7 +1343,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 6)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -1484,7 +1378,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1515,7 +1409,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1555,7 +1449,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1586,7 +1480,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1623,7 +1517,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> languagePredicate.test(sealedEntity, parentItems) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1654,7 +1548,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1699,7 +1593,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1730,7 +1624,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1742,7 +1636,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 1)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1))
 							)
 						),
 						require(
@@ -1777,7 +1671,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1808,7 +1702,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1820,7 +1714,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 6)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -1855,7 +1749,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1886,7 +1780,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1901,9 +1795,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								hierarchyWithinRoot(
 									Entities.CATEGORY,
 									excluding(
-										entityHaving(
-											attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
-										)
+										attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
 									)
 								)
 							)
@@ -1931,7 +1823,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						!entity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, languagePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -1962,7 +1854,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -1975,11 +1867,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithin(
-									Entities.CATEGORY, 1,
+									Entities.CATEGORY, entityPrimaryKeyInSet(1),
 									excluding(
-										entityHaving(
-											attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
-										)
+										attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
 									)
 								)
 							)
@@ -2014,7 +1904,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -2045,7 +1935,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -2058,11 +1948,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithin(
-									Entities.CATEGORY, 16,
+									Entities.CATEGORY, entityPrimaryKeyInSet(16),
 									excluding(
-										entityHaving(
-											attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
-										)
+										attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
 									)
 								)
 							)
@@ -2097,7 +1985,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -2128,7 +2016,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -2141,11 +2029,9 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithin(
-									Entities.CATEGORY, 16,
+									Entities.CATEGORY, entityPrimaryKeyInSet(16),
 									excluding(
-										entityHaving(
-											attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
-										)
+										attributeEqualsTrue(ATTRIBUTE_SHORTCUT)
 									)
 								)
 							)
@@ -2181,7 +2067,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -2212,7 +2098,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -2252,7 +2138,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -2283,7 +2169,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -2295,7 +2181,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 1)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1))
 							)
 						),
 						require(
@@ -2328,7 +2214,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -2359,7 +2245,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -2371,7 +2257,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 6)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -2405,7 +2291,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -2436,7 +2322,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		EnumSet<StatisticsType> statisticsType,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -2480,7 +2366,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
 					languagePredicate, treePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -2513,7 +2399,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		StatisticsBase base,
 		Evita evita,
 		List<SealedEntity> originalProductEntities,
-		List<SealedEntity> originalCategoryEntities,
+		Map<Integer, SealedEntity> originalCategoryIndex,
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy
 	) {
 		evita.queryCatalog(
@@ -2565,7 +2451,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
-					categoryHierarchy, originalProductEntities, originalCategoryEntities,
+					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					filterPredicate,
 					treeFilterPredicate, scopePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
@@ -2604,18 +2490,14 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	private CardinalityProvider computeCardinalities(
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
 		List<SealedEntity> allProducts,
-		List<SealedEntity> allCategories,
+		Map<Integer, SealedEntity> categoryIndex,
 		Predicate<SealedEntity> filterPredicate,
 		TestHierarchyPredicate treeFilterPredicate,
 		TestHierarchyPredicate scopePredicate,
 		EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour
 	) {
-		final Map<Integer, SealedEntity> categoryIndex = allCategories
-			.stream()
-			.collect(Collectors.toMap(EntityContract::getPrimaryKey, Function.identity()));
-
 		final Set<Integer> categoriesWithValidPath = new HashSet<>();
-		for (SealedEntity category : allCategories) {
+		for (SealedEntity category : categoryIndex.values()) {
 			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(category.getPrimaryKey()));
 			if (scopePredicate.test(category, parentItems)) {
 				categoriesWithValidPath.add(category.getPrimaryKey());
@@ -2627,7 +2509,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		final Cardinalities categoryCardinalities = new Cardinalities();
 
 		final Set<List<Integer>> emptyCategories = new HashSet<>();
-		for (SealedEntity category : allCategories) {
+		for (SealedEntity category : categoryIndex.values()) {
 			final int categoryId = category.getPrimaryKey();
 			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(categoryId));
 			final List<Integer> categoryPath = Stream.concat(
@@ -2669,14 +2551,14 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	private Hierarchy computeExpectedStatistics(
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
 		List<SealedEntity> allProducts,
-		List<SealedEntity> allCategories,
+		Map<Integer, SealedEntity> categoryIndex,
 		Predicate<SealedEntity> filterPredicate,
 		TestHierarchyPredicate treeFilterPredicate,
 		TestHierarchyPredicate scopePredicate,
 		Function<CardinalityProvider, HierarchyStatisticsTuple> statisticsComputer
 	) {
 		return computeExpectedStatistics(
-			categoryHierarchy, allProducts, allCategories, filterPredicate, treeFilterPredicate, scopePredicate,
+			categoryHierarchy, allProducts, categoryIndex, filterPredicate, treeFilterPredicate, scopePredicate,
 			REMOVE_EMPTY, statisticsComputer
 		);
 	}
@@ -2685,7 +2567,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 	private Hierarchy computeExpectedStatistics(
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
 		List<SealedEntity> allProducts,
-		List<SealedEntity> allCategories,
+		Map<Integer, SealedEntity> categoryIndex,
 		Predicate<SealedEntity> filterPredicate,
 		TestHierarchyPredicate treeFilterPredicate,
 		TestHierarchyPredicate scopePredicate,
@@ -2693,7 +2575,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		Function<CardinalityProvider, HierarchyStatisticsTuple> statisticsComputer
 	) {
 		final CardinalityProvider categoryCardinalities = computeCardinalities(
-			categoryHierarchy, allProducts, allCategories, filterPredicate,
+			categoryHierarchy, allProducts, categoryIndex, filterPredicate,
 			treeFilterPredicate, scopePredicate, emptyHierarchicalEntityBehaviour
 		);
 		final HierarchyStatisticsTuple result = statisticsComputer.apply(categoryCardinalities);

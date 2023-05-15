@@ -120,6 +120,19 @@ private static final long serialVersionUID = 0L;
 
             break;
           }
+          case 50: {
+            com.google.protobuf.Int32Value.Builder subBuilder = null;
+            if (matchCount_ != null) {
+              subBuilder = matchCount_.toBuilder();
+            }
+            matchCount_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(matchCount_);
+              matchCount_ = subBuilder.buildPartial();
+            }
+
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -252,6 +265,32 @@ private static final long serialVersionUID = 0L;
     return getImpact();
   }
 
+  public static final int MATCHCOUNT_FIELD_NUMBER = 6;
+  private com.google.protobuf.Int32Value matchCount_;
+  /**
+   * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+   * @return Whether the matchCount field is set.
+   */
+  @java.lang.Override
+  public boolean hasMatchCount() {
+    return matchCount_ != null;
+  }
+  /**
+   * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+   * @return The matchCount.
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32Value getMatchCount() {
+    return matchCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : matchCount_;
+  }
+  /**
+   * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getMatchCountOrBuilder() {
+    return getMatchCount();
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -281,6 +320,9 @@ private static final long serialVersionUID = 0L;
     if (impact_ != null) {
       output.writeMessage(5, getImpact());
     }
+    if (matchCount_ != null) {
+      output.writeMessage(6, getMatchCount());
+    }
     unknownFields.writeTo(output);
   }
 
@@ -309,6 +351,10 @@ private static final long serialVersionUID = 0L;
     if (impact_ != null) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, getImpact());
+    }
+    if (matchCount_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(6, getMatchCount());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -344,6 +390,11 @@ private static final long serialVersionUID = 0L;
       if (!getImpact()
           .equals(other.getImpact())) return false;
     }
+    if (hasMatchCount() != other.hasMatchCount()) return false;
+    if (hasMatchCount()) {
+      if (!getMatchCount()
+          .equals(other.getMatchCount())) return false;
+    }
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -371,6 +422,10 @@ private static final long serialVersionUID = 0L;
     if (hasImpact()) {
       hash = (37 * hash) + IMPACT_FIELD_NUMBER;
       hash = (53 * hash) + getImpact().hashCode();
+    }
+    if (hasMatchCount()) {
+      hash = (37 * hash) + MATCHCOUNT_FIELD_NUMBER;
+      hash = (53 * hash) + getMatchCount().hashCode();
     }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
@@ -527,6 +582,12 @@ private static final long serialVersionUID = 0L;
         impact_ = null;
         impactBuilder_ = null;
       }
+      if (matchCountBuilder_ == null) {
+        matchCount_ = null;
+      } else {
+        matchCount_ = null;
+        matchCountBuilder_ = null;
+      }
       return this;
     }
 
@@ -569,6 +630,11 @@ private static final long serialVersionUID = 0L;
         result.impact_ = impact_;
       } else {
         result.impact_ = impactBuilder_.build();
+      }
+      if (matchCountBuilder_ == null) {
+        result.matchCount_ = matchCount_;
+      } else {
+        result.matchCount_ = matchCountBuilder_.build();
       }
       onBuilt();
       return result;
@@ -632,6 +698,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasImpact()) {
         mergeImpact(other.getImpact());
+      }
+      if (other.hasMatchCount()) {
+        mergeMatchCount(other.getMatchCount());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -749,7 +818,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder getFacetEntityReferenceBuilder() {
-      
+
       onChanged();
       return getFacetEntityReferenceFieldBuilder().getBuilder();
     }
@@ -768,7 +837,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcEntityReference facetEntityReference = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcEntityReference, io.evitadb.externalApi.grpc.generated.GrpcEntityReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityReferenceOrBuilder>
         getFacetEntityReferenceFieldBuilder() {
       if (facetEntityReferenceBuilder_ == null) {
         facetEntityReferenceBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -868,7 +937,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder getFacetEntityBuilder() {
-      
+
       onChanged();
       return getFacetEntityFieldBuilder().getBuilder();
     }
@@ -887,7 +956,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcSealedEntity facetEntity = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcSealedEntity, io.evitadb.externalApi.grpc.generated.GrpcSealedEntity.Builder, io.evitadb.externalApi.grpc.generated.GrpcSealedEntityOrBuilder>
         getFacetEntityFieldBuilder() {
       if (facetEntityBuilder_ == null) {
         facetEntityBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -915,7 +984,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setRequested(boolean value) {
-      
+
       requested_ = value;
       onChanged();
       return this;
@@ -925,7 +994,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearRequested() {
-      
+
       requested_ = false;
       onChanged();
       return this;
@@ -946,7 +1015,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setCount(int value) {
-      
+
       count_ = value;
       onChanged();
       return this;
@@ -956,7 +1025,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearCount() {
-      
+
       count_ = 0;
       onChanged();
       return this;
@@ -1049,7 +1118,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     public com.google.protobuf.Int32Value.Builder getImpactBuilder() {
-      
+
       onChanged();
       return getImpactFieldBuilder().getBuilder();
     }
@@ -1068,7 +1137,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.Int32Value impact = 5;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
         getImpactFieldBuilder() {
       if (impactBuilder_ == null) {
         impactBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1079,6 +1148,125 @@ private static final long serialVersionUID = 0L;
         impact_ = null;
       }
       return impactBuilder_;
+    }
+
+    private com.google.protobuf.Int32Value matchCount_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> matchCountBuilder_;
+    /**
+     * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+     * @return Whether the matchCount field is set.
+     */
+    public boolean hasMatchCount() {
+      return matchCountBuilder_ != null || matchCount_ != null;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+     * @return The matchCount.
+     */
+    public com.google.protobuf.Int32Value getMatchCount() {
+      if (matchCountBuilder_ == null) {
+        return matchCount_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : matchCount_;
+      } else {
+        return matchCountBuilder_.getMessage();
+      }
+    }
+    /**
+     * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+     */
+    public Builder setMatchCount(com.google.protobuf.Int32Value value) {
+      if (matchCountBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        matchCount_ = value;
+        onChanged();
+      } else {
+        matchCountBuilder_.setMessage(value);
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+     */
+    public Builder setMatchCount(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (matchCountBuilder_ == null) {
+        matchCount_ = builderForValue.build();
+        onChanged();
+      } else {
+        matchCountBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+     */
+    public Builder mergeMatchCount(com.google.protobuf.Int32Value value) {
+      if (matchCountBuilder_ == null) {
+        if (matchCount_ != null) {
+          matchCount_ =
+            com.google.protobuf.Int32Value.newBuilder(matchCount_).mergeFrom(value).buildPartial();
+        } else {
+          matchCount_ = value;
+        }
+        onChanged();
+      } else {
+        matchCountBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+     */
+    public Builder clearMatchCount() {
+      if (matchCountBuilder_ == null) {
+        matchCount_ = null;
+        onChanged();
+      } else {
+        matchCount_ = null;
+        matchCountBuilder_ = null;
+      }
+
+      return this;
+    }
+    /**
+     * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getMatchCountBuilder() {
+
+      onChanged();
+      return getMatchCountFieldBuilder().getBuilder();
+    }
+    /**
+     * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getMatchCountOrBuilder() {
+      if (matchCountBuilder_ != null) {
+        return matchCountBuilder_.getMessageOrBuilder();
+      } else {
+        return matchCount_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : matchCount_;
+      }
+    }
+    /**
+     * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>
+        getMatchCountFieldBuilder() {
+      if (matchCountBuilder_ == null) {
+        matchCountBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getMatchCount(),
+                getParentForChildren(),
+                isClean());
+        matchCount_ = null;
+      }
+      return matchCountBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

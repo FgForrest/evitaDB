@@ -116,11 +116,6 @@ public class SignalLatencyBenchmark extends SignalBenchmark {
 	}
 
 	@Override
-	public void parentsComputation_InMemory(SignalParentsComputationState state, Blackhole blackhole) {
-		super.parentsComputation_InMemory(state, blackhole);
-	}
-
-	@Override
 	public void hierarchyStatisticsComputation_InMemory(SignalHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation_InMemory(state, blackhole);
 	}

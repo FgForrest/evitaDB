@@ -157,8 +157,8 @@ children that are of the same type as the parent container is and directly corre
 On the other hand, additional children extend such containers with possibility of adding constraint containers
 of different constraint type, e.g. require container can have its own embedded filter container.
 
-Main child parameter can be only one in a single constructor and takes one or more child constraints. 
-Such a parameter must be annotated with the `io.evitadb.api.query.descriptor.annotation.Child` annotation.
+Such a parameter must be annotated with the `io.evitadb.api.query.descriptor.annotation.Child` annotation. With this annotation,
+multiple parameters can be annotated in single constructor.
 Additionally, one can mark array of children as unique where each child constraint can be used only once. This is useful
 for constraint containers where only limited number of child constraints are allowed.
 By default, only subclasses of the parameter type are allowed which are then limited to subset defined by context of current
@@ -166,10 +166,8 @@ By default, only subclasses of the parameter type are allowed which are then lim
 To further limit allowed child constraints, one can specify set of `allowed` or `forbidden` constraints in this
 annotation.
 
-Contrary to main child parameter, *creator* constructor can have multiple additional child parameters, **but** 
-each parameter must be of different constraint type (which is specified by parameter type) and 
-none can be of the same type as the parent container. Such parameter must be annotated with the
-`io.evitadb.api.query.descriptor.annotation.AdditionalChild` annotation. However, there are some limitations in place to simplify
+Additional child parameters must be annotated with the `io.evitadb.api.query.descriptor.annotation.AdditionalChild` annotation
+and cannot be of same constraint type as the parent container. However, there are some limitations in place to simplify
 processing logic of these annotations and to produce reasonable JSON objects (which are also quite limited for our use cases).
 The type of parameter must be some concrete generic constraint container of desired constraint type, so that it generates
 enclosing JSON object automatically. Also, the container must have *creator* constructor with only one parameter which 

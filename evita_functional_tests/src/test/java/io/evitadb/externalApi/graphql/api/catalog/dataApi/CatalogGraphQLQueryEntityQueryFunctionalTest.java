@@ -37,13 +37,12 @@ import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.RecordPageDescriptor;
@@ -57,9 +56,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.test.Entities;
@@ -106,7 +102,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private static final int SEED = 40;
 
 	private static final String PRODUCT_QUERY_PATH = "data.queryProduct";
+	public static final String PRODUCT_QUERY_DATA_PATH = PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
 	private static final String CATEGORY_QUERY_PATH = "data.queryCategory";
+	public static final String CATEGORY_QUERY_DATA_PATH = CATEGORY_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
 
 	private static final String CATEGORY_HIERARCHY_PATH = CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
 	private static final String SELF_HIERARCHY_PATH = CATEGORY_HIERARCHY_PATH + "." + HierarchyDescriptor.SELF.name();
@@ -511,6 +509,460 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entity references")
+	void shouldReturnAllDirectCategoryParentEntityReferences(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent()
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has at least 2 parents
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
+				return c;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithSelfParentsDto(category, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityPrimaryKeyInSet: 16
+						}
+					) {
+						recordPage {
+							data {
+								parentPrimaryKey
+								parents {
+									primaryKey
+									parentPrimaryKey
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(CATEGORY_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entities")
+	void shouldReturnAllDirectCategoryParentEntities(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									entityFetch(
+										attributeContent(ATTRIBUTE_CODE)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has at least 2 parents
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
+				return c;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithSelfParentsDto(category, true)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityPrimaryKeyInSet: 16
+						}
+					) {
+						recordPage {
+							data {
+								parentPrimaryKey
+								parents {
+									primaryKey
+									parentPrimaryKey
+									allLocales
+									attributes {
+										code
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(CATEGORY_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return only direct category parent")
+	void shouldReturnOnlyDirectCategoryParent(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(distance(1))
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has only one direct parent
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isEmpty());
+				return c;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithSelfParentsDto(category, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryCategory(
+						filterBy: {
+							entityPrimaryKeyInSet: 16
+						}
+					) {
+						recordPage {
+							data {
+								parentPrimaryKey
+								parents(
+									stopAt: {
+										distance: 1
+									}
+							    ) {
+									primaryKey
+									parentPrimaryKey
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(CATEGORY_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all direct product parent entity references")
+	void shouldReturnAllDirectProductParentEntityReferences(Evita evita, GraphQLTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> products = session.queryList(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent()
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, products.size());
+				final SealedEntity p = products.get(0);
+				// check that it has at least 2 referenced parents
+				assertTrue(p.getReferences(Entities.CATEGORY)
+					.iterator()
+					.next()
+					.getReferencedEntity()
+					.orElseThrow()
+					.getParentEntity()
+					.get()
+					.getParentEntity()
+					.isPresent());
+				return p;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithReferencedParentsDto(product, Entities.CATEGORY, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							hierarchyCategoryWithin: {
+								ofParent: {
+									entityPrimaryKeyInSet: 16
+								}
+							}
+						}
+					) {
+						recordPage(size: 1) {
+							data {
+								category {
+									referencedEntity {
+										parentPrimaryKey
+										parents {
+											primaryKey
+											parentPrimaryKey
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all direct product parent entities")
+	void shouldReturnAllDirectProductParentEntities(Evita evita, GraphQLTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> products = session.queryList(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											entityFetch(
+												attributeContent(ATTRIBUTE_CODE)
+											)
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, products.size());
+				final SealedEntity p = products.get(0);
+				// check that it has at least 2 referenced parents
+				assertTrue(p.getReferences(Entities.CATEGORY)
+					.iterator()
+					.next()
+					.getReferencedEntity()
+					.orElseThrow()
+					.getParentEntity()
+					.get()
+					.getParentEntity()
+					.isPresent());
+				return p;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithReferencedParentsDto(product, Entities.CATEGORY, true)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							hierarchyCategoryWithin: {
+								ofParent: {
+									entityPrimaryKeyInSet: 16
+								}
+							}
+						}
+					) {
+						recordPage(size: 1) {
+							data {
+								category {
+									referencedEntity {
+										parentPrimaryKey
+										parents {
+											primaryKey
+											parentPrimaryKey
+											allLocales
+											attributes {
+												code
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return only direct product parent")
+	void shouldReturnOnlyDirectProductParent(Evita evita, GraphQLTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> products = session.queryList(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											stopAt(distance(1))
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, products.size());
+				final SealedEntity p = products.get(0);
+				// check that it has only one referenced parents
+				assertTrue(p.getReferences(Entities.CATEGORY)
+					.iterator()
+					.next()
+					.getReferencedEntity()
+					.orElseThrow()
+					.getParentEntity()
+					.get()
+					.getParentEntity()
+					.isEmpty());
+				return p;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithReferencedParentsDto(product, Entities.CATEGORY, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					queryProduct(
+						filterBy: {
+							hierarchyCategoryWithin: {
+								ofParent: {
+									entityPrimaryKeyInSet: 16
+								}
+							}
+						}
+					) {
+						recordPage(size: 1) {
+							data {
+								category {
+									referencedEntity {
+										parentPrimaryKey
+										parents(
+											stopAt: {
+												distance: 1
+											}
+									    ) {
+											primaryKey
+											parentPrimaryKey
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
 	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
@@ -789,9 +1241,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
 			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+			.executeAndExpectErrorsAndThen();
 	}
 
 	@Test
@@ -2622,324 +3072,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
 
-	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return category parents for products")
-	void shouldReturnCategoryParentsForProducts(Evita evita, GraphQLTester tester) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							hierarchyWithin(Entities.CATEGORY, 95)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyParentsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_CODE)))
-						)
-					),
-					EntityReference.class
-				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
-
-		final var expectedBody = createHierarchyParentsDto(response);
-
-		tester.test(TEST_CATALOG)
-			.document(
-				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        hierarchyCategoryWithin: {
-		                            ofParent: 95
-		                        }
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        hierarchyParents {
-		                            __typename
-		                            category {
-		                                __typename
-		                                primaryKey
-		                                references {
-		                                    __typename
-		                                    primaryKey
-		                                    parentEntities {
-		                                        __typename
-		                                        primaryKey
-		                                        attributes {
-		                                            code
-	                                            }
-		                                    }
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
-				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
-			)
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_PARENTS.name() + "." + TYPENAME_FIELD,
-				equalTo(HierarchyParentsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
-			)
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_PARENTS.name() + ".category",
-				equalTo(expectedBody)
-			);
-	}
-
-	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return category parents for products")
-	void shouldReturnErrorForSelfParentsForProducts(GraphQLTester tester) {
-		tester.test(TEST_CATALOG)
-			.document(
-				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        hierarchyCategoryWithin: {
-		                            ofParent: 95
-		                        }
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        hierarchyParents {
-		                            __typename
-		                            self {
-		                                __typename
-		                                primaryKey
-		                                references {
-		                                    __typename
-		                                    primaryKey
-		                                    parentEntities {
-		                                        __typename
-		                                        primaryKey
-		                                        attributes {
-		                                            code
-	                                            }
-		                                    }
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, hasSize(greaterThan(0)));
-	}
-
-	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return self parents for category")
-	void shouldReturnSelfParentsForCategory(Evita evita, GraphQLTester tester) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.query(
-					query(
-						collection(Entities.CATEGORY),
-						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyParentsOfSelf(entityFetch(attributeContent(ATTRIBUTE_CODE)))
-						)
-					),
-					EntityReference.class
-				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
-
-		final var expectedBody = createSelfHierarchyParentsDto(response);
-
-		tester.test(TEST_CATALOG)
-			.document(
-				"""
-		            query {
-		                queryCategory {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        hierarchyParents {
-		                            __typename
-		                            self {
-		                                __typename
-		                                primaryKey
-		                                parentEntities {
-	                                        __typename
-	                                        primaryKey
-	                                        attributes {
-	                                            code
-                                            }
-	                                    }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
-			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
-				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Category")))
-			)
-			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_PARENTS.name() + "." + TYPENAME_FIELD,
-				equalTo(HierarchyParentsDescriptor.THIS.name(createEmptyEntitySchema("Category")))
-			)
-			.body(
-				CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_PARENTS.name() + "." + HierarchyParentsDescriptor.SELF.name(),
-				equalTo(expectedBody)
-			);
-	}
-
-	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return error for references in self parents for category")
-	void shouldReturnErrorForReferencesInSelfParentsForCategory(GraphQLTester tester) {
-		tester.test(TEST_CATALOG)
-			.document(
-				"""
-		            query {
-		                queryCategory {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        hierarchyParentsOfSelf {
-		                            self {
-		                                primaryKey
-		                                parentEntities {
-	                                        primaryKey
-	                                    }
-	                                    references {
-		                                    primaryKey
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, hasSize(greaterThan(0)));
-	}
-
-	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should pass locale to parents")
-	void shouldPassLocaleToParents(Evita evita, GraphQLTester tester) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							and(
-								hierarchyWithin(Entities.CATEGORY, 95),
-								entityLocaleEquals(CZECH_LOCALE)
-							)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyParentsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_NAME)))
-						)
-					),
-					EntityReference.class
-				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
-
-		final var expectedBody = createAttributeOfHierarchyParentsDto(response);
-
-		tester.test(TEST_CATALOG)
-			.document(
-				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        hierarchyCategoryWithin: {
-		                            ofParent: 95
-		                        }
-		                        entityLocaleEquals: cs_CZ
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        hierarchyParents {
-		                            category {
-		                                references {
-		                                    parentEntities {
-		                                        attributes {
-		                                            name
-	                                            }
-		                                    }
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
-					""",
-				Integer.MAX_VALUE
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue())
-			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_PARENTS.name() + ".category",
-				equalTo(expectedBody)
-			);
-	}
-
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return self hierarchy from root")
 	@ParameterizedTest
@@ -2975,7 +3107,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3025,7 +3157,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(6)
+								hierarchyWithinSelf(entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -3050,7 +3182,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3062,7 +3194,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryCategory(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyWithinSelf: { ofParent: 6 }
+							hierarchyWithinSelf: { ofParent: { entityPrimaryKeyInSet: 6 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3102,7 +3234,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(1)
+								hierarchyWithinSelf(entityPrimaryKeyInSet(1))
 							)
 						),
 						require(
@@ -3126,7 +3258,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3138,7 +3270,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryCategory(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyWithinSelf: { ofParent: 1 }
+							hierarchyWithinSelf: { ofParent: { entityPrimaryKeyInSet: 1 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3177,7 +3309,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(30)
+								hierarchyWithinSelf(entityPrimaryKeyInSet(30))
 							)
 						),
 						require(
@@ -3200,7 +3332,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3212,7 +3344,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryCategory(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyWithinSelf: { ofParent: 30 }
+							hierarchyWithinSelf: { ofParent: { entityPrimaryKeyInSet: 30 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3251,7 +3383,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithinSelf(30)
+								hierarchyWithinSelf(entityPrimaryKeyInSet(30))
 							)
 						),
 						require(
@@ -3280,7 +3412,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3292,7 +3424,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryCategory(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyWithinSelf: { ofParent: 30 }
+							hierarchyWithinSelf: { ofParent: { entityPrimaryKeyInSet: 30 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3358,7 +3490,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> rootSiblings = hierarchy.getSelfStatistics("rootSiblings");
+				final List<LevelInfo> rootSiblings = hierarchy.getSelfHierarchy("rootSiblings");
 				final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
 				assertFalse(flattenedRootSiblings.isEmpty());
 				return flattenedRootSiblings;
@@ -3439,11 +3571,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				return response.getExtraResult(Hierarchy.class);
 			});
 
-		final List<LevelInfo> megaMenu = hierarchy.getSelfStatistics("megaMenu");
+		final List<LevelInfo> megaMenu = hierarchy.getSelfHierarchy("megaMenu");
 		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 		assertFalse(flattenedMegaMenu.isEmpty());
 
-		final List<LevelInfo> rootSiblings = hierarchy.getSelfStatistics("rootSiblings");
+		final List<LevelInfo> rootSiblings = hierarchy.getSelfHierarchy("rootSiblings");
 		final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
 		assertFalse(flattenedRootSiblings.isEmpty());
 
@@ -3558,7 +3690,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3611,7 +3743,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY,6)
+								hierarchyWithin(Entities.CATEGORY,entityPrimaryKeyInSet(6))
 							)
 						),
 						require(
@@ -3637,7 +3769,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3649,7 +3781,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryProduct(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyCategoryWithin: { ofParent: 6 }
+							hierarchyCategoryWithin: { ofParent: { entityPrimaryKeyInSet: 6 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3692,7 +3824,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 1)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1))
 							)
 						),
 						require(
@@ -3717,7 +3849,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3729,7 +3861,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryProduct(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyCategoryWithin: { ofParent: 1 }
+							hierarchyCategoryWithin: { ofParent: { entityPrimaryKeyInSet: 1 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3771,7 +3903,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 30)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(30))
 							)
 						),
 						require(
@@ -3795,7 +3927,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3807,7 +3939,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryProduct(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyCategoryWithin: { ofParent: 30 }
+							hierarchyCategoryWithin: { ofParent: { entityPrimaryKeyInSet: 30 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3849,7 +3981,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						filterBy(
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
-								hierarchyWithin(Entities.CATEGORY, 30)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(30))
 							)
 						),
 						require(
@@ -3879,7 +4011,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+				final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 				final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 				assertFalse(flattenedMegaMenu.isEmpty());
 				return flattenedMegaMenu;
@@ -3891,7 +4023,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					queryProduct(
 						filterBy: {
 							entityLocaleEquals: cs_CZ,
-							hierarchyCategoryWithin: { ofParent: 30 }
+							hierarchyCategoryWithin: { ofParent: { entityPrimaryKeyInSet: 30 } }
 						}
 					) {
 						recordPage(size: 0) {data {primaryKey}}
@@ -3958,7 +4090,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
-				final List<LevelInfo> rootSiblings = hierarchy.getStatistics(Entities.CATEGORY, "rootSiblings");
+				final List<LevelInfo> rootSiblings = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "rootSiblings");
 				final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
 				assertFalse(flattenedRootSiblings.isEmpty());
 				return flattenedRootSiblings;
@@ -4045,11 +4177,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				return response.getExtraResult(Hierarchy.class);
 			});
 
-		final List<LevelInfo> megaMenu = hierarchy.getStatistics(Entities.CATEGORY, "megaMenu");
+		final List<LevelInfo> megaMenu = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu");
 		final List<Map<String, Object>> flattenedMegaMenu = createFlattenedHierarchy(megaMenu);
 		assertFalse(flattenedMegaMenu.isEmpty());
 
-		final List<LevelInfo> rootSiblings = hierarchy.getStatistics(Entities.CATEGORY, "rootSiblings");
+		final List<LevelInfo> rootSiblings = hierarchy.getReferenceHierarchy(Entities.CATEGORY, "rootSiblings");
 		final List<Map<String, Object>> flattenedRootSiblings = createFlattenedHierarchy(rootSiblings);
 		assertFalse(flattenedRootSiblings.isEmpty());
 
@@ -4609,98 +4741,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createHierarchyParentsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyParents hierarchyParentsOfSelf = response.getExtraResult(HierarchyParents.class);
-		final ParentsByReference categoryParents = hierarchyParentsOfSelf.ofType(Entities.CATEGORY);
-
-		final var parentsDtos = new LinkedList<Map<String, Object>>();
-
-		categoryParents.getParents().forEach((productId, parentsForProduct) -> {
-			parentsDtos.add(
-				map()
-					.e(TYPENAME_FIELD, ParentsOfEntityDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
-					.e(ParentsOfEntityDescriptor.PRIMARY_KEY.name(), productId)
-					.e(ParentsOfEntityDescriptor.REFERENCES.name(), parentsForProduct.entrySet()
-						.stream()
-						.map(reference -> map()
-							.e(TYPENAME_FIELD, ParentsOfReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Category")))
-							.e(ParentsOfReferenceDescriptor.PRIMARY_KEY.name(), reference.getKey())
-							.e(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name(), Arrays.stream(reference.getValue())
-								.map(parentEntity -> map()
-									.e(TYPENAME_FIELD, "Category")
-									.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-										.build())
-									.build())
-								.toList())
-							.build())
-						.toList())
-					.build()
-			);
-		});
-
-		return parentsDtos;
-	}
-
-	@Nonnull
-	private List<Map<String, Object>> createAttributeOfHierarchyParentsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyParents hierarchyParentsOfSelf = response.getExtraResult(HierarchyParents.class);
-		final ParentsByReference categoryParents = hierarchyParentsOfSelf.ofType(Entities.CATEGORY);
-
-		final var parentsDtos = new LinkedList<Map<String, Object>>();
-
-		categoryParents.getParents().forEach((productId, parentsForProduct) -> {
-			parentsDtos.add(
-				map()
-					.e(ParentsOfEntityDescriptor.REFERENCES.name(), parentsForProduct.entrySet()
-						.stream()
-						.map(reference -> map()
-							.e(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name(), Arrays.stream(reference.getValue())
-								.map(parentEntity -> map()
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_NAME, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
-										.build())
-									.build())
-								.toList())
-							.build())
-						.toList())
-					.build()
-			);
-		});
-
-		return parentsDtos;
-	}
-
-	@Nonnull
-	private List<Map<String, Object>> createSelfHierarchyParentsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyParents hierarchyParentsOfSelf = response.getExtraResult(HierarchyParents.class);
-		final ParentsByReference selfParents = hierarchyParentsOfSelf.ofSelf();
-
-		final var parentsDtos = new LinkedList<Map<String, Object>>();
-
-		selfParents.getParents().forEach((productId, parentsForCategory) -> {
-			parentsDtos.add(
-				map()
-					.e(TYPENAME_FIELD, ParentsOfEntityDescriptor.THIS.name(createEmptyEntitySchema("Category"), createEmptyEntitySchema("Category")))
-					.e(ParentsOfEntityDescriptor.PRIMARY_KEY.name(), productId)
-					.e(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name(), Arrays.stream(parentsForCategory.get(parentsForCategory.keySet().iterator().next()))
-						.map(parentEntity -> map()
-							.e(TYPENAME_FIELD, "Category")
-							.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-								.build())
-							.build())
-						.toList())
-					.build()
-			);
-		});
-
-		return parentsDtos;
-	}
-
-	@Nonnull
 	private List<Map<String, Object>> createFlattenedHierarchy(@Nonnull List<LevelInfo> hierarchy) {
 		final List<Map<String, Object>> flattenedHierarchy = new LinkedList<>();
 		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, null, levelInfo, 1));
@@ -4712,7 +4752,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                      @Nonnull LevelInfo levelInfo,
 	                                      int currentLevel) {
 		final MapBuilder currentLevelInfoDto = map()
-			.e(LevelInfoDescriptor.PARENT_ID.name(), parentLevelInfo != null
+			.e(LevelInfoDescriptor.PARENT_PRIMARY_KEY.name(), parentLevelInfo != null
 				? parentLevelInfo.entity().getPrimaryKey()
 				: null)
 			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
@@ -4834,7 +4874,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	private static String getLevelInfoFragment(@Nonnull EnumSet<StatisticsType> statisticsTypes) {
 		return String.format(
             """
-				parentId
+				parentPrimaryKey
 				level
 				entity {
 					primaryKey

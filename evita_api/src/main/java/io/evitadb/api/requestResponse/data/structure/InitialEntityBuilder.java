@@ -26,8 +26,8 @@ package io.evitadb.api.requestResponse.data.structure;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
@@ -40,7 +40,7 @@ import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDat
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
@@ -66,6 +66,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -98,7 +99,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 	@Delegate(types = PricesContract.class)
 	private final PricesBuilder pricesBuilder;
 	private final Map<ReferenceKey, ReferenceContract> references;
-	private HierarchicalPlacement hierarchicalPlacement;
+	private Integer parent;
 
 	public InitialEntityBuilder(@Nonnull String type) {
 		this.type = type;
@@ -240,8 +241,14 @@ public class InitialEntityBuilder implements EntityBuilder {
 
 	@Nonnull
 	@Override
-	public Optional<HierarchicalPlacementContract> getHierarchicalPlacement() {
-		return ofNullable(hierarchicalPlacement);
+	public OptionalInt getParent() {
+		return parent == null ? OptionalInt.empty() : OptionalInt.of(parent);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<EntityClassifierWithParent> getParentEntity() {
+		return Optional.empty();
 	}
 
 	@Nonnull
@@ -379,20 +386,14 @@ public class InitialEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
-	public EntityBuilder setHierarchicalPlacement(int orderAmongSiblings) {
-		this.hierarchicalPlacement = new HierarchicalPlacement(orderAmongSiblings);
+	public EntityBuilder setParent(int parentPrimaryKey) {
+		this.parent = parentPrimaryKey;
 		return this;
 	}
 
 	@Override
-	public EntityBuilder setHierarchicalPlacement(int parentPrimaryKey, int orderAmongSiblings) {
-		this.hierarchicalPlacement = new HierarchicalPlacement(parentPrimaryKey, orderAmongSiblings);
-		return this;
-	}
-
-	@Override
-	public EntityBuilder removeHierarchicalPlacement() {
-		this.hierarchicalPlacement = null;
+	public EntityBuilder removeParent() {
+		this.parent = null;
 		return this;
 	}
 
@@ -485,11 +486,8 @@ public class InitialEntityBuilder implements EntityBuilder {
 				getPrimaryKey(),
 				EntityExistence.MUST_NOT_EXIST,
 				Stream.of(
-						ofNullable(hierarchicalPlacement)
-							.map(it -> ofNullable(it.getParentPrimaryKey())
-								.map(ppk -> new SetHierarchicalPlacementMutation(ppk, it.getOrderAmongSiblings()))
-								.orElseGet(() -> new SetHierarchicalPlacementMutation(it.getOrderAmongSiblings()))
-							)
+						ofNullable(parent)
+							.map(SetParentMutation::new)
 							.stream(),
 						references.values()
 							.stream()
@@ -541,7 +539,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 			primaryKey,
 			getVersion(),
 			schema,
-			hierarchicalPlacement,
+			parent,
 			references.values(),
 			attributesBuilder.build(),
 			associatedDataBuilder.build(),

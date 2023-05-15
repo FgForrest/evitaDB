@@ -224,7 +224,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 	protected GraphQLInputType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 																 @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                             @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                             @Nullable ChildParameterDescriptor childParameter,
+	                                                             @Nullable List<ChildParameterDescriptor> childParameters,
 	                                                             @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                             @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
@@ -246,8 +246,8 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 				.type(nestedPrimitiveConstraintValue));
 		}
 
-		// build child value
-		if (childParameter != null) {
+		// build children values
+		childParameters.forEach(childParameter -> {
 			GraphQLInputType nestedChildConstraintValue = buildChildConstraintValue(buildContext, childParameter);
 			if (childParameter.required() &&
 				!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
@@ -258,7 +258,7 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 			wrapperObjectBuilder.field(newInputObjectField()
 				.name(childParameter.name())
 				.type(nestedChildConstraintValue));
-		}
+		});
 
 		// build additional child value
 		additionalChildParameters.forEach(additionalChildParameter -> {

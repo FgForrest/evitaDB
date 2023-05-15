@@ -42,7 +42,7 @@ public class QuerySerializer extends Serializer<Query> {
 
 	@Override
 	public void write(Kryo kryo, Output output, Query object) {
-		kryo.writeObjectOrNull(output, object.getEntities(), Collection.class);
+		kryo.writeObjectOrNull(output, object.getCollection(), Collection.class);
 		kryo.writeObjectOrNull(output, object.getFilterBy(), FilterBy.class);
 		kryo.writeObjectOrNull(output, object.getOrderBy(), OrderBy.class);
 		kryo.writeObjectOrNull(output, object.getRequire(), Require.class);

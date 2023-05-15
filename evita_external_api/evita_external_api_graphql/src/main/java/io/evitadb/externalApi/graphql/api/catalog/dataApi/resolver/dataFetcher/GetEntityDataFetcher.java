@@ -43,6 +43,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityQueryHe
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -60,6 +61,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -86,10 +88,14 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 
 	public GetEntityDataFetcher(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
+		final FilterConstraintResolver filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
+		final OrderConstraintResolver orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(catalogSchema, new AtomicReference<>(filterConstraintResolver));
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
-			new FilterConstraintResolver(catalogSchema),
-			new OrderConstraintResolver(catalogSchema)
+			filterConstraintResolver,
+			orderConstraintResolver,
+			requireConstraintResolver
 		);
 	}
 

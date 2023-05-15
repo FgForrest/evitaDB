@@ -24,6 +24,8 @@
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer;
 
 import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.filter.HierarchyExcluding;
+import io.evitadb.api.query.filter.HierarchyHaving;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
@@ -79,10 +81,10 @@ abstract class AbstractHierarchyStatisticsComputer {
 	/**
 	 * The predicate controlling which hierarchical entities will be taken into an account
 	 * in {@link LevelInfo#childrenCount()} and {@link LevelInfo#queriedEntityCount()}. The predicate is driven
-	 * by {@link io.evitadb.api.query.filter.HierarchyExcluding} filtering constraint.
+	 * by {@link HierarchyExcluding} / {@link HierarchyHaving} filtering constraint.
 	 */
 	@Nullable
-	protected final HierarchyFilteringPredicate exclusionPredicate;
+	protected final HierarchyFilteringPredicate havingPredicate;
 	/**
 	 * Controls the scope of the query filter by, that should be used for computing the queried entity count
 	 * in the {@link LevelInfo#queriedEntityCount()} statistics. Might be null if the count is not required to be
@@ -95,7 +97,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
-		@Nullable HierarchyFilteringPredicate exclusionPredicate,
+		@Nullable HierarchyFilteringPredicate havingPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
@@ -103,7 +105,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 		this.context = context;
 		this.entityFetcher = entityFetcher;
 		this.hierarchyFilterPredicateProducer = hierarchyFilterPredicateProducer;
-		this.exclusionPredicate = exclusionPredicate;
+		this.havingPredicate = havingPredicate;
 		this.scopePredicate = ofNullable(scopePredicate).orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		this.statisticsBase = statisticsBase;
 		this.statisticsType = statisticsType;
@@ -118,21 +120,23 @@ abstract class AbstractHierarchyStatisticsComputer {
 	public final List<LevelInfo> createStatistics(
 		@Nullable Locale language
 	) {
-		HierarchyFilteringPredicate filteringPredicate = hierarchyFilterPredicateProducer == null ?
-			HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE : hierarchyFilterPredicateProducer.apply(statisticsBase);
-		if (exclusionPredicate != null) {
-			if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
-				filteringPredicate = exclusionPredicate.negate();
+		HierarchyFilteringPredicate filteringPredicate;
+		if (hierarchyFilterPredicateProducer == null) {
+			if (havingPredicate == null) {
+				filteringPredicate = HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
 			} else {
-				filteringPredicate.and(exclusionPredicate.negate());
+				filteringPredicate = havingPredicate;
 			}
-		}
-		if (language != null) {
-			if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
-				filteringPredicate = new LocaleHierarchyEntityPredicate(context.entityIndex(), language);
-			} else {
-				filteringPredicate.and(new LocaleHierarchyEntityPredicate(context.entityIndex(), language));
+			if (language != null) {
+				if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
+					filteringPredicate = new LocaleHierarchyEntityPredicate(context.entityIndex(), language);
+				} else {
+					filteringPredicate.and(new LocaleHierarchyEntityPredicate(context.entityIndex(), language));
+				}
 			}
+		} else {
+			filteringPredicate = ofNullable(hierarchyFilterPredicateProducer.apply(statisticsBase))
+				.orElse(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 		}
 		// the language predicate is used to filter out entities that doesn't have requested language variant
 		return createStatistics(

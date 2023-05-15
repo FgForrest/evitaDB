@@ -33,13 +33,17 @@ import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.head.Collection;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.Require;
+import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.require.Strip;
+import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -57,6 +61,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -68,6 +73,9 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.require;
 
 /**
  * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
@@ -369,7 +377,35 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	@Nonnull
 	default EvitaResponse<SealedEntity> querySealedEntity(@Nonnull Query query)
 		throws UnexpectedResultException, InstanceTerminatedException {
-		return query(query, SealedEntity.class);
+		if (query.getRequire() == null) {
+			return query(
+				Query.query(
+					query.getCollection(),
+					query.getFilterBy(),
+					query.getOrderBy(),
+					require(entityFetch())
+				),
+				SealedEntity.class
+			);
+		} else if (FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance).isEmpty()) {
+			return query(
+				Query.query(
+					query.getCollection(),
+					query.getFilterBy(),
+					query.getOrderBy(),
+					(Require) query.getRequire().getCopyWithNewChildren(
+						ArrayUtils.mergeArrays(
+							new RequireConstraint[] {require(entityFetch())},
+							query.getRequire().getChildren()
+						),
+						query.getRequire().getAdditionalChildren()
+					)
+				),
+				SealedEntity.class
+			);
+		} else {
+			return query(query, SealedEntity.class);
+		}
 	}
 
 	/**

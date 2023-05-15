@@ -37,7 +37,6 @@ import lombok.ToString;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.security.SecureRandom;
 import java.util.Comparator;
 import java.util.List;
@@ -66,10 +65,10 @@ public class WrapperObjectKey extends CachableElementKey {
 	@Nonnull
 	private final List<ValueParameterDescriptor> valueParameters;
 	/**
-	 * Actual child parameter of the object, defining nested structure
+	 * Actual child parameters of the object, defining nested structure
 	 */
-	@Nullable
-	private final ChildParameterDescriptor childParameter;
+	@Nonnull
+	private final List<ChildParameterDescriptor> childParameters;
 	/**
 	 * Actual additional child parameters of the object, defining nested structure
 	 */
@@ -79,11 +78,11 @@ public class WrapperObjectKey extends CachableElementKey {
 	public WrapperObjectKey(@Nonnull ConstraintType containerType,
 	                        @Nonnull DataLocator dataLocator,
 	                        @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                        @Nullable ChildParameterDescriptor childParameter,
+	                        @Nonnull List<ChildParameterDescriptor> childParameters,
 	                        @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters) {
 		super(containerType, dataLocator);
 		this.valueParameters = valueParameters;
-		this.childParameter = childParameter;
+		this.childParameters = childParameters;
 		this.additionalChildParameters = additionalChildParameters;
 	}
 
@@ -92,7 +91,7 @@ public class WrapperObjectKey extends CachableElementKey {
 	public String toHash() {
 		final LongHashFunction hashFunction = LongHashFunction.xx3();
 		final long keyHash;
-		if (childParameter == null && additionalChildParameters.isEmpty()) {
+		if (childParameters.isEmpty() && additionalChildParameters.isEmpty()) {
 			// if there is only flat structure of primitive values, we can simplify hash and reuse the object more,
 			// because primitive value parameters are not dependent on build context
 			keyHash = primitiveKeyToHash(hashFunction);
@@ -113,12 +112,12 @@ public class WrapperObjectKey extends CachableElementKey {
 
 	@Override
 	public int hashCode() {
-		if (getChildParameter() == null && getAdditionalChildParameters().isEmpty()) {
+		if (getChildParameters().isEmpty() && getAdditionalChildParameters().isEmpty()) {
 			// if there is only flat structure of primitive values, we can simplify hash and reuse the object more,
 			// because primitive value parameters are not dependent on build context
 			return Objects.hash(getValueParameters());
 		} else {
-			return Objects.hash(getContainerType(), getDataLocator(), getValueParameters(), getChildParameter(), getAdditionalChildParameters());
+			return Objects.hash(getContainerType(), getDataLocator(), getValueParameters(), getChildParameters(), getAdditionalChildParameters());
 		}
 	}
 
@@ -140,7 +139,7 @@ public class WrapperObjectKey extends CachableElementKey {
 			hashContainerType(hashFunction),
 			hashDataLocator(hashFunction),
 			hashValueParameters(hashFunction),
-			hashChildParameter(hashFunction),
+			hashChildParameters(hashFunction),
 			hashAdditionalChildParameters(hashFunction)
 		});
 	}
@@ -160,40 +159,43 @@ public class WrapperObjectKey extends CachableElementKey {
 		);
 	}
 
-	private long hashChildParameter(@Nonnull LongHashFunction hashFunction) {
-		if (childParameter == null) {
-			return hashFunction.hashLongs(new long[0]);
-		}
-		return hashFunction.hashLongs(new long[]{
-			hashFunction.hashChars(childParameter.name()),
-			hashFunction.hashChars(childParameter.type().getSimpleName()),
-			hashFunction.hashBoolean(childParameter.required()),
-			hashDomain(hashFunction, childParameter.domain()),
-			hashFunction.hashBoolean(childParameter.uniqueChildren()),
-			hashFunction.hashLongs(
-				childParameter.allowedChildTypes()
-					.stream()
-					.map(Class::getSimpleName)
-					.sorted()
-					.mapToLong(hashFunction::hashChars)
-					.toArray()
-			),
-			hashFunction.hashLongs(
-				childParameter.forbiddenChildTypes()
-					.stream()
-					.map(Class::getSimpleName)
-					.sorted()
-					.mapToLong(hashFunction::hashChars)
-					.toArray()
-			)
-		});
+	private long hashChildParameters(@Nonnull LongHashFunction hashFunction) {
+		return hashFunction.hashLongs(
+			getChildParameters()
+				.stream()
+				.sorted(Comparator.comparing(ChildParameterDescriptor::name))
+				.mapToLong(parameter -> hashFunction.hashLongs(new long[]{
+					hashFunction.hashChars(parameter.name()),
+					hashFunction.hashChars(parameter.type().getSimpleName()),
+					hashFunction.hashBoolean(parameter.required()),
+					hashDomain(hashFunction, parameter.domain()),
+					hashFunction.hashBoolean(parameter.uniqueChildren()),
+					hashFunction.hashLongs(
+						parameter.allowedChildTypes()
+							.stream()
+							.map(Class::getSimpleName)
+							.sorted()
+							.mapToLong(hashFunction::hashChars)
+							.toArray()
+					),
+					hashFunction.hashLongs(
+						parameter.forbiddenChildTypes()
+							.stream()
+							.map(Class::getSimpleName)
+							.sorted()
+							.mapToLong(hashFunction::hashChars)
+							.toArray()
+					)
+				}))
+				.toArray()
+		);
 	}
 
 	private long hashAdditionalChildParameters(@Nonnull LongHashFunction hashFunction) {
 		return hashFunction.hashLongs(
 			getAdditionalChildParameters()
 				.stream()
-				.sorted(Comparator.comparing(AdditionalChildParameterDescriptor::constraintType))
+				.sorted(Comparator.comparing(AdditionalChildParameterDescriptor::name))
 				.mapToLong(parameter -> hashFunction.hashLongs(new long[]{
 					hashFunction.hashChars(parameter.constraintType().name()),
 					hashFunction.hashChars(parameter.name()),

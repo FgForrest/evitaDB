@@ -86,4 +86,19 @@ public interface GrpcFacetStatisticsOrBuilder extends
    * <code>.google.protobuf.Int32Value impact = 5;</code>
    */
   com.google.protobuf.Int32ValueOrBuilder getImpactOrBuilder();
+
+  /**
+   * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+   * @return Whether the matchCount field is set.
+   */
+  boolean hasMatchCount();
+  /**
+   * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+   * @return The matchCount.
+   */
+  com.google.protobuf.Int32Value getMatchCount();
+  /**
+   * <code>.google.protobuf.Int32Value matchCount = 6;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getMatchCountOrBuilder();
 }
