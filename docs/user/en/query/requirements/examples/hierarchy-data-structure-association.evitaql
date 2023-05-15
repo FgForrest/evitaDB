@@ -1,0 +1,22 @@
+query(
+    collection('Category'),
+    filterBy(
+        hierarchyWithin(
+            attributeEquals('code', 'audio')
+        )
+    ),
+    require(
+        hierarchyOfSelf(
+            children(
+                'directChildren',
+                entityFetch(attributeContent()),
+                stopAt(distance(1)),
+            ),
+            parents(
+                'directParent',
+                entityFetch(attributeContent()),
+                stopAt(distance(1))
+            )
+        )
+    )
+)

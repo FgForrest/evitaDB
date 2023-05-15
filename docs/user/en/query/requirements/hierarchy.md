@@ -54,6 +54,8 @@ These top hierarchy requirements must have at least one of the following hierarc
 - [`children`](#children)
 - [`parents`](#parents)
 
+#### Constraint to result association
+
 There can be multiple sub-constraints, and each constraint can be duplicated (usually with different settings).
 Each hierarchy sub-constraint defines a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) 
 argument with a named value that allows to associate the request constraint with the computed result data structure
@@ -83,6 +85,8 @@ extra result data structure and are available under the labels that correspond t
 
 ## Hierarchy of self
 
+**Syntax:**
+
 ```evitaql
 hierarchyOfSelf(
     orderConstraint:any,
@@ -94,8 +98,9 @@ hierarchyOfSelf(
     <dt>orderConstraint:any</dt>
     <dd>
         optional ordering constraint that allows you to specify an order of 
-        <SourceClass>io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo</SourceClass> elements in the result
-        hierarchy data structure; the order can be overridden per sub-constraint if necessary
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> 
+        `LevelInfo` elements in the result hierarchy data structure; the order can be overridden per sub-constraint 
+        if necessary
     </dd>
     <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
     <dd>
@@ -121,10 +126,12 @@ reality.
 
 ## Hierarchy of reference
 
+**Syntax:**
+
 ```evitaql
 hierarchyOfReference(
     argument:string+,
-    argument:enum,
+    argument:enum(LEAVE_EMPTY|REMOVE_EMPTY),
     orderConstraint:any,
     requireConstraint:(fromRoot|fromNode|siblings|children|parents)+
 )
@@ -139,7 +146,7 @@ hierarchyOfReference(
         constraints, evitaQL accepts multiple reference names for the case that the same requirements apply to different 
         references of the queried entity.
     </dd>
-    <dt>argument:enum</dt>
+    <dt>argument:enum(LEAVE_EMPTY|REMOVE_EMPTY)</dt>
     <dd>
         optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/EmptyHierarchicalEntityBehaviour.java</SourceClass>
         enum allowing you to specify whether or not to return empty hierarchical entities (e.g., those that do not have
@@ -152,8 +159,9 @@ hierarchyOfReference(
     <dt>orderConstraint:any</dt>
     <dd>
         optional ordering constraint that allows you to specify an order of 
-        <SourceClass>io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo</SourceClass> elements in the result
-        hierarchy data structure; the order can be overridden per sub-constraint if necessary
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> 
+        `LevelInfo` elements in the result hierarchy data structure; the order can be overridden per sub-constraint if
+        necessary
     </dd>
     <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
     <dd>
@@ -181,12 +189,654 @@ The `hierarchyOfReference` can be repeated multiple times in a single query if y
 settings for different reference types.
 
 ## From root
+
+**Syntax:**
+
+```evitaql
+fromRoot(
+    argument:string!,
+    requireConstraint:(entityFetch|stopAt|statistics)*
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
+        specifying the output name for the calculated data structure 
+        (see [constraint to result association](#constraint-to-result-association))
+    </dd>
+    <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
+    <dd>
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        of the traversed hierarchy tree, and the statistics computed along the way; 
+        any or all of the constraints may be present:
+        <ul>
+            <li>[entityFetch](fetching.md#entity-fetch)</li>
+            <li>[stopAt](#stop-at)</li>
+            <li>[statistics](#statistics)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `fromRoot` requirement computes the hierarchy tree starting from the "virtual" invisible top root of the hierarchy, 
+regardless of the potential use of the `hierarchyWithin` constraint in the filtering part of the query. The scope of 
+the calculated information can be controlled by the [`stopAt`](#stop-at) constraint. By default, the traversal goes all 
+the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access statistical data, 
+use [`statistics`](#statistics) constraint. Please keep in mind that the full statistic calculation can be
+particularly expensive in the case of the `fromRoot` requirement - it usually requires aggregation for the entire
+queried dataset (see [more information about the calculation](#computational-complexity-of-statistical-data-calculation)).
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How the result would look like when using `hierarchyWithin` and `fromRoot` in a single query?
+</NoteTitle>
+
+The following query lists products in category *Audio* and its subcategories. Along with the returned products, it also
+requires a computed *megaMenu* data structure that lists the top 2 levels of the *Category* hierarchy tree with 
+a computed count of child categories for each menu item and an aggregated count of all filtered products that would 
+fall into the given category.
+
+<SourceCodeTabs>
+[Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.java)
+</SourceCodeTabs>
+
+The computed result of the *megaMenu* looks like this:
+
+![Top 2 categories visualization](assets/hierarchy-top-two-menu.png "Top 2 categories visualization")
+
+... and here is the data structure output in JSON format:
+
+<MDInclude>[Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.md)</MDInclude>
+</Note>
+
+The calculated result for `fromRoot` is not affected by the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+pivot hierarchy node. If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+[`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `fromRoot` respects
+them. The reason is simple: when you render a menu for the query result, you want the calculated [statistics](#statistics)
+to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) so that
+the calculated number remains consistent for the end user.
+
 ## From node
+
+**Syntax:**
+
+```evitaql
+fromNode(
+    argument:string!,
+    requireConstraint:node!,
+    requireConstraint:(entityFetch|stopAt|statistics)*
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
+        specifying the output name for the calculated data structure 
+        (see [constraint to result association](#constraint-to-result-association))
+    </dd>
+    <dt>requireConstraint:node!</dt>
+    <dd>
+        mandatory require constraint [`node`](#node) that must match exactly one pivot hierarchical entity that 
+        represents the root node of the traversed hierarchy subtree.
+    </dd>
+    <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
+    <dd>
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        of the traversed hierarchy tree, and the statistics computed along the way; 
+        any or all of the constraints may be present:
+        <ul>
+            <li>[entityFetch](fetching.md#entity-fetch)</li>
+            <li>[stopAt](#stop-at)</li>
+            <li>[statistics](#statistics)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `fromNode` requirement computes the hierarchy tree starting from the pivot node of the hierarchy, that is identified
+by the [`node`](#node) inner constraint. The `fromNode` calculates the result regardless of the potential use of 
+the `hierarchyWithin` constraint in the filtering part of the query. The scope of the calculated
+information can be controlled by the [`stopAt`](#stop-at) constraint. By default, the traversal goes all the way to
+the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access statistical data, use
+[`statistics`](#statistics) constraint.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How to compute different sub-menus using `hierarchyWithin` and `fromNode` in a single query?
+</NoteTitle>
+
+The following query lists products in category *Audio* and its subcategories. Along with the products returned, it also 
+return a computed *sideMenu1* and *sideMenu2* data structure that lists the flat category list for the categories 
+*Portables* and *Laptops* with a computed count of child categories for each menu item and an aggregated count of all 
+products that would fall into the given category.
+
+<SourceCodeTabs>
+[Example of using `hierarchyWithin` and `fromNode` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-node.java)
+</SourceCodeTabs>
+
+The computed result both of the *sideMenu1* and *sideMenu2* looks like this:
+
+![From node query visualization](assets/hierarchy-from-node.png "From node query visualization")
+
+... and here is the data structure output in JSON format:
+
+<MDInclude>[Example of using `hierarchyWithin` and `fromNode` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-node.md)</MDInclude>
+</Note>
+
+The calculated result for `fromNode` is not affected by the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+pivot hierarchy node. If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+[`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `fromNode` respects
+them. The reason is simple: when you render a menu for the query result, you want the calculated [statistics](#statistics)
+to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) so that
+the calculated number remains consistent for the end user.
+
 ## Children
-## Siblings
+
+**Syntax:**
+
+```evitaql
+children
+    argument:string!,   
+    requireConstraint:(entityFetch|stopAt|statistics)*
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
+        specifying the output name for the calculated data structure 
+        (see [constraint to result association](#constraint-to-result-association))
+    </dd>
+    <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
+    <dd>
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        of the traversed hierarchy tree, and the statistics computed along the way; 
+        any or all of the constraints may be present:
+        <ul>
+            <li>[entityFetch](fetching.md#entity-fetch)</li>
+            <li>[stopAt](#stop-at)</li>
+            <li>[statistics](#statistics)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `children` requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by the
+filtering part of the same query using the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) or 
+[`hierarchyWithinRoot`](../filtering/hierarchy.md#hierarchy-within-root) constraints. The scope of the calculated
+information can be controlled by the [`stopAt`](#stop-at) constraint. By default, the traversal goes all the way to 
+the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access statistical data, use
+the [`statistics`](#statistics) constraint.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How to get direct sub-categories of current category using a `children` requirement?
+</NoteTitle>
+
+The following query lists products in category *Audio* and its subcategories. Along with the products returned, it also
+returns a computed *subcategories* data structure that lists the flat category list the currently focused category
+*Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
+would fall into the given category.
+
+<SourceCodeTabs>
+[Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-children.java)
+</SourceCodeTabs>
+
+The computed result *subcategories* looks like this:
+
+![Children listing visualization](assets/hierarchy-children.png "Children listing visualization")
+
+... and here is the data structure output in JSON format:
+
+<MDInclude>[Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-children.md)</MDInclude>
+</Note>
+
+The calculated result for `children` is connected with the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+pivot hierarchy node (or the "virtual" invisible top root referred to by the 
+[`hierarchyWithinRoot`](../filtering/hierarchy.md#hierarchy-within-root) constraint). 
+If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+[`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `children` 
+will respect them as well. The reason is simple: when you render a menu for the query result, you want the calculated 
+[statistics](#statistics) to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) 
+so that the calculated number remains consistent for the end user.
+
 ## Parents
+
+**Syntax:**
+
+```evitaql
+parents
+    argument:string!,   
+    requireConstraint:(silings|entityFetch|stopAt|statistics)*
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
+        specifying the output name for the calculated data structure 
+        (see [constraint to result association](#constraint-to-result-association))
+    </dd>
+    <dt>requireConstraint:(siblings|entityFetch|stopAt|statistics)*</dt>
+    <dd>
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        of the traversed hierarchy tree, and the statistics computed along the way; 
+        any or all of the constraints may be present:
+        <ul>
+            <li>[siblings](#siblings)</li>
+            <li>[entityFetch](fetching.md#entity-fetch)</li>
+            <li>[stopAt](#stop-at)</li>
+            <li>[statistics](#statistics)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `parents` requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by the
+filtering part of the same query using the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) constraint
+towards the root of the hierarchy. The scope of the calculated information can be controlled by the [`stopAt`](#stop-at)
+constraint. By default, the traversal goes all the way to the top of the hierarchy tree unless you tell it to stop at
+anywhere. If you need to access statistical data, use the [`statistics`](#statistics) constraint.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How to get direct parents of current category using a `parents` requirement?
+</NoteTitle>
+
+The following query lists products in the category *Audio* and its subcategories. Along with the products returned, it 
+also returns a computed *parentAxis* data structure that lists all the parent nodes of the currently focused category
+*True wireless* with a computed count of child categories for each menu item and an aggregated count of all products that
+would fall into the given category.
+
+<SourceCodeTabs>
+[Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-parents.java)
+</SourceCodeTabs>
+
+The computed result *parentAxis* looks like this:
+
+![Parents listing visualization](assets/hierarchy-parents.png "Parents listing visualization")
+
+... and here is the data structure output in JSON format:
+
+<MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents.md)</MDInclude>
+
+You can also list all siblings of the parent node as you move up the tree:
+
+<SourceCodeTabs>
+[Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-parents-siblings.java)
+</SourceCodeTabs>
+
+The computed result *parentAxis* with siblings now looks like this:
+
+![Parents with siblings listing visualization](assets/hierarchy-parents-siblings.png "Parents with siblings listing visualization")
+
+... and here is the data structure output in JSON format:
+
+<MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents-siblings.md)</MDInclude>
+
+If you need each of these siblings to fetch their child nodes as well (no matter if they are only one level deep or 
+more), you can do this by adding a `stopAt` constraint to the `siblings` constraint container. However, this scenario 
+is too complex to cover in this documentation.
+
+</Note>
+
+The calculated result for `parents` is connected with the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+pivot hierarchy node. If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+[`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `parents`
+will respect them as well during child nodes / queried entities statistics calculation. The reason is simple: when you 
+render a menu for the query result, you want the calculated [statistics](#statistics) to respect the rules that apply 
+to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) so that the calculated number remains consistent 
+for the end user.
+
+## Siblings
+
+**Syntax:**
+
+```evitaql
+siblings(
+    argument:string!,   
+    requireConstraint:(entityFetch|stopAt|statistics)*
+)
+```
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Different `siblings` syntax when used within `parents` parent constraint
+</NoteTitle>
+
+```evitaql
+siblings(      
+    requireConstraint:(entityFetch|stopAt|statistics)*
+)
+```
+
+The `siblings` constraint can be used separately as a child of `hierarchyOfSelf` or `hierarchyOfReference`, or it can be
+used as a child constraint of [`parents`](#parents). In such a case, the `siblings` constraint lacks the first string 
+argument that defines the name for the output data structure. The reason is that this name is already defined on the 
+enclosing `parents` constraint, and the `siblings` constraint simply extends the data available in its data structure.
+
+</Note>
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
+        specifying the output name for the calculated data structure 
+        (see [constraint to result association](#constraint-to-result-association))
+    </dd>
+    <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
+    <dd>
+        optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope 
+        of the traversed hierarchy tree, and the statistics computed along the way; 
+        any or all of the constraints may be present:
+        <ul>
+            <li>[entityFetch](fetching.md#entity-fetch)</li>
+            <li>[stopAt](#stop-at)</li>
+            <li>[statistics](#statistics)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `siblings` requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by the
+filtering part of the same query using the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within). 
+It lists all sibling nodes to the node that is requested by `hierarchyWithin` constraint (that's why the `siblings`
+has no sense with `hierarchyWithinRoot` constraint - "virtual" top level node cannot have any siblings). Siblings
+will produce a flat list of siblings unless the [`stopAt`](#stop-at) constraint is used as an inner constraint. 
+The [`stopAt`](#stop-at) constraint triggers a top-down hierarchy traversal from each of the sibling nodes until 
+the [`stopAt`](#stop-at) is satisfied. If you need to access statistical data, use the [`statistics`](#statistics) 
+constraint.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How to get sibling nodes of current category using a `siblings` requirement?
+</NoteTitle>
+
+The following query lists products in category *Audio* and its subcategories. Along with the products returned, it also
+returns a computed *audioSiblings* data structure that lists the flat category list the currently focused category
+*Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
+would fall into the given category.
+
+<SourceCodeTabs>
+[Example of using `siblings` requirement](docs/user/en/query/requirements/examples/hierarchy-siblings.java)
+</SourceCodeTabs>
+
+The computed result *audioSiblings* looks like this:
+
+![Siblings listing visualization](assets/hierarchy-siblings.png "Siblings listing visualization")
+
+... and here is the data structure output in JSON format:
+
+<MDInclude>[Example of using `siblings` requirement](docs/user/en/query/requirements/examples/hierarchy-siblings.md)</MDInclude>
+
+If you need to return all siblings and also the level below them (their children), just use `stopAt` constraint and
+extend the default scope of the `siblings` constraint.
+
+<SourceCodeTabs>
+[Example of using `siblings` subtree requirement](docs/user/en/query/requirements/examples/hierarchy-siblings-with-subtree.java)
+</SourceCodeTabs>
+
+The computed result *audioSiblings* with their direct children looks like this (visualized in JSON format):
+
+<MDInclude>[Example of using `siblings` subtree requirement](docs/user/en/query/requirements/examples/hierarchy-siblings-with-subtree.md)</MDInclude>
+
+</Note>
+
+The calculated result for `siblings` is connected with the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+pivot hierarchy node. If the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) contains inner constraints
+[`having`](../filtering/hierarchy.md#having) or [`excluding`](../filtering/hierarchy.md#excluding), the `children`
+will respect them as well. The reason is simple: when you render a menu for the query result, you want the calculated
+[statistics](#statistics) to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
+so that the calculated number remains consistent for the end user.
+
 ## Stop at
+
+**Syntax:**
+
+```evitaql
+stopAt(
+    requireConstraint:(distance|level|node)!
+)
+```
+
+<dl>
+    <dt>requireConstraint:(distance|level|node)!</dt>
+    <dd>
+        mandatory constraint that defines the constraint that stops traversing the hierarchy tree when it's satisfied by 
+        a currently traversed node; one of the following constraints must be present
+        <ul>
+            <li>[distance](#distance)</li>
+            <li>[level](#level)</li>
+            <li>[node](#node)</li>
+        </ul>
+    </dd>
+</dl>
+
+The `stopAt` container constraint is a service wrapping constraint container that only makes sense in combination with 
+one of the allowed nested constraints. See the usage examples for specific nested constraints.
+
 ## Distance
+
+```evitaql
+distance(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        defines a maximum relative distance from the pivot node that can be traversed; 
+        the pivot node itself is at distance zero, its direct child or direct parent is at distance one, each additional 
+        step adds a one to the distance
+    </dd>
+</dl>
+
+The `distance` constraint can only be used within the `stopAt` container and limits the hierarchy traversal to stop when
+the number of levels traversed reaches the specified constant. The distance is always relative to the pivot node 
+(the node where the hierarchy traversal starts) and is the same whether we are traversing the hierarchy top-down or 
+bottom-up. The distance between any two nodes in the hierarchy can be calculated as `abs(level(nodeA) - level(nodeB))`.
+See the following figure when the pivot node is *Audio*:
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What are the significant usage examples of the `distance` constraint?
+</NoteTitle>
+
+The following query lists products in category *Audio* and its subcategories. Along with the products returned, it also
+returns a computed *subcategories* data structure that lists the flat category list the currently focused category
+*Audio*.
+
+<SourceCodeTabs>
+[Example of using `distance` with `children` requirement](docs/user/en/query/requirements/examples/hierarchy-direct-children.java)
+</SourceCodeTabs>
+
+The following query lists products in the category *Audio* and its subcategories. Along with the products returned, it
+also returns a computed *parent* data structure that lists single direct parent category of the currently focused 
+*Audio* category.
+
+<SourceCodeTabs>
+[Example of using `distance` with `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parent.java)
+</SourceCodeTabs>
+
+</Note>
+
 ## Level
+
+```evitaql
+level(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        defines an absolute level number where the traversal should stop;
+        if the level is equal to or less (for top-down traversals) / equal to or greater (for bottom-up traversals)
+        than the level of the starting (pivot) node, the traversal stops immediately.
+    </dd>
+</dl>
+
+The `level` constraint can only be used within the `stopAt` container and limits the hierarchy traversal to stop when
+the actual level of the traversed node is equal to a specified constant. The "virtual" top invisible node has level 
+zero, the top nodes (nodes with `NULL` parent) have level one, their children have level two, and so on. See the 
+following figure:
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What are the significant usage examples of the `level` constraint?
+</NoteTitle>
+
+The following query lists products in *Audio* category and its subcategories. Along with the products returned, it also
+returns a computed *subcategories* data structure that lists top two levels of the entire hierarchy.
+
+<SourceCodeTabs>
+[Example of using `level` with `fromRoot` requirement](docs/user/en/query/requirements/examples/hierarchy-level.java)
+</SourceCodeTabs>
+
+The following query lists products in the *Audio* category and its subcategories. Along with the products returned, it
+also returns a computed *parent* data structure that lists all the parents of the currently focused *True wireless*
+category up to level two.
+
+<SourceCodeTabs>
+[Example of using `level` with `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-level-parent.java)
+</SourceCodeTabs>
+
+</Note>
+
 ## Node
+
+```evitaql
+node(
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        defines a criterion that determines the point in a hierarchical structure where the traversal should stop; 
+        the traversal stops at the first node that satisfies the filter condition specified in this container
+    </dd>
+</dl>
+
+The `node` filtering container is an alternative to the [`distance`](#distance) and [`level`](#level) termination 
+constraints, which is much more dynamic and can produce hierarchy trees of non-uniform depth. Because the filtering 
+constraint can be satisfied by nodes of widely varying depths, traversal can be highly dynamic.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How to dynamically limit hierarchy traversal by `node` filter constraint?
+</NoteTitle>
+
+The situations where you'd need this dynamic behavior are few and far between. Unfortunately, we do not have 
+a meaningful example of this in the demo dataset, so our example query will be slightly off. But for the sake of 
+demonstration, let's list the entire *Accessories* hierarchy, but stop traversing at the nodes whose code starts with 
+the letter *w*.
+
+<SourceCodeTabs>
+[Example of using `node` with `children` requirement](docs/user/en/query/requirements/examples/hierarchy-node.java)
+</SourceCodeTabs>
+
+The computed result *subMenu* looks like this (visualized in JSON format):
+
+<MDInclude>[Example of using `node` requirement](docs/user/en/query/requirements/examples/hierarchy-node.md)</MDInclude>
+
+</Note>
+
 ## Statistics
+
+```evitaql
+statistics(
+    argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER),
+    argument:enum(CHILDREN_COUNT|QUERIED_ENTITY_COUNT)+,
+)
+```
+
+<dl>
+    <dt>argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER)</dt>
+    <dd>
+        optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/StatisticsBase.java</SourceClass>
+        enum allowing you to specify the base queried entity set that is the source for statistics calculations:
+
+        - **COMPLETE_FILTER**: complete filtering query constraint
+        - **WITHOUT_USER_FILTER**: filtering query constraint where the contents of optional 
+            [`userFilter`](../filtering/special.md#user-filter) are ignored
+
+        The filtering constraint always ignores `hierarchyWithin` because the focused part of the hierarchy tree is
+        defined on the requirement constraint level, but including having/excluding constraints. The filtering 
+        constraint is crucial for the calculation of `queriedEntityCount` (and therefore also affects the value of 
+        `childrenCount` transitively)
+    </dd>
+    <dt>argument:enum(CHILDREN_COUNT|QUERIED_ENTITY_COUNT)+</dt>
+    <dd>
+        mandatory argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/StatisticsType.java</SourceClass> 
+        enum that specifies which statistics to compute for each node in the returned hierarchy:
+
+        - **CHILDREN_COUNT**: triggers calculation of the count of child hierarchy nodes that exist in the hierarchy 
+            tree below the given node; the count is correct regardless of whether the children themselves are 
+            requested/traversed by the constraint definition, and respects [`hierarchyOfReference`](#hierarchy-of-reference)
+            settings for automatic removal of hierarchy nodes that would contain empty result set of queried entities 
+            (REMOVE_EMPTY)
+        - **QUERIED_ENTITY_COUNT**: triggers the calculation of the total number of queried entities that will be 
+            returned if the current query is focused on this particular hierarchy node using the `hierarchyWithin`
+            filter constraint (the possible refining constraint in the form of [`directRelation`](../filtering/hierarchy.md#direct-relation)
+            and [`excluding-root`](../filtering/hierarchy.md#excluding-root) is not taken into account).
+
+        one or all possible enum values can be used
+    </dd>
+</dl>
+
+The `statistics` constraint with `CHILDREN_COUNT` allows you to easily render collapsed menu showing the nodes
+available for opening without actually requesting the child nodes from the database:
+
+![Accessories dynamic tree example](assets/accessories-tree.png "Accessories dynamic tree example")
+
+As you can see, the *Smart wearable*, *Audio*, and *Keyboards* nodes have a plus sign next to them, indicating that 
+the user can expand this category.
+
+The `statistics` constraint with `QUERIED_ENTITY_COUNT` allows you to display the number of items hidden behind 
+the given hierarchy node (category):
+
+![Queried entity counts example](assets/category-queried-entity-counts.png "Queried entity counts example")
+
+From the series listing, the end user can clearly see how many products make up the series category, no matter how 
+branched the series category may be.
+
+<Note type="warning">
+
+<NoteTitle toggles="false">
+
+##### Computational complexity of statistical data calculation
+</NoteTitle>
+
+The performance price paid for calculating statistics is not negligible. The calculation of `CHILDREN_COUNT` is cheaper
+because it allows to eliminate "dead branches" early and thus conserve the computation cycles. The calculation of
+the `QUERIED_ENTITY_COUNT` is more expensive because it requires counting items up to the last one and must be precise.
+
+**We strongly recommend that you avoid using `QUERIED_ENTITY_COUNT` for root hierarchy nodes for large datasets.**
+
+This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive, 
+even considering that all the indexes are in-memory. Caching is probably the only way out if you really need to crunch 
+these numbers.
+
+</Note>

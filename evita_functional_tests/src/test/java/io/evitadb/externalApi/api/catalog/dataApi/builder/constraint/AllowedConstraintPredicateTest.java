@@ -91,28 +91,28 @@ class AllowedConstraintPredicateTest {
 	@Test
 	void shouldAllowConstraintFromConstructor() {
 		final AllowedConstraintPredicate emptyGlobalConstraints = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameter().get(),
+			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameters().get(0),
 			Set.of(),
 			Set.of()
 		);
 		assertTrue(emptyGlobalConstraints.test(ATTRIBUTE_EQUALS));
 
 		final AllowedConstraintPredicate onlyAllowedPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameter().get(),
+			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameters().get(0),
 			Set.of(And.class, AttributeEquals.class),
 			Set.of()
 		);
 		assertTrue(onlyAllowedPredicate.test(ATTRIBUTE_EQUALS));
 
 		final AllowedConstraintPredicate onlyForbiddenPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameter().get(),
+			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameters().get(0),
 			Set.of(),
 			Set.of(And.class)
 		);
 		assertTrue(onlyForbiddenPredicate.test(ATTRIBUTE_EQUALS));
 
 		final AllowedConstraintPredicate fullPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameter().get(),
+			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameters().get(0),
 			Set.of(And.class, AttributeEquals.class, Or.class),
 			Set.of(Or.class, AttributeStartsWith.class)
 		);
@@ -122,7 +122,7 @@ class AllowedConstraintPredicateTest {
 	@Test
 	void shouldNotAllowConstraint() {
 		final AllowedConstraintPredicate onlyAllowedPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameter().get(),
+			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameters().get(0),
 			Set.of(And.class, AttributeEquals.class),
 			Set.of()
 		);
@@ -147,7 +147,7 @@ class AllowedConstraintPredicateTest {
 		assertFalse(fullPredicateWithForbiddenAndAllowedConstraint.test(ATTRIBUTE_EQUALS));
 
 		final AllowedConstraintPredicate onlyBaseType = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameter().get(),
+			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameters().get(0),
 			Set.of(),
 			Set.of()
 		);
@@ -157,14 +157,14 @@ class AllowedConstraintPredicateTest {
 	@Test
 	void shouldNotAllowConstraintFromConstructor() {
 		final AllowedConstraintPredicate emptyGlobalConstraints = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(UserFilter.class).creator().childParameter().get(),
+			ConstraintDescriptorProvider.getConstraint(UserFilter.class).creator().childParameters().get(0),
 			Set.of(),
 			Set.of()
 		);
 		assertFalse(emptyGlobalConstraints.test(ENTITY_LOCALE_EQUALS));
 
 		final AllowedConstraintPredicate onlyForbiddenPredicate = new AllowedConstraintPredicate(
-			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameter().get(),
+			ConstraintDescriptorProvider.getConstraint(And.class).creator().childParameters().get(0),
 			Set.of(),
 			Set.of(AttributeEquals.class)
 		);

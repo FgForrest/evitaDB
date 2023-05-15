@@ -38,7 +38,6 @@ import java.lang.annotation.Target;
  * Constraint children parameter definition that marks concrete constraint
  * constructor's (one that is annotated with {@link Creator}) parameter as child parameter which contains
  * one or more children of same constraint type.
- * Currently, only one parameter in single creator can be marked with this annotation.
  * <p>
  * Additionally, allowed children types can be limited with either {@link #allowed()}
  * or {@link #forbidden()} which take constraint classes.

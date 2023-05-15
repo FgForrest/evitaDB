@@ -42,24 +42,23 @@ public interface HierarchyPlacementMutator {
 	 * Method updates {@link io.evitadb.index.hierarchy.HierarchyIndex} of the current & passed {@link EntityIndex}
 	 * when hierarchy placement is specified in the entity (create or update).
 	 */
-	static void setHierarchyPlacement(
+	static void setParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex index,
 		int primaryKeyToIndex,
-		@Nullable Integer parentPrimaryKey,
-		int orderAmongSiblings
+		@Nullable Integer parentPrimaryKey
 	) {
 		final EntitySchema schema = executor.getEntitySchema();
 		Assert.isTrue(schema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot set hierarchical placement for " + schema.getName() + "!");
 
-		index.setHierarchyFor(primaryKeyToIndex, parentPrimaryKey, orderAmongSiblings);
+		index.addNode(primaryKeyToIndex, parentPrimaryKey);
 	}
 
 	/**
 	 * Method updates {@link io.evitadb.index.hierarchy.HierarchyIndex} of the current & passed {@link EntityIndex}
 	 * when hierarchy placement is removed from the entity.
 	 */
-	static void removeHierarchyPlacement(
+	static void removeParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntityIndex index,
 		int primaryKeyToIndex
@@ -67,7 +66,7 @@ public interface HierarchyPlacementMutator {
 		final EntitySchema schema = executor.getEntitySchema();
 		Assert.isTrue(schema.isWithHierarchy(), "Hierarchy is not enabled by schema - cannot remove hierarchical placement for " + schema.getName() + "!");
 
-		index.removeHierarchyFor(primaryKeyToIndex);
+		index.removeNode(primaryKeyToIndex);
 	}
 
 }

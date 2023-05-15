@@ -43,6 +43,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.DeleteEntitiesMu
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +56,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -84,10 +86,15 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 
 		this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
 		this.orderConstraintResolver = new OrderConstraintResolver(catalogSchema);
+		final RequireConstraintResolver requireConstraintResolver = new RequireConstraintResolver(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintResolver)
+		);
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
 			filterConstraintResolver,
-			orderConstraintResolver
+			orderConstraintResolver,
+			requireConstraintResolver
 		);
 	}
 

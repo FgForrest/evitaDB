@@ -212,7 +212,7 @@ public class CombinedEntityFilteringFunctionalTest {
 								priceInCurrency(CURRENCY_CZK),
 								priceInPriceLists(PRICE_LIST_BASIC),
 								priceBetween(from, to),
-								hierarchyWithin(Entities.CATEGORY, 4)
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(4))
 							)
 						),
 						require(
@@ -370,7 +370,7 @@ public class CombinedEntityFilteringFunctionalTest {
 								priceInCurrency(CURRENCY_CZK),
 								priceInPriceLists(PRICE_LIST_BASIC),
 								priceBetween(from, to),
-								hierarchyWithin(Entities.CATEGORY, 1),
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(1)),
 								referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1))
 							)
 						),

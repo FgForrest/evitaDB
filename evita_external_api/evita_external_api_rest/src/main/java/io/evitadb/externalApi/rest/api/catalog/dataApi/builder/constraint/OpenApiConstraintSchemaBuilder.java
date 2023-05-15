@@ -225,7 +225,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 	protected OpenApiSimpleType buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                              @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                              @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                              @Nullable ChildParameterDescriptor childParameter,
+	                                                              @Nullable List<ChildParameterDescriptor> childParameters,
 	                                                              @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                              @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final String wrapperObjectName = constructWrapperObjectName(wrapperObjectKey);
@@ -247,8 +247,8 @@ public abstract class OpenApiConstraintSchemaBuilder
 				.type(nestedPrimitiveConstraintValue));
 		});
 
-		// build child value
-		if (childParameter != null) {
+		// build children values
+		childParameters.forEach(childParameter -> {
 			OpenApiSimpleType nestedChildConstraintValue = buildChildConstraintValue(buildContext, childParameter);
 			if (childParameter.required() &&
 				!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
@@ -259,7 +259,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 			wrapperObjectBuilder.property(newProperty()
 				.name(childParameter.name())
 				.type(nestedChildConstraintValue));
-		}
+		});
 
 		// build additional children values
 		additionalChildParameters.forEach(additionalChildParameter -> {

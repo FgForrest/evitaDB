@@ -86,7 +86,7 @@ class HierarchyChildrenTest {
 		assertEquals("children('megaMenu',stopAt(level(2)))", hierarchyChildren.toString());
 
 		final HierarchyChildren hierarchyChildren2 = children("megaMenu", entityFetchAll());
-		assertEquals("children('megaMenu',entityFetch(attributeContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", hierarchyChildren2.toString());
+		assertEquals("children('megaMenu',entityFetch(attributeContent(),hierarchyContent(),associatedDataContent(),priceContent(ALL),referenceContent(),dataInLocales()))", hierarchyChildren2.toString());
 
 		final HierarchyChildren hierarchyChildren3 = children("megaMenu", statistics());
 		assertEquals("children('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchyChildren3.toString());

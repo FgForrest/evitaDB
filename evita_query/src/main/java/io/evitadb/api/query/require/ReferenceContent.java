@@ -32,8 +32,8 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.utils.ArrayUtils;
@@ -44,6 +44,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
@@ -304,14 +305,51 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 		} else if (((ReferenceContent) anotherRequirement).isAllRequested()) {
 			return anotherRequirement;
 		} else {
+			final EntityFetch combinedEntityRequirement = combineRequirements(getEntityRequirement(), ((ReferenceContent) anotherRequirement).getEntityRequirement());
+			final EntityGroupFetch combinedGroupEntityRequirement = combineRequirements(getGroupEntityRequirement(), ((ReferenceContent) anotherRequirement).getGroupEntityRequirement());
+			final String[] arguments = Stream.concat(
+					Arrays.stream(getArguments()).map(String.class::cast),
+					Arrays.stream(anotherRequirement.getArguments()).map(String.class::cast)
+				)
+				.distinct()
+				.toArray(String[]::new);
 			return (T) new ReferenceContent(
-				Stream.concat(
-						Arrays.stream(getArguments()).map(String.class::cast),
-						Arrays.stream(anotherRequirement.getArguments()).map(String.class::cast)
-					)
-					.distinct()
-					.toArray(String[]::new)
+				arguments,
+				Arrays.stream(
+					new RequireConstraint[] {
+						combinedEntityRequirement,
+						combinedGroupEntityRequirement
+					}
+				).filter(Objects::nonNull).toArray(RequireConstraint[]::new),
+				Arrays.stream(
+					new Constraint<?>[] {
+						getFilterBy(),
+						getOrderBy()
+					}
+				).filter(Objects::nonNull).toArray(Constraint[]::new)
 			);
+		}
+	}
+
+	@Nullable
+	private EntityFetch combineRequirements(@Nullable EntityFetch a, @Nullable EntityFetch b) {
+		if (a == null) {
+			return b;
+		} else if (b == null) {
+			return a;
+		} else {
+			return a.combineWith(b);
+		}
+	}
+
+	@Nullable
+	private EntityGroupFetch combineRequirements(@Nullable EntityGroupFetch a, @Nullable EntityGroupFetch b) {
+		if (a == null) {
+			return b;
+		} else if (b == null) {
+			return a;
+		} else {
+			return a.combineWith(b);
 		}
 	}
 

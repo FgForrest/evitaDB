@@ -30,12 +30,10 @@ import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
-import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.require.*;
@@ -66,8 +64,7 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.Hierarch
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchySiblingsTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.AttributeHistogramTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.PriceHistogramTranslator;
-import io.evitadb.core.query.extraResult.translator.parents.HierarchyParentsOfReferenceTranslator;
-import io.evitadb.core.query.extraResult.translator.parents.HierarchyParentsOfSelfTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.HierarchyContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.DeferredSorter;
@@ -89,6 +86,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static io.evitadb.api.query.QueryConstraints.and;
+import static io.evitadb.api.query.QueryConstraints.entityHaving;
+import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
@@ -109,8 +109,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(Require.class, new RequireTranslator());
 		TRANSLATORS.put(FacetSummary.class, new FacetSummaryTranslator());
 		TRANSLATORS.put(FacetSummaryOfReference.class, new FacetSummaryOfReferenceTranslator());
-		TRANSLATORS.put(HierarchyParentsOfSelf.class, new HierarchyParentsOfSelfTranslator());
-		TRANSLATORS.put(HierarchyParentsOfReference.class, new HierarchyParentsOfReferenceTranslator());
 		TRANSLATORS.put(AttributeHistogram.class, new AttributeHistogramTranslator());
 		TRANSLATORS.put(PriceHistogram.class, new PriceHistogramTranslator());
 		TRANSLATORS.put(HierarchyOfSelf.class, new HierarchyOfSelfTranslator());
@@ -120,6 +118,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(HierarchyParents.class, new HierarchyParentsTranslator());
 		TRANSLATORS.put(HierarchyChildren.class, new HierarchyChildrenTranslator());
 		TRANSLATORS.put(HierarchySiblings.class, new HierarchySiblingsTranslator());
+		TRANSLATORS.put(HierarchyContent.class, new HierarchyContentTranslator());
 		TRANSLATORS.put(ReferenceContent.class, new ReferenceContentTranslator());
 	}
 
@@ -263,15 +262,22 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						(visitor, constraint) -> {
 							final Function<FilterConstraint, FilterConstraint> wrapper = referenceSchema == null ?
 								Function.identity() :
-								filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), filter));
+								filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), entityHaving(filter)));
 							if (constraint instanceof HierarchyFilterConstraint hfc) {
 								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
+								final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
 								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
-									return null;
+									if (ArrayUtils.isEmpty(havingChildrenFilter)) {
+										return null;
+									} else if (havingChildrenFilter.length == 1){
+										return wrapper.apply(havingChildrenFilter[0]);
+									} else {
+										return wrapper.apply(and(havingChildrenFilter));
+									}
 								} else if (excludedChildrenFilter.length == 1){
-									return wrapper.apply(new Not(excludedChildrenFilter[0]));
+									return wrapper.apply(not(excludedChildrenFilter[0]));
 								} else {
-									return wrapper.apply(new Not(new And(excludedChildrenFilter)));
+									return wrapper.apply(not(and(excludedChildrenFilter)));
 								}
 							} else {
 								return constraint;
@@ -301,14 +307,21 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 							if (constraint instanceof HierarchyFilterConstraint hfc) {
 								final Function<FilterConstraint, FilterConstraint> wrapper = referenceSchema == null ?
 									Function.identity() :
-									filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), filter));
+									filter -> new FilterBy(new ReferenceHaving(referenceSchema.getName(), entityHaving(filter)));
 								final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
+								final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
 								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
-									return null;
+									if (ArrayUtils.isEmpty(havingChildrenFilter)) {
+										return null;
+									} else if (havingChildrenFilter.length == 1){
+										return wrapper.apply(havingChildrenFilter[0]);
+									} else {
+										return wrapper.apply(and(havingChildrenFilter));
+									}
 								} else if (excludedChildrenFilter.length == 1){
-									return wrapper.apply(new Not(excludedChildrenFilter[0]));
+									return wrapper.apply(not(excludedChildrenFilter[0]));
 								} else {
-									return wrapper.apply(new Not(new And(excludedChildrenFilter)));
+									return wrapper.apply(not(and(excludedChildrenFilter)));
 								}
 							} else if (constraint instanceof UserFilter) {
 								return null;
@@ -326,7 +339,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 	/**
 	 * Method creates the {@link Sorter} implementation that should be used for sorting {@link LevelInfo} inside
-	 * the {@link io.evitadb.api.requestResponse.extraResult.HierarchyStatistics} result object.
+	 * the {@link io.evitadb.api.requestResponse.extraResult.Hierarchy} result object.
 	 */
 	@Nonnull
 	public Sorter createSorter(

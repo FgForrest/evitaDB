@@ -26,8 +26,10 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -65,7 +67,15 @@ public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComput
 	@Nonnull
 	protected OptionalInt getParentNodeId(@Nonnull HierarchyProducerContext context) {
 		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
-			return context.entityIndex().getParentNode(hierarchyWithin.getParentId());
+			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodesFormula().compute();
+			Assert.isTrue(
+				hierarchyNodes.size() == 1,
+				"In order to generate sibling hierarchy statistics the HierarchyWithin filter must select exactly " +
+					"one parent node. Currently, it selects `" + hierarchyNodes.size() + "` nodes."
+			);
+			final int parentNodeId = hierarchyNodes.getFirst();
+
+			return context.entityIndex().getParentNode(parentNodeId);
 		} else {
 			return OptionalInt.empty();
 		}

@@ -191,7 +191,7 @@ class ConstraintProcessorTest {
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			new ConstraintCreator(
-				HierarchyWithin.class.getConstructor(String.class, Integer.class, HierarchySpecificationFilterConstraint[].class),
+				HierarchyWithin.class.getConstructor(String.class, FilterConstraint.class, HierarchySpecificationFilterConstraint[].class),
 				List.of(
 					new ClassifierParameterDescriptor("referenceName"),
 					new ValueParameterDescriptor(
@@ -227,7 +227,7 @@ class ConstraintProcessorTest {
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			new ConstraintCreator(
-				HierarchyWithin.class.getConstructor(Integer.class, HierarchySpecificationFilterConstraint[].class),
+				HierarchyWithin.class.getConstructor(FilterConstraint.class, HierarchySpecificationFilterConstraint[].class),
 				List.of(
 					new ValueParameterDescriptor(
 						"ofParent",

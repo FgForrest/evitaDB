@@ -1,10 +1,10 @@
 final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 	query(
 		// query hierarchy entity type
-		collection("categories"),
+		collection("Category"),
 		// target "Accessories" category
 		filterBy(
-			hierarchyWithinSelf(
+			hierarchyWithin(
 				attributeEquals("code", "audio")
 			)
 		),

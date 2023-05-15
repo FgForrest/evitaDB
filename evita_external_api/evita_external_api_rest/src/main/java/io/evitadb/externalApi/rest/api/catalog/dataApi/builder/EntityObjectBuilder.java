@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
@@ -80,7 +79,6 @@ public class EntityObjectBuilder {
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
 
 	public void buildCommonTypes() {
-		buildingContext.registerType(HierarchicalPlacementDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(PriceDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
 	}
@@ -117,7 +115,8 @@ public class EntityObjectBuilder {
 
 		// build hierarchy placement field
 		if (entitySchema.isWithHierarchy()) {
-			entityObject.property(EntityDescriptor.HIERARCHICAL_PLACEMENT.to(propertyBuilderTransformer));
+			// todo lho follow java api structure rather than GQL structure, custom extesion of descriptor
+//			entityObject.property(EntityDescriptor.PARENT.to(propertyBuilderTransformer));
 		}
 
 		// build price fields

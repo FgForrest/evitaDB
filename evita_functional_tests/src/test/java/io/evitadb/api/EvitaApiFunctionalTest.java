@@ -1402,7 +1402,6 @@ class EvitaApiFunctionalTest {
 		newCategory.setAttribute("active", createDateRange(2020, 2021));
 		newCategory.setAttribute("priority", 456L);
 		newCategory.setAttribute("visible", true);
-		newCategory.setHierarchicalPlacement(1);
 		return newCategory;
 	}
 
@@ -1414,7 +1413,7 @@ class EvitaApiFunctionalTest {
 		newCategory.setAttribute("active", createDateRange(2020, 2021));
 		newCategory.setAttribute("priority", 456L);
 		newCategory.setAttribute("visible", true);
-		newCategory.setHierarchicalPlacement(parentPrimaryKey, 1);
+		newCategory.setParent(parentPrimaryKey);
 		return newCategory;
 	}
 

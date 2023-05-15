@@ -42,6 +42,12 @@ class HierarchyOfReferenceTest {
 		);
 		assertArrayEquals(new String[] {"category"}, hierarchyStatisticsOfReference.getReferenceNames());
 		assertFalse(hierarchyStatisticsOfReference.getOrderBy().isPresent());
+
+		final HierarchyOfReference hierarchyStatisticsOfReferences = hierarchyOfReference(
+			new String[] {"category", "brand"}, fromRoot("megaMenu")
+		);
+		assertArrayEquals(new String[] {"category", "brand"}, hierarchyStatisticsOfReferences.getReferenceNames());
+		assertFalse(hierarchyStatisticsOfReferences.getOrderBy().isPresent());
 	}
 
 	@Test

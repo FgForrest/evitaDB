@@ -245,24 +245,30 @@ message QueryParam {
     GrpcPriceContentMode priceContentModeValue = 15;
     GrpcAttributeSpecialValue attributeSpecialValue = 16;
     GrpcOrderDirection orderDirectionValue = 17;
+    GrpcEmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour = 18;
+    GrpcStatisticsBase statisticsBase = 19;
+    GrpcStatisticsType statisticsType = 20;
 
-    GrpcStringArray stringArrayValue = 18;
-    GrpcIntegerArray integerArrayValue = 19;
-    GrpcLongArray longArrayValue = 20;
-    GrpcBooleanArray booleanArrayValue = 21;
-    GrpcBigDecimalArray bigDecimalArrayValue = 22;
-    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 23;
-    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 24;
-    GrpcLongNumberRangeArray longNumberRangeArrayValue = 25;
-    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 26;
-    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 27;
-    GrpcLocaleArray localeArrayValue = 28;
-    GrpcCurrencyArray currencyArrayValue = 29;
-    GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 30;
-    GrpcQueryPriceModeArray queryPriceModelArrayValue = 31;
-    GrpcPriceContentModeArray priceContentModeArrayValue = 32;
-    GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 33;
-    GrpcOrderDirectionArray orderDirectionArrayValue = 34;
+    GrpcStringArray stringArrayValue = 21;
+    GrpcIntegerArray integerArrayValue = 22;
+    GrpcLongArray longArrayValue = 23;
+    GrpcBooleanArray booleanArrayValue = 24;
+    GrpcBigDecimalArray bigDecimalArrayValue = 25;
+    GrpcDateTimeRangeArray dateTimeRangeArrayValue = 26;
+    GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 27;
+    GrpcLongNumberRangeArray longNumberRangeArrayValue = 28;
+    GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 29;
+    GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 30;
+    GrpcLocaleArray localeArrayValue = 31;
+    GrpcCurrencyArray currencyArrayValue = 32;
+    GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 33;
+    GrpcQueryPriceModeArray queryPriceModelArrayValue = 34;
+    GrpcPriceContentModeArray priceContentModeArrayValue = 35;
+    GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 36;
+    GrpcOrderDirectionArray orderDirectionArrayValue = 37;
+    GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 38;
+    GrpcStatisticsBaseArray statisticsBaseArrayValue = 39;
+    GrpcStatisticsTypeArray statisticsTypeArrayValue = 40;
   }
 }
 

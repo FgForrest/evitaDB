@@ -116,11 +116,6 @@ public class SenesiLatencyBenchmark extends SenesiBenchmark {
 	}
 
 	@Override
-	public void parentsComputation(SenesiParentsComputationState state, Blackhole blackhole) {
-		super.parentsComputation(state, blackhole);
-	}
-
-	@Override
 	public void hierarchyStatisticsComputation(SenesiHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(state, blackhole);
 	}

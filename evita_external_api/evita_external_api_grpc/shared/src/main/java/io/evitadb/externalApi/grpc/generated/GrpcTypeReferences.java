@@ -130,7 +130,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
       getReferencesOrBuilderList() {
     return references_;
   }
@@ -461,7 +461,7 @@ private static final long serialVersionUID = 0L;
             referencesBuilder_ = null;
             references_ = other.references_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            referencesBuilder_ = 
+            referencesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getReferencesFieldBuilder() : null;
           } else {
@@ -694,7 +694,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
          getReferencesOrBuilderList() {
       if (referencesBuilder_ != null) {
         return referencesBuilder_.getMessageOrBuilderList();
@@ -720,12 +720,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcReference references = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcReference.Builder>
          getReferencesBuilderList() {
       return getReferencesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcReference, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcReference, io.evitadb.externalApi.grpc.generated.GrpcReference.Builder, io.evitadb.externalApi.grpc.generated.GrpcReferenceOrBuilder>
         getReferencesFieldBuilder() {
       if (referencesBuilder_ == null) {
         referencesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

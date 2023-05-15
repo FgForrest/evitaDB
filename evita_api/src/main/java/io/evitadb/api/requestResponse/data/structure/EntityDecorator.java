@@ -24,10 +24,13 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
@@ -37,7 +40,6 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.HierarchicalContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -101,10 +103,6 @@ public class EntityDecorator implements SealedEntity {
 	 */
 	private final LocaleSerializablePredicate localePredicate;
 	/**
-	 * This predicate filters out invalid hierarchy placements.
-	 */
-	private final HierarchicalContractSerializablePredicate hierarchicalPlacementPredicate;
-	/**
 	 * This predicate filters out attributes that were not fetched in query.
 	 */
 	private final AttributeValueSerializablePredicate attributePredicate;
@@ -120,6 +118,11 @@ public class EntityDecorator implements SealedEntity {
 	 * This predicate filters out prices that were not fetched in query.
 	 */
 	private final PriceContractSerializablePredicate pricePredicate;
+	/**
+	 * Contains body of the parent entity. The body is accessible only when the input request (query) contains
+	 * requirements for fetching entity (i.e. {@link EntityFetch}) in the {@link HierarchyContent} requirement.
+	 */
+	private final EntityClassifierWithParent parentEntity;
 	/**
 	 * Optimization that ensures that expensive attributes filtering using predicates happens only once.
 	 */
@@ -169,21 +172,21 @@ public class EntityDecorator implements SealedEntity {
 	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
 	 * to match query that is used to retrieve the decorator).
 	 *
-	 * @param delegate                       fully or partially loaded entity - it's usually wider than decorator (may be even complete), delegate
-	 *                                       might be obtained from shared global cache
-	 * @param entitySchema                   schema of the delegate entity
-	 * @param localePredicate                predicate used to filter out locales to match input query
-	 * @param hierarchicalPlacementPredicate predicate used to filter out hierarchy placement to match input query
-	 * @param attributePredicate             predicate used to filter out attributes to match input query
-	 * @param associatedDataPredicate        predicate used to filter out associated data to match input query
-	 * @param referencePredicate             predicate used to filter out references to match input query
-	 * @param pricePredicate                 predicate used to filter out prices to match input query
+	 * @param delegate                fully or partially loaded entity - it's usually wider than decorator (may be even complete), delegate
+	 *                                might be obtained from shared global cache
+	 * @param entitySchema            schema of the delegate entity
+	 * @param parentEntity            object of the parentEntity
+	 * @param localePredicate         predicate used to filter out locales to match input query
+	 * @param attributePredicate      predicate used to filter out attributes to match input query
+	 * @param associatedDataPredicate predicate used to filter out associated data to match input query
+	 * @param referencePredicate      predicate used to filter out references to match input query
+	 * @param pricePredicate          predicate used to filter out prices to match input query
 	 */
 	public EntityDecorator(
 		@Nonnull Entity delegate,
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchicalContractSerializablePredicate hierarchicalPlacementPredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
@@ -192,8 +195,8 @@ public class EntityDecorator implements SealedEntity {
 	) {
 		this.delegate = delegate;
 		this.entitySchema = entitySchema;
+		this.parentEntity = parentEntity;
 		this.localePredicate = localePredicate;
-		this.hierarchicalPlacementPredicate = hierarchicalPlacementPredicate;
 		this.attributePredicate = attributePredicate;
 		this.associatedDataPredicate = associatedDataPredicate;
 		this.referencePredicate = referencePredicate;
@@ -205,19 +208,19 @@ public class EntityDecorator implements SealedEntity {
 	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
 	 * to match query that is used to retrieve the decorator).
 	 *
-	 * @param decorator                      decorator with fully or partially loaded entity - it's usually wider than
-	 *                                       decorator (may be even complete)
-	 * @param localePredicate                predicate used to filter out locales to match input query
-	 * @param hierarchicalPlacementPredicate predicate used to filter out hierarchy placement to match input query
-	 * @param attributePredicate             predicate used to filter out attributes to match input query
-	 * @param associatedDataPredicate        predicate used to filter out associated data to match input query
-	 * @param referencePredicate             predicate used to filter out references to match input query
-	 * @param pricePredicate                 predicate used to filter out prices to match input query
+	 * @param decorator               decorator with fully or partially loaded entity - it's usually wider than
+	 *                                decorator (may be even complete)
+	 * @param parentEntity            object of the parentEntity
+	 * @param localePredicate         predicate used to filter out locales to match input query
+	 * @param attributePredicate      predicate used to filter out attributes to match input query
+	 * @param associatedDataPredicate predicate used to filter out associated data to match input query
+	 * @param referencePredicate      predicate used to filter out references to match input query
+	 * @param pricePredicate          predicate used to filter out prices to match input query
 	 */
 	public EntityDecorator(
 		@Nonnull EntityDecorator decorator,
+		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchicalContractSerializablePredicate hierarchicalPlacementPredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
@@ -225,9 +228,9 @@ public class EntityDecorator implements SealedEntity {
 		@Nonnull OffsetDateTime alignedNow
 	) {
 		this.delegate = decorator.getDelegate();
+		this.parentEntity = ofNullable(parentEntity).orElseGet(() -> delegate.getParentEntity().orElse(null));
 		this.entitySchema = decorator.getSchema();
 		this.localePredicate = localePredicate;
-		this.hierarchicalPlacementPredicate = hierarchicalPlacementPredicate;
 		this.attributePredicate = attributePredicate;
 		this.associatedDataPredicate = associatedDataPredicate;
 		this.referencePredicate = referencePredicate;
@@ -259,22 +262,22 @@ public class EntityDecorator implements SealedEntity {
 	 * Creates wrapper around {@link Entity} that filters existing data according passed predicates (which are constructed
 	 * to match query that is used to retrieve the decorator).
 	 *
-	 * @param entity                      fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
-	 *                                       might be obtained from shared global cache
-	 * @param localePredicate                predicate used to filter out locales to match input query
-	 * @param hierarchicalPlacementPredicate predicate used to filter out hierarchy placement to match input query
-	 * @param attributePredicate             predicate used to filter out attributes to match input query
-	 * @param associatedDataPredicate        predicate used to filter out associated data to match input query
-	 * @param referencePredicate             predicate used to filter out references to match input query
-	 * @param pricePredicate                 predicate used to filter out prices to match input query
-	 * @param referenceFetcher               fetcher that can be used for fetching, filtering and ordering referenced
-	 *                                       entities / groups
+	 * @param entity                  fully or partially loaded entity - it's usually wider than decorator (may be even complete), decorator
+	 *                                might be obtained from shared global cache
+	 * @param parentEntity            object of the parentEntity
+	 * @param localePredicate         predicate used to filter out locales to match input query
+	 * @param attributePredicate      predicate used to filter out attributes to match input query
+	 * @param associatedDataPredicate predicate used to filter out associated data to match input query
+	 * @param referencePredicate      predicate used to filter out references to match input query
+	 * @param pricePredicate          predicate used to filter out prices to match input query
+	 * @param referenceFetcher        fetcher that can be used for fetching, filtering and ordering referenced
+	 *                                entities / groups
 	 */
 	public EntityDecorator(
 		@Nonnull Entity entity,
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable EntityClassifierWithParent parentEntity,
 		@Nonnull LocaleSerializablePredicate localePredicate,
-		@Nonnull HierarchicalContractSerializablePredicate hierarchicalPlacementPredicate,
 		@Nonnull AttributeValueSerializablePredicate attributePredicate,
 		@Nonnull AssociatedDataValueSerializablePredicate associatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate referencePredicate,
@@ -284,8 +287,8 @@ public class EntityDecorator implements SealedEntity {
 	) {
 		this.delegate = entity;
 		this.entitySchema = entitySchema;
+		this.parentEntity = parentEntity;
 		this.localePredicate = localePredicate;
-		this.hierarchicalPlacementPredicate = hierarchicalPlacementPredicate;
 		this.attributePredicate = attributePredicate;
 		this.associatedDataPredicate = associatedDataPredicate;
 		this.referencePredicate = referencePredicate;
@@ -366,17 +369,19 @@ public class EntityDecorator implements SealedEntity {
 	 * @param delegate     fully or partially loaded entity - it's usually wider than decorator (may be even complete),
 	 *                     delegate might be obtained from shared global cache
 	 * @param entitySchema schema of the delegate entity
+	 * @param parent       body of the {@link Entity#getParent()} entity
 	 * @param evitaRequest request that was used for retrieving the `delegate` entity
 	 */
 	public EntityDecorator(
 		@Nonnull Entity delegate,
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable EntityClassifierWithParent parent,
 		@Nonnull EvitaRequest evitaRequest
 	) {
 		this.delegate = delegate;
 		this.entitySchema = entitySchema;
+		this.parentEntity = parent;
 		this.localePredicate = new LocaleSerializablePredicate(evitaRequest);
-		this.hierarchicalPlacementPredicate = new HierarchicalContractSerializablePredicate();
 		this.attributePredicate = new AttributeValueSerializablePredicate(evitaRequest);
 		this.associatedDataPredicate = new AssociatedDataValueSerializablePredicate(evitaRequest);
 		this.referencePredicate = new ReferenceContractSerializablePredicate(evitaRequest);
@@ -398,14 +403,6 @@ public class EntityDecorator implements SealedEntity {
 	@Nonnull
 	public LocaleSerializablePredicate createLocalePredicateRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
 		return localePredicate.createRicherCopyWith(evitaRequest);
-	}
-
-	/**
-	 * Returns {@link HierarchicalContractSerializablePredicate} that represents the scope of the fetched data of the underlying entity.
-	 */
-	@Nonnull
-	public HierarchicalContractSerializablePredicate getHierarchicalPlacementPredicate() {
-		return hierarchicalPlacementPredicate;
 	}
 
 	/**
@@ -492,9 +489,14 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public Optional<HierarchicalPlacementContract> getHierarchicalPlacement() {
-		return delegate.getHierarchicalPlacement()
-			.filter(hierarchicalPlacementPredicate);
+	public OptionalInt getParent() {
+		return delegate.getParent();
+	}
+
+	@Nonnull
+	@Override
+	public Optional<EntityClassifierWithParent> getParentEntity() {
+		return ofNullable(parentEntity);
 	}
 
 	@Nonnull

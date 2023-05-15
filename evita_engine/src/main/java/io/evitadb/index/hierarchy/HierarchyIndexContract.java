@@ -46,6 +46,13 @@ import java.util.OptionalInt;
 public interface HierarchyIndexContract {
 
 	/**
+	 * Method initializes all existing nodes as root nodes. This method should be called at the moment the index is
+	 * created for the first time and all existing entities which are already present but have no parent relation set
+	 * should become as initial root nodes, so that all that are added after that could use them as their parents.
+	 */
+	void initRootNodes(@Nonnull Bitmap rootNodes);
+
+	/**
 	 * Method indexes `entityPrimaryKey` placement in the hierarchy tree using information about its `parentPrimaryKey`
 	 * and `orderAmongSiblings`.
 	 *
@@ -53,13 +60,13 @@ public interface HierarchyIndexContract {
 	 * are collected in the {@link #getOrphanHierarchyNodes()} array until their parent dependency is fulfilled. When the time comes they
 	 * are moved from {@link #getOrphanHierarchyNodes()} to {@link #getRootHierarchyNodes()} (recursively).
 	 */
-	void setHierarchyFor(int entityPrimaryKey, @Nullable Integer parentPrimaryKey, int orderAmongSiblings);
+	void addNode(int entityPrimaryKey, @Nullable Integer parentPrimaryKey);
 
 	/**
 	 * Method removes information about `entityPrimaryKey` placement from the index. It doesn't matter whether the key
 	 * is inside {@link #getOrphanHierarchyNodes()} or places in the living tree {@link #getRootHierarchyNodes()}.
 	 */
-	void removeHierarchyFor(int entityPrimaryKey);
+	void removeNode(int entityPrimaryKey);
 
 	/**
 	 * Method returns result of {@link #listHierarchyNodesFromRoot(HierarchyFilteringPredicate)}  wrapped as lazy lambda
@@ -67,7 +74,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Formula getListHierarchyNodesFromRootFormula() {
-		return getListHierarchyNodesFromRootFormula(HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getListHierarchyNodesFromRootFormula(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -75,23 +82,21 @@ public interface HierarchyIndexContract {
 	 * in {@link DeferredFormula}.
 	 */
 	@Nonnull
-	Formula getListHierarchyNodesFromRootFormula(@Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+	Formula getListHierarchyNodesFromRootFormula(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
-	 * Method returns all nodes that are reachable from all root nodes excluding the set of nodes and their sub-trees
-	 * specified in `excludedNodeTrees` parameter.
+	 * Method returns all nodes that are reachable from all root nodes.
 	 */
 	@Nonnull
 	default Bitmap listHierarchyNodesFromRoot() {
-		return listHierarchyNodesFromRoot(HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return listHierarchyNodesFromRoot(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
-	 * Method returns all nodes that are reachable from all root nodes excluding the set of nodes and their sub-trees
-	 * specified in `excludedNodeTrees` parameter.
+	 * Method returns all nodes that are reachable from all root nodes that satisfy the predicate.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromRoot(@Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+	Bitmap listHierarchyNodesFromRoot(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
 	 * Method returns result of {@link #listHierarchyNodesFromRootDownTo(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
@@ -99,7 +104,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Formula getListHierarchyNodesFromRootDownToFormula(int levels) {
-		return getListHierarchyNodesFromRootDownToFormula(levels, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getListHierarchyNodesFromRootDownToFormula(levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -110,20 +115,19 @@ public interface HierarchyIndexContract {
 	Formula getListHierarchyNodesFromRootDownToFormula(int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
-	 * Method returns nodes that are reachable from all root nodes down to specified number of `levels`, excluding
-	 * the set of nodes and their sub-trees specified in `excludedNodeTrees` parameter.
+	 * Method returns nodes that are reachable from all root nodes down to specified number of `levels`.
 	 */
 	@Nonnull
 	default Bitmap listHierarchyNodesFromRootDownTo(int levels) {
-		return listHierarchyNodesFromRootDownTo(levels, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return listHierarchyNodesFromRootDownTo(levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
-	 * Method returns nodes that are reachable from all root nodes down to specified number of `levels`, excluding
-	 * the set of nodes and their sub-trees specified in `excludedNodeTrees` parameter.
+	 * Method returns nodes that are reachable from all root nodes down to specified number of `levels` that satisfy
+	 * the predicate.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+	Bitmap listHierarchyNodesFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
 	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItself(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
@@ -131,7 +135,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Formula getListHierarchyNodesFromParentIncludingItselfFormula(int parentNode) {
-		return getListHierarchyNodesFromParentIncludingItselfFormula(parentNode, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getListHierarchyNodesFromParentIncludingItselfFormula(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -142,20 +146,19 @@ public interface HierarchyIndexContract {
 	Formula getListHierarchyNodesFromParentIncludingItselfFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
-	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself),
-	 * excluding the set of nodes and their sub-trees specified in `excludedNodeTrees` parameter.
+	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself).
 	 */
 	@Nonnull
 	default Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode) {
-		return listHierarchyNodesFromParentIncludingItself(parentNode, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return listHierarchyNodesFromParentIncludingItself(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself),
-	 * excluding the set of nodes and their sub-trees specified in `excludedNodeTrees` parameter.
+	 * that satisfy the predicate.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+	Bitmap listHierarchyNodesFromParentIncludingItself(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
 	 * Method returns result of {@link #listHierarchyNodesFromParentIncludingItselfDownTo(int, int, HierarchyFilteringPredicate)}
@@ -163,7 +166,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Formula getListHierarchyNodesFromParentIncludingItselfDownToFormula(int parentNode, int levels) {
-		return getListHierarchyNodesFromParentIncludingItselfDownToFormula(parentNode, levels, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getListHierarchyNodesFromParentIncludingItselfDownToFormula(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -175,21 +178,19 @@ public interface HierarchyIndexContract {
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself)
-	 * down to specified number of `levels`, excluding the set of nodes and their sub-trees specified in
-	 * `excludedNodeTrees` parameter.
+	 * down to specified number of `levels`.
 	 */
 	@Nonnull
 	default Bitmap listHierarchyNodesFromParentIncludingItselfDownTo(int parentNode, int levels) {
-		return listHierarchyNodesFromParentIncludingItselfDownTo(parentNode, levels, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return listHierarchyNodesFromParentIncludingItselfDownTo(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (including the parent node itself)
-	 * down to specified number of `levels`, excluding the set of nodes and their sub-trees specified in
-	 * `excludedNodeTrees` parameter.
+	 * down to specified number of `levels`, that satisfy the predicate.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromParentIncludingItselfDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+	Bitmap listHierarchyNodesFromParentIncludingItselfDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
 	 * Method returns result of {@link #listHierarchyNodesFromParent(int, HierarchyFilteringPredicate)} wrapped as lazy lambda
@@ -197,7 +198,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Formula getListHierarchyNodesFromParentFormula(int parentNode) {
-		return getListHierarchyNodesFromParentFormula(parentNode, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getListHierarchyNodesFromParentFormula(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -208,20 +209,19 @@ public interface HierarchyIndexContract {
 	Formula getListHierarchyNodesFromParentFormula(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
 
 	/**
-	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself),
-	 * excluding the set of nodes and their sub-trees specified in `excludedNodeTrees` parameter.
+	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself).
 	 */
 	@Nonnull
 	default Bitmap listHierarchyNodesFromParent(int parentNode) {
-		return listHierarchyNodesFromParent(parentNode, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return listHierarchyNodesFromParent(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself),
-	 * excluding the set of nodes and their sub-trees specified in `excludedNodeTrees` parameter.
+	 * that satisfy the predicate.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+	Bitmap listHierarchyNodesFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
 	 * Method returns result of {@link #listHierarchyNodesFromParentDownTo(int, int, HierarchyFilteringPredicate)} wrapped as lazy lambda
@@ -229,7 +229,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Formula getListHierarchyNodesFromParentDownToFormula(int parentNode, int levels) {
-		return getListHierarchyNodesFromParentDownToFormula(parentNode, levels, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getListHierarchyNodesFromParentDownToFormula(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -241,21 +241,19 @@ public interface HierarchyIndexContract {
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself)
-	 * down to specified number of `levels`, excluding the set of nodes and their sub-trees specified in
-	 * `excludedNodeTrees` parameter.
+	 * down to specified number of `levels`.
 	 */
 	@Nonnull
 	default Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels) {
-		return listHierarchyNodesFromParentDownTo(parentNode, levels, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return listHierarchyNodesFromParentDownTo(parentNode, levels, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
 	 * Method returns all nodes that are reachable from the specified `parentNode` (excluding the parent node itself)
-	 * down to specified number of `levels`, excluding the set of nodes and their sub-trees specified in
-	 * `excludedNodeTrees` parameter.
+	 * down to specified number of `levels`, filtering only those nodes that satisfy the predicate.
 	 */
 	@Nonnull
-	Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate excludedNodeTrees);
+	Bitmap listHierarchyNodesFromParentDownTo(int parentNode, int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate);
 
 	/**
 	 * Method returns primary keys of all nodes from root node to `theNode` traversing entire hierarchy.
@@ -275,7 +273,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Formula getRootHierarchyNodesFormula() {
-		return getRootHierarchyNodesFormula(HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getRootHierarchyNodesFormula(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -289,7 +287,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Bitmap getRootHierarchyNodes() {
-		return getRootHierarchyNodes(HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getRootHierarchyNodes(HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -303,7 +301,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Formula getHierarchyNodesForParentFormula(int parentNode) {
-		return getHierarchyNodesForParentFormula(parentNode, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getHierarchyNodesForParentFormula(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -317,7 +315,7 @@ public interface HierarchyIndexContract {
 	 */
 	@Nonnull
 	default Bitmap getHierarchyNodesForParent(int parentNode) {
-		return getHierarchyNodesForParent(parentNode, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		return getHierarchyNodesForParent(parentNode, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -341,7 +339,7 @@ public interface HierarchyIndexContract {
 	 * one leafs will be visited next.
 	 */
 	default void traverseHierarchyFromNode(@Nonnull HierarchyVisitor visitor, int rootNode, boolean excludingRoot) {
-		traverseHierarchyFromNode(visitor, rootNode, excludingRoot, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		traverseHierarchyFromNode(visitor, rootNode, excludingRoot, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**
@@ -362,7 +360,7 @@ public interface HierarchyIndexContract {
 	 * one leafs will be visited next.
 	 */
 	default void traverseHierarchy(@Nonnull HierarchyVisitor visitor) {
-		traverseHierarchy(visitor, HierarchyFilteringPredicate.REJECT_ALL_NODES_PREDICATE);
+		traverseHierarchy(visitor, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE);
 	}
 
 	/**

@@ -101,7 +101,6 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 	@Nonnull private final AttributeHistogramResolver attributeHistogramResolver;
 	@Nonnull private final PriceHistogramResolver priceHistogramResolver;
 	@Nonnull private final FacetSummaryResolver facetSummaryResolver;
-	@Nonnull private final HierarchyParentsResolver hierarchyParentsResolver;
 	@Nonnull private final HierarchyExtraResultRequireResolver hierarchyExtraResultRequireResolver;
 	@Nonnull private final QueryTelemetryResolver queryTelemetryResolver;
 
@@ -136,7 +135,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		this.entityFetchRequireResolver = new EntityFetchRequireResolver(
 			catalogSchema::getEntitySchemaOrThrowException,
 			filterConstraintResolver,
-			orderConstraintResolver
+			orderConstraintResolver,
+			requireConstraintResolver
 		);
 		this.attributeHistogramResolver = new AttributeHistogramResolver(entitySchema);
 		this.priceHistogramResolver = new PriceHistogramResolver();
@@ -147,7 +147,6 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			filterConstraintResolver,
 			orderConstraintResolver
 		);
-		this.hierarchyParentsResolver = new HierarchyParentsResolver(entitySchema, referencedEntitySchemas, entityFetchRequireResolver);
 		this.hierarchyExtraResultRequireResolver = new HierarchyExtraResultRequireResolver(
 			entitySchema,
 			catalogSchema::getEntitySchemaOrThrowException,
@@ -271,7 +270,6 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		requireConstraints.addAll(attributeHistogramResolver.resolve(extraResultsSelectionSet));
 		requireConstraints.add(priceHistogramResolver.resolve(extraResultsSelectionSet).orElse(null));
 		requireConstraints.addAll(facetSummaryResolver.resolve(extraResultsSelectionSet, desiredLocale));
-		requireConstraints.addAll(hierarchyParentsResolver.resolve(extraResultsSelectionSet, desiredLocale));
 		requireConstraints.addAll(hierarchyExtraResultRequireResolver.resolve(extraResultsSelectionSet, desiredLocale));
 		requireConstraints.add(queryTelemetryResolver.resolve(extraResultsSelectionSet).orElse(null));
 

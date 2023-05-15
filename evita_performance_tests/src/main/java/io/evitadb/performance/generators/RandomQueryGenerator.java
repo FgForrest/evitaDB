@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.key.CompressiblePriceKey;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.DateTimeRange;
@@ -223,7 +222,7 @@ public interface RandomQueryGenerator {
 		}
 
 		return Query.query(
-			existingQuery.getEntities(),
+			existingQuery.getCollection(),
 			existingQuery.getFilterBy(),
 			require(
 				ArrayUtils.mergeArrays(
@@ -285,10 +284,14 @@ public interface RandomQueryGenerator {
 			specification.add(directRelation());
 		}
 		final int parentId = categoryIds.get(rndKey % categoryIds.size());
-		hierarchyConstraint = hierarchyWithin(hierarchyEntityType, parentId, specification.toArray(EMPTY_HSFC_ARRAY));
+		hierarchyConstraint = hierarchyWithin(
+			hierarchyEntityType,
+			entityPrimaryKeyInSet(parentId),
+			specification.toArray(EMPTY_HSFC_ARRAY)
+		);
 
 		return Query.query(
-			existingQuery.getEntities(),
+			existingQuery.getCollection(),
 			filterBy(
 				and(
 					ArrayUtils.mergeArrays(
@@ -307,7 +310,7 @@ public interface RandomQueryGenerator {
 	 */
 	default Query generateRandomPriceHistogramQuery(@Nonnull Query existingQuery, @Nonnull Random random) {
 		return Query.query(
-			existingQuery.getEntities(),
+			existingQuery.getCollection(),
 			existingQuery.getFilterBy(),
 			require(
 				ArrayUtils.mergeArrays(
@@ -344,31 +347,6 @@ public interface RandomQueryGenerator {
 			),
 			require(
 				page(random.nextInt(5) + 1, 20)
-			)
-		);
-	}
-
-	/**
-	 * Creates randomized query requiring {@link HierarchyParents} computation for passed entity
-	 * schema based on passed set.
-	 */
-	default Query generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities, int maxProductId) {
-		final Integer[] requestedPks = new Integer[20];
-		int firstPk = random.nextInt(maxProductId / 2);
-		for (int i = 0; i < requestedPks.length; i++) {
-			requestedPks[i] = firstPk;
-			firstPk += random.nextInt(maxProductId / 40);
-		}
-		return Query.query(
-			collection(schema.getName()),
-			filterBy(
-				entityPrimaryKeyInSet(requestedPks)
-			),
-			require(
-				page(1, 20),
-				hierarchyParentsOfReference(
-					getRandomItems(random, referencedHierarchyEntities).toArray(String[]::new)
-				)
 			)
 		);
 	}

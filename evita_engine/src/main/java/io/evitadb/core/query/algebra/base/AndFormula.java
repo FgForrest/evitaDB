@@ -41,7 +41,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -215,14 +214,7 @@ public class AndFormula extends AbstractCacheableFormula {
 		} else if (theBitmaps.length == 1) {
 			theResult = new BaseBitmap(theBitmaps[0]);
 		} else {
-			final Iterator<RoaringBitmap> spliterator = Arrays.stream(theBitmaps).iterator();
-			theResult = new BaseBitmap(
-				RoaringBitmap.and(
-					spliterator,
-					Arrays.stream(theBitmaps).mapToLong(RoaringBitmap::first).min().orElse(0L),
-					Arrays.stream(theBitmaps).mapToLong(RoaringBitmap::last).max().orElse(0L) + 1
-				)
-			);
+			theResult = RoaringBitmapBackedBitmap.and(theBitmaps);
 		}
 		return theResult;
 	}

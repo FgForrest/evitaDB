@@ -29,8 +29,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ApplyDeltaAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.RemoveAttributeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.UpsertAttributeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveHierarchicalPlacementMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetHierarchicalPlacementMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.SetParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.SetPriceInnerRecordHandlingMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.UpsertPriceMutationDescriptor;
@@ -68,8 +68,8 @@ public interface LocalMutationAggregateDescriptor {
 	PropertyDescriptor UPSERT_ATTRIBUTE_MUTATION = PropertyDescriptor.nullableFromObject(UpsertAttributeMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_ATTRIBUTE_MUTATION = PropertyDescriptor.nullableFromObject(RemoveAttributeMutationDescriptor.THIS);
 
-	PropertyDescriptor REMOVE_HIERARCHICAL_PLACEMENT_MUTATION = PropertyDescriptor.nullableFromObject(RemoveHierarchicalPlacementMutationDescriptor.THIS);
-	PropertyDescriptor SET_HIERARCHICAL_PLACEMENT_MUTATION = PropertyDescriptor.nullableFromObject(SetHierarchicalPlacementMutationDescriptor.THIS);
+	PropertyDescriptor REMOVE_PARENT_MUTATION = PropertyDescriptor.nullableFromObject(RemoveParentMutationDescriptor.THIS);
+	PropertyDescriptor SET_PARENT_MUTATION = PropertyDescriptor.nullableFromObject(SetParentMutationDescriptor.THIS);
 
 	PropertyDescriptor SET_PRICE_INNER_RECORD_HANDLING_MUTATION = PropertyDescriptor.nullableFromObject(SetPriceInnerRecordHandlingMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_PRICE_MUTATION = PropertyDescriptor.nullableFromObject(RemovePriceMutationDescriptor.THIS);

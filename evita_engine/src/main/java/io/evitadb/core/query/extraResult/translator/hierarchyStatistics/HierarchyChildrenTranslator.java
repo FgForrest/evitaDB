@@ -54,7 +54,7 @@ public class HierarchyChildrenTranslator
 		final Optional<HierarchyStatistics> statistics = children.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(children.getName());
 		final HierarchyTraversalPredicate scopePredicate = children.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(context, it))
+			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		producer.addComputer(
 			children.getName(),
@@ -66,7 +66,7 @@ public class HierarchyChildrenTranslator
 					producer.getContext(children.getName())
 				),
 				context.hierarchyFilterPredicateProducer(),
-				extraResultPlanningVisitor.getQueryContext().getHierarchyExclusionPredicate(),
+				extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(),
 				scopePredicate,
 				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 				statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))

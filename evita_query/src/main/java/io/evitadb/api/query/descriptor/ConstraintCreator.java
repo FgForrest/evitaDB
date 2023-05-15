@@ -68,15 +68,6 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 			this.parameters.stream().filter(ClassifierParameterDescriptor.class::isInstance).count() <= 1,
 			"Constraint must have maximum of 1 classifier."
 		);
-
-		final long numberOfChildParameters = parameters().stream()
-			.filter(ChildParameterDescriptor.class::isInstance)
-			.map(ChildParameterDescriptor.class::cast)
-			.count();
-		Assert.isPremiseValid(
-			numberOfChildParameters <= 1,
-			() -> new EvitaInternalError("Constraint cannot have multiple child parameters.")
-		);
 	}
 
 	/**
@@ -147,14 +138,14 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	}
 
 	/**
-	 * Finds children parameter in {@link #parameters()}.
+	 * Finds child parameters in {@link #parameters()}.
 	 */
 	@Nonnull
-	public Optional<ChildParameterDescriptor> childParameter() {
+	public List<ChildParameterDescriptor> childParameters() {
 		return parameters().stream()
 			.filter(ChildParameterDescriptor.class::isInstance)
 			.map(ChildParameterDescriptor.class::cast)
-			.findFirst();
+			.toList();
 	}
 
 	/**

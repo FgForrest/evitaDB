@@ -23,8 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
-import io.evitadb.api.query.require.HierarchyParentsOfSelf;
-import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
+import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
 import java.lang.annotation.Documented;
@@ -40,7 +39,7 @@ import java.lang.annotation.Target;
  *
  * If the field, method or record component is an int type, the primary key will be injected to that place. If it
  * represents a type marked with {@link Entity} annotation it will inject the body of particular entity in case
- * the entity is loaded by using {@link HierarchyParentsOfSelf} query.
+ * the entity is loaded by using {@link HierarchyContent} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

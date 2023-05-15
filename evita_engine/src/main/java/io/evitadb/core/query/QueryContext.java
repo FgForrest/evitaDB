@@ -220,10 +220,16 @@ public class QueryContext {
 	private Map<Constraint<?>, Formula> internalCache;
 	/**
 	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
-	 * that should be excuded from traversal.
+	 * that should be included/excluded from traversal.
 	 */
 	@Getter
-	private HierarchyFilteringPredicate hierarchyExclusionPredicate;
+	private HierarchyFilteringPredicate hierarchyHavingPredicate;
+	/**
+	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
+	 * the query result to be reused in other query evaluation phases (require).
+	 */
+	@Getter
+	private Formula rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
 	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
@@ -349,9 +355,10 @@ public class QueryContext {
 		final Map<String, RequirementContext> requirementTuples = evitaRequest.getReferenceEntityFetch();
 
 		// new predicates are richer that previous ones - we need to fetch additional data and create new entity
-		final ReferenceFetcher entityFetcher = requirementTuples.isEmpty() ?
+		final ReferenceFetcher entityFetcher = requirementTuples.isEmpty() && !evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
+				evitaRequest.getHierarchyContent(),
 				requirementTuples,
 				this
 			);
@@ -746,9 +753,9 @@ public class QueryContext {
 	/**
 	 * Returns global {@link GlobalEntityIndex} of the collection if the target entity collection is known.
 	 */
-	@Nullable
-	public GlobalEntityIndex getGlobalEntityIndexIfExits() {
-		return getIndex(GLOBAL_INDEX_KEY);
+	@Nonnull
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists() {
+		return ofNullable(getIndex(GLOBAL_INDEX_KEY));
 	}
 
 	/**
@@ -756,7 +763,7 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public GlobalEntityIndex getGlobalEntityIndex() {
-		return ofNullable(getGlobalEntityIndexIfExits())
+		return getGlobalEntityIndexIfExists()
 			.map(GlobalEntityIndex.class::cast)
 			.orElseThrow(() -> new EvitaInternalError("Global index of entity unexpectedly not found!"));
 	}
@@ -766,9 +773,17 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public GlobalEntityIndex getGlobalEntityIndex(@Nonnull String entityType) {
-		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY))
-			.map(GlobalEntityIndex.class::cast)
+		return getGlobalEntityIndexIfExists(entityType)
 			.orElseThrow(() -> new EvitaInternalError("Global index of entity " + entityType + " unexpectedly not found!"));
+	}
+
+	/**
+	 * Returns {@link EntityIndex} by its key and entity type.
+	 */
+	@Nonnull
+	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType) {
+		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY))
+			.map(GlobalEntityIndex.class::cast);
 	}
 
 	/**
@@ -959,11 +974,19 @@ public class QueryContext {
 	}
 
 	/**
-	 * Sets resolved hierarchy exclusion predicate to be shared among filter and requirement phase.
+	 * Sets resolved hierarchy root nodes formula to be shared among filter and requirement phase.
 	 */
-	public void setHierarchyExclusionPredicate(@Nonnull HierarchyFilteringPredicate hierarchyExclusionPredicate) {
-		Assert.isPremiseValid(this.hierarchyExclusionPredicate == null, "The hierarchy exclusion predicate can be set only once!");
-		this.hierarchyExclusionPredicate = hierarchyExclusionPredicate;
+	public void setRootHierarchyNodesFormula(@Nonnull Formula rootHierarchyNodesFormula) {
+		Assert.isPremiseValid(this.rootHierarchyNodesFormula == null, "The hierarchy filtering formula can be set only once!");
+		this.rootHierarchyNodesFormula = rootHierarchyNodesFormula;
+	}
+
+	/**
+	 * Sets resolved hierarchy having/exclusion predicate to be shared among filter and requirement phase.
+	 */
+	public void setHierarchyHavingPredicate(@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate) {
+		Assert.isPremiseValid(this.hierarchyHavingPredicate == null, "The hierarchy exclusion predicate can be set only once!");
+		this.hierarchyHavingPredicate = hierarchyHavingPredicate;
 	}
 
 	/**

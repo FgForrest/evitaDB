@@ -23,16 +23,25 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
-import io.evitadb.externalApi.grpc.generated.GrpcLevelInfos;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.externalApi.grpc.generated.GrpcHierarchy;
 import io.evitadb.externalApi.grpc.testUtils.GrpcAssertions;
 import io.evitadb.test.Entities;
+import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,89 +52,43 @@ import java.util.Map.Entry;
  *
  * @author Tomáš Pozler, 2022
  */
-class GrpcHierarchyBuilderTest {
+public class GrpcHierarchyBuilderTest {
 
 	@Test
-	void buildHierarchyStatistics() {
-		final String[] types = new String[]{"test1", "test2", "test3"};
-		final Hierarchy integerHierarchy = new Hierarchy(
-			null,
+	void buildHierarchyWithEntityReferences() {
+		final Hierarchy hierarchy = new Hierarchy(
 			Map.of(
-				types[0],
-				Map.of(
-					"megaMenu",
-					List.of(
-						new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1, 0,
-							List.of(
-								new LevelInfo(new EntityReference(Entities.CATEGORY, 1), 1, 0, new ArrayList<>(0))
-							)
-						)
-					)
-				),
-				types[1],
-				Map.of(
-					"megaMenu",
-					List.of(
-						new LevelInfo(new EntityReference(Entities.CATEGORY, 2), 0, 0, new ArrayList<>(0))
-					)
-				),
-				types[2],
-				Map.of(
-					"megaMenu",
-					List.of(
-						new LevelInfo(
-							new EntityReference(Entities.CATEGORY, 3), 2, 0,
-							List.of(
-								new LevelInfo(
-									new EntityReference(Entities.CATEGORY, 1), 1, 0,
-									List.of(
-										new LevelInfo(
-											new EntityReference(Entities.CATEGORY, 2), 4, 0,
-											List.of(
-												new LevelInfo(new EntityReference(Entities.CATEGORY, 5), 0, 0, new ArrayList<>(0))
-											)
-										)
-									)
-								)
-							)
-						)
-					)
+				"megaMenu",
+				List.of(
+					new LevelInfo(createHierachyEntityReference(2), 0, 0, new ArrayList<>(0))
 				)
-			)
-		);
-		final Hierarchy entityHierarchy = new Hierarchy(
-			null,
+			),
 			Map.of(
-				types[0],
+				Entities.CATEGORY,
 				Map.of(
 					"megaMenu",
 					List.of(
-						new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 1).toInstance(), 1, 0,
+						new LevelInfo(createHierachyEntityReference(1), 1, 0,
 							List.of(
-								new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 6).toInstance(), 1, 0, new ArrayList<>(0))
+								new LevelInfo(createHierachyEntityReference(1), 1, 0, new ArrayList<>(0))
 							)
 						)
 					)
 				),
-				types[1],
-				Map.of(
-					"megaMenu",
-					List.of(new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 2).toInstance(), 0, 0, new ArrayList<>(0)))
-				),
-				types[2],
+				Entities.BRAND,
 				Map.of(
 					"megaMenu",
 					List.of(
 						new LevelInfo(
-							new InitialEntityBuilder(Entities.CATEGORY, 3).toInstance(), 2, 0,
+							createHierachyEntityReference(3), 2, 0,
 							List.of(
 								new LevelInfo(
-									new InitialEntityBuilder(Entities.CATEGORY, 9).toInstance(), 1, 0,
+									createHierachyEntityReference(1), 1, 0,
 									List.of(
 										new LevelInfo(
-											new InitialEntityBuilder(Entities.CATEGORY, 4).toInstance(), 4, 0,
+											createHierachyEntityReference(2), 4, 0,
 											List.of(
-												new LevelInfo(new InitialEntityBuilder(Entities.CATEGORY, 7).toInstance(), 0, 0, new ArrayList<>(0))
+												new LevelInfo(createHierachyEntityReference(5), 0, 0, new ArrayList<>(0))
 											)
 										)
 									)
@@ -137,26 +100,99 @@ class GrpcHierarchyBuilderTest {
 			)
 		);
 
-		final Map<String, GrpcLevelInfos> integerGrpcLevelInfos = new HashMap<>(integerHierarchy.getStatistics().size());
-		for (Entry<String, Map<String, List<LevelInfo>>> entry : integerHierarchy.getStatistics().entrySet()) {
-			// TODO LHO - alter structure
-			integerGrpcLevelInfos.put(
+		final GrpcHierarchy referenceSelfHierarchy = GrpcHierarchyStatisticsBuilder.buildHierarchy(hierarchy.getSelfHierarchy());
+
+		final Map<String, GrpcHierarchy> referenceHierarchies = new HashMap<>(hierarchy.getReferenceHierarchies().size());
+		for (Entry<String, Map<String, List<LevelInfo>>> entry : hierarchy.getReferenceHierarchies().entrySet()) {
+			referenceHierarchies.put(
 				entry.getKey(),
-				GrpcHierarchyStatisticsBuilder.buildHierarchyStatistics(entry.getValue())
+				GrpcHierarchyStatisticsBuilder.buildHierarchy(entry.getValue())
 			);
 		}
 
-		GrpcAssertions.assertStatistics(integerHierarchy, integerGrpcLevelInfos, types[2]);
-
-		final Map<String, GrpcLevelInfos> entityGrpcLevelInfos = new HashMap<>(entityHierarchy.getStatistics().size());
-		for (Entry<String, Map<String, List<LevelInfo>>> entry : entityHierarchy.getStatistics().entrySet()) {
-			// TODO LHO - alter structure
-			entityGrpcLevelInfos.put(
-				entry.getKey(),
-				GrpcHierarchyStatisticsBuilder.buildHierarchyStatistics(entry.getValue())
-			);
-		}
-
-		GrpcAssertions.assertStatistics(entityHierarchy, entityGrpcLevelInfos, types[2]);
+		GrpcAssertions.assertHierarchy(hierarchy, referenceSelfHierarchy, referenceHierarchies);
 	}
+
+	@Test
+	void buildHierarchyWithEntities() {
+		final Hierarchy entityHierarchy = new Hierarchy(
+			Map.of(
+				"megaMenu",
+				List.of(new LevelInfo(createHierarchyEntity(2), 0, 0, new ArrayList<>(0)))
+			),
+			Map.of(
+				Entities.CATEGORY,
+				Map.of(
+					"megaMenu",
+					List.of(
+						new LevelInfo(createHierarchyEntity(1), 1, 0,
+							List.of(
+								new LevelInfo(createHierarchyEntity(6), 1, 0, new ArrayList<>(0))
+							)
+						)
+					)
+				),
+				Entities.BRAND,
+				Map.of(
+					"megaMenu",
+					List.of(
+						new LevelInfo(
+							createHierarchyEntity(3), 2, 0,
+							List.of(
+								new LevelInfo(
+									createHierarchyEntity(9), 1, 0,
+									List.of(
+										new LevelInfo(
+											createHierarchyEntity(4), 4, 0,
+											List.of(
+												new LevelInfo(createHierarchyEntity(7), 0, 0, new ArrayList<>(0))
+											)
+										)
+									)
+								)
+							)
+						)
+					)
+				)
+			)
+		);
+
+		final GrpcHierarchy entitySelfHierarchy = GrpcHierarchyStatisticsBuilder.buildHierarchy(entityHierarchy.getSelfHierarchy());
+
+		final Map<String, GrpcHierarchy> entityHierarchies = new HashMap<>(entityHierarchy.getReferenceHierarchies().size());
+		for (Entry<String, Map<String, List<LevelInfo>>> entry : entityHierarchy.getReferenceHierarchies().entrySet()) {
+			entityHierarchies.put(
+				entry.getKey(),
+				GrpcHierarchyStatisticsBuilder.buildHierarchy(entry.getValue())
+			);
+		}
+
+		GrpcAssertions.assertHierarchy(entityHierarchy, entitySelfHierarchy, entityHierarchies);
+	}
+
+	@Nonnull
+	private static Entity createHierarchyEntity(int primaryKey) {
+		return new InitialEntityBuilder(Entities.CATEGORY, primaryKey).toInstance();
+	}
+
+	@Nonnull
+	private static EntityReference createHierachyEntityReference(int primaryKey) {
+		return new EntityReference(Entities.CATEGORY, primaryKey);
+	}
+
+	@Nonnull
+	public static SealedEntity createHierarchyEntity(@Nonnull String type, int pk, @Nonnull String code) {
+		return new InitialEntityBuilder(
+			new InternalEntitySchemaBuilder(
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+				EntitySchema._internalBuild(type)
+			)
+				.withAttribute("code", String.class)
+				.toInstance(),
+			pk
+		)
+			.setAttribute("code", code)
+			.toInstance();
+	}
+
 }

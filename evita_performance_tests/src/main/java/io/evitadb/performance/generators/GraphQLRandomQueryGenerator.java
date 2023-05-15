@@ -326,6 +326,7 @@ public interface GraphQLRandomQueryGenerator {
 			specification.add(new GraphQLConstraint(HierarchyDirectRelation.class, true));
 		}
 		final int parentId = categoryIds.get(rndKey % categoryIds.size());
+		// todo lho update ofParent value
 		hierarchyConstraint = new GraphQLConstraint(hierarchyEntityType, HierarchyWithin.class, Map.of("ofParent", parentId, "with", specification.toArray(EMPTY_HSFC_ARRAY)));
 
 		return new GraphQLQuery(
@@ -1409,7 +1410,7 @@ public interface GraphQLRandomQueryGenerator {
 
 		@Nonnull
 		private static String convertChildren(@Nonnull GraphQLConstraint[] children, @Nonnull ConstraintDescriptor constraintDescriptor) {
-			final ChildParameterDescriptor childrenParameterDescriptor = constraintDescriptor.creator().childParameter().orElseThrow();
+			final ChildParameterDescriptor childrenParameterDescriptor = constraintDescriptor.creator().childParameters().get(0);
 			if (childrenParameterDescriptor.uniqueChildren() || constraintDescriptor.type() == ConstraintType.ORDER || constraintDescriptor.type() == ConstraintType.REQUIRE) {
 				return "{\n" +
 					Arrays.stream(children)

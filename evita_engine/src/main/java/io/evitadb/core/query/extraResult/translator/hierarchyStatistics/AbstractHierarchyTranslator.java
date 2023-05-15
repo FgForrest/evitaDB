@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -89,23 +90,26 @@ public abstract class AbstractHierarchyTranslator {
 	 * hierarchy statistics according the contents of the {@link HierarchyStopAt} constraint.
 	 */
 	@Nullable
-	protected static HierarchyTraversalPredicate stopAtConstraintToPredicate(
-		@Nonnull HierarchyProducerContext context,
-		@Nonnull HierarchyStopAt stopAt
+	public static HierarchyTraversalPredicate stopAtConstraintToPredicate(
+		@Nonnull TraversalDirection direction,
+		@Nonnull HierarchyStopAt stopAt,
+		@Nonnull QueryContext queryContext,
+		@Nonnull EntityIndex entityIndex,
+		@Nullable ReferenceSchemaContract referenceSchema
 	) {
 		final HierarchyStopAtRequireConstraint filter = stopAt.getGenericHierarchyOutputRequireConstraint();
 		if (filter instanceof HierarchyLevel levelConstraint) {
 			final int requiredLevel = levelConstraint.getLevel();
-			return (hierarchyNodeId, level, distance) -> level <= requiredLevel;
+			return (hierarchyNodeId, level, distance) -> direction == TraversalDirection.TOP_DOWN ? level <= requiredLevel : level >= requiredLevel;
 		} else if (filter instanceof HierarchyDistance distanceCnt) {
 			final int requiredDistance = distanceCnt.getDistance();
 			return (hierarchyNodeId, level, distance) -> distance > -1 && distance <= requiredDistance;
 		} else if (filter instanceof HierarchyNode node) {
 			return new FilteringFormulaHierarchyEntityPredicate(
-				context.queryContext(),
-				context.entityIndex(),
+				queryContext,
+				entityIndex,
 				node.getFilterBy(),
-				context.referenceSchema()
+				referenceSchema
 			);
 		} else {
 			return null;
@@ -195,6 +199,13 @@ public abstract class AbstractHierarchyTranslator {
 		} finally {
 			queryContext.popStep();
 		}
+	}
+
+	/**
+	 * Represents the traversal direction.
+	 */
+	public enum TraversalDirection {
+		BOTTOM_UP, TOP_DOWN
 	}
 
 }

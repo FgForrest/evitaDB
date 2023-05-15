@@ -27,10 +27,9 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
@@ -47,7 +46,6 @@ import lombok.EqualsAndHashCode;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -138,12 +136,11 @@ public class EntityRemoveMutation implements EntityMutation {
 	 * Method will collect all necessary local mutations to completely remove passed entity.
 	 */
 	@Nonnull
-	public List<? extends LocalMutation<? extends Versioned, ? extends Serializable>> computeLocalMutationsForEntityRemoval(@Nonnull Entity entity) {
+	public List<? extends LocalMutation<?, ?>> computeLocalMutationsForEntityRemoval(@Nonnull Entity entity) {
 		return Stream.of(
-				entity.getHierarchicalPlacement()
+				entity.getParent()
 					.stream()
-					.filter(Droppable::exists)
-					.map(it -> new RemoveHierarchicalPlacementMutation()),
+					.mapToObj(it -> new RemoveParentMutation()),
 				entity.getReferences()
 					.stream()
 					.filter(Droppable::exists)

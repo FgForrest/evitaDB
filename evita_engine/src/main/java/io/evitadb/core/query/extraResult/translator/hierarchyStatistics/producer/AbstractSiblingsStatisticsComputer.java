@@ -62,15 +62,12 @@ abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarchyStati
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		final HierarchyFilteringPredicate combinedFilteringPredicate = exclusionPredicate == null ?
-			filterPredicate :
-			exclusionPredicate.negate().and(filterPredicate);
 		final OptionalInt parentNode = getParentNodeId(context);
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
 			getDistanceCompensation(),
 			scopePredicate,
-			combinedFilteringPredicate,
+			filterPredicate,
 			value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
 			entityFetcher,
 			statisticsType
@@ -82,14 +79,14 @@ abstract class AbstractSiblingsStatisticsComputer extends AbstractHierarchyStati
 					visitor,
 					parentNodeId,
 					true,
-					combinedFilteringPredicate.negate()
+					filterPredicate
 				);
 			},
 			() -> {
 				// if there is not within hierarchy constraint query we start at root nodes and use no exclusions
 				context.entityIndex().traverseHierarchy(
 					visitor,
-					combinedFilteringPredicate.negate()
+					filterPredicate
 				);
 			}
 		);

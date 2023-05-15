@@ -116,6 +116,18 @@ message GrpcOrderDirectionArray {
   repeated GrpcOrderDirection value = 1;
 }
 
+message GrpcEmptyHierarchicalEntityBehaviourArray {
+  repeated GrpcEmptyHierarchicalEntityBehaviour value = 1;
+}
+
+message GrpcStatisticsBaseArray {
+  repeated GrpcStatisticsBase value = 1;
+}
+
+message GrpcStatisticsTypeArray {
+  repeated GrpcStatisticsType value = 1;
+}
+
 message GrpcEvitaValue {
   oneof value {
     string stringValue = 1;

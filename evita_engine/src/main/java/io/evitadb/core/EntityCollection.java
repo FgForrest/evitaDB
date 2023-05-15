@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -54,7 +55,6 @@ import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
-import io.evitadb.api.requestResponse.data.structure.predicate.HierarchicalContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -70,6 +70,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.QueryContext;
@@ -375,9 +376,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	@Nonnull
 	public EntityDecorator enrichEntity(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() ?
+		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() && !evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
+				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
 				createQueryContext(evitaRequest, session),
 				sealedEntity
@@ -400,10 +402,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final PriceContractSerializablePredicate newPricePredicate = new PriceContractSerializablePredicate(evitaRequest, widerEntity.getPricePredicate());
 		return Entity.decorate(
 			widerEntity,
+			// show / hide parent entity
+			evitaRequest.isRequiresParent() ? widerEntity.getParentEntity().orElse(null) : null,
 			// show / hide locales the entity is fetched in
 			newLocalePredicate,
-			// show / hide hierarchical placement information
-			widerEntity.getHierarchicalPlacementPredicate(),
 			// show / hide attributes information
 			newAttributePredicate,
 			// show / hide associated data information
@@ -520,11 +522,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				.mapToObj(epk -> getEntityById(epk, evitaRequest))
 				.filter(Objects::nonNull)
 				.toList();
+			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+			final List<Entity> removedEntities = referenceFetcher.initReferenceIndex(entitiesToRemove, this);
 			for (Entity entityToRemove : entitiesToRemove) {
 				internalDeleteEntity(entityToRemove);
 			}
-			final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
-			final List<Entity> removedEntities = referenceFetcher.initReferenceIndex(entitiesToRemove, this);
 			return new DeletedHierarchy(
 				removedEntities.size(),
 				removedEntities.stream()
@@ -568,11 +570,12 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			.map(it -> getFullEntityById(Objects.requireNonNull(it.getPrimaryKey())))
 			.filter(Objects::nonNull)
 			.map(it -> {
-				internalDeleteEntity(it);
 				final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
+				final Entity fullEntity = referenceFetcher.initReferenceIndex(it, this);
+				internalDeleteEntity(it);
 				return wrapToDecorator(
 					evitaRequest,
-					referenceFetcher.initReferenceIndex(it, this),
+					fullEntity,
 					referenceFetcher,
 					false
 				);
@@ -604,6 +607,13 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		EntitySchemaContract updatedSchema = currentSchema;
 		for (EntitySchemaMutation theMutation : schemaMutation) {
 			updatedSchema = theMutation.mutate(catalogSchema, updatedSchema);
+			/* TOBEDONE JNO - this should be diverted to separate class and handle all necessary DDL operations */
+			if (theMutation instanceof SetEntitySchemaWithHierarchyMutation setHierarchy) {
+				if (setHierarchy.isWithHierarchy()) {
+					getGlobalIndexIfExists()
+						.ifPresent(it -> it.initRootNodes(it.getAllPrimaryKeys()));
+				}
+			}
 		}
 
 		final EntitySchemaContract nextSchema = updatedSchema;
@@ -697,7 +707,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	public EntityDecorator enrichEntity(
 		@Nonnull SealedEntity sealedEntity,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull ReferenceFetcher entityFetcher
+		@Nonnull ReferenceFetcher referenceFetcher
 	)
 		throws EntityAlreadyRemovedException {
 		final EntityDecorator partiallyLoadedEntity = (EntityDecorator) sealedEntity;
@@ -707,6 +717,16 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final AssociatedDataValueSerializablePredicate newAssociatedDataPredicate = partiallyLoadedEntity.createAssociatedDataPredicateRicherCopyWith(evitaRequest);
 		final ReferenceContractSerializablePredicate newReferenceContractPredicate = partiallyLoadedEntity.createReferencePredicateRicherCopyWith(evitaRequest);
 		final PriceContractSerializablePredicate newPriceContractPredicate = partiallyLoadedEntity.createPricePredicateRicherCopyWith(evitaRequest);
+		// fetch parents if requested
+		final EntityClassifierWithParent parentEntity;
+		if (partiallyLoadedEntity.getParentEntity().isPresent()) {
+			parentEntity = partiallyLoadedEntity.getParentEntity().get();
+		} else {
+			parentEntity = partiallyLoadedEntity.getParent().isPresent() ?
+				ofNullable(referenceFetcher.getParentEntityFetcher())
+					.map(it -> it.apply(partiallyLoadedEntity.getParent().getAsInt()))
+					.orElse(null) : null;
+		}
 
 		return doWithPersistenceService(
 			() -> Entity.decorate(
@@ -723,10 +743,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				),
 				// use original schema
 				getInternalSchema(),
+				// fetch parents if requested
+				parentEntity,
 				// show / hide locales the entity is fetched in
 				newLocalePredicate,
-				// show / hide hierarchical placement information
-				partiallyLoadedEntity.getHierarchicalPlacementPredicate(),
 				// show / hide attributes information
 				newAttributePredicate,
 				// show / hide associated data information
@@ -738,7 +758,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				// propagate original date time
 				partiallyLoadedEntity.getAlignedNow(),
 				// recursive entity loader
-				entityFetcher
+				referenceFetcher
 			)
 		);
 	}
@@ -778,10 +798,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 					),
 					// use original schema
 					getInternalSchema(),
+					partiallyLoadedEntity.getParentEntity().orElse(null),
 					// show / hide locales the entity is fetched in
 					partiallyLoadedEntity.getLocalePredicate(),
-					// show / hide hierarchical placement information
-					partiallyLoadedEntity.getHierarchicalPlacementPredicate(),
 					// show / hide attributes information
 					partiallyLoadedEntity.getAttributePredicate(),
 					// show / hide associated data information
@@ -848,6 +867,19 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		Assert.isPremiseValid(globalIndex instanceof GlobalEntityIndex, "Global index not found in entity collection of `" + getSchema().getName() + "`.");
 		return (GlobalEntityIndex) globalIndex;
+	}
+
+	/**
+	 * Method returns {@link GlobalEntityIndex} or throws an exception if it hasn't yet exist.
+	 */
+	@Nonnull
+	public Optional<GlobalEntityIndex> getGlobalIndexIfExists() {
+		final Optional<EntityIndex> globalIndex = ofNullable(getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL)));
+		return globalIndex.map(it -> {
+			Assert.isPremiseValid(it instanceof GlobalEntityIndex, "Global index not found in entity collection of `" + getSchema().getName() + "`.");
+			return ofNullable((GlobalEntityIndex) it);
+		})
+			.orElse(empty());
 	}
 
 	/**
@@ -1123,9 +1155,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nonnull EvitaSessionContract session
 	) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		return referenceEntityFetch.isEmpty() ?
+		return referenceEntityFetch.isEmpty() && !evitaRequest.isRequiresParent() ?
 			ReferenceFetcher.NO_IMPLEMENTATION :
 			new ReferencedEntityFetcher(
+				evitaRequest.getHierarchyContent(),
 				referenceEntityFetch,
 				createQueryContext(evitaRequest, session)
 			);
@@ -1155,11 +1188,17 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nonnull ReferenceFetcher referenceFetcher,
 		@Nullable Boolean contextAvailable
 	) {
+		// fetch parents if requested
+		final EntityClassifierWithParent parentEntity = fullEntity.getParent().isPresent() ?
+			ofNullable(referenceFetcher.getParentEntityFetcher())
+				.map(it -> it.apply(fullEntity.getParent().getAsInt()))
+				.orElse(null) : null;
+
 		return Entity.decorate(
 			fullEntity,
 			getInternalSchema(),
+			parentEntity,
 			new LocaleSerializablePredicate(evitaRequest),
-			new HierarchicalContractSerializablePredicate(),
 			new AttributeValueSerializablePredicate(evitaRequest),
 			new AssociatedDataValueSerializablePredicate(evitaRequest),
 			new ReferenceContractSerializablePredicate(evitaRequest),

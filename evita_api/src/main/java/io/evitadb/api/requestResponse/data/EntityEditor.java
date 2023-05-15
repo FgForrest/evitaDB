@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -56,27 +55,18 @@ import static io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySch
 public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract, AttributesEditor<W>, AssociatedDataEditor<W>, PricesEditor<W> {
 
 	/**
-	 * Sets hierarchy information of the entity. Hierarchy information allows to compose hierarchy tree composed of entities
-	 * of the same type. Referenced entity is always entity of the same type. Referenced entity must be already present
-	 * in the evitaDB and must also have hierarchy placement set. This method is used to set "root" hierarchical placement.
-	 * That means, that the entity is one of the root entities without parent. To create children entities use overloaded
-	 * method {@link #setHierarchicalPlacement(int, int)}
+	 * Sets hierarchy information of the entity. Hierarchy information allows to compose hierarchy tree composed of
+	 * entities of the same type. Referenced entity is always entity of the same type. Referenced entity must be already
+	 * present in the evitaDB and must also have hierarchy placement set.
 	 */
-	W setHierarchicalPlacement(int orderAmongSiblings);
+	W setParent(int parentPrimaryKey);
 
 	/**
-	 * Sets hierarchy information of the entity. Hierarchy information allows to compose hierarchy tree composed of entities
-	 * of the same type. Referenced entity is always entity of the same type. Referenced entity must be already present
-	 * in the evitaDB and must also have hierarchy placement set.
+	 * Removes existing parent of the entity. If there are other entities, that refer transitively via
+	 * {@link EntityContract#getParent()} this entity their will become "orphans" and their parent needs to be removed
+	 * as well, or it must be "rewired" to another parent.
 	 */
-	W setHierarchicalPlacement(int parentPrimaryKey, int orderAmongSiblings);
-
-	/**
-	 * Removes existing hierarchical placement of the entity. If there are other entities, that refer transitively via
-	 * {@link HierarchicalPlacement#getParentPrimaryKey()} this entity their hierarchical placement will be removed
-	 * as well.
-	 */
-	W removeHierarchicalPlacement();
+	W removeParent();
 
 	/**
 	 * Method creates or updates reference of the entity. Reference represents relation to another Evita entity or may

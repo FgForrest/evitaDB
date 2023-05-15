@@ -27,6 +27,7 @@ import io.evitadb.test.tester.GraphQLTester.Request;
 import io.evitadb.utils.StringUtils;
 import io.restassured.http.Header;
 import io.restassured.response.ValidatableResponse;
+import org.hamcrest.Matcher;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
@@ -39,6 +40,9 @@ import java.util.Map;
 
 import static io.evitadb.externalApi.graphql.io.GraphQLMimeTypes.APPLICATION_GRAPHQL_JSON;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Simple tester utility for easier testing of GraphQL API. It uses REST Assured library as backend but test doesn't have
@@ -142,6 +146,31 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 				this.headers.put(ACCEPT_HEADER, new Header(ACCEPT_HEADER, APPLICATION_GRAPHQL_JSON));
 			}
 			return tester.executeAndThen(this);
+		}
+
+		/**
+		 * Executes configured request against GraphQL APi and returns response with validation methods.
+		 */
+		public ValidatableResponse executeAndThen(int statusCode, @Nonnull Matcher<?> errorsMatcher) {
+			return executeAndThen()
+				.statusCode(statusCode)
+				.body("errors", errorsMatcher);
+		}
+
+		/**
+		 * Executes configured request against GraphQL API, validates that status code is 200 and no GraphQL errors
+		 * came, and returns response with validation methods.
+		 */
+		public ValidatableResponse executeAndExpectOkAndThen() {
+			return executeAndThen(200, nullValue());
+		}
+
+		/**
+		 * Executes configured request against GraphQL API, validates that status code is 200 and that there are any
+		 * GraphQL errors, and returns response with validation methods.
+		 */
+		public ValidatableResponse executeAndExpectErrorsAndThen() {
+			return executeAndThen(200, hasSize(greaterThan(0)));
 		}
 	}
 }

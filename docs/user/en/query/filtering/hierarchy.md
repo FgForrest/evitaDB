@@ -26,13 +26,17 @@ compute data to help render (dynamic or static) menus that describe the hierarch
 - [render category menus](../../solve/render-category-menu.md)
 - [list categories for products of a specific brand](../../solve/render-referenced-brand.md)
 
+<Note type="warning">
+There could be at most one single `hierarchyWithin` or `hierarchyRoot` filter constraint in the entire query.
+</Note>
+
 ## Hierarchy within
 
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyWithin.java</SourceClass> 
 allows you to restrict the search to only those entities that are part of the hierarchy tree starting with the root 
 node identified by the first argument of this constraint. In e-commerce systems the typical representative of 
 a hierarchical entity is a *category*, which will be used in all of our examples. The examples in this chapter will
-focus on the category *Accessories* in our [demo dataset](https://demo.evitadb.io) with following layout:
+focus on the category *Accessories* in our [demo dataset](../../get-started/query-our-dataset) with following layout:
 
 ![Accessories category listing](assets/accessories-category-listing.png "Accessories category listing")
 
@@ -154,7 +158,7 @@ hierarchyWithin(
 
 The `hierarchyWithin` constraint can also be used for entities that directly reference a hierarchical entity type.
 The most common use case from the e-commerce world is a product that is assigned to one or more categories. To list all
-products in the *Accessories* category of our [demo dataset](https://demo.evitadb.io), we issue the following query:
+products in the *Accessories* category of our [demo dataset](../../get-started/query-our-dataset), we issue the following query:
 
 <SourceCodeTabs>
 [Product listing from *Accessories* category](docs/user/en/query/filtering/examples/hierarchy-within-reference-simple.evitaql)
@@ -271,7 +275,7 @@ hierarchyWithinRoot(
 
 The `hierarchyWithinRoot` constraint can also be used for entities that directly reference a hierarchical entity type.
 The most common use case from the e-commerce world is a product that is assigned to one or more categories. To list all
-products assigned to any category of our [demo dataset](https://demo.evitadb.io), we issue the following query:
+products assigned to any category of our [demo dataset](../../get-started/query-our-dataset), we issue the following query:
 
 <SourceCodeTabs>
 [Product listing assigned to a category](docs/user/en/query/filtering/examples/hierarchy-within-root-reference-simple.evitaql)

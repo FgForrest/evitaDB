@@ -336,7 +336,14 @@ class MemTableTest implements TimeBoundedTestSupport {
 						case UPDATE -> {
 							final EntityBodyStoragePart existingContainer = memTable.get(plannedOp.getRecordId(), EntityBodyStoragePart.class);
 							Assert.notNull(existingContainer, "The container with id " + plannedOp.getRecordId() + " unexpectedly not found!");
-							memTable.put(transactionId, new EntityBodyStoragePart(existingContainer.getVersion() + 1, existingContainer.getPrimaryKey(), existingContainer.getHierarchicalPlacement(), existingContainer.getLocales(), existingContainer.getAttributeLocales(), existingContainer.getAssociatedDataKeys()));
+							memTable.put(transactionId, new EntityBodyStoragePart(
+								existingContainer.getVersion() + 1,
+								existingContainer.getPrimaryKey(),
+								existingContainer.getParent(),
+								existingContainer.getLocales(),
+								existingContainer.getAttributeLocales(),
+								existingContainer.getAssociatedDataKeys())
+							);
 							plannedOp.setVersion(existingContainer.getVersion() + 1);
 						}
 						case REMOVE -> {

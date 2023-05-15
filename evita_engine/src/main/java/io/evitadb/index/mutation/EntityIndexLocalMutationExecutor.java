@@ -26,7 +26,6 @@ package io.evitadb.index.mutation;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
@@ -35,9 +34,9 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttribut
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.HierarchicalPlacementMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.SetHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
@@ -81,8 +80,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 
-import static io.evitadb.index.mutation.HierarchyPlacementMutator.removeHierarchyPlacement;
-import static io.evitadb.index.mutation.HierarchyPlacementMutator.setHierarchyPlacement;
+import static io.evitadb.index.mutation.HierarchyPlacementMutator.removeParent;
+import static io.evitadb.index.mutation.HierarchyPlacementMutator.setParent;
 import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
@@ -126,13 +125,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		index.removePrimaryKey(primaryKey);
 	}
 
-	@SuppressWarnings("StatementWithEmptyBody")
 	@Override
 	public void applyMutation(@Nonnull LocalMutation<?, ?> localMutation) {
 		final EntityIndex index = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL));
 		final int theEntityPrimaryKey = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 
-		index.insertPrimaryKeyIfMissing(theEntityPrimaryKey);
+		final boolean created = index.insertPrimaryKeyIfMissing(theEntityPrimaryKey);
+		if (created && schemaAccessor.get().isWithHierarchy()) {
+			setParent(
+				this, index,
+				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX),
+				null
+			);
+		}
 
 		if (localMutation instanceof SetPriceInnerRecordHandlingMutation priceHandlingMutation) {
 			updatePriceHandlingForEntity(priceHandlingMutation, index);
@@ -147,8 +152,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				priceUpdateApplicator.accept(index);
 				ReferenceIndexMutator.executeWithReferenceIndexes(entityType, this, priceUpdateApplicator);
 			}
-		} else if (localMutation instanceof HierarchicalPlacementMutation hierarchicalPlacementMutation) {
-			updateHierarchyPlacement(hierarchicalPlacementMutation, index);
+		} else if (localMutation instanceof ParentMutation parentMutation) {
+			updateHierarchyPlacement(parentMutation, index);
 		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
 			final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
 			final ReferenceSchemaContract referenceSchema = getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
@@ -371,7 +376,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * except the referenced entity index that directly connects to {@link ReferenceMutation#getReferenceKey()} because
 	 * this is altered in {@link #updateReferences(ReferenceMutation, EntityIndex)} method.
 	 */
-	@SuppressWarnings("StatementWithEmptyBody")
 	private void updateReferencesInReferenceIndex(@Nonnull ReferenceMutation<?> referenceMutation, @Nonnull EntityIndex targetIndex) {
 		final EntityIndexType targetIndexType = targetIndex.getIndexKey().getType();
 		final int theEntityPrimaryKey;
@@ -502,25 +506,24 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Method processes all mutations that targets hierachy placement - e.g. {@link SetHierarchicalPlacementMutation}
-	 * and {@link RemoveHierarchicalPlacementMutation}.
+	 * Method processes all mutations that targets hierarchy placement - e.g. {@link SetParentMutation}
+	 * and {@link RemoveParentMutation}.
 	 */
-	private void updateHierarchyPlacement(LocalMutation<HierarchicalPlacementContract, HierarchicalPlacementContract> hierarchyMutation, EntityIndex index) {
-		if (hierarchyMutation instanceof final SetHierarchicalPlacementMutation setMutation) {
-			setHierarchyPlacement(
+	private void updateHierarchyPlacement(ParentMutation parentMutation, EntityIndex index) {
+		if (parentMutation instanceof final SetParentMutation setMutation) {
+			setParent(
 				this, index,
 				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX),
-				setMutation.getParentPrimaryKey(),
-				setMutation.getOrderAmongSiblings()
+				setMutation.getParentPrimaryKey()
 			);
-		} else if (hierarchyMutation instanceof RemoveHierarchicalPlacementMutation) {
-			removeHierarchyPlacement(
+		} else if (parentMutation instanceof RemoveParentMutation) {
+			removeParent(
 				this, index,
 				getPrimaryKeyToIndex(IndexType.HIERARCHY_INDEX)
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
-			throw new EvitaInternalError("Unknown mutation: " + hierarchyMutation.getClass());
+			throw new EvitaInternalError("Unknown mutation: " + parentMutation.getClass());
 		}
 	}
 
