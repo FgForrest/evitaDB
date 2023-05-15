@@ -130,7 +130,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 1;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
       getPricesOrBuilderList() {
     return prices_;
   }
@@ -461,7 +461,7 @@ private static final long serialVersionUID = 0L;
             pricesBuilder_ = null;
             prices_ = other.prices_;
             bitField0_ = (bitField0_ & ~0x00000001);
-            pricesBuilder_ = 
+            pricesBuilder_ =
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getPricesFieldBuilder() : null;
           } else {
@@ -694,7 +694,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 1;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
          getPricesOrBuilderList() {
       if (pricesBuilder_ != null) {
         return pricesBuilder_.getMessageOrBuilderList();
@@ -720,12 +720,12 @@ private static final long serialVersionUID = 0L;
     /**
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcPrice prices = 1;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder>
          getPricesBuilderList() {
       return getPricesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>
         getPricesFieldBuilder() {
       if (pricesBuilder_ == null) {
         pricesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

@@ -23,27 +23,32 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.Entities;
+import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.text.NumberFormat;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static io.evitadb.test.builder.MapBuilder.map;
-import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
-import static io.evitadb.test.generator.DataGenerator.CURRENCY_CZK;
-import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
-import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
+import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 
 /**
  * Ancestor for tests for GraphQL catalog endpoint.
@@ -175,6 +180,62 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 				.e(ASSOCIATED_DATA_LABELS, map()
 					.build())
 				.build())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityWithSelfParentsDto(@Nonnull SealedEntity hierarchicalEntity, boolean withBody) {
+		EntityClassifierWithParent node = hierarchicalEntity;
+		final Deque<EntityClassifierWithParent> parents = new LinkedList<>();
+		EntityClassifierWithParent parentNode;
+		while ((parentNode = node.getParentEntity().orElse(null)) != null) {
+			parents.addFirst(parentNode);
+			node = parentNode;
+		}
+
+		final Map<String, Object> entityWithParentsDto = map()
+			.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), hierarchicalEntity.getParent().isPresent() ? hierarchicalEntity.getParent().getAsInt() : null)
+			.e(GraphQLEntityDescriptor.PARENTS.name(), parents.stream()
+				.map(entityClassifier -> {
+					final MapBuilder parentBuilder = map()
+						.e(GraphQLEntityDescriptor.PRIMARY_KEY.name(), entityClassifier.getPrimaryKey())
+						.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entityClassifier.getParentEntity()
+							.map(EntityClassifier::getPrimaryKey)
+							.orElse(null));
+
+					if (withBody) {
+						final SealedEntity parent = (SealedEntity) entityClassifier;
+						parentBuilder
+							.e(GraphQLEntityDescriptor.ALL_LOCALES.name(), parent.getAllLocales()
+								.stream()
+								.map(Locale::toLanguageTag)
+								.toList())
+							.e(GraphQLEntityDescriptor.ATTRIBUTES.name(), map()
+								.e(ATTRIBUTE_CODE, parent.getAttribute(ATTRIBUTE_CODE)));
+					}
+
+					return parentBuilder.build();
+				})
+				.toList())
+			.build();
+
+		return entityWithParentsDto;
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityWithReferencedParentsDto(@Nonnull SealedEntity entity,
+	                                                                   @Nonnull String referenceName,
+	                                                                   boolean withBody) {
+		return map()
+			.e(StringUtils.toCamelCase(referenceName), entity.getReferences(referenceName)
+				.stream()
+				.map(it -> {
+					final SealedEntity referencedEntity = it.getReferencedEntity().orElseThrow();
+					return map()
+						.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), createEntityWithSelfParentsDto(referencedEntity, withBody))
+						.build();
+				})
+				.toList())
 			.build();
 	}
 }

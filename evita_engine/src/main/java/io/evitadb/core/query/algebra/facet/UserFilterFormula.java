@@ -29,16 +29,13 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
 import io.evitadb.core.query.algebra.base.AndFormula;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import net.openhft.hashing.LongHashFunction;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
-import java.util.Iterator;
 
 /**
  * This formula has almost identical implementation as {@link AndFormula} but it accepts only set of
@@ -70,21 +67,7 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		final RoaringBitmap[] bitmaps = getRoaringBitmaps();
-		if (bitmaps.length == 0 || Arrays.stream(bitmaps).anyMatch(RoaringBitmap::isEmpty)) {
-			return EmptyBitmap.INSTANCE;
-		} else if (bitmaps.length == 1) {
-			return new BaseBitmap(bitmaps[0]);
-		} else {
-			final Iterator<RoaringBitmap> spliterator = Arrays.stream(bitmaps).iterator();
-			return new BaseBitmap(
-				RoaringBitmap.and(
-					spliterator,
-					Arrays.stream(bitmaps).mapToLong(RoaringBitmap::first).min().orElse(0L),
-					Arrays.stream(bitmaps).mapToLong(RoaringBitmap::last).max().orElse(0L) + 1
-				)
-			);
-		}
+		return RoaringBitmapBackedBitmap.and(getRoaringBitmaps());
 	}
 
 	@Override

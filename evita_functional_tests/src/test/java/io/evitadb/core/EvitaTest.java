@@ -1596,12 +1596,12 @@ class EvitaTest implements EvitaTestSupport {
 					.withHierarchy()
 					.updateVia(session);
 
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1).setHierarchicalPlacement(1));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2).setHierarchicalPlacement(2));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 3).setHierarchicalPlacement(1, 1));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 4).setHierarchicalPlacement(1, 2));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 5).setHierarchicalPlacement(3, 1));
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 6).setHierarchicalPlacement(3, 2));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 3).setParent(1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 4).setParent(1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 5).setParent(3));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 6).setParent(3));
 
 				assertArrayEquals(new int[]{1, 2, 3, 4, 5, 6}, getAllCategories(session));
 				session.deleteEntityAndItsHierarchy(Entities.CATEGORY, 3);
@@ -1622,7 +1622,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withHierarchy()
 					.updateVia(session);
 
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1).setHierarchicalPlacement(1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
 
 				session
 					.defineEntitySchema(Entities.BRAND);
@@ -1707,7 +1707,7 @@ class EvitaTest implements EvitaTestSupport {
 					.withHierarchy()
 					.updateVia(session);
 
-				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1).setHierarchicalPlacement(1));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
 
 				session.defineEntitySchema(Entities.BRAND);
 
@@ -2913,8 +2913,8 @@ class EvitaTest implements EvitaTestSupport {
 				.withHierarchy()
 				.updateVia(session);
 
-			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1).setHierarchicalPlacement(1));
-			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2).setHierarchicalPlacement(2));
+			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+			session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
 		});
 	}
 

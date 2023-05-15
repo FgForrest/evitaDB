@@ -35,9 +35,6 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResults
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkAggregateDescriptor;
@@ -135,30 +132,6 @@ public class DataApiNamesConstructor {
 	@Nonnull
 	public static String constructFacetSummaryObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
 		return FacetSummaryDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
-	}
-
-	@Nonnull
-	public static String constructParentsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
-		return HierarchyParentsDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
-	}
-
-	@Nonnull
-	public static String constructSelfParentsOfEntityObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
-		return ParentsOfEntityDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, entitySchema);
-	}
-
-	@Nonnull
-	public static String constructParentsOfEntityObjectName(@Nonnull EntitySchemaContract entitySchema,
-	                                                        @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                        boolean localized) {
-		return ParentsOfEntityDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
-	}
-
-	@Nonnull
-	public static String constructParentsOfEntityReferencesObjectName(@Nonnull EntitySchemaContract entitySchema,
-	                                                                  @Nonnull ReferenceSchemaContract referenceSchema,
-	                                                                  boolean localized) {
-		return ParentsOfReferenceDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nonnull

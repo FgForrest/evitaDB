@@ -113,8 +113,8 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 					)
 				);
 			} else {
-				theFormula = theFilterByVisitor.getReferencedRecordIdFormula(
-					referenceSchema, filterBy
+				theFormula = FilterByVisitor.createFormulaForTheFilter(
+					queryContext, filterBy, referenceSchema.getReferencedEntityType(), stepDescriptionSupplier
 				);
 			}
 			// create a deferred formula that will log the execution time to query telemetry

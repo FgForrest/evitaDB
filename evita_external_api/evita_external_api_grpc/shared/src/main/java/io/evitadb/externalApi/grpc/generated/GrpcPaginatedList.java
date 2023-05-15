@@ -469,7 +469,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPageSize(int value) {
-      
+
       pageSize_ = value;
       onChanged();
       return this;
@@ -479,7 +479,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPageSize() {
-      
+
       pageSize_ = 0;
       onChanged();
       return this;
@@ -500,7 +500,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder setPageNumber(int value) {
-      
+
       pageNumber_ = value;
       onChanged();
       return this;
@@ -510,7 +510,7 @@ private static final long serialVersionUID = 0L;
      * @return This builder for chaining.
      */
     public Builder clearPageNumber() {
-      
+
       pageNumber_ = 0;
       onChanged();
       return this;

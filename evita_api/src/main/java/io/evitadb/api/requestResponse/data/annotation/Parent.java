@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
-import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
 import java.lang.annotation.Documented;

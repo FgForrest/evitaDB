@@ -67,7 +67,7 @@ public class HierarchyParentsTranslator
 		final Optional<HierarchyStatistics> statistics = parents.getStatistics();
 		final HierarchyProducerContext context = producer.getContext(parents.getName());
 		final HierarchyTraversalPredicate scopePredicate = parents.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(context, it))
+			.map(it -> stopAtConstraintToPredicate(TraversalDirection.BOTTOM_UP, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer = parents.getSiblings()
 			.map(it -> createComputer(context, it, parents.getEntityFetch().orElse(null), statistics.orElse(null)))
@@ -84,7 +84,7 @@ public class HierarchyParentsTranslator
 						producer.getContext(parents.getName())
 					),
 					context.hierarchyFilterPredicateProducer(),
-					extraResultPlanningVisitor.getQueryContext().getHierarchyExclusionPredicate(),
+					extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(),
 					scopePredicate,
 					statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 					statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class)),
@@ -112,7 +112,7 @@ public class HierarchyParentsTranslator
 	) {
 		final Optional<HierarchyStatistics> statistics = siblings.getStatistics().or(() -> ofNullable(parentStatistics));
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
-			.map(it -> stopAtConstraintToPredicate(context, it))
+			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
 			.orElse((hierarchyNodeId, level, distance) -> distance == 0);
 		return new SiblingsStatisticsTravelingComputer(
 			context,
@@ -121,7 +121,7 @@ public class HierarchyParentsTranslator
 				context
 			),
 			context.hierarchyFilterPredicateProducer(),
-			context.queryContext().getHierarchyExclusionPredicate(),
+			context.queryContext().getHierarchyHavingPredicate(),
 			scopePredicate,
 			statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 			statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))

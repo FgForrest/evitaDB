@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
-import io.evitadb.api.requestResponse.data.mutation.entity.RemoveHierarchicalPlacementMutation;
+import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.PassThroughMutationObjectParser;
@@ -37,24 +37,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Tests for {@link RemoveHierarchicalPlacementMutationConverter}.
+ * Tests for {@link RemoveParentMutationConverter}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 class RemoveHierarchicalPlacementMutationConverterTest {
 
-	private RemoveHierarchicalPlacementMutationConverter converter;
+	private RemoveParentMutationConverter converter;
 
 	@BeforeEach
 	void init() {
-		converter =  new RemoveHierarchicalPlacementMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
+		converter =  new RemoveParentMutationConverter(new PassThroughMutationObjectParser(), new TestMutationResolvingExceptionFactory());
 	}
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final LocalMutation<?, ?> localMutation = converter.convert(true);
 		assertEquals(
-			new RemoveHierarchicalPlacementMutation(),
+			new RemoveParentMutation(),
 			localMutation
 		);
 	}

@@ -85,7 +85,7 @@ public class EntityFactory {
 		return Entity._internalBuild(
 			entityStorageContainer.getVersion(),
 			entityStorageContainer.getPrimaryKey(), entitySchema,
-			entityStorageContainer.getHierarchicalPlacement(),
+			entityStorageContainer.getParent(),
 			// when references storage container is present use it, otherwise init references by empty collection
 			ofNullable(referencesStorageContainer)
 				.map(ReferencesStoragePart::getReferencesAsCollection)
@@ -172,7 +172,7 @@ public class EntityFactory {
 			Objects.requireNonNull(entity.getPrimaryKey()),
 			entitySchema,
 			ofNullable(entityStoragePart)
-				.map(EntityBodyStoragePart::getHierarchicalPlacement)
+				.map(EntityBodyStoragePart::getParent)
 				.orElse(null),
 			// when references storage container is present use it
 			// otherwise use original references from previous entity contents

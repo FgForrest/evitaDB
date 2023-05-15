@@ -26,29 +26,26 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.require.AssociatedDataContent;
-import io.evitadb.api.query.require.AttributeContent;
-import io.evitadb.api.query.require.DataInLocales;
-import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.EntityGroupFetch;
-import io.evitadb.api.query.require.PriceContent;
-import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -80,6 +77,7 @@ public class EntityFetchRequireResolver {
 	@Nonnull private final Function<String, EntitySchemaContract> entitySchemaFetcher;
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
+	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
 	@Nonnull
 	public Optional<EntityFetch> resolveEntityFetch(@Nonnull SelectionSetWrapper selectionSetWrapper,
@@ -119,35 +117,49 @@ public class EntityFetchRequireResolver {
 		}
 
 		final List<EntityContentRequire> entityContentRequires = new LinkedList<>();
-		resolveAttributeContentRequirement(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
-		resolveAssociatedDataContentRequirement(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
-		resolvePriceContentRequirement(selectionSetWrapper).ifPresent(entityContentRequires::add);
-		entityContentRequires.addAll(resolveReferenceContentRequirement(selectionSetWrapper, desiredLocale, currentEntitySchema));
-		resolveDataInLocalesRequirement(selectionSetWrapper, desiredLocale, currentEntitySchema).ifPresent(entityContentRequires::add);
+		resolveHierarchyContent(selectionSetWrapper, desiredLocale, currentEntitySchema).ifPresent(entityContentRequires::add);
+		resolveAttributeContent(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
+		resolveAssociatedDataContent(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
+		resolvePriceContent(selectionSetWrapper).ifPresent(entityContentRequires::add);
+		entityContentRequires.addAll(resolveReferenceContent(selectionSetWrapper, desiredLocale, currentEntitySchema));
+		resolveDataInLocales(selectionSetWrapper, desiredLocale, currentEntitySchema).ifPresent(entityContentRequires::add);
 
 		return Optional.of(entityContentRequires);
 	}
 
 	private boolean needsEntityBody(@Nonnull SelectionSetWrapper selectionSetWrapper, @Nonnull EntitySchemaContract currentEntitySchema) {
-		return selectionSetWrapper.contains(EntityDescriptor.HIERARCHICAL_PLACEMENT.name()) ||
-			selectionSetWrapper.contains(EntityDescriptor.LOCALES.name()) ||
-			selectionSetWrapper.contains(EntityDescriptor.ALL_LOCALES.name()) ||
+		return needsParent(selectionSetWrapper) ||
+			needsParents(selectionSetWrapper) ||
+			needsLocales(selectionSetWrapper) ||
 			needsAttributes(selectionSetWrapper) ||
 			needsAssociatedData(selectionSetWrapper) ||
 			needsPrices(selectionSetWrapper) ||
 			needsReferences(selectionSetWrapper, currentEntitySchema);
 	}
 
+	private boolean needsParent(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+		return selectionSetWrapper.contains(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name());
+	}
+
+	private boolean needsParents(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+		return selectionSetWrapper.contains(GraphQLEntityDescriptor.PARENTS.name());
+	}
+
+	private boolean needsLocales(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+		return selectionSetWrapper.contains(GraphQLEntityDescriptor.LOCALES.name()) ||
+			selectionSetWrapper.contains(GraphQLEntityDescriptor.ALL_LOCALES.name());
+	}
+
 	private boolean needsAttributes(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(EntityDescriptor.ATTRIBUTES.name());
+		return selectionSetWrapper.contains(GraphQLEntityDescriptor.ATTRIBUTES.name());
 	}
 
 	private boolean needsAssociatedData(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(EntityDescriptor.ASSOCIATED_DATA.name());
+		return selectionSetWrapper.contains(GraphQLEntityDescriptor.ASSOCIATED_DATA.name());
 	}
 
 	private boolean needsPrices(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(EntityDescriptor.PRICE.name() + "*");
+		return selectionSetWrapper.contains(GraphQLEntityDescriptor.PRICE.name() + "*");
 	}
 
 	private boolean needsReferences(@Nonnull SelectionSetWrapper selectionSetWrapper, @Nonnull EntitySchemaContract currentEntitySchema) {
@@ -159,13 +171,49 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<AttributeContent> resolveAttributeContentRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
-	                                                                      @Nonnull EntitySchemaContract currentEntitySchema) {
+	private Optional<HierarchyContent> resolveHierarchyContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
+															   @Nullable Locale desiredLocale,
+	                                                           @Nonnull EntitySchemaContract currentEntitySchema) {
+		if (!needsParents(selectionSetWrapper)) {
+			return Optional.empty();
+		}
+
+		final List<SelectedField> parentsFields = selectionSetWrapper.getFields(GraphQLEntityDescriptor.PARENTS.name());
+		Assert.isTrue(
+			parentsFields.size() <= 1,
+			() -> new GraphQLInvalidResponseUsageException("Only one `" + GraphQLEntityDescriptor.PARENTS.name() + "` field is supported.")
+		);
+		return parentsFields.stream()
+			.findFirst()
+			.map(parentsField -> {
+				final DataLocator hierarchyDataLocator = new HierarchyDataLocator(currentEntitySchema.getName());
+				final HierarchyStopAt stopAt = Optional.ofNullable(parentsField.getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name()))
+					.map(it -> (HierarchyStopAt) requireConstraintResolver.resolve(
+						hierarchyDataLocator,
+						hierarchyDataLocator,
+						ParentsFieldHeaderDescriptor.STOP_AT.name(),
+						it
+					))
+					.orElse(null);
+
+				final EntityFetch entityFetch = resolveEntityFetch(
+					SelectionSetWrapper.from(parentsField.getSelectionSet()),
+					desiredLocale,
+					currentEntitySchema
+				).orElse(null);
+
+				return hierarchyContent(stopAt, entityFetch);
+			});
+	}
+
+	@Nonnull
+	private Optional<AttributeContent> resolveAttributeContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	                                                           @Nonnull EntitySchemaContract currentEntitySchema) {
 		if (!needsAttributes(selectionSetWrapper)) {
 			return Optional.empty();
 		}
 
-		final String[] neededAttributes = selectionSetWrapper.getFields(EntityDescriptor.ATTRIBUTES.name())
+		final String[] neededAttributes = selectionSetWrapper.getFields(GraphQLEntityDescriptor.ATTRIBUTES.name())
 			.stream()
 			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
 			.map(f -> currentEntitySchema.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
@@ -182,13 +230,13 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<AssociatedDataContent> resolveAssociatedDataContentRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
-	                                                                                @Nonnull EntitySchemaContract currentEntitySchema) {
+	private Optional<AssociatedDataContent> resolveAssociatedDataContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	                                                                     @Nonnull EntitySchemaContract currentEntitySchema) {
 		if (!needsAssociatedData(selectionSetWrapper)) {
 			return Optional.empty();
 		}
 
-		final String[] neededAssociatedData = selectionSetWrapper.getFields(EntityDescriptor.ASSOCIATED_DATA.name())
+		final String[] neededAssociatedData = selectionSetWrapper.getFields(GraphQLEntityDescriptor.ASSOCIATED_DATA.name())
 			.stream()
 			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
 			.map(f -> currentEntitySchema.getAssociatedDataByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
@@ -205,12 +253,12 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<PriceContent> resolvePriceContentRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper) {
+	private Optional<PriceContent> resolvePriceContent(@Nonnull SelectionSetWrapper selectionSetWrapper) {
 		if (!needsPrices(selectionSetWrapper)) {
 			return Optional.empty();
 		}
 
-		if (selectionSetWrapper.getFields(EntityDescriptor.PRICES.name())
+		if (selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICES.name())
 			.stream()
 			.anyMatch(f -> f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name()) == null)) {
 			return Optional.of(priceContentAll());
@@ -219,7 +267,7 @@ public class EntityFetchRequireResolver {
 
 			// check price for sale fields
 			neededPriceLists.addAll(
-				selectionSetWrapper.getFields(EntityDescriptor.PRICE_FOR_SALE.name())
+				selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICE_FOR_SALE.name())
 					.stream()
 					.map(f -> (String) f.getArguments().get(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
 					.filter(Objects::nonNull)
@@ -228,7 +276,7 @@ public class EntityFetchRequireResolver {
 
 			// check price fields
 			neededPriceLists.addAll(
-				selectionSetWrapper.getFields(EntityDescriptor.PRICE.name())
+				selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICE.name())
 					.stream()
 					.map(f -> (String) f.getArguments().get(PriceFieldHeaderDescriptor.PRICE_LIST.name()))
 					.collect(Collectors.toSet())
@@ -237,7 +285,7 @@ public class EntityFetchRequireResolver {
 			// check prices fields
 			//noinspection unchecked
 			neededPriceLists.addAll(
-				selectionSetWrapper.getFields(EntityDescriptor.PRICES.name())
+				selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICES.name())
 					.stream()
 					.flatMap(f -> ((List<String>) f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name())).stream())
 					.collect(Collectors.toSet())
@@ -249,9 +297,9 @@ public class EntityFetchRequireResolver {
 
 
 	@Nonnull
-	private List<ReferenceContent> resolveReferenceContentRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
-	                                                                  @Nullable Locale desiredLocale,
-	                                                                  @Nonnull EntitySchemaContract currentEntitySchema) {
+	private List<ReferenceContent> resolveReferenceContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	                                                       @Nullable Locale desiredLocale,
+	                                                       @Nonnull EntitySchemaContract currentEntitySchema) {
 		if (!needsReferences(selectionSetWrapper, currentEntitySchema)) {
 			return List.of();
 		}
@@ -369,9 +417,9 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<DataInLocales> resolveDataInLocalesRequirement(@Nonnull SelectionSetWrapper selectionSetWrapper,
-	                                                                @Nullable Locale desiredLocale,
-	                                                                @Nonnull EntitySchemaContract currentEntitySchema) {
+	private Optional<DataInLocales> resolveDataInLocales(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	                                                     @Nullable Locale desiredLocale,
+	                                                     @Nonnull EntitySchemaContract currentEntitySchema) {
 		if (!needsAttributes(selectionSetWrapper) && !needsAssociatedData(selectionSetWrapper)) {
 			return Optional.empty();
 		}
@@ -381,14 +429,14 @@ public class EntityFetchRequireResolver {
 			neededLocales.add(desiredLocale);
 		}
 		neededLocales.addAll(
-			selectionSetWrapper.getFields(EntityDescriptor.ATTRIBUTES.name())
+			selectionSetWrapper.getFields(GraphQLEntityDescriptor.ATTRIBUTES.name())
 				.stream()
 				.map(f -> (Locale) f.getArguments().get(AttributesFieldHeaderDescriptor.LOCALE.name()))
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet())
 		);
 		neededLocales.addAll(
-			selectionSetWrapper.getFields(EntityDescriptor.ASSOCIATED_DATA.name())
+			selectionSetWrapper.getFields(GraphQLEntityDescriptor.ASSOCIATED_DATA.name())
 				.stream()
 				.map(f -> (Locale) f.getArguments().get(AssociatedDataFieldHeaderDescriptor.LOCALE.name()))
 				.filter(Objects::nonNull)

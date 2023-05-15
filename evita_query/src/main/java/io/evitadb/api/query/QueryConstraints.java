@@ -664,7 +664,7 @@ public interface QueryConstraints {
 	 * and {@link HierarchyExcluding}
 	 */
 	@Nullable
-	static HierarchyWithin hierarchyWithinSelf(@Nullable Integer ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
+	static HierarchyWithin hierarchyWithinSelf(@Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null) {
 			return null;
 		} else if (with == null) {
@@ -757,7 +757,7 @@ public interface QueryConstraints {
 	 * and {@link HierarchyExcluding}
 	 */
 	@Nullable
-	static HierarchyWithin hierarchyWithin(@Nonnull String referenceName, @Nullable Integer ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
+	static HierarchyWithin hierarchyWithin(@Nonnull String referenceName, @Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
 		if (ofParent == null) {
 			return null;
 		} else if (with == null) {
@@ -885,6 +885,15 @@ public interface QueryConstraints {
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRoot(@Nonnull String referenceName, @Nullable HierarchySpecificationFilterConstraint... with) {
 		return with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(referenceName, with);
+	}
+
+	// TOBEDONE JNO: docs
+	@Nullable
+	static HierarchyHaving having(@Nullable FilterConstraint... includeChildTreeConstraints) {
+		if (ArrayUtils.isEmpty(includeChildTreeConstraints)) {
+			return null;
+		}
+		return new HierarchyHaving(includeChildTreeConstraints);
 	}
 
 	/**
@@ -2633,169 +2642,34 @@ public interface QueryConstraints {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement);
 	}
 
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and target the entity type that is
-	 * requested in the query. Constraint may have also inner require constraints that define how rich returned information
-	 * should be (by default only primary keys are returned, but full entities might be returned as well).
-	 *
-	 * When this require query is used an additional object is stored to result index. This data structure contains
-	 * information about referenced entity paths for each entity in the response.
-	 *
-	 * Example for returning parents of the same type as was queried (e.g. parent categories of filtered category):
-	 *
-	 * ```
-	 * parents()
-	 * ```
-	 *
-	 * Additional data structure by default returns only primary keys of those entities, but it can also provide full parent
-	 * entities when this form of query is used:
-	 *
-	 * ```
-	 * parents()
-	 * parents(entityBody())
-	 * ```
-	 */
+	// TOBEDONE JNO: add docs after docs revision
 	@Nonnull
-	static HierarchyParentsOfSelf hierarchyParentsOfSelf() {
-		return new HierarchyParentsOfSelf();
+	static HierarchyContent hierarchyContent() {
+		return new HierarchyContent();
 	}
 
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and target the entity type that is
-	 * requested in the query. Constraint may have also inner require constraints that define how rich returned information
-	 * should be (by default only primary keys are returned, but full entities might be returned as well).
-	 *
-	 * When this require query is used an additional object is stored to result index. This data structure contains
-	 * information about referenced entity paths for each entity in the response.
-	 *
-	 * Example for returning parents of the same type as was queried (e.g. parent categories of filtered category):
-	 *
-	 * ```
-	 * parents()
-	 * ```
-	 *
-	 * Additional data structure by default returns only primary keys of those entities, but it can also provide full parent
-	 * entities when this form of query is used:
-	 *
-	 * ```
-	 * parents()
-	 * parents(entityBody())
-	 * ```
-	 */
+	// TOBEDONE JNO: add docs after docs revision
 	@Nonnull
-	static HierarchyParentsOfSelf hierarchyParentsOfSelf(@Nullable EntityFetch entityRequirement) {
-		if (entityRequirement == null) {
-			return new HierarchyParentsOfSelf();
-		}
-		return new HierarchyParentsOfSelf(entityRequirement);
+	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt) {
+		return stopAt == null ? new HierarchyContent() : new HierarchyContent(stopAt);
 	}
 
-	/**
-	 * This `parentsOfReference` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and can have zero, one or more
-	 * {@link String} arguments that specifies type of
-	 * hierarchical entity that this entity relates to. If argument is omitted, entity type of queried entity is used.
-	 * Constraint may have also inner require constraints that define how rich returned information should be (by default only
-	 * primary keys are returned, but full entities might be returned as well).
-	 *
-	 * When this require query is used an additional object is stored to result index. This data structure contains
-	 * information about referenced entity paths for each entity in the response.
-	 *
-	 * Example for returning parents of the category when entity type `product` is queried:
-	 *
-	 * ```
-	 * parentsOfReference("category")
-	 * parentsOfReference("category","brand")
-	 * ```
-	 *
-	 * Additional data structure by default returns only primary keys of those entities, but it can also provide full parent
-	 * entities when this form of query is used:
-	 *
-	 * ```
-	 * parentsOfReference("category", entityBody())
-	 * parentsOfReference("category", "brand", entityBody())
-	 * ```
-	 */
-	@Nullable
-	static HierarchyParentsOfReference hierarchyParentsOfReference(@Nullable String referenceName) {
-		return referenceName == null ? null : new HierarchyParentsOfReference(referenceName);
-	}
-
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and can zero, one or more
-	 * {@link String} arguments that specifies type of hierarchical entity that this entity relates to.
-	 * If argument is omitted, entity type of queried entity is used.
-	 *
-	 * When this require query is used an additional object is stored to result index. This DTO contains information about
-	 * referenced entity paths for each entity in the response.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * parents()
-	 * parents("category")
-	 * parents("category", "brand")
-	 * ```
-	 */
-	@Nullable
-	static HierarchyParentsOfReference hierarchyParentsOfReference(@Nullable String... referenceName) {
-		if (referenceName == null) {
-			return null;
-		}
-		return new HierarchyParentsOfReference(referenceName);
-	}
-
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and can zero, one or more
-	 * {@link String} arguments that specifies type of hierarchical entity that this entity relates to.
-	 * If argument is omitted, entity type of queried entity is used.
-	 *
-	 * When this require query is used an additional object is stored to result index. This DTO contains information about
-	 * referenced entity paths for each entity in the response.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * parents()
-	 * parents("category")
-	 * parents("category", "brand", entityBody())
-	 * ```
-	 */
+	// TOBEDONE JNO: add docs after docs revision
 	@Nonnull
-	static HierarchyParentsOfReference hierarchyParentsOfReference(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement) {
-		return entityRequirement == null ? new HierarchyParentsOfReference(referenceName) : new HierarchyParentsOfReference(referenceName, entityRequirement);
+	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityFetch) {
+		return entityFetch == null ? new HierarchyContent() : new HierarchyContent(entityFetch);
 	}
 
-	/**
-	 * This `parents` require query can be used only
-	 * for [hierarchical entities](../model/entity_model.md#hierarchical-placement) and can zero, one or more
-	 * {@link String} arguments that specifies type of hierarchical entity that this entity relates to.
-	 * If argument is omitted, entity type of queried entity is used.
-	 *
-	 * When this require query is used an additional object is stored to result index. This DTO contains information about
-	 * referenced entity paths for each entity in the response.
-	 *
-	 * Example:
-	 *
-	 * ```
-	 * parents()
-	 * parents("category")
-	 * parents("category", "brand", entityBody())
-	 * ```
-	 */
-	@Nullable
-	static HierarchyParentsOfReference hierarchyParentsOfReference(@Nullable String[] referenceName, @Nullable EntityFetch entityRequirement) {
-		if (referenceName == null || ArrayUtils.isEmpty(referenceName)) {
-			return null;
+	// TOBEDONE JNO: add docs after docs revision
+	@Nonnull
+	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt, @Nullable EntityFetch entityFetch) {
+		if (stopAt == null && entityFetch == null) {
+			return new HierarchyContent();
+		} else if (entityFetch != null) {
+			return stopAt == null ? new HierarchyContent(entityFetch) : new HierarchyContent(stopAt, entityFetch);
+		} else {
+			return new HierarchyContent(stopAt);
 		}
-		if (entityRequirement == null) {
-			return new HierarchyParentsOfReference(referenceName);
-		}
-		return new HierarchyParentsOfReference(referenceName, entityRequirement);
 	}
 
 	/**
@@ -3108,7 +2982,7 @@ public interface QueryConstraints {
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
-			attributeContent(), associatedDataContent(), priceContentAll(), referenceContent(), dataInLocales()
+			attributeContent(), hierarchyContent(), associatedDataContent(), priceContentAll(), referenceContent(), dataInLocales()
 		);
 	}
 

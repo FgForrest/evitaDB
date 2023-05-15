@@ -122,16 +122,4 @@ public class CollectionGraphQLSchemaBuildingContext {
 	public Optional<GraphQLInputType> getRequireInputObject() {
 		return Optional.ofNullable(requireInputObject);
 	}
-
-	/**
-	 * Registers new GraphQL field to the main entity object represented by this context.
-	 */
-	public void registerEntityField(@Nonnull GraphQLObjectType.Builder entityObjectBuilder,
-	                                @Nonnull BuiltFieldDescriptor entityField) {
-		catalogCtx.registerFieldToObject(
-			schema.getNameVariant(TYPE_NAME_NAMING_CONVENTION),
-			entityObjectBuilder,
-			entityField
-		);
-	}
 }

@@ -544,7 +544,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 1;</code>
      */
     public com.google.protobuf.StringValue.Builder getDeprecationNoticeBuilder() {
-      
+
       onChanged();
       return getDeprecationNoticeFieldBuilder().getBuilder();
     }
@@ -563,7 +563,7 @@ private static final long serialVersionUID = 0L;
      * <code>.google.protobuf.StringValue deprecationNotice = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>
         getDeprecationNoticeFieldBuilder() {
       if (deprecationNoticeBuilder_ == null) {
         deprecationNoticeBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

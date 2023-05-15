@@ -52,7 +52,7 @@ import java.util.function.UnaryOperator;
  *
  * Query has these four parts:
  *
- * - {@link #getEntities()}: contains collection (mandatory) specification
+ * - {@link #getCollection()}: contains collection (mandatory) specification
  * - {@link #getFilterBy()}: contains constraints limiting entities being returned (optional, if missing all are returned)
  * - {@link #getOrderBy()}: defines in what order will the entities return (optional, if missing entities are ordered by primary integer
  * key in ascending order)
@@ -61,17 +61,17 @@ import java.util.function.UnaryOperator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(of = {"header", "filterBy", "orderBy", "require"}, cacheStrategy = CacheStrategy.LAZY)
+@EqualsAndHashCode(of = {"collection", "filterBy", "orderBy", "require"}, cacheStrategy = CacheStrategy.LAZY)
 public class Query implements Serializable {
 	@Serial private static final long serialVersionUID = -1797234436133920949L;
 
-	@Nullable private final Collection header;
+	@Nullable private final Collection collection;
 	@Nullable private final FilterBy filterBy;
 	@Nullable private final OrderBy orderBy;
 	@Nullable private final Require require;
 
-	private Query(@Nullable Collection header, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable Require require) {
-		this.header = header;
+	private Query(@Nullable Collection collection, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable Require require) {
+		this.collection = collection;
 		this.filterBy = filterBy;
 		this.orderBy = orderBy;
 		this.require = require;
@@ -138,8 +138,8 @@ public class Query implements Serializable {
 	 * will be processed against.
 	 */
 	@Nullable
-	public Collection getEntities() {
-		return header;
+	public Collection getCollection() {
+		return collection;
 	}
 
 	/**
@@ -196,7 +196,7 @@ public class Query implements Serializable {
 		if (Objects.equals(filterBy, normalizedFilter) && Objects.equals(orderBy, normalizedOrder) && Objects.equals(require, normalizedRequire)) {
 			return this;
 		} else {
-			return query(header, normalizedFilter, normalizedOrder, normalizedRequire);
+			return query(collection, normalizedFilter, normalizedOrder, normalizedRequire);
 		}
 	}
 

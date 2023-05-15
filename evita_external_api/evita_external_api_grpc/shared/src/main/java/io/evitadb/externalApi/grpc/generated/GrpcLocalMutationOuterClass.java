@@ -39,7 +39,7 @@ public final class GrpcLocalMutationOuterClass {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalMutation_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalMutation_fieldAccessorTable;
 
@@ -56,7 +56,7 @@ public final class GrpcLocalMutationOuterClass {
       "utations.proto\032!GrpcAssociatedDataMutati" +
       "ons.proto\032\030GrpcPriceMutations.proto\032\031Grp" +
       "cEntityMutations.proto\032\034GrpcReferenceMut" +
-      "ations.proto\"\212\r\n\021GrpcLocalMutation\022m\n\033ap" +
+      "ations.proto\"\316\014\n\021GrpcLocalMutation\022m\n\033ap" +
       "plyDeltaAttributeMutation\030\001 \001(\0132F.io.evi" +
       "tadb.externalApi.grpc.generated.GrpcAppl" +
       "yDeltaAttributeMutationH\000\022e\n\027upsertAttri" +
@@ -78,27 +78,26 @@ public final class GrpcLocalMutationOuterClass {
       "ationH\000\022}\n#setPriceInnerRecordHandlingMu" +
       "tation\030\010 \001(\0132N.io.evitadb.externalApi.gr" +
       "pc.generated.GrpcSetPriceInnerRecordHand" +
-      "lingMutationH\000\022w\n setHierarchicalPlaceme" +
-      "ntMutation\030\t \001(\0132K.io.evitadb.externalAp" +
-      "i.grpc.generated.GrpcSetHierarchicalPlac" +
-      "ementMutationH\000\022}\n#removeHierarchicalPla" +
-      "cementMutation\030\n \001(\0132N.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcRemoveHierarchi" +
-      "calPlacementMutationH\000\022e\n\027insertReferenc" +
-      "eMutation\030\013 \001(\0132B.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcInsertReferenceMutat" +
-      "ionH\000\022e\n\027removeReferenceMutation\030\014 \001(\0132B" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcRemoveReferenceMutationH\000\022i\n\031setRefer" +
-      "enceGroupMutation\030\r \001(\0132D.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcSetReference" +
-      "GroupMutationH\000\022o\n\034removeReferenceGroupM" +
-      "utation\030\016 \001(\0132G.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcRemoveReferenceGroupMu" +
-      "tationH\000\022k\n\032referenceAttributeMutation\030\017" +
-      " \001(\0132E.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcReferenceAttributeMutationH\000B\n\n" +
-      "\010mutationB\002P\001b\006proto3"
+      "lingMutationH\000\022Y\n\021setParentMutation\030\t \001(" +
+      "\0132<.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcSetParentMutationH\000\022_\n\024removeParen" +
+      "tMutation\030\n \001(\0132?.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcRemoveParentMutation" +
+      "H\000\022e\n\027insertReferenceMutation\030\013 \001(\0132B.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "InsertReferenceMutationH\000\022e\n\027removeRefer" +
+      "enceMutation\030\014 \001(\0132B.io.evitadb.external" +
+      "Api.grpc.generated.GrpcRemoveReferenceMu" +
+      "tationH\000\022i\n\031setReferenceGroupMutation\030\r " +
+      "\001(\0132D.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcSetReferenceGroupMutationH\000\022o\n\034r" +
+      "emoveReferenceGroupMutation\030\016 \001(\0132G.io.e" +
+      "vitadb.externalApi.grpc.generated.GrpcRe" +
+      "moveReferenceGroupMutationH\000\022k\n\032referenc" +
+      "eAttributeMutation\030\017 \001(\0132E.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcReferenceAt" +
+      "tributeMutationH\000B\n\n\010mutationB\002P\001b\006proto" +
+      "3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -114,7 +113,7 @@ public final class GrpcLocalMutationOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalMutation_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcLocalMutation_descriptor,
-        new java.lang.String[] { "ApplyDeltaAttributeMutation", "UpsertAttributeMutation", "RemoveAttributeMutation", "UpsertAssociatedDataMutation", "RemoveAssociatedDataMutation", "UpsertPriceMutation", "RemovePriceMutation", "SetPriceInnerRecordHandlingMutation", "SetHierarchicalPlacementMutation", "RemoveHierarchicalPlacementMutation", "InsertReferenceMutation", "RemoveReferenceMutation", "SetReferenceGroupMutation", "RemoveReferenceGroupMutation", "ReferenceAttributeMutation", "Mutation", });
+        new java.lang.String[] { "ApplyDeltaAttributeMutation", "UpsertAttributeMutation", "RemoveAttributeMutation", "UpsertAssociatedDataMutation", "RemoveAssociatedDataMutation", "UpsertPriceMutation", "RemovePriceMutation", "SetPriceInnerRecordHandlingMutation", "SetParentMutation", "RemoveParentMutation", "InsertReferenceMutation", "RemoveReferenceMutation", "SetReferenceGroupMutation", "RemoveReferenceGroupMutation", "ReferenceAttributeMutation", "Mutation", });
     io.evitadb.externalApi.grpc.generated.GrpcAttributeMutations.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataMutations.getDescriptor();
     io.evitadb.externalApi.grpc.generated.GrpcPriceMutations.getDescriptor();

@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.api.resolver.serializer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.requestResponse.data.structure.HierarchicalPlacement;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -160,13 +159,6 @@ class ObjectJsonSerializerTest {
 			new BigDecimal("5.4"), new BigDecimal("15.9"), DateTimeRange.until(OffsetDateTime.of(2022, 10, 24, 14, 2, 10,5, ZoneOffset.ofHours(2))), true);
 		final String serialized = mapper.writeValueAsString(tested.serializeObject(price));
 		assertEquals("{\"priceId\":1,\"priceList\":\"my\",\"currency\":\"CZK\",\"innerRecordId\":2,\"sellable\":true,\"priceWithoutTax\":\"10.5\",\"priceWithTax\":\"15.9\",\"taxRate\":\"5.4\",\"validity\":[null,\"2022-10-24T14:02:10.000000005+02:00\"]}", serialized);
-	}
-
-	@Test
-	void shouldSerializeHierarchicalPlacementContract() throws Exception {
-		final HierarchicalPlacement hierarchicalPlacement = new HierarchicalPlacement(5, 2);
-		final String serialized = mapper.writeValueAsString(tested.serializeObject(hierarchicalPlacement));
-		assertEquals("{\"parentPrimaryKey\":5,\"orderAmongSiblings\":2}", serialized);
 	}
 
 }

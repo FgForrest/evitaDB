@@ -39,9 +39,9 @@ class HierarchyWithinTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", 1);
+		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", entityPrimaryKeyInSet(1));
 		assertEquals("brand", hierarchyWithin.getReferenceName());
-		assertEquals(1, hierarchyWithin.getParentId());
+		assertEquals(entityPrimaryKeyInSet(1), hierarchyWithin.getParentFilter());
 		assertArrayEquals(new FacetConstraint[0], hierarchyWithin.getExcludedChildrenFilter());
 		assertFalse(hierarchyWithin.isDirectRelation());
 		assertFalse(hierarchyWithin.isExcludingRoot());
@@ -49,9 +49,9 @@ class HierarchyWithinTest {
 
 	@Test
 	void shouldCreateViaFactoryUsingExcludingSubConstraintClassWorkAsExpected() {
-		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", 1, excluding(entityPrimaryKeyInSet(5, 7)));
+		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", entityPrimaryKeyInSet(1), excluding(entityPrimaryKeyInSet(5, 7)));
 		assertEquals("brand", hierarchyWithin.getReferenceName());
-		assertEquals(1, hierarchyWithin.getParentId());
+		assertEquals(entityPrimaryKeyInSet(1), hierarchyWithin.getParentFilter());
 		assertArrayEquals(new FilterConstraint[] {new EntityPrimaryKeyInSet(5, 7)}, hierarchyWithin.getExcludedChildrenFilter());
 		assertFalse(hierarchyWithin.isDirectRelation());
 		assertFalse(hierarchyWithin.isExcludingRoot());
@@ -59,9 +59,9 @@ class HierarchyWithinTest {
 
 	@Test
 	void shouldCreateViaFactoryUsingExcludingRootSubConstraintClassWorkAsExpected() {
-		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", 1, excludingRoot());
+		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", entityPrimaryKeyInSet(1), excludingRoot());
 		assertEquals("brand", hierarchyWithin.getReferenceName());
-		assertEquals(1, hierarchyWithin.getParentId());
+		assertEquals(entityPrimaryKeyInSet(1), hierarchyWithin.getParentFilter());
 		assertArrayEquals(new FilterConstraint[0], hierarchyWithin.getExcludedChildrenFilter());
 		assertFalse(hierarchyWithin.isDirectRelation());
 		assertTrue(hierarchyWithin.isExcludingRoot());
@@ -69,9 +69,9 @@ class HierarchyWithinTest {
 
 	@Test
 	void shouldCreateViaFactoryWithoutEntityTypeClassWorkAsExpected() {
-		final HierarchyWithin hierarchyWithin = hierarchyWithinSelf(1, excludingRoot());
+		final HierarchyWithin hierarchyWithin = hierarchyWithinSelf(entityPrimaryKeyInSet(1), excludingRoot());
 		assertNull(hierarchyWithin.getReferenceName());
-		assertEquals(1, hierarchyWithin.getParentId());
+		assertEquals(entityPrimaryKeyInSet(1), hierarchyWithin.getParentFilter());
 		assertArrayEquals(new FilterConstraint[0], hierarchyWithin.getExcludedChildrenFilter());
 		assertFalse(hierarchyWithin.isDirectRelation());
 		assertTrue(hierarchyWithin.isExcludingRoot());
@@ -79,9 +79,9 @@ class HierarchyWithinTest {
 
 	@Test
 	void shouldCreateViaFactoryUsingDirectRelationSubConstraintClassWorkAsExpected() {
-		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", 1, directRelation());
+		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", entityPrimaryKeyInSet(1), directRelation());
 		assertEquals("brand", hierarchyWithin.getReferenceName());
-		assertEquals(1, hierarchyWithin.getParentId());
+		assertEquals(entityPrimaryKeyInSet(1), hierarchyWithin.getParentFilter());
 		assertArrayEquals(new FilterConstraint[0], hierarchyWithin.getExcludedChildrenFilter());
 		assertTrue(hierarchyWithin.isDirectRelation());
 		assertFalse(hierarchyWithin.isExcludingRoot());
@@ -90,12 +90,12 @@ class HierarchyWithinTest {
 	@Test
 	void shouldCreateViaFactoryUsingAllPossibleSubConstraintClassWorkAsExpected() {
 		final HierarchyWithin hierarchyWithin = hierarchyWithin(
-			"brand", 1,
+			"brand", entityPrimaryKeyInSet(1),
 			excludingRoot(),
 			excluding(entityPrimaryKeyInSet(3, 7))
 		);
 		assertEquals("brand", hierarchyWithin.getReferenceName());
-		assertEquals(1, hierarchyWithin.getParentId());
+		assertEquals(entityPrimaryKeyInSet(1), hierarchyWithin.getParentFilter());
 		assertArrayEquals(new FilterConstraint[] {new EntityPrimaryKeyInSet(3, 7)}, hierarchyWithin.getExcludedChildrenFilter());
 		assertFalse(hierarchyWithin.isDirectRelation());
 		assertTrue(hierarchyWithin.isExcludingRoot());
@@ -104,38 +104,38 @@ class HierarchyWithinTest {
 	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new HierarchyWithin("brand", null).isApplicable());
-		assertTrue(hierarchyWithin("brand", 1).isApplicable());
-		assertTrue(hierarchyWithin("brand", 1, excluding(entityPrimaryKeyInSet(5, 7))).isApplicable());
+		assertTrue(hierarchyWithin("brand", entityPrimaryKeyInSet(1)).isApplicable());
+		assertTrue(hierarchyWithin("brand", entityPrimaryKeyInSet(1), excluding(entityPrimaryKeyInSet(5, 7))).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", 1, excluding(entityPrimaryKeyInSet(5, 7)));
-		assertEquals("hierarchyWithin('brand',1,excluding(entityPrimaryKeyInSet(5,7)))", hierarchyWithin.toString());
+		final HierarchyWithin hierarchyWithin = hierarchyWithin("brand", entityPrimaryKeyInSet(1), excluding(entityPrimaryKeyInSet(5, 7)));
+		assertEquals("hierarchyWithin('brand',entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(5,7)))", hierarchyWithin.toString());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormatWhenUsingMultipleSubConstraints() {
 		final HierarchyWithin hierarchyWithin = hierarchyWithin(
-			"brand", 1,
+			"brand", entityPrimaryKeyInSet(1),
 			excludingRoot(),
 			excluding(entityPrimaryKeyInSet(3, 7))
 		);;
-		assertEquals("hierarchyWithin('brand',1,excludingRoot(),excluding(entityPrimaryKeyInSet(3,7)))", hierarchyWithin.toString());
+		assertEquals("hierarchyWithin('brand',entityPrimaryKeyInSet(1),excludingRoot(),excluding(entityPrimaryKeyInSet(3,7)))", hierarchyWithin.toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))));
-		assertEquals(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))));
-		assertNotEquals(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 6))));
-		assertNotEquals(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", 1, excluding(entityPrimaryKeyInSet(1))));
-		assertNotEquals(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", 2,excluding(entityPrimaryKeyInSet(1, 5))));
-		assertNotEquals(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("category", 1,excluding(entityPrimaryKeyInSet(1, 6))));
-		assertNotEquals(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", 1, excluding(entityPrimaryKeyInSet(1))));
-		assertEquals(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))).hashCode(), hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))).hashCode());
-		assertNotEquals(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))).hashCode(), hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 6))).hashCode());
-		assertNotEquals(hierarchyWithin("brand", 1,excluding(entityPrimaryKeyInSet(1, 5))).hashCode(), hierarchyWithin("brand", 1, excluding(entityPrimaryKeyInSet(1))).hashCode());
+		assertNotSame(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))));
+		assertEquals(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))));
+		assertNotEquals(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 6))));
+		assertNotEquals(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", entityPrimaryKeyInSet(1), excluding(entityPrimaryKeyInSet(1))));
+		assertNotEquals(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", entityPrimaryKeyInSet(2),excluding(entityPrimaryKeyInSet(1, 5))));
+		assertNotEquals(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("category", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 6))));
+		assertNotEquals(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))), hierarchyWithin("brand", entityPrimaryKeyInSet(1), excluding(entityPrimaryKeyInSet(1))));
+		assertEquals(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))).hashCode(), hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))).hashCode());
+		assertNotEquals(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))).hashCode(), hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 6))).hashCode());
+		assertNotEquals(hierarchyWithin("brand", entityPrimaryKeyInSet(1),excluding(entityPrimaryKeyInSet(1, 5))).hashCode(), hierarchyWithin("brand", entityPrimaryKeyInSet(1), excluding(entityPrimaryKeyInSet(1))).hashCode());
 	}
 
 }

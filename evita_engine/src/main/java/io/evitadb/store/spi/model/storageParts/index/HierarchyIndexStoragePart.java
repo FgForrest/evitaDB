@@ -23,7 +23,6 @@
 
 package io.evitadb.store.spi.model.storageParts.index;
 
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;

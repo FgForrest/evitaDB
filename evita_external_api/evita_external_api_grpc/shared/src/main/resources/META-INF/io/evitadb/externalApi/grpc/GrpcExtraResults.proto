@@ -38,19 +38,11 @@ message GrpcFacetStatistics {
   bool requested = 3;
   int32 count = 4;
   google.protobuf.Int32Value impact = 5;
+  google.protobuf.Int32Value matchCount = 6;
 }
 
-message GrpcHierarchyParentEntities {
-  map<int32, GrpcHierarchyParentEntity> hierarchyParentEntities = 1;
-}
-
-message GrpcHierarchyParentEntity {
-  repeated GrpcEntityReference entityReferences = 1;
-  repeated GrpcSealedEntity entities = 2;
-}
-
-message GrpcHierarchyParentsByReference {
-  map<int32, GrpcHierarchyParentEntities> hierarchyParentsByReference = 1;
+message GrpcHierarchy {
+  map<string, GrpcLevelInfos> hierarchy = 1;
 }
 
 message GrpcLevelInfos {
@@ -60,8 +52,9 @@ message GrpcLevelInfos {
 message GrpcLevelInfo {
   GrpcEntityReference entityReference = 1;
   GrpcSealedEntity entity = 2;
-  int32 cardinality = 3;
-  repeated GrpcLevelInfo childrenStatistics = 4;
+  google.protobuf.Int32Value queriedEntityCount = 3;
+  google.protobuf.Int32Value childrenCount = 4;
+  repeated GrpcLevelInfo items = 5;
 }
 
 message GrpcQueryTelemetry {
@@ -73,13 +66,10 @@ message GrpcQueryTelemetry {
 }
 
 message GrpcExtraResults {
-  repeated GrpcHistogram attributeHistograms = 1;
   map<string, GrpcHistogram> attributeHistogram = 2;
   GrpcHistogram priceHistogram = 3;
   repeated GrpcFacetGroupStatistics facetGroupStatistics = 4;
-  GrpcHierarchyParentsByReference selfHierarchyParents = 5;
-  map<string, GrpcHierarchyParentsByReference> hierarchyParents = 6;
-  GrpcLevelInfos selfHierarchyStatistics = 7;
-  map<string, GrpcLevelInfos> hierarchyStatistics = 8;
-  GrpcQueryTelemetry queryTelemetry = 9;
+  GrpcHierarchy selfHierarchy = 5;
+  map<string, GrpcHierarchy> hierarchy = 6;
+  GrpcQueryTelemetry queryTelemetry = 7;
 }

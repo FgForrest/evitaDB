@@ -102,7 +102,7 @@ import java.util.Arrays;
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree starting at the root of the tree (or has reference to any hierarchical entity in the tree).",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class HierarchyWithinRoot extends AbstractFilterConstraintContainer implements HierarchyFilterConstraint {
+public class HierarchyWithinRoot extends AbstractFilterConstraintContainer implements HierarchyFilterConstraint, SeparateEntityScopeContainer {
 	@Serial private static final long serialVersionUID = -4396541048481960654L;
 
 	private HierarchyWithinRoot(@Nonnull Serializable[] argument, @Nonnull FilterConstraint[] fineGrainedConstraints, @Nonnull Constraint<?>... additionalChildren) {
@@ -110,16 +110,17 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 		for (FilterConstraint filterConstraint : fineGrainedConstraints) {
 			Assert.isTrue(
 				filterConstraint instanceof HierarchyExcluding ||
+						filterConstraint instanceof HierarchyHaving ||
 					(filterConstraint instanceof HierarchyDirectRelation && getReferenceName() == null),
 				() -> "Constraint hierarchyWithinRoot accepts only " +
-					(getReferenceName() == null ? "Excluding, or DirectRelation when it targets same entity type" :
+					(getReferenceName() == null ? "Excluding, Having, or DirectRelation when it targets same entity type" :
 						"Excluding when it targets different entity type") + " as inner query!"
 			);
 		}
 		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
 			() -> "Constraint hierarchyWithinRoot accepts only " +
-				(getReferenceName() == null ? "Excluding, or DirectRelation when it targets same entity type" :
+				(getReferenceName() == null ? "Excluding, Having, or DirectRelation when it targets same entity type" :
 					"Excluding when it targets different entity type") + " as inner query!"
 		);
 	}
@@ -154,6 +155,19 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 	public boolean isDirectRelation() {
 		return Arrays.stream(getChildren())
 			.anyMatch(HierarchyDirectRelation.class::isInstance);
+	}
+
+	/**
+	 * Returns filtering constraints that return entities whose trees should be included from hierarchy query.
+	 */
+	@Override
+	@Nonnull
+	public FilterConstraint[] getHavingChildrenFilter() {
+		return Arrays.stream(getChildren())
+			.filter(HierarchyHaving.class::isInstance)
+			.map(it -> ((HierarchyHaving) it).getFiltering())
+			.findFirst()
+			.orElseGet(() -> new FilterConstraint[0]);
 	}
 
 	/**

@@ -43,6 +43,7 @@ import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.EntityObjectBuilder.EntityObjectVersion;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.FullResponseObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.LocalMutationAggregateObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.FilterConstraintSchemaBuilder;
@@ -115,6 +116,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		this.entityObjectBuilder = new EntityObjectBuilder(
 			buildingContext,
+			constraintContext,
 			filterConstraintSchemaBuilder,
 			orderConstraintSchemaBuilder,
 			CDO_OBJECT_MAPPER,
@@ -242,8 +244,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 		}
 
 		// build entity object specific to this schema
-
+		// default entity object with all fields
 		collectionBuildingContext.registerEntityObject(entityObjectBuilder.build(collectionBuildingContext));
+		// non-hierarchical version of entity object with missing recursive parent entities
+		collectionBuildingContext.registerEntityObject(entityObjectBuilder.build(collectionBuildingContext, EntityObjectVersion.NON_HIERARCHICAL));
 
 		return collectionBuildingContext;
 	}

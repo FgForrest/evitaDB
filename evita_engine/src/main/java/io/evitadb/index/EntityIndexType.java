@@ -24,7 +24,6 @@
 package io.evitadb.index;
 
 import io.evitadb.api.query.filter.ReferenceHaving;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 
 /**

@@ -30,7 +30,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -42,7 +41,6 @@ import org.roaringbitmap.RoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -138,22 +136,11 @@ public class FacetGroupAndFormula extends AbstractFormula implements FacetGroupF
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		if (this.bitmaps.length == 0) {
-			return EmptyBitmap.INSTANCE;
-		} else if (this.bitmaps.length == 1) {
-			return bitmaps[0];
-		} else {
-			final Iterator<RoaringBitmap> spliterator = Arrays.stream(bitmaps)
+		return RoaringBitmapBackedBitmap.and(
+			Arrays.stream(bitmaps)
 				.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-				.iterator();
-			return new BaseBitmap(
-				RoaringBitmap.and(
-					spliterator,
-					Arrays.stream(bitmaps).mapToLong(Bitmap::getFirst).min().orElse(0L),
-					Arrays.stream(bitmaps).mapToLong(Bitmap::getLast).max().orElse(0L) + 1
-				)
-			);
-		}
+				.toArray(RoaringBitmap[]::new)
+		);
 	}
 
 	@Override

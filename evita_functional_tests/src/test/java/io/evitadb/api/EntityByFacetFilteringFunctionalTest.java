@@ -59,6 +59,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
@@ -74,6 +75,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -92,7 +95,6 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.QueryUtils.findConstraints;
 import static io.evitadb.api.query.QueryUtils.findRequires;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
-import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.extension.DataCarrier.tuple;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
@@ -121,7 +123,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
-public class EntityByFacetFilteringFunctionalTest {
+public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	private static final String THOUSAND_PRODUCTS_WITH_FACETS = "ThousandsProductsWithFacets";
 	private static final String ATTRIBUTE_TRANSIENT = "transient";
 	private static final int SEED = 40;
@@ -418,6 +420,30 @@ public class EntityByFacetFilteringFunctionalTest {
 		);
 	}
 
+	@Nonnull
+	private static int[] extractFacetIds(@Nonnull FacetHaving facetHavingFilter) {
+		for (FilterConstraint child : facetHavingFilter.getChildren()) {
+			if (child instanceof EntityPrimaryKeyInSet epkis) {
+				return epkis.getPrimaryKeys();
+			} else {
+				throw new IllegalArgumentException("Unsupported constraint in facet filter: " + child);
+			}
+		}
+		return new int[0];
+	}
+
+	@Nonnull
+	private static int[] extractFacetIds(@Nonnull FilterBy filterBy) {
+		for (FilterConstraint child : filterBy.getChildren()) {
+			if (child instanceof EntityPrimaryKeyInSet epkis) {
+				return epkis.getPrimaryKeys();
+			} else {
+				throw new IllegalArgumentException("Unsupported constraint in facet filter: " + child);
+			}
+		}
+		return new int[0];
+	}
+
 	@Nullable
 	@DataSet(value = THOUSAND_PRODUCTS_WITH_FACETS, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
@@ -547,51 +573,50 @@ public class EntityByFacetFilteringFunctionalTest {
 
 	@DisplayName("Should return products matching random facet")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
-	@Test
-	void shouldReturnProductsWithSpecifiedFacetInEntireSet(Evita evita, List<SealedEntity> originalProductEntities) {
+	@ParameterizedTest()
+	@MethodSource("returnRandomSeed")
+	void shouldReturnProductsWithSpecifiedFacetInEntireSet(long seed, Evita evita, List<SealedEntity> originalProductEntities) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Random rnd = new Random(SEED);
+				final Random rnd = new Random(seed);
 				for (String entityType : new String[]{Entities.CATEGORY, Entities.BRAND, Entities.STORE}) {
 					final int entityCount = session.getEntityCollectionSize(entityType);
 					// for each entity execute 100 pseudo random queries
-					for (int i = 0; i < 100; i++) {
-						final int numberOfSelectedFacets = 1 + rnd.nextInt(5);
-						final Integer[] facetIds = new Integer[numberOfSelectedFacets];
-						for (int j = 0; j < numberOfSelectedFacets; j++) {
-							final int primaryKey = rnd.nextInt(entityCount - 1) + 1;
-							facetIds[j] = primaryKey;
-						}
+					final int numberOfSelectedFacets = 1 + rnd.nextInt(5);
+					final Integer[] facetIds = new Integer[numberOfSelectedFacets];
+					for (int j = 0; j < numberOfSelectedFacets; j++) {
+						final int primaryKey = rnd.nextInt(entityCount - 1) + 1;
+						facetIds[j] = primaryKey;
+					}
 
-						final EvitaResponse<EntityReference> result = session.query(
-							query(
-								collection(Entities.PRODUCT),
-								filterBy(
-									userFilter(
-										facetHaving(entityType, entityPrimaryKeyInSet(facetIds))
-									)
-								),
-								require(
-									page(1, Integer.MAX_VALUE),
-									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+					final EvitaResponse<EntityReference> result = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								userFilter(
+									facetHaving(entityType, entityPrimaryKeyInSet(facetIds))
 								)
 							),
-							EntityReference.class
-						);
+							require(
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						),
+						EntityReference.class
+					);
 
-						final Set<Integer> selectedIdsAsSet = new HashSet<>(Arrays.asList(facetIds));
-						assertResultIs(
-							"Querying " + entityType + " facets: " + Arrays.toString(facetIds),
-							originalProductEntities,
-							sealedEntity -> sealedEntity
-								.getReferences(entityType)
-								.stream()
-								.map(ReferenceContract::getReferencedPrimaryKey)
-								.anyMatch(selectedIdsAsSet::contains),
-							result.getRecordData()
-						);
-					}
+					final Set<Integer> selectedIdsAsSet = new HashSet<>(Arrays.asList(facetIds));
+					assertResultIs(
+						"Querying " + entityType + " facets: " + Arrays.toString(facetIds),
+						originalProductEntities,
+						sealedEntity -> sealedEntity
+							.getReferences(entityType)
+							.stream()
+							.map(ReferenceContract::getReferencedPrimaryKey)
+							.anyMatch(selectedIdsAsSet::contains),
+						result.getRecordData()
+					);
 				}
 				return null;
 			}
@@ -840,70 +865,68 @@ public class EntityByFacetFilteringFunctionalTest {
 
 	@DisplayName("Should return products matching random facet within hierarchy tree")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
-	@Test
-	void shouldReturnProductsWithSpecifiedFacetInHierarchyTree(Evita evita, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy) {
+	@ParameterizedTest()
+	@MethodSource("returnRandomSeed")
+	void shouldReturnProductsWithSpecifiedFacetInHierarchyTree(long seed, Evita evita, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Random rnd = new Random(SEED);
+				final Random rnd = new Random(seed);
 				final int categoryCount = session.getEntityCollectionSize(Entities.CATEGORY);
 				for (String entityType : new String[]{Entities.CATEGORY, Entities.BRAND, Entities.STORE}) {
 					final int entityCount = session.getEntityCollectionSize(entityType);
-					// for each entity execute 100 pseudo random queries
-					for (int i = 0; i < 100; i++) {
-						final int numberOfSelectedFacets = rnd.nextInt(entityCount - 1) + 1;
-						final Integer[] facetIds = new Integer[numberOfSelectedFacets];
-						for (int j = 0; j < numberOfSelectedFacets; j++) {
-							int primaryKey;
-							do {
-								primaryKey = rnd.nextInt(entityCount - 1) + 1;
-							} while (ArrayUtils.contains(facetIds, primaryKey));
-							facetIds[j] = primaryKey;
-						}
+					final int numberOfSelectedFacets = rnd.nextInt(entityCount - 1) + 1;
+					final Integer[] facetIds = new Integer[numberOfSelectedFacets];
+					for (int j = 0; j < numberOfSelectedFacets; j++) {
+						int primaryKey;
+						do {
+							primaryKey = rnd.nextInt(entityCount - 1) + 1;
+						} while (ArrayUtils.contains(facetIds, primaryKey));
+						facetIds[j] = primaryKey;
+					}
 
-						final int hierarchyRoot = rnd.nextInt(categoryCount - 1) + 1;
-						final EvitaResponse<EntityReference> result = session.query(
-							query(
-								collection(Entities.PRODUCT),
-								filterBy(
-									and(
-										hierarchyWithin(Entities.CATEGORY, hierarchyRoot),
-										userFilter(
-											facetHaving(entityType, entityPrimaryKeyInSet(facetIds))
-										)
+					final int hierarchyRoot = rnd.nextInt(categoryCount - 1) + 1;
+					final EvitaResponse<EntityReference> result = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								and(
+									hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(hierarchyRoot)),
+									userFilter(
+										facetHaving(entityType, entityPrimaryKeyInSet(facetIds))
 									)
-								),
-								require(
-									page(1, Integer.MAX_VALUE),
-									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 								)
 							),
-							EntityReference.class
-						);
+							require(
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						),
+						EntityReference.class
+					);
 
-						final Set<Integer> selectedIdsAsSet = new HashSet<>(Arrays.asList(facetIds));
-						assertResultIs(
-							"Iteration #" + (i + 1) + ". Querying " + entityType + " facets in hierarchy root " + hierarchyRoot + ": " + Arrays.toString(facetIds),
-							originalProductEntities,
-							sealedEntity -> {
-								// is within requested hierarchy
-								final boolean isWithinHierarchy = sealedEntity.getReferences(Entities.CATEGORY)
-									.stream()
-									.anyMatch(it -> it.getReferencedPrimaryKey() == hierarchyRoot ||
-										categoryHierarchy.getParentItems(String.valueOf(it.getReferencedPrimaryKey()))
-											.stream()
-											.anyMatch(catId -> hierarchyRoot == Integer.parseInt(catId.getCode()))
-									);
-								// has the facet
-								final boolean hasFacet = sealedEntity.getReferences(entityType)
-									.stream()
-									.map(ReferenceContract::getReferencedPrimaryKey)
-									.anyMatch(selectedIdsAsSet::contains);
-								return isWithinHierarchy && hasFacet;
-							},
-							result.getRecordData()
-						);
-					}
+					final Set<Integer> selectedIdsAsSet = new HashSet<>(Arrays.asList(facetIds));
+					assertResultIs(
+						"Querying " + entityType + " facets in hierarchy root " + hierarchyRoot + ": " + Arrays.toString(facetIds),
+						originalProductEntities,
+						sealedEntity -> {
+							// is within requested hierarchy
+							final boolean isWithinHierarchy = sealedEntity.getReferences(Entities.CATEGORY)
+								.stream()
+								.anyMatch(it -> it.getReferencedPrimaryKey() == hierarchyRoot ||
+									categoryHierarchy.getParentItems(String.valueOf(it.getReferencedPrimaryKey()))
+										.stream()
+										.anyMatch(catId -> hierarchyRoot == Integer.parseInt(catId.getCode()))
+								);
+							// has the facet
+							final boolean hasFacet = sealedEntity.getReferences(entityType)
+								.stream()
+								.map(ReferenceContract::getReferencedPrimaryKey)
+								.anyMatch(selectedIdsAsSet::contains);
+							return isWithinHierarchy && hasFacet;
+						},
+						result.getRecordData()
+					);
 				}
 				return null;
 			}
@@ -1115,7 +1138,11 @@ public class EntityByFacetFilteringFunctionalTest {
 					collection(Entities.PRODUCT),
 					filterBy(
 						and(
-							hierarchyWithin(Entities.CATEGORY, 1, excluding(entityPrimaryKeyInSet(excludedSubTrees))),
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(1),
+								excluding(entityPrimaryKeyInSet(excludedSubTrees))
+							),
 							userFilter(
 								facetHaving(Entities.BRAND, entityPrimaryKeyInSet(1)),
 								facetHaving(Entities.STORE, entityPrimaryKeyInSet(5, 6, 7, 8)),
@@ -1185,7 +1212,7 @@ public class EntityByFacetFilteringFunctionalTest {
 					collection(Entities.PRODUCT),
 					filterBy(
 						and(
-							hierarchyWithin(Entities.CATEGORY, 2),
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)),
 							userFilter(
 								facetHaving(Entities.BRAND, entityPrimaryKeyInSet(1)),
 								facetHaving(Entities.STORE, entityPrimaryKeyInSet(5))
@@ -1254,7 +1281,7 @@ public class EntityByFacetFilteringFunctionalTest {
 					collection(Entities.PRODUCT),
 					filterBy(
 						and(
-							hierarchyWithin(Entities.CATEGORY, 2),
+							hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)),
 							userFilter(
 								facetHaving(Entities.STORE, entityPrimaryKeyInSet(5))
 							)
@@ -1697,9 +1724,9 @@ public class EntityByFacetFilteringFunctionalTest {
 					facetEntity -> !facetEntity.getAttributeNames().isEmpty(),
 					groupEntity -> !groupEntity.getAttributeNames().isEmpty(),
 					groupStatistics -> ofNullable(groupStatistics.getGroupEntity())
-						.map(it -> ((SealedEntity)it).getAttribute(ATTRIBUTE_CODE, String.class))
+						.map(it -> ((SealedEntity) it).getAttribute(ATTRIBUTE_CODE, String.class))
 						.orElse(""),
-					facetStatistics -> ((SealedEntity)facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE, String.class)
+					facetStatistics -> ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE, String.class)
 				);
 
 				return null;
@@ -1782,9 +1809,9 @@ public class EntityByFacetFilteringFunctionalTest {
 					facetEntity -> !facetEntity.getAttributeNames().isEmpty(),
 					groupEntity -> !groupEntity.getAttributeNames().isEmpty(),
 					groupStatistics -> ofNullable(groupStatistics.getGroupEntity())
-						.map(it -> ((SealedEntity)it).getAttribute(ATTRIBUTE_CODE, String.class))
+						.map(it -> ((SealedEntity) it).getAttribute(ATTRIBUTE_CODE, String.class))
 						.orElse(""),
-					facetStatistics -> ((SealedEntity)facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE, String.class)
+					facetStatistics -> ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE, String.class)
 				);
 
 				return null;
@@ -2015,7 +2042,7 @@ public class EntityByFacetFilteringFunctionalTest {
 			collection(Entities.PRODUCT),
 			filterBy(
 				and(
-					hierarchyWithin(Entities.CATEGORY, 2),
+					hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)),
 					userFilter(
 						facetHaving(Entities.PARAMETER, entityPrimaryKeyInSet(facetIds))
 					)
@@ -2306,6 +2333,22 @@ public class EntityByFacetFilteringFunctionalTest {
 		private final Set<GroupReference> disjugatedGroups;
 		private final Set<GroupReference> negatedGroups;
 
+		@Nonnull
+		private static BiFunction<String, Integer, Boolean> createDefaultFacetExtractPredicate(@Nonnull Query query) {
+			final List<FacetHaving> facetHavingConstraints = ofNullable(query.getFilterBy())
+				.map(it -> findConstraints(it, FacetHaving.class))
+				.orElse(Collections.emptyList());
+			return (referenceName, facetId) -> facetHavingConstraints
+				.stream()
+				.anyMatch(facetHaving -> {
+					if (!referenceName.equals(facetHaving.getReferenceName())) {
+						return false;
+					} else {
+						return Arrays.stream(extractFacetIds(facetHaving)).anyMatch(theFacetId -> facetId == theFacetId);
+					}
+				});
+		}
+
 		public FacetComputationalContext(
 			@Nonnull EntitySchemaContract entitySchema,
 			@Nonnull Query query,
@@ -2355,22 +2398,6 @@ public class EntityByFacetFilteringFunctionalTest {
 
 			// create predicates that can filter along facet constraints in current query
 			this.existingFacetPredicates = computeExistingFacetPredicates(query.getFilterBy(), entitySchema, selectedFacetProvider);
-		}
-
-		@Nonnull
-		private static BiFunction<String, Integer, Boolean> createDefaultFacetExtractPredicate(@Nonnull Query query) {
-			final List<FacetHaving> facetHavingConstraints = ofNullable(query.getFilterBy())
-				.map(it -> findConstraints(it, FacetHaving.class))
-				.orElse(Collections.emptyList());
-			return (referenceName, facetId) -> facetHavingConstraints
-				.stream()
-				.anyMatch(facetHaving -> {
-					if (!referenceName.equals(facetHaving.getReferenceName())) {
-						return false;
-					} else {
-						return Arrays.stream(extractFacetIds(facetHaving)).anyMatch(theFacetId -> facetId == theFacetId);
-					}
-				});
 		}
 
 		@Nonnull
@@ -2508,30 +2535,6 @@ public class EntityByFacetFilteringFunctionalTest {
 			return resultPredicate;
 		}
 
-	}
-
-	@Nonnull
-	private static int[] extractFacetIds(@Nonnull FacetHaving facetHavingFilter) {
-		for (FilterConstraint child : facetHavingFilter.getChildren()) {
-			if (child instanceof EntityPrimaryKeyInSet epkis) {
-				return epkis.getPrimaryKeys();
-			} else {
-				throw new IllegalArgumentException("Unsupported constraint in facet filter: " + child);
-			}
-		}
-		return new int[0];
-	}
-
-	@Nonnull
-	private static int[] extractFacetIds(@Nonnull FilterBy filterBy) {
-		for (FilterConstraint child : filterBy.getChildren()) {
-			if (child instanceof EntityPrimaryKeyInSet epkis) {
-				return epkis.getPrimaryKeys();
-			} else {
-				throw new IllegalArgumentException("Unsupported constraint in facet filter: " + child);
-			}
-		}
-		return new int[0];
 	}
 
 }

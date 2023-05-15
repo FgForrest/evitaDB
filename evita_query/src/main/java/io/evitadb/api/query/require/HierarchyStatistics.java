@@ -55,6 +55,10 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		super(arguments);
 	}
 
+	public HierarchyStatistics() {
+		super("statistics", StatisticsBase.WITHOUT_USER_FILTER);
+	}
+
 	public HierarchyStatistics(
 		@Nonnull StatisticsBase statisticsBase
 	) {

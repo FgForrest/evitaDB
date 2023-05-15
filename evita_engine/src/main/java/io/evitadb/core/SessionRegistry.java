@@ -182,9 +182,9 @@ final class SessionRegistry {
 							// unwrap and rethrow
 							throw evitaInternalError;
 						} else {
-							log.error("Unexpected internal Evita error occurred: {}", ex.getMessage(), ex);
+							log.error("Unexpected internal Evita error occurred: {}", ex.getCause().getMessage(), ex);
 							throw new EvitaInternalError(
-								"Unexpected internal Evita error occurred: " + ex.getMessage(),
+								"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
 								"Unexpected internal Evita error occurred.",
 								targetException
 							);

@@ -31,6 +31,7 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ParentStatisticsHierarchyVisitor;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
@@ -78,7 +79,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
-		if (context.hierarchyFilter() instanceof HierarchyWithin hierarchyWithin) {
+		if (context.hierarchyFilter() instanceof HierarchyWithin) {
 			final EntityIndex entityIndex = context.entityIndex();
 
 			final ChildrenStatisticsHierarchyVisitor childVisitor = new ChildrenStatisticsHierarchyVisitor(
@@ -90,11 +91,20 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				entityFetcher,
 				statisticsType
 			);
+
+			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodesFormula().compute();
+			Assert.isTrue(
+				hierarchyNodes.size() == 1,
+				"In order to generate parent hierarchy statistics the HierarchyWithin filter must select exactly " +
+					"one parent node. Currently, it selects `" + hierarchyNodes.size() + "` nodes."
+			);
+			final int parentNodeId = hierarchyNodes.getFirst();
+
 			entityIndex.traverseHierarchyFromNode(
 				childVisitor,
-				hierarchyWithin.getParentId(),
+				parentNodeId,
 				false,
-				filterPredicate.negate()
+				filterPredicate
 			);
 
 			final List<Accumulator> children = childVisitor.getAccumulators();
@@ -110,7 +120,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				siblingsComputerToUse = new SiblingsStatisticsTravelingComputer(
 					context, entityPk -> new EntityReference(context.entitySchema().getName(), entityPk),
 					context.hierarchyFilterPredicateProducer(),
-					exclusionPredicate,
+					havingPredicate,
 					HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS,
 					statisticsBase, statisticsType
 				);
@@ -129,7 +139,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 			);
 			entityIndex.traverseHierarchyToRoot(
 				parentVisitor,
-				hierarchyWithin.getParentId()
+				parentNodeId
 			);
 			return parentVisitor.getResult(startNode);
 		} else {

@@ -213,17 +213,9 @@ public class DataGenerator {
 					null : referencedEntityResolver.apply(schema.getName(), genericFaker);
 				if (parentKey == null) {
 					hierarchy.createRootItem(Objects.requireNonNull(detachedBuilder.getPrimaryKey()).toString());
-					detachedBuilder.setHierarchicalPlacement(
-						// we can't easily randomize the position
-						hierarchy.getRootItems().size()
-					);
 				} else {
 					hierarchy.createItem(Objects.requireNonNull(detachedBuilder.getPrimaryKey()).toString(), parentKey.toString());
-					detachedBuilder.setHierarchicalPlacement(
-						parentKey,
-						// we can't easily randomize the position
-						hierarchy.getChildItems(parentKey.toString()).size()
-					);
+					detachedBuilder.setParent(parentKey);
 				}
 			} catch (MaxLevelExceeded | SectionExhausted ignores) {
 				// just repeat again
@@ -1372,8 +1364,8 @@ public class DataGenerator {
 			);
 
 			// randomly delete hierarchy placement
-			if (detachedBuilder.getHierarchicalPlacement().isPresent() && genericFaker.random().nextInt(3) == 0) {
-				detachedBuilder.removeHierarchicalPlacement();
+			if (detachedBuilder.getParent().isPresent() && genericFaker.random().nextInt(3) == 0) {
+				detachedBuilder.removeParent();
 			}
 			generateRandomHierarchy(schema, referencedEntityResolver, getHierarchyIfNeeded(hierarchies, schema), genericFaker, detachedBuilder);
 

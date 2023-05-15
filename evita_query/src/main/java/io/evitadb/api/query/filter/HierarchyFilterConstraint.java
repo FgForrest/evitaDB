@@ -49,6 +49,12 @@ public interface HierarchyFilterConstraint extends FilterConstraint, HierarchyCo
 	boolean isDirectRelation();
 
 	/**
+	 * Returns filtering constraints that return entities whose trees should be included from hierarchy query.
+	 */
+	@Nonnull
+	FilterConstraint[] getHavingChildrenFilter();
+
+	/**
 	 * Returns filtering constraints that return entities whose trees should be excluded from hierarchy query.
 	 */
 	@Nonnull

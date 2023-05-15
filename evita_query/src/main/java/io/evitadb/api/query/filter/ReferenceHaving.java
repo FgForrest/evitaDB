@@ -71,7 +71,7 @@ import java.io.Serializable;
 		"match any of the passed entity primary keys. This container resembles the SQL inner join clauses.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class ReferenceHaving extends AbstractFilterConstraintContainer implements ReferenceConstraint<FilterConstraint> {
+public class ReferenceHaving extends AbstractFilterConstraintContainer implements ReferenceConstraint<FilterConstraint>, SeparateEntityScopeContainer {
 	@Serial private static final long serialVersionUID = -2727265686254207631L;
 
 	private ReferenceHaving(@Nonnull Serializable[] arguments, @Nonnull FilterConstraint... children) {

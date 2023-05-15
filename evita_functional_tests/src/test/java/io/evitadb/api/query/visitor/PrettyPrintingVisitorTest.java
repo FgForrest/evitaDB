@@ -115,22 +115,25 @@ class PrettyPrintingVisitorTest {
 	void shouldPrettyPrintComplexConstraint() {
 		assertEquals(
 			"""
-				and(
-				\tattributeEquals('a', 'b'),
-				\tor(
-				\t\tattributeIs('def', NOT_NULL),
-				\t\tattributeBetween('c', 1, 78),
-				\t\tnot(
-				\t\t\tattributeEquals('utr', true)
-				\t\t),
-				\t\thierarchyWithin(
-				\t\t\t'd',
-				\t\t\t1,
-				\t\t\tdirectRelation()
-				\t\t),
-				\t\thierarchyWithin('e', 1)
-				\t)
-				)""",
+			and(
+				attributeEquals('a', 'b'),
+				or(
+					attributeIs('def', NOT_NULL),
+					attributeBetween('c', 1, 78),
+					not(
+						attributeEquals('utr', true)
+					),
+					hierarchyWithin(
+						'd',
+						entityPrimaryKeyInSet(1),
+						directRelation()
+					),
+					hierarchyWithin(
+						'e',
+						entityPrimaryKeyInSet(1)
+					)
+				)
+			)""",
 			PrettyPrintingVisitor.toString(
 				requireNonNull(
 					and(
@@ -141,8 +144,8 @@ class PrettyPrintingVisitorTest {
 							not(
 								attributeEqualsTrue("utr")
 							),
-							hierarchyWithin("d", 1, directRelation()),
-							hierarchyWithin("e", 1)
+							hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
+							hierarchyWithin("e", entityPrimaryKeyInSet(1))
 						)
 					)
 				),
@@ -163,30 +166,33 @@ class PrettyPrintingVisitorTest {
 						not(
 							attributeEqualsTrue("utr")
 						),
-						hierarchyWithin("d", 1, directRelation()),
-						hierarchyWithin("e", 1)
+						hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
+						hierarchyWithin("e", entityPrimaryKeyInSet(1))
 					)
 				)
 			)
 		);
 		assertEquals(
-			"""
-				and(
-				\tattributeEquals(?, ?),
-				\tor(
-				\t\tattributeIs(?, ?),
-				\t\tattributeBetween(?, ?, ?),
-				\t\tnot(
-				\t\t\tattributeEquals(?, ?)
-				\t\t),
-				\t\thierarchyWithin(
-				\t\t\t?,
-				\t\t\t?,
-				\t\t\tdirectRelation()
-				\t\t),
-				\t\thierarchyWithin(?, ?)
-				\t)
-				)""",
+			"""				
+			and(
+				attributeEquals(?, ?),
+				or(
+					attributeIs(?, ?),
+					attributeBetween(?, ?, ?),
+					not(
+						attributeEquals(?, ?)
+					),
+					hierarchyWithin(
+						?,
+						entityPrimaryKeyInSet(?),
+						directRelation()
+					),
+					hierarchyWithin(
+						?,
+						entityPrimaryKeyInSet(?)
+					)
+				)
+			)""",
 			result.query()
 		);
 		assertArrayEquals(
@@ -209,8 +215,8 @@ class PrettyPrintingVisitorTest {
 							not(
 								attributeEqualsTrue("utr")
 							),
-							hierarchyWithin("d", 1, directRelation()),
-							hierarchyWithin("e", 1)
+							hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
+							hierarchyWithin("e", entityPrimaryKeyInSet(1))
 						)
 					)
 				),
@@ -234,42 +240,45 @@ class PrettyPrintingVisitorTest {
 		assertEquals(
 			"""
 				query(
-				\tcollection(?),
-				\tfilterBy(
-				\t\tand(
-				\t\t\tattributeEquals(?, ?),
-				\t\t\tor(
-				\t\t\t\tattributeIs(?, ?),
-				\t\t\t\tattributeBetween(?, ?, ?),
-				\t\t\t\tnot(
-				\t\t\t\t\tattributeEquals(?, ?)
-				\t\t\t\t),
-				\t\t\t\thierarchyWithin(
-				\t\t\t\t\t?,
-				\t\t\t\t\t?,
-				\t\t\t\t\tdirectRelation()
-				\t\t\t\t),
-				\t\t\t\thierarchyWithin(?, ?)
-				\t\t\t)
-				\t\t)
-				\t),
-				\torderBy(
-				\t\tattributeNatural(?, ?)
-				\t),
-				\trequire(
-				\t\thierarchyOfReference(
-				\t\t\t?,
-				\t\t\t?,
-				\t\t\tfromRoot(
-				\t\t\t\t?,
-				\t\t\t\tentityFetch(
-				\t\t\t\t\tattributeContent()
-				\t\t\t\t),
-				\t\t\t\tstatistics(?)
-				\t\t\t)
-				\t\t),
-				\t\tpage(?, ?)
-				\t)
+					collection(?),
+					filterBy(
+						and(
+							attributeEquals(?, ?),
+							or(
+								attributeIs(?, ?),
+								attributeBetween(?, ?, ?),
+								not(
+									attributeEquals(?, ?)
+								),
+								hierarchyWithin(
+									?,
+									entityPrimaryKeyInSet(?),
+									directRelation()
+								),
+								hierarchyWithin(
+									?,
+									entityPrimaryKeyInSet(?)
+								)
+							)
+						)
+					),
+					orderBy(
+						attributeNatural(?, ?)
+					),
+					require(
+						hierarchyOfReference(
+							?,
+							?,
+							fromRoot(
+								?,
+								entityFetch(
+									attributeContent()
+								),
+								statistics(?)
+							)
+						),
+						page(?, ?)
+					)
 				)""",
 			result.query()
 		);
@@ -297,8 +306,8 @@ class PrettyPrintingVisitorTest {
 							not(
 								attributeEqualsTrue("utr")
 							),
-							hierarchyWithin("d", 1, directRelation()),
-							hierarchyWithin("e", 1)
+							hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
+							hierarchyWithin("e", entityPrimaryKeyInSet(1))
 						)
 					)
 				)
@@ -307,26 +316,29 @@ class PrettyPrintingVisitorTest {
 		);
 		assertEquals(
 			"""
-				query(			
-				\tfilterBy(
-				\t\tand(
-				\t\t\tattributeEquals(?, ?),
-				\t\t\tor(
-				\t\t\t\tattributeIs(?, ?),
-				\t\t\t\tattributeBetween(?, ?, ?),
-				\t\t\t\tnot(
-				\t\t\t\t\tattributeEquals(?, ?)
-				\t\t\t\t),
-				\t\t\t\thierarchyWithin(
-				\t\t\t\t\t?,
-				\t\t\t\t\t?,
-				\t\t\t\t\tdirectRelation()
-				\t\t\t\t),
-				\t\t\t\thierarchyWithin(?, ?)
-				\t\t\t)
-				\t\t)
-				\t)
-				)""",
+			query(
+				filterBy(
+					and(
+						attributeEquals(?, ?),
+						or(
+							attributeIs(?, ?),
+							attributeBetween(?, ?, ?),
+							not(
+								attributeEquals(?, ?)
+							),
+							hierarchyWithin(
+								?,
+								entityPrimaryKeyInSet(?),
+								directRelation()
+							),
+							hierarchyWithin(
+								?,
+								entityPrimaryKeyInSet(?)
+							)
+						)
+					)
+				)
+			)""",
 			result.query()
 		);
 		assertArrayEquals(

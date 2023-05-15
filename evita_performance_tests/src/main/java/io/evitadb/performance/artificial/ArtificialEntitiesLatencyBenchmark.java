@@ -116,11 +116,6 @@ public class ArtificialEntitiesLatencyBenchmark extends ArtificialEntitiesBenchm
 	}
 
 	@Override
-	public void parentsComputation(ArtificialHierarchyBenchmarkState benchmarkState, ArtificialParentsComputationState state, Blackhole blackhole) {
-		super.parentsComputation(benchmarkState, state, blackhole);
-	}
-
-	@Override
 	public void hierarchyStatisticsComputation(ArtificialHierarchyBenchmarkState benchmarkState, ArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(benchmarkState, state, blackhole);
 	}

@@ -26,28 +26,21 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.HierarchicalPlacementContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents.ParentsByReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.HierarchicalPlacementDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyParentsDescriptor.ParentsOfEntityDescriptor.ParentsOfReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
@@ -55,7 +48,6 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributes
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
-import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.Disabled;
@@ -1218,215 +1210,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return category parents for products")
-	void shouldReturnCategoryParentsForProducts(Evita evita, RestTester tester) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							hierarchyWithin(Entities.CATEGORY, 95)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyParentsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_CODE)))
-						)
-					),
-					EntityReference.class
-				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
-
-		final var expectedBody = createHierarchyParentsDto(response);
-
-		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
-			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-					{
-						"filterBy": {
-							"hierarchyCategoryWithin": {
-								"ofParent": 95
-							}
-						},
-						"require": {
-							"page": {
-								"number": 1,
-								"size": %d
-							},
-							"hierarchyCategoryParentsOfReference": {
-						        "entityFetch": {
-									"attributeContent": [
-										"code"
-									]
-						        }
-					        }
-						}
-					}
-					""",
-				Integer.MAX_VALUE)
-			.executeAndThen()
-			.statusCode(200)
-			.body(
-				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_PARENTS.name() + ".category",
-				equalTo(expectedBody)
-			);
-	}
-
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return self parents for category")
-	void shouldReturnSelfParentsForCategory(Evita evita, RestTester tester) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.query(
-					query(
-						collection(Entities.CATEGORY),
-						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyParentsOfSelf(entityFetch(attributeContent(ATTRIBUTE_CODE)))
-						)
-					),
-					EntityReference.class
-				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
-
-		final var expectedBody = createSelfHierarchyParentsDto(response);
-
-		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/query")
-			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-					{
-						"require": {
-							"page": {
-								"number": 1,
-								"size": %d
-							},
-							"hierarchyParentsOfSelf": {
-						        "entityFetch": {
-									"attributeContent": [
-										"code"
-									]
-						        }
-					        }
-						}
-					}
-					""",
-				Integer.MAX_VALUE)
-			.executeAndThen()
-			.statusCode(200)
-			.body(
-				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_PARENTS.name() + "." + HierarchyParentsDescriptor.SELF.name(),
-				equalTo(expectedBody)
-			);
-	}
-
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should pass locale to parents")
-	void shouldPassLocaleToParents(Evita evita, RestTester tester) {
-		final EvitaResponse<EntityReference> response = evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				return session.query(
-					query(
-						collection(Entities.PRODUCT),
-						filterBy(
-							and(
-								hierarchyWithin(Entities.CATEGORY, 95),
-								entityLocaleEquals(CZECH_LOCALE)
-							)
-						),
-						require(
-							page(1, Integer.MAX_VALUE),
-							hierarchyParentsOfReference(Entities.CATEGORY, entityFetch(attributeContent(ATTRIBUTE_NAME)))
-						)
-					),
-					EntityReference.class
-				);
-			}
-		);
-		assertFalse(response.getRecordData().isEmpty());
-
-		final var expectedBody = createLocalizedAttributeOfHierarchyParentsDto(response);
-
-		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
-			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-					{
-						"filterBy": {
-							"hierarchyCategoryWithin": {
-								"ofParent": 95
-							},
-							"entityLocaleEquals": "cs-CZ"
-						},
-						"require": {
-							"page": {
-								"number": 1,
-								"size": %d
-							},
-							"hierarchyCategoryParentsOfReference": {
-						        "entityFetch": {
-									"attributeContent": [
-										"name"
-									]
-						        }
-					        }
-						}
-					}
-					""",
-				Integer.MAX_VALUE)
-			.executeAndThen()
-			.statusCode(200)
-			.body(
-				ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY_PARENTS.name() + ".category.references.parentEntities.attributes",
-				equalTo(expectedBody)
-			);
-	}
-
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return error for self statistics of product")
-	void shouldReturnErrorForSelfStatisticsOfProduct(RestTester tester) {
-		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
-			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-					{
-						"filterBy": {
-							"entityLocaleEquals": "cs-CZ"
-						},
-						"require": {
-							"page": {
-								"number": 1,
-								"size": %d
-							},
-							"hierarchyParentsOfSelf": {
-						        "entityFetch": {
-									"attributeContent": [
-										"name"
-									]
-						        }
-					        }
-						}
-					}
-					""",
-				Integer.MAX_VALUE)
-			.executeAndThen()
-			.statusCode(400)
-			.body("message", notNullValue());
-	}
-
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should pass locale to hierarchy statistics entities")
 	@Disabled("TODO LHO: will be reimplemented")
 	void shouldPassLocaleToHierarchyStatisticsEntities(Evita evita, RestTester tester) {
@@ -1461,7 +1244,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		assertFalse(response.getRecordData().isEmpty());
 
 		final var expectedBody = response.getExtraResult(Hierarchy.class)
-			.getStatistics(Entities.CATEGORY)
+			.getReferenceHierarchy(Entities.CATEGORY)
 			.entrySet()
 			.stream()
 			// TODO LHO - this needs to be corrected probably
@@ -1532,7 +1315,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		assertFalse(response.getRecordData().isEmpty());
 
 		final var expectedBody = response.getExtraResult(Hierarchy.class)
-			.getStatistics(Entities.CATEGORY)
+			.getReferenceHierarchy(Entities.CATEGORY)
 			.entrySet()
 			.stream()
 			// TODO LHO - this needs to be corrected probably
@@ -1733,192 +1516,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
 			.build();
 	}
-
-	@Nonnull
-	private List<Map<String, Object>> createHierarchyParentsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyParents hierarchyParents = response.getExtraResult(HierarchyParents.class);
-		final ParentsByReference categoryParents = hierarchyParents.ofType(Entities.CATEGORY);
-
-		final var parentsDtos = new LinkedList<Map<String, Object>>();
-
-		categoryParents.getParents().forEach((productId, parentsForProduct) -> {
-			parentsDtos.add(
-				map()
-					.e(ParentsOfEntityDescriptor.PRIMARY_KEY.name(), productId)
-					.e(ParentsOfEntityDescriptor.REFERENCES.name(), parentsForProduct.entrySet()
-						.stream()
-						.map(reference -> map()
-							.e(ParentsOfReferenceDescriptor.PRIMARY_KEY.name(), reference.getKey())
-							.e(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name(), Arrays.stream(reference.getValue())
-								.map(parentEntity -> map()
-									.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-									.e(EntityDescriptor.TYPE.name(), parentEntity.getType())
-									.e(EntityDescriptor.LOCALES.name(), new ArrayList<>())
-									.e(EntityDescriptor.ALL_LOCALES.name(), ((SealedEntity) parentEntity).getAllLocales().stream().map(Locale::toLanguageTag).toList())
-									.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-									.e(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), createHierarchicalPlacementDto((SealedEntity) parentEntity))
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
-										.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
-											.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-											.build())
-										.build())
-									.build())
-								.toList())
-							.build())
-						.toList())
-					.build()
-			);
-		});
-
-		return parentsDtos;
-	}
-
-	private static Map<String, Object> createHierarchicalPlacementDto(SealedEntity parentEntity) {
-		final Optional<HierarchicalPlacementContract> hierarchicalPlacement = parentEntity.getHierarchicalPlacement();
-		if (hierarchicalPlacement.isPresent()) {
-			return map()
-				.e(HierarchicalPlacementDescriptor.PARENT_PRIMARY_KEY.name(), hierarchicalPlacement.get().getParentPrimaryKey())
-				.e(HierarchicalPlacementDescriptor.ORDER_AMONG_SIBLINGS.name(), hierarchicalPlacement.get().getOrderAmongSiblings())
-				.build();
-		} else {
-			return map().build();
-		}
-	}
-
-	@Nonnull
-	private List<List<List<Map<String, Object>>>> createLocalizedAttributeOfHierarchyParentsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyParents hierarchyParents = response.getExtraResult(HierarchyParents.class);
-		final ParentsByReference categoryParents = hierarchyParents.ofType(Entities.CATEGORY);
-
-		final List<List<List<Map<String, Object>>>> dtos = new LinkedList<>();
-
-		categoryParents.getParents().forEach((productId, parentsForProduct) -> {
-			final List<List<Map<String, Object>>> data = parentsForProduct.entrySet()
-				.stream()
-				.map(reference ->
-					Arrays.stream(reference.getValue())
-						.map(parentEntity -> map()
-							.e(SectionedAttributesDescriptor.LOCALIZED.name(), map()
-								.e(CZECH_LOCALE.toLanguageTag(), map()
-									.e(ATTRIBUTE_NAME, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
-									.build())
-								.build())
-							.build())
-						.toList()
-				).toList();
-
-			dtos.add(data);
-		});
-
-
-		return dtos;
-	}
-
-	/*
-	@Nonnull
-	private List<Map<String, Object>> createAttributeOfHierarchyParentsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyParents hierarchyParents = response.getExtraResult(HierarchyParents.class);
-		final ParentsByReference categoryParents = hierarchyParents.ofType(Entities.CATEGORY);
-
-		final var parentsDtos = new LinkedList<Map<String, Object>>();
-
-		categoryParents.getParents().forEach((productId, parentsForProduct) -> {
-			parentsDtos.add(
-				map()
-					.e(ParentsOfEntityDescriptor.REFERENCES.name(), parentsForProduct.entrySet()
-						.stream()
-						.map(reference -> map()
-							.e(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name(), Arrays.stream(reference.getValue())
-								.map(parentEntity -> map()
-									.e(EntityDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_NAME, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
-										.build())
-									.build())
-								.toList())
-							.build())
-						.toList())
-					.build()
-			);
-		});
-
-		return parentsDtos;
-	}
-
-	 */
-
-	private List<Map<String, Object>> createSelfHierarchyParentsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyParents hierarchyParents = response.getExtraResult(HierarchyParents.class);
-		final ParentsByReference categoryParents = hierarchyParents.ofSelf();
-
-		final var parentsDtos = new LinkedList<Map<String, Object>>();
-
-		categoryParents.getParents().forEach((productId, parentsForProduct) -> {
-			parentsDtos.add(
-				map()
-					.e(ParentsOfEntityDescriptor.PRIMARY_KEY.name(), productId)
-					.e(ParentsOfEntityDescriptor.REFERENCES.name(), parentsForProduct.entrySet()
-						.stream()
-						.map(reference -> {
-								final MapBuilder mapBuilder = map();
-								mapBuilder.e(ParentsOfReferenceDescriptor.PRIMARY_KEY.name(), reference.getKey());
-								if (reference.getValue().length > 0) {
-									mapBuilder.e(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name(), Arrays.stream(reference.getValue())
-										.map(parentEntity -> map()
-											.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-											.e(EntityDescriptor.TYPE.name(), parentEntity.getType())
-											.e(EntityDescriptor.LOCALES.name(), new ArrayList<>())
-											.e(EntityDescriptor.ALL_LOCALES.name(), ((SealedEntity) parentEntity).getAllLocales().stream().map(Locale::toLanguageTag).toList())
-											.e(EntityDescriptor.HIERARCHICAL_PLACEMENT.name(), createHierarchicalPlacementDto((SealedEntity) parentEntity))
-											.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
-											.e(EntityDescriptor.ATTRIBUTES.name(), map()
-												.e(SectionedAttributesDescriptor.GLOBAL.name(), map()
-													.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-													.build())
-												.build())
-											.build())
-										.toList());
-								}
-								return mapBuilder.build();
-							}
-						)
-						.toList())
-					.build()
-			);
-		});
-
-		return parentsDtos;
-	}
-
-	//todo
-	/*
-	@Nonnull
-	private List<Map<String, Object>> createSelfHierarchyParentsDto(@Nonnull EvitaResponse<EntityReference> response) {
-		final HierarchyParents hierarchyParents = response.getExtraResult(HierarchyParents.class);
-		final ParentsByReference selfParents = hierarchyParents.ofSelf();
-
-		final var parentsDtos = new LinkedList<Map<String, Object>>();
-
-		selfParents.getParents().forEach((productId, parentsForCategory) -> {
-			parentsDtos.add(
-				map()
-					.e(TYPENAME_FIELD, ParentsOfEntityDescriptor.THIS.nameAsSuffix("Category_Category"))
-					.e(ParentsOfEntityDescriptor.PRIMARY_KEY.name(), productId)
-					.e(ParentsOfReferenceDescriptor.PARENT_ENTITIES.name(), Arrays.stream(parentsForCategory.get(parentsForCategory.keySet().iterator().next()))
-						.map(parentEntity -> map()
-							.e(TYPENAME_FIELD, "Category")
-							.e(EntityDescriptor.PRIMARY_KEY.name(), parentEntity.getPrimaryKey())
-							.e(EntityDescriptor.ATTRIBUTES.name(), map()
-								.e(ATTRIBUTE_CODE, ((SealedEntity) parentEntity).getAttribute(ATTRIBUTE_CODE))
-								.build())
-							.build())
-						.toList())
-					.build()
-			);
-		});
-
-		return parentsDtos;
-	}
-	 */
 
 	@Nonnull
 	private List<Map<String, Object>> createFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response) {

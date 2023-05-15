@@ -40,24 +40,36 @@ public class AttributeNotFilterableException extends EvitaInvalidUsageException 
 	@Serial private static final long serialVersionUID = -3203744435079737216L;
 
 	public AttributeNotFilterableException(@Nonnull String attributeName, @Nonnull CatalogSchemaContract catalogSchema) {
-		super(
-			"Global attribute with name `" + attributeName + "` in catalog `" + catalogSchema.getName() + "` is not " +
-				"marked as \"filterable\" or \"unique\" and cannot be filtered by. Filtering by without having an index would be slow."
-		);
+		this(attributeName, "\"filterable\" or \"unique\"", catalogSchema);
 	}
 
 	public AttributeNotFilterableException(@Nonnull String attributeName, @Nonnull EntitySchemaContract entitySchema) {
-		super(
-			"Attribute with name `" + attributeName + "` in entity `" + entitySchema.getName() + "` is not " +
-				"marked as \"filterable\" or \"unique\" and cannot be filtered by. Filtering by without having an index would be slow."
-		);
+		this(attributeName, "\"filterable\" or \"unique\"", entitySchema);
 	}
 
 	public AttributeNotFilterableException(@Nonnull String attributeName, @Nonnull ReferenceSchemaContract referenceSchema, @Nonnull EntitySchemaContract entitySchema) {
+		this(attributeName, "\"filterable\" or \"unique\"", referenceSchema, entitySchema);
+	}
+
+	public AttributeNotFilterableException(@Nonnull String attributeName, @Nonnull String what, @Nonnull CatalogSchemaContract catalogSchema) {
+		super(
+			"Global attribute with name `" + attributeName + "` in catalog `" + catalogSchema.getName() + "` is not " +
+				"marked as " + what + " and cannot be filtered by. Filtering by without having an index would be slow."
+		);
+	}
+
+	public AttributeNotFilterableException(@Nonnull String attributeName, @Nonnull String what, @Nonnull EntitySchemaContract entitySchema) {
+		super(
+			"Attribute with name `" + attributeName + "` in entity `" + entitySchema.getName() + "` is not " +
+				"marked as " + what + " and cannot be filtered by. Filtering by without having an index would be slow."
+		);
+	}
+
+	public AttributeNotFilterableException(@Nonnull String attributeName, @Nonnull String what, @Nonnull ReferenceSchemaContract referenceSchema, @Nonnull EntitySchemaContract entitySchema) {
 		super(
 			"Attribute with name `" + attributeName + "` in reference `" + referenceSchema.getName() + "` of entity " +
 				"`" + entitySchema.getName() + "` is not " +
-				"marked as \"filterable\" or \"unique\" and cannot be filtered by. Filtering by it without having an index would be slow."
+				"marked as " + what + " and cannot be filtered by. Filtering by it without having an index would be slow."
 		);
 	}
 

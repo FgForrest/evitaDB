@@ -29,6 +29,10 @@ import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
 
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Implementations of this interface are backed with some form of {@link RoaringBitmap} and can produce it when asked.
  * This interface allows to optimize Immutable -> Mutable -> Immutable versions of RoaringBitmap roundtrips by allowing
@@ -92,6 +96,54 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 			.constantMemory()
 			.runCompress(false)
 			.get();
+	}
+
+	/**
+	 * Computes {@link Bitmap} by applying conjunction on all passed bitmaps in an optimal way.
+	 */
+	@Nonnull
+	static Bitmap and(@Nonnull RoaringBitmap[] theBitmaps) {
+		if (theBitmaps.length == 0) {
+			return EmptyBitmap.INSTANCE;
+		} else if (theBitmaps.length == 1) {
+			return new BaseBitmap(theBitmaps[0]);
+		} else {
+			final Bitmap theResult;
+			long min = Integer.MAX_VALUE;
+			long max = 0L;
+			List<RoaringBitmap> roaringBitmaps = new ArrayList<>(theBitmaps.length);
+			List<RoaringBitmap> negativeRoaringBitmaps = new ArrayList<>(theBitmaps.length);
+			for (RoaringBitmap theBitmap : theBitmaps) {
+				if (theBitmap.isEmpty()) {
+					return EmptyBitmap.INSTANCE;
+				}
+				final int first = theBitmap.first();
+				final int last = theBitmap.last();
+				final int leftBound = Math.min(first, last);
+				final int rightBound = Math.max(first, last);
+				if (leftBound >= 0) {
+					min = Math.min(first, leftBound);
+					max = Math.max(max, rightBound);
+					roaringBitmaps.add(theBitmap);
+				} else {
+					negativeRoaringBitmaps.add(theBitmap);
+				}
+			}
+
+			RoaringBitmap intermediateResult;
+			if (roaringBitmaps.isEmpty()) {
+				intermediateResult = negativeRoaringBitmaps.get(0);
+			} else if (roaringBitmaps.size() == 1) {
+				intermediateResult = roaringBitmaps.get(0);
+			} else {
+				intermediateResult = RoaringBitmap.and(roaringBitmaps.iterator(), min, max + 1);
+			}
+			for (RoaringBitmap theBitmap : negativeRoaringBitmaps) {
+				intermediateResult = RoaringBitmap.and(theBitmap, intermediateResult);
+			}
+			theResult = new BaseBitmap(intermediateResult);
+			return theResult;
+		}
 	}
 
 	/**

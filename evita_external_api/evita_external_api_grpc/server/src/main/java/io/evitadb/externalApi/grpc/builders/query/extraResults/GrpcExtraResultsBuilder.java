@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
-import io.evitadb.api.requestResponse.extraResult.HierarchyParents;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
@@ -47,6 +46,7 @@ import java.util.Map;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class GrpcExtraResultsBuilder {
+
 	/**
 	 * This method builds all partial additional results from {@link EvitaResponse#getExtraResult(Class)}
 	 * and after each result is built, it is added to the {@link GrpcExtraResults}. When all results are built, the final
@@ -64,15 +64,12 @@ public class GrpcExtraResultsBuilder {
 			if (extraResult instanceof AttributeHistogram erHistogram) {
 				final Map<String, GrpcHistogram> attributeHistograms = GrpcHistogramBuilder.buildAttributeHistogram(erHistogram);
 				extraResults.putAllAttributeHistogram(attributeHistograms);
-				attributeHistograms.values().forEach(extraResults::addAttributeHistograms);
 			} else if (extraResult instanceof PriceHistogram erHistogram) {
 				extraResults.setPriceHistogram(GrpcHistogramBuilder.buildPriceHistogram(erHistogram));
 			} else if (extraResult instanceof FacetSummary erFacetSummary) {
 				GrpcFacetSummaryBuilder.buildFacetSummary(extraResults, erFacetSummary);
-			} else if (extraResult instanceof HierarchyParents erHierarchyParents) {
-				GrpcHierarchyParentsBuilder.buildParents(extraResults, erHierarchyParents);
 			} else if (extraResult instanceof Hierarchy erHierarchy) {
-				GrpcHierarchyStatisticsBuilder.buildHierarchyStatistics(extraResults, erHierarchy);
+				GrpcHierarchyStatisticsBuilder.buildHierarchy(extraResults, erHierarchy);
 			} else if (extraResult instanceof QueryTelemetry erQueryTelemetry) {
 				extraResults.setQueryTelemetry(GrpcQueryTelemetryBuilder.buildQueryTelemetry(erQueryTelemetry));
 			}

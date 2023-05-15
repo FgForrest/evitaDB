@@ -65,6 +65,33 @@ class EvitaQLFilterConstraintVisitorTest {
 
         final FilterConstraint constraint2 = parseFilterConstraintUnsafe("filterBy ( attributeEquals('a',1)  )");
         assertEquals(filterBy(attributeEquals("a", 1L)), constraint2);
+
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("filterBy(attributeEquals('a',1),entityPrimaryKeyInSet(1))");
+        assertEquals(filterBy(attributeEquals("a", 1L), entityPrimaryKeyInSet(1)), constraint3);
+
+        final FilterConstraint constraint4 = parseFilterConstraint(
+            "filterBy(attributeEquals(?,?))",
+            "a", 1L
+        );
+        assertEquals(filterBy(attributeEquals("a", 1L)), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraint(
+            "filterBy(attributeEquals(?,?),entityPrimaryKeyInSet(?))",
+            "a", 1L, 1L
+        );
+        assertEquals(filterBy(attributeEquals("a", 1L), entityPrimaryKeyInSet(1)), constraint5);
+
+        final FilterConstraint constraint6 = parseFilterConstraint(
+            "filterBy(attributeEquals(@name,@val))",
+            Map.of("name", "a", "val", 1L)
+        );
+        assertEquals(filterBy(attributeEquals("a", 1L)), constraint6);
+
+        final FilterConstraint constraint7 = parseFilterConstraint(
+            "filterBy(attributeEquals(@name,@val),entityPrimaryKeyInSet(@pk))",
+            Map.of("name", "a", "val", 1L, "pk", 1L)
+        );
+        assertEquals(filterBy(attributeEquals("a", 1L), entityPrimaryKeyInSet(1)), constraint7);
     }
 
     @Test
@@ -72,7 +99,6 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy(collection('a'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("filterBy(attributeEquals('a',1),attributeEquals('b','c'))"));
     }
 
     @Test
@@ -973,17 +999,17 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldParseHierarchyWithinConstraint() {
-        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithin('a',10)");
-        assertEquals(hierarchyWithin("a", 10), constraint1);
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithin('a',entityPrimaryKeyInSet(10))");
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10)), constraint1);
 
-        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("hierarchyWithin('a',10,directRelation())");
-        assertEquals(hierarchyWithin("a", 10, directRelation()), constraint3);
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("hierarchyWithin('a',entityPrimaryKeyInSet(10),directRelation())");
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10), directRelation()), constraint3);
 
-        final FilterConstraint constraint4 = parseFilterConstraintUnsafe("hierarchyWithin('a',10,directRelation(),excluding(entityPrimaryKeyInSet(1,3)),excludingRoot())");
+        final FilterConstraint constraint4 = parseFilterConstraintUnsafe("hierarchyWithin('a',entityPrimaryKeyInSet(10),directRelation(),excluding(entityPrimaryKeyInSet(1,3)),excludingRoot())");
         assertEquals(
                 hierarchyWithin(
                     "a",
-                    10,
+                    entityPrimaryKeyInSet(10),
                     directRelation(),
                     excluding(entityPrimaryKeyInSet(1, 3)),
                     excludingRoot()
@@ -991,20 +1017,20 @@ class EvitaQLFilterConstraintVisitorTest {
                 constraint4
         );
 
-        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("hierarchyWithin (  'a' ,10 ,  directRelation() )");
-        assertEquals(hierarchyWithin("a", 10, directRelation()), constraint5);
+        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("hierarchyWithin (  'a' ,entityPrimaryKeyInSet(10) ,  directRelation() )");
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10), directRelation()), constraint5);
 
-        final FilterConstraint constraint6 = parseFilterConstraint("hierarchyWithin('a',?)", 10);
-        assertEquals(hierarchyWithin("a", 10), constraint6);
+        final FilterConstraint constraint6 = parseFilterConstraint("hierarchyWithin('a',entityPrimaryKeyInSet(?))", 10);
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10)), constraint6);
 
-        final FilterConstraint constraint7 = parseFilterConstraint("hierarchyWithin(@name,@par)", Map.of("name", "a", "par", 10));
-        assertEquals(hierarchyWithin("a", 10), constraint7);
+        final FilterConstraint constraint7 = parseFilterConstraint("hierarchyWithin(@name,entityPrimaryKeyInSet(@par))", Map.of("name", "a", "par", 10));
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10)), constraint7);
 
-        final FilterConstraint constraint8 = parseFilterConstraint("hierarchyWithin(?,?)","a", 10);
-        assertEquals(hierarchyWithin("a", 10), constraint8);
+        final FilterConstraint constraint8 = parseFilterConstraint("hierarchyWithin(?,entityPrimaryKeyInSet(?))","a", 10);
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10)), constraint8);
 
-        final FilterConstraint constraint9 = parseFilterConstraint("hierarchyWithin(?,?,excluding(entityPrimaryKeyInSet(?)))", "a", 10, 2);
-        assertEquals(hierarchyWithin("a", 10, excluding(entityPrimaryKeyInSet(2))), constraint9);
+        final FilterConstraint constraint9 = parseFilterConstraint("hierarchyWithin(?,entityPrimaryKeyInSet(?),excluding(entityPrimaryKeyInSet(?)))", "a", 10, 2);
+        assertEquals(hierarchyWithin("a", entityPrimaryKeyInSet(10), excluding(entityPrimaryKeyInSet(2))), constraint9);
     }
 
     @Test
@@ -1023,14 +1049,14 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldParseHierarchyWithinSelfConstraint() {
-        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithinSelf(10)");
-        assertEquals(hierarchyWithinSelf(10), constraint1);
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithinSelf(entityPrimaryKeyInSet(10))");
+        assertEquals(hierarchyWithinSelf(entityPrimaryKeyInSet(10)), constraint1);
 
-        final FilterConstraint constraint2 = parseFilterConstraint("hierarchyWithinSelf(?)", 10);
-        assertEquals(hierarchyWithinSelf(10), constraint2);
+        final FilterConstraint constraint2 = parseFilterConstraint("hierarchyWithinSelf(entityPrimaryKeyInSet(?))", 10);
+        assertEquals(hierarchyWithinSelf(entityPrimaryKeyInSet(10)), constraint2);
 
-        final FilterConstraint constraint3 = parseFilterConstraint("hierarchyWithinSelf(?, directRelation(), excluding(entityPrimaryKeyInSet(?)))", 10, 1);
-        assertEquals(hierarchyWithinSelf(10, directRelation(), excluding(entityPrimaryKeyInSet(1))), constraint3);
+        final FilterConstraint constraint3 = parseFilterConstraint("hierarchyWithinSelf(entityPrimaryKeyInSet(?), directRelation(), excluding(entityPrimaryKeyInSet(?)))", 10, 1);
+        assertEquals(hierarchyWithinSelf(entityPrimaryKeyInSet(10), directRelation(), excluding(entityPrimaryKeyInSet(1))), constraint3);
     }
 
     @Test
@@ -1102,6 +1128,48 @@ class EvitaQLFilterConstraintVisitorTest {
     void shouldNotParseDirectRelationConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("directRelation"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("directRelation('a')"));
+    }
+
+    @Test
+    void shouldParseHierarchyHavingConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("having(entityPrimaryKeyInSet(1))");
+        assertEquals(having(entityPrimaryKeyInSet(1)), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("having(entityPrimaryKeyInSet(1,5,6))");
+        assertEquals(having(entityPrimaryKeyInSet(1, 5, 6)), constraint2);
+
+        final FilterConstraint constraint3 = parseFilterConstraintUnsafe("having ( entityPrimaryKeyInSet (  1 , 6, 2 ) )");
+        assertEquals(having(entityPrimaryKeyInSet(1, 6, 2)), constraint3);
+
+        final FilterConstraint constraint4 = parseFilterConstraint("having(entityPrimaryKeyInSet(?))", 1);
+        assertEquals(having(entityPrimaryKeyInSet(1)), constraint4);
+
+        final FilterConstraint constraint5 = parseFilterConstraint("having(entityPrimaryKeyInSet(@pk))", Map.of("pk", 1));
+        assertEquals(having(entityPrimaryKeyInSet(1)), constraint5);
+
+        final FilterConstraint constraint6 = parseFilterConstraint("having(entityPrimaryKeyInSet(?))", List.of(1,2));
+        assertEquals(having(entityPrimaryKeyInSet(1, 2)), constraint6);
+
+        final FilterConstraint constraint7 = parseFilterConstraint("having(entityPrimaryKeyInSet(@pk))", Map.of("pk", List.of(1, 2)));
+        assertEquals(having(entityPrimaryKeyInSet(1, 2)), constraint7);
+
+        final FilterConstraint constraint8 = parseFilterConstraint("having(entityPrimaryKeyInSet(?,?))", 1, 2);
+        assertEquals(having(entityPrimaryKeyInSet(1, 2)), constraint8);
+
+        final FilterConstraint constraint9 = parseFilterConstraint("having(entityPrimaryKeyInSet(@pk1,@pk2))", Map.of("pk1", 1, "pk2", 2));
+        assertEquals(having(entityPrimaryKeyInSet(1, 2)), constraint9);
+    }
+
+    @Test
+    void shouldNotParseHierarchyHavingConstraint() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("having(1)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("having(?)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("having(@a)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having(1)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having()"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having('a','b')"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("having(1,'a')"));
     }
 
     @Test

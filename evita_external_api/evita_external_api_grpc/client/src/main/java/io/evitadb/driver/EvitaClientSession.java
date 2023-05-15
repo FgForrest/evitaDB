@@ -74,6 +74,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
+import io.evitadb.externalApi.grpc.query.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.EntityMutationConverter;
@@ -339,6 +340,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			)
 		);
 		if (EntityReferenceContract.class.isAssignableFrom(expectedType)) {
+			if (!grpcResponse.hasEntityReference()) {
+				return empty();
+			}
 			final GrpcEntityReference entityReference = grpcResponse.getEntityReference();
 			//noinspection unchecked
 			return (Optional<S>) of(new EntityReference(
@@ -351,6 +355,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 				//noinspection unchecked
 				return (Optional<S>) of(EntityConverter.parseBinaryEntity(grpcResponse.getBinaryEntity()));
 			} else {
+				if (!grpcResponse.hasSealedEntity()) {
+					return empty();
+				}
 				// convert to Sealed entity
 				final GrpcSealedEntity sealedEntity = grpcResponse.getSealedEntity();
 				//noinspection unchecked
@@ -396,7 +403,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 				// convert to Sealed entities
 				//noinspection unchecked
 				return (List<S>) EntityConverter.toSealedEntities(
-					grpcResponse.getSealedEntitiesList(), query,
+					grpcResponse.getSealedEntitiesList(),
+					query,
 					(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrow(
 						entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
 					)
@@ -435,21 +443,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 			)
 		);
 		if (EntityReferenceContract.class.isAssignableFrom(expectedType)) {
-			final DataChunk<EntityReference> recordPage = QueryConverter.convertToDataChunk(
+			final DataChunk<EntityReference> recordPage = ResponseConverter.convertToDataChunk(
 				grpcResponse,
 				grpcRecordPage -> EntityConverter.toEntityReferences(grpcRecordPage.getEntityReferencesList())
 			);
-			final EvitaResponseExtraResult[] extraResults = grpcResponse.hasExtraResults() ?
-				QueryConverter.toExtraResults(grpcResponse.getExtraResults()) : new EvitaResponseExtraResult[0];
 			//noinspection unchecked
 			return (T) new EvitaEntityReferenceResponse(
-				query, recordPage, extraResults
+				query, recordPage,
+				getEvitaResponseExtraResults(query, grpcResponse)
 			);
 		} else if (EntityContract.class.isAssignableFrom(expectedType)) {
 			final DataChunk<SealedEntity> recordPage;
 			if (grpcResponse.getRecordPage().getBinaryEntitiesList().isEmpty()) {
 				// convert to Sealed entities
-				recordPage = QueryConverter.convertToDataChunk(
+				recordPage = ResponseConverter.convertToDataChunk(
 					grpcResponse,
 					grpcRecordPage -> EntityConverter.toSealedEntities(
 						grpcRecordPage.getSealedEntitiesList(), query,
@@ -460,7 +467,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				);
 			} else {
 				// parse the entities
-				recordPage = QueryConverter.convertToDataChunk(
+				recordPage = ResponseConverter.convertToDataChunk(
 					grpcResponse,
 					grpcRecordPage -> grpcRecordPage.getBinaryEntitiesList()
 						.stream()
@@ -469,16 +476,27 @@ public class EvitaClientSession implements EvitaSessionContract {
 				);
 			}
 
-			final EvitaResponseExtraResult[] extraResults = grpcResponse.hasExtraResults() ?
-				QueryConverter.toExtraResults(grpcResponse.getExtraResults()) : new EvitaResponseExtraResult[0];
-
 			//noinspection unchecked
 			return (T) new EvitaEntityResponse(
-				query, recordPage, extraResults
+				query, recordPage,
+				getEvitaResponseExtraResults(query, grpcResponse)
 			);
 		} else {
 			throw new EvitaInvalidUsageException("Unsupported return type `" + expectedType + "`!");
 		}
+	}
+
+	@Nonnull
+	private EvitaResponseExtraResult[] getEvitaResponseExtraResults(@Nonnull Query query, @Nonnull GrpcQueryResponse grpcResponse) {
+		return grpcResponse.hasExtraResults() ?
+			ResponseConverter.toExtraResults(
+				(sealedEntity) -> schemaCache.getEntitySchemaOrThrow(
+					sealedEntity.getEntityType(), sealedEntity.getSchemaVersion(),
+					this::fetchEntitySchema, this::getCatalogSchema
+				),
+				new EvitaRequest(query, OffsetDateTime.now()),
+				grpcResponse.getExtraResults()
+			) : new EvitaResponseExtraResult[0];
 	}
 
 	@Nullable

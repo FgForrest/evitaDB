@@ -745,7 +745,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		final ConstraintValueStructure constraintValueStructure = ConstraintProcessingUtils.getValueStructureForConstraintCreator(creator);
 
 		final List<ValueParameterDescriptor> valueParameters = creator.valueParameters();
-		final Optional<ChildParameterDescriptor> childParameter = creator.childParameter();
+		final List<ChildParameterDescriptor> childParameters = creator.childParameters();
 		final List<AdditionalChildParameterDescriptor> additionalChildParameters = creator.additionalChildParameters();
 
 		if (constraintValueStructure == ConstraintValueStructure.NONE) {
@@ -755,17 +755,12 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		} else if (constraintValueStructure == ConstraintValueStructure.WRAPPER_RANGE) {
 			return buildWrapperRangeConstraintValue(buildContext, valueParameters, valueTypeSupplier);
 		} else if (constraintValueStructure == ConstraintValueStructure.CHILD) {
-			return buildChildConstraintValue(
-				buildContext,
-				childParameter.orElseThrow(() -> createSchemaBuildingError(
-					"Constraint `" + constraintDescriptor.fullName() + "` is expected to have child value structure but no child parameter has been found."
-				))
-			);
+			return buildChildConstraintValue(buildContext, childParameters.get(0));
 		} else if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
 			return obtainWrapperObjectConstraintValue(
 				buildContext,
 				valueParameters,
-				childParameter.orElse(null),
+				childParameters,
 				additionalChildParameters,
 				valueTypeSupplier
 			);
@@ -851,14 +846,14 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected SIMPLE_TYPE obtainWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                         @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                         @Nullable ChildParameterDescriptor childParameter,
+	                                                         @Nullable List<ChildParameterDescriptor> childParameters,
 	                                                         @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                         @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final WrapperObjectKey wrapperObjectKey = new WrapperObjectKey(
 			getConstraintType(),
 			buildContext.dataLocator(),
 			valueParameters,
-			childParameter,
+			childParameters,
 			additionalChildParameters
 		);
 
@@ -872,7 +867,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			buildContext,
 			wrapperObjectKey,
 			valueParameters,
-			childParameter,
+			childParameters,
 			additionalChildParameters,
 			valueTypeSupplier
 		);
@@ -883,13 +878,13 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * combination of value and child parameters.
 	 * Implementation should cache the built objects for later reuse.
 	 *
-	 * <b>Note:</b> this method should not be used directly, instead use {@link #obtainWrapperObjectConstraintValue(ConstraintBuildContext, List, ChildParameterDescriptor, List, ValueTypeSupplier)}.
+	 * <b>Note:</b> this method should not be used directly, instead use {@link #obtainWrapperObjectConstraintValue(ConstraintBuildContext, List, List, List, ValueTypeSupplier)}.
 	 */
 	@Nonnull
 	protected abstract SIMPLE_TYPE buildWrapperObjectConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                                 @Nonnull WrapperObjectKey wrapperObjectKey,
 	                                                                 @Nonnull List<ValueParameterDescriptor> valueParameters,
-	                                                                 @Nullable ChildParameterDescriptor childParameter,
+	                                                                 @Nullable List<ChildParameterDescriptor> childParameters,
 	                                                                 @Nonnull List<AdditionalChildParameterDescriptor> additionalChildParameters,
 	                                                                 @Nullable ValueTypeSupplier valueTypeSupplier);
 
