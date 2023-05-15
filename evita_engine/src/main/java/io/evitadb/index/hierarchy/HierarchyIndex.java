@@ -71,6 +71,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -365,7 +367,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		final CompositeObjectArray<Integer> result = new CompositeObjectArray<>(Integer.class);
 		while (hierarchyNode.parentEntityPrimaryKey() != null) {
 			result.add(hierarchyNode.parentEntityPrimaryKey());
-			hierarchyNode = getParentNodeOrThrowException(hierarchyNode);
+			final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(hierarchyNode);
+			if (parentNode.isPresent()) {
+				hierarchyNode = parentNode.get();
+			} else {
+				return new Integer[0];
+			}
 		}
 		final Integer[] theResult = result.toArray();
 		ArrayUtils.reverse(theResult);
@@ -380,7 +387,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		result.add(theNode);
 		while (hierarchyNode.parentEntityPrimaryKey() != null) {
 			result.add(hierarchyNode.parentEntityPrimaryKey());
-			hierarchyNode = getParentNodeOrThrowException(hierarchyNode);
+			final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(hierarchyNode);
+			if (parentNode.isPresent()) {
+				hierarchyNode = parentNode.get();
+			} else {
+				return new Integer[0];
+			}
 		}
 		final Integer[] theResult = result.toArray();
 		ArrayUtils.reverse(theResult);
@@ -466,7 +478,13 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			int nodeLevel = 1;
 			while (hierarchyNode.parentEntityPrimaryKey() != null) {
 				nodeLevel++;
-				hierarchyNode = getParentNodeOrThrowException(hierarchyNode);
+				final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(hierarchyNode);
+				if (parentNode.isPresent()) {
+					hierarchyNode = parentNode.get();
+				} else {
+					// no traversal will happen - orphan found
+					return;
+				}
 			}
 
 			final AtomicReference<TraverserFactory> factoryHolder = new AtomicReference<>();
@@ -737,10 +755,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	@Nonnull
-	private HierarchyNode getParentNodeOrThrowException(@Nonnull HierarchyNode hierarchyNode) {
-		hierarchyNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
-		Assert.isTrue(hierarchyNode != null, "The node parent `" + hierarchyNode.parentEntityPrimaryKey() + "` is unexpectedly not present in the index!");
-		return hierarchyNode;
+	private Optional<HierarchyNode> getParentNodeOrThrowException(@Nonnull HierarchyNode hierarchyNode) {
+		if (orphans.contains(hierarchyNode.parentEntityPrimaryKey())) {
+			return empty();
+		} else {
+			hierarchyNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
+			Assert.isTrue(hierarchyNode != null, "The node parent `" + hierarchyNode.parentEntityPrimaryKey() + "` is unexpectedly not present in the index!");
+			return of(hierarchyNode);
+		}
 	}
 
 	private void makeOrphansRecursively(int entityPrimaryKey) {
@@ -897,8 +919,13 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			int level = 1;
 			HierarchyNode theNode = rootNode;
 			while (theNode.parentEntityPrimaryKey() != null) {
-				theNode = getParentNodeOrThrowException(theNode);
-				level++;
+				final Optional<HierarchyNode> parentNode = getParentNodeOrThrowException(theNode);
+				if (parentNode.isPresent()) {
+					theNode = parentNode.get();
+					level++;
+				} else {
+					return -1;
+				}
 			}
 			return level;
 		} catch (EvitaInvalidUsageException ex) {

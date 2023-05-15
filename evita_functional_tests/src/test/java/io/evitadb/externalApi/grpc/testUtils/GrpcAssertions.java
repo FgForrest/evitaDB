@@ -316,8 +316,16 @@ public class GrpcAssertions {
 	}
 
 	public static void assertInnerStatistics(@Nonnull LevelInfo expectedChild, GrpcLevelInfo actualChild) {
-		assertEquals(expectedChild.queriedEntityCount(), actualChild.getQueriedEntityCount().getValue());
-		assertEquals(expectedChild.childrenCount(), actualChild.getChildrenCount().getValue());
+		if (expectedChild.queriedEntityCount() == null) {
+			assertFalse(actualChild.hasQueriedEntityCount());
+		} else {
+			assertEquals(expectedChild.queriedEntityCount(), actualChild.getQueriedEntityCount().getValue());
+		}
+		if (expectedChild.childrenCount() == null) {
+			assertFalse(actualChild.hasChildrenCount());
+		} else {
+			assertEquals(expectedChild.childrenCount(), actualChild.getChildrenCount().getValue());
+		}
 		assertEquals(expectedChild.children().size(), actualChild.getItemsCount());
 
 		final EntityClassifier expectedEntity = expectedChild.entity();

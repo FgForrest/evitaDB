@@ -380,7 +380,6 @@ public class EntityFetchingFunctionalTest {
 
 	@DisplayName("Should not return missing entity")
 	@Test
-	// TODO JNO: fix negative PKs
 	void shouldNotReturnMissingEntity(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,

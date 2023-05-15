@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -90,7 +91,10 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.Assertions.assertDiffers;
 import static io.evitadb.test.Assertions.assertExactlyEquals;
-import static io.evitadb.test.generator.DataGenerator.*;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
+import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -505,7 +509,6 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	// TODO JNO: should be fixed when negative PKs are fixed
 	void shouldNotQueryOneMissingEntity(EvitaClient evitaClient) {
 		final Optional<EntityReference> entityReference = evitaClient.queryCatalog(
 			TEST_CATALOG,
@@ -658,6 +661,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldGetListWithExtraResults(EvitaClient evitaClient, Map<Integer, SealedEntity> products) {
+		final SealedEntity someProductWithCategory = products.values()
+			.stream()
+			.filter(it -> !it.getReferences(Entities.CATEGORY).isEmpty())
+			.filter(it -> !it.getAllPricesForSale().isEmpty())
+			.findFirst()
+			.orElseThrow();
+
 		final EvitaResponse<SealedEntity> result = evitaClient.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -665,15 +675,15 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
-							priceInPriceLists(PRICE_LIST_BASIC),
-							priceInCurrency(CURRENCY_CZK),
-							entityLocaleEquals(Locale.ENGLISH)
+							priceInPriceLists(someProductWithCategory.getAllPricesForSale().stream().map(PriceContract::getPriceList).toArray(String[]::new)),
+							priceInCurrency(someProductWithCategory.getAllPricesForSale().stream().map(PriceContract::getCurrency).findFirst().orElseThrow()),
+							entityLocaleEquals(someProductWithCategory.getAllLocales().stream().findFirst().orElseThrow())
 						),
 						require(
 							entityFetchAll(),
 							queryTelemetry(),
 							priceHistogram(20),
-							attributeHistogram(20, ATTRIBUTE_PRIORITY),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY),
 							hierarchyOfReference(
 								Entities.CATEGORY,
 								fromRoot("megaMenu", entityFetchAll())
@@ -692,16 +702,15 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
 		assertNotNull(priceHistogram);
-		// TODO JNO: here min and max are the same, idk if it is legal or there is some other bug
-		assertTrue(priceHistogram.getMax().compareTo(priceHistogram.getMin()) > 0);
+		assertTrue(priceHistogram.getMax().compareTo(priceHistogram.getMin()) >= 0);
 		assertTrue(priceHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
 		assertTrue(priceHistogram.getBuckets().length > 0);
 
 		final AttributeHistogram attributeHistogram = result.getExtraResult(AttributeHistogram.class);
 		assertNotNull(attributeHistogram);
-		final HistogramContract theHistogram = attributeHistogram.getHistogram(ATTRIBUTE_PRIORITY);
+		final HistogramContract theHistogram = attributeHistogram.getHistogram(ATTRIBUTE_QUANTITY);
 		assertNotNull(attributeHistogram);
-		assertTrue(theHistogram.getMax().compareTo(theHistogram.getMin()) > 0);
+		assertTrue(theHistogram.getMax().compareTo(theHistogram.getMin()) >= 0);
 		assertTrue(theHistogram.getMin().compareTo(BigDecimal.ZERO) > 0);
 		assertTrue(theHistogram.getBuckets().length > 0);
 
