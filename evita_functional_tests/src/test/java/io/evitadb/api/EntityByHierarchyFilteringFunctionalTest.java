@@ -248,10 +248,10 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					sealedEntity ->
 						// is directly parent
 						sealedEntity.getPrimaryKey() == 7 ||
-						// has direct parent node 7
-						ofNullable(categoryHierarchy.getParentItem(sealedEntity.getPrimaryKey().toString()))
-							.map(it -> Objects.equals(it.getCode(), String.valueOf(7)))
-							.orElse(false),
+							// has direct parent node 7
+							ofNullable(categoryHierarchy.getParentItem(sealedEntity.getPrimaryKey().toString()))
+								.map(it -> Objects.equals(it.getCode(), String.valueOf(7)))
+								.orElse(false),
 					result.getRecordData()
 				);
 				return null;
@@ -262,7 +262,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 	@DisplayName("Should return all subcategories of shortcuts")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
-	void shouldReturnSubCategoriesInAllShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Map<Integer, SealedEntity> originalCategoryIndex) {
+	void shouldReturnSubCategoriesInAllShortCuts(Evita evita, List<SealedEntity> originalCategoryEntities, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -286,9 +286,12 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				//noinspection ConstantConditions
 				assertResultIs(
 					originalCategoryEntities,
-					sealedEntity -> sealedEntity.getParent()
-						.stream()
-						.mapToObj(originalCategoryIndex::get)
+					sealedEntity -> Stream.concat(
+							Stream.of(sealedEntity),
+							sealedEntity.getParent()
+								.stream()
+								.mapToObj(originalCategoryIndex::get)
+						)
 						.anyMatch(it -> it.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class)),
 					result.getRecordData()
 				);
