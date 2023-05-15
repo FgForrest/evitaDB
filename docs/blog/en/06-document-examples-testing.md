@@ -37,6 +37,24 @@ So let's dive in.
 ##### How do we organize code samples in the documentation? Read this section if you want to understand next chapters easier.
 </NoteTitle>
 
+The example files are usually placed in a separate file that is referenced by a special Next.JS component named 
+`SourceCodeTabs`. The exact format is
+
+```mdxjs
+<SourceCodeTabs>
+[File description](relativePathToFileInRepository.extension)
+</SourceCodeTabs>
+```
+
+The notation is optimized to work for simple MarkDown rendering on GitHub when Next.JS components are not interpreted. 
+The referenced file usually has a `.java` or `.evitaql` extension, but there are multiple files with the same name that 
+differ only by an extension. These files are rendered on the documentation portal in an interactive widget that allows 
+you to switch between different language versions of the example:
+
+![SourceCodeTabs widget](assets/images/06-sourcetab-component-example.png)
+
+The extensions of these files are the key component for recognizing which language the example was written for. 
+
 </Note>
 
 ## Extraction of the code samples from the MarkDown
