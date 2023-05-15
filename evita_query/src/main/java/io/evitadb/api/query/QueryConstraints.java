@@ -887,6 +887,15 @@ public interface QueryConstraints {
 		return with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(referenceName, with);
 	}
 
+	// TOBEDONE JNO: docs
+	@Nullable
+	static HierarchyHaving having(@Nullable FilterConstraint... includeChildTreeConstraints) {
+		if (ArrayUtils.isEmpty(includeChildTreeConstraints)) {
+			return null;
+		}
+		return new HierarchyHaving(includeChildTreeConstraints);
+	}
+
 	/**
 	 * If you use `excludingRoot` sub-query in `withinHierarchy` parent, you can specify one or more
 	 * [Integer](https://docs.oracle.com/javase/8/docs/api/java/lang/Integer.html) primary keys of the underlying

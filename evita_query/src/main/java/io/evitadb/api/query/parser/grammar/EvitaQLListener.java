@@ -555,6 +555,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitHierarchyDirectRelationConstraint(EvitaQLParser.HierarchyDirectRelationConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code hierarchyHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterHierarchyHavingConstraint(EvitaQLParser.HierarchyHavingConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code hierarchyHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitHierarchyHavingConstraint(EvitaQLParser.HierarchyHavingConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code hierarchyExcludingRootConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree

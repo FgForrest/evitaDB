@@ -520,6 +520,19 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
+	public FilterConstraint visitHierarchyHavingConstraint(@Nonnull EvitaQLParser.HierarchyHavingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyHaving(
+				ctx.args.constraints
+					.stream()
+					.map(fc -> visitChildConstraint(fc, FilterConstraint.class))
+					.toArray(FilterConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
 	public FilterConstraint visitHierarchyExcludingRootConstraint(@Nonnull EvitaQLParser.HierarchyExcludingRootConstraintContext ctx) {
 		return parse(ctx, HierarchyExcludingRoot::new);
 	}

@@ -342,6 +342,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitHierarchyDirectRelationConstraint(EvitaQLParser.HierarchyDirectRelationConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code hierarchyHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitHierarchyHavingConstraint(EvitaQLParser.HierarchyHavingConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code hierarchyExcludingRootConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree

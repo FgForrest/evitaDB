@@ -101,6 +101,7 @@ class RegisteredConstraintProvider {
 		HierarchyDirectRelation.class,
 		HierarchyExcluding.class,
 		HierarchyExcludingRoot.class,
+		HierarchyHaving.class,
 		HierarchyWithin.class,
 		HierarchyWithinRoot.class,
 		// facet
