@@ -505,12 +505,17 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitHierarchyWithinRootSelfConstraint(@Nonnull EvitaQLParser.HierarchyWithinRootSelfConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyWithinRoot(
-				ctx.args.constrains
-					.stream()
-					.map(c -> visitChildConstraint(c, HierarchySpecificationFilterConstraint.class))
-					.toArray(HierarchySpecificationFilterConstraint[]::new)
-			)
+			() -> {
+				if (ctx.args == null) {
+					return new HierarchyWithinRoot();
+				}
+				return new HierarchyWithinRoot(
+					ctx.args.constrains
+						.stream()
+						.map(c -> visitChildConstraint(c, HierarchySpecificationFilterConstraint.class))
+						.toArray(HierarchySpecificationFilterConstraint[]::new)
+				);
+			}
 		);
 	}
 
