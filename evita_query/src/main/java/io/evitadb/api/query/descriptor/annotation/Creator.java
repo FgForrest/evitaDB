@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.descriptor.annotation;
 
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 
 import java.lang.annotation.Documented;
@@ -56,6 +57,9 @@ public @interface Creator {
 	 * Also, combination of query name and suffix
 	 * must be unique across all constraints of same type and property type.
 	 * Its format must be in camelCase and when joined with query name, first letter is capitalized.
+	 * When suffix is defined, the constraint should implement {@link ConstraintWithSuffix} interface.
+	 *
+	 * @see ConstraintWithSuffix for more information
 	 */
 	String suffix() default "";
 

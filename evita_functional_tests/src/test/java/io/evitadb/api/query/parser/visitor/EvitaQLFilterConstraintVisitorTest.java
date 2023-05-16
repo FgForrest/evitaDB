@@ -1097,6 +1097,9 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldParseHierarchyWithinRootSelfConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithinRootSelf()");
+        assertEquals(hierarchyWithinRootSelf(), constraint1);
+
         final FilterConstraint constraint2 = parseFilterConstraintUnsafe("hierarchyWithinRootSelf(directRelation())");
         assertEquals(hierarchyWithinRootSelf(directRelation()), constraint2);
 

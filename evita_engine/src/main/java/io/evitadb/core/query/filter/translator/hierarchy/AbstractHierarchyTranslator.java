@@ -24,16 +24,12 @@
 package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
-import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
-import io.evitadb.api.query.visitor.QueryPurifierVisitor;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -48,12 +44,9 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
-
-import static java.util.Optional.ofNullable;
 
 /**
  * Abstract super class for hierarchy query translators containing the shared logic.
@@ -114,8 +107,9 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Supplier<Formula> hierarchyNodesFormulaSupplier
 		) {
+		final String referenceName = hierarchyWithinConstraint.getReferenceName().orElseThrow();
 		Assert.notNull(
-			filterByVisitor.getSchema().getReferenceOrThrowException(hierarchyWithinConstraint.getReferenceName()),
+			filterByVisitor.getSchema().getReferenceOrThrowException(referenceName),
 			"Reference name validation (will never be printed)."
 		);
 		final TargetIndexes targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinConstraint);
@@ -127,7 +121,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 					.map(hierarchyNodeId -> (EntityIndex) queryContext.getIndex(
 						new EntityIndexKey(
 							EntityIndexType.REFERENCED_HIERARCHY_NODE,
-							new ReferenceKey(hierarchyWithinConstraint.getReferenceName(), hierarchyNodeId)
+							new ReferenceKey(referenceName, hierarchyNodeId)
 						)
 					))
 					.filter(Objects::nonNull)
@@ -144,39 +138,6 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 					.toArray(Formula[]::new)
 			);
 		}
-	}
-
-	/**
-	 * We need to strip all {@link EntityHaving} constraints from the filter because those were already applied
-	 * when the `hierarchyIndexes` were selected and as such are "implicit" here.
-	 */
-	@Nullable
-	private static FilterConstraint getExcludedFormulaDiscardingEntityHaving(@Nonnull FilterConstraint excludedChildrenFormula) {
-		return ofNullable(
-			ConstraintCloneVisitor.clone(
-				excludedChildrenFormula,
-				(visitor, constraint) -> constraint instanceof EntityHaving ? null : constraint
-			)
-		)
-			.map(it -> (FilterConstraint) QueryPurifierVisitor.purify(it))
-			.orElse(null);
-	}
-
-	/**
-	 * Method returns {@link Formula} that returns all entity ids present in `hierarchyIndexes`.
-	 */
-	@Nonnull
-	protected static Formula getReferencedEntityFormulas(@Nonnull List<EntityIndex> hierarchyIndexes) {
-		// return OR product of all indexed primary keys in those indexes
-		return FormulaFactory.or(
-			hierarchyIndexes.stream()
-				// get all entity ids referencing the pivot id
-				.map(EntityIndex::getAllPrimaryKeysFormula)
-				// filter out empty formulas (with no results) to optimize computation
-				.filter(it -> !(it instanceof EmptyFormula))
-				// return as array
-				.toArray(Formula[]::new)
-		);
 	}
 
 }

@@ -23,12 +23,17 @@
 
 package io.evitadb.documentation;
 
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.parser.DefaultQueryParser;
+import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import jdk.jshell.JShell;
 import jdk.jshell.Snippet;
+import jdk.jshell.Snippet.Status;
 import jdk.jshell.SnippetEvent;
 import jdk.jshell.SourceCodeAnalysis;
+import jdk.jshell.SourceCodeAnalysis.CompletionInfo;
 import jdk.jshell.VarSnippet;
 import jdk.jshell.execution.LocalExecutionControlProvider;
 import org.apache.commons.io.FileUtils;
@@ -45,6 +50,7 @@ import org.junit.jupiter.api.TestFactory;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,7 +83,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for ``` java ``` blocks.
 	 */
 	private static final Pattern SOURCE_CODE_PATTERN = Pattern.compile(
-		"```java(.+?)```",
+		"```(.*?)\n(.+?)```",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -96,10 +102,28 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Field containing the relative directory path to the user documentation.
 	 */
 	private static final String DOCS_ROOT = "docs/user/";
+	/**
+	 * Field contains initialized Java templates for various language formats located in `META-INF/documentation` folder
+	 * on classpath.
+	 */
+	private static final Map<String, List<String>> LANGUAGE_TEMPLATES = new HashMap<>();
+	/**
+	 * Field contains list of all languages that are not tested by this class.
+	 */
+	private static final Set<String> NOT_TESTED_LANGUAGES = new HashSet<>();
+	/**
+	 * Regex pattern for replacing a placeholder in the Java template.
+	 */
+	private static final Pattern THE_QUERY_REPLACEMENT = Pattern.compile("^(\\s*)#QUERY#.*$", Pattern.DOTALL);
 
 	static {
 		try {
-			STATIC_IMPORT = IOUtils.toString(UserDocumentationTest.class.getClassLoader().getResource("META-INF/documentation/imports.java"), StandardCharsets.UTF_8);
+			final ClassLoader classLoader = UserDocumentationTest.class.getClassLoader();
+			STATIC_IMPORT = IOUtils.toString(classLoader.getResource("META-INF/documentation/imports.java"), StandardCharsets.UTF_8);
+			try (final InputStream is = classLoader.getResource("META-INF/documentation/evitaql.java").openStream()) {
+				LANGUAGE_TEMPLATES.put("evitaql", IOUtils.readLines(is, StandardCharsets.UTF_8));
+			}
+			NOT_TESTED_LANGUAGES.add("evitaql-syntax");
 		} catch (IOException ex) {
 			throw new IllegalStateException(ex);
 		}
@@ -114,7 +138,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		final List<String> snippets = new LinkedList<>();
 		String str = sourceCode;
 		do {
-			SourceCodeAnalysis.CompletionInfo info = sca.analyzeCompletion(str);
+			CompletionInfo info = sca.analyzeCompletion(str);
 			snippets.add(info.source());
 			str = info.remaining();
 		} while (str.length() > 0);
@@ -146,6 +170,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					errorBuilder.append(
 						printException(event.exception(), new HashSet<>())
 					).append("\n");
+					if (event.status() == Status.VALID) {
+						jShell.drop(event.snippet());
+					}
 					break execution;
 				} else {
 					executedSnippets.add(event.snippet());
@@ -208,7 +235,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Method clears the tear down snippet and deletes {@link io.evitadb.core.Evita} directory if it was accessed in
+	 * Method clears the tear down snippet and deletes {@link Evita} directory if it was accessed in
 	 * test.
 	 */
 	private static void clearOnTearDown(@Nonnull JShell jShell, @Nonnull Snippet tearDownSnippet) {
@@ -266,7 +293,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Tag(DOCUMENTATION_TEST)
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
-		return this.createTests(getRootDirectory().resolve("docs/user/en/use/api/write-data.md")).stream();
+		return this.createTests(getRootDirectory().resolve("docs/user/en/query/filtering/hierarchy.md")).stream();
 	}
 
 	/**
@@ -381,7 +408,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	) {
 		final String[] requires = codeSnippet.requires();
 		if (ArrayUtils.isEmpty(requires)) {
-			// simply return contents of the code snippert as result
+			// simply return contents of the code snippet as result
 			return toJavaSnippets(jShell, codeSnippet.content());
 		} else {
 			final List<String> requiredSnippet = new LinkedList<>();
@@ -419,34 +446,53 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 			final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
 			while (sourceCodeMatcher.find()) {
-				result.add(
-					new CodeSnippet(
-						"Example #" + index.incrementAndGet(),
-						null,
-						sourceCodeMatcher.group(1),
-						null
-					)
-				);
+				final String format = sourceCodeMatcher.group(1);
+				if (!NOT_TESTED_LANGUAGES.contains(format)) {
+					result.add(
+						new CodeSnippet(
+							"Example #" + index.incrementAndGet(),
+							format,
+							null,
+							convertToRunnable(
+								format,
+								sourceCodeMatcher.group(2),
+								null
+							),
+							null
+						)
+					);
+				}
 			}
 
 			final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
 			while (sourceCodeTabsMatcher.find()) {
 				final Path referencedFile = getRootDirectory().resolve(sourceCodeTabsMatcher.group(3));
-				result.add(
-					new CodeSnippet(
-						"Example `" + referencedFile.getFileName() + "`",
-						referencedFile.toAbsolutePath().toString(),
-						Files.readString(referencedFile),
-						ofNullable(sourceCodeTabsMatcher.group(2))
-							.map(
-								requires -> Arrays.stream(requires.split(","))
-									.filter(it -> !it.isBlank())
-									.map(it -> getRootDirectory().resolve(it).toAbsolutePath().toString())
-									.toArray(String[]::new)
-							)
-							.orElse(null)
-					)
-				);
+				final String format = ofNullable(referencedFile.getFileName().toString())
+					.filter(f -> f.contains("."))
+					.map(f -> f.substring(f.lastIndexOf('.') + 1))
+					.orElseThrow(() -> new IllegalArgumentException("File name must contain `.`!"));
+				if (!NOT_TESTED_LANGUAGES.contains(format)) {
+					result.add(
+						new CodeSnippet(
+							"Example `" + referencedFile.getFileName() + "`",
+							format,
+							referencedFile.toAbsolutePath().toString(),
+							convertToRunnable(
+								format,
+								Files.readString(referencedFile),
+								referencedFile
+							),
+							ofNullable(sourceCodeTabsMatcher.group(2))
+								.map(
+									requires -> Arrays.stream(requires.split(","))
+										.filter(it -> !it.isBlank())
+										.map(it -> getRootDirectory().resolve(it).toAbsolutePath().toString())
+										.toArray(String[]::new)
+								)
+								.orElse(null)
+						)
+					);
+				}
 			}
 			return result;
 		} catch (IOException e) {
@@ -456,15 +502,60 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Method converts the source format to the Java executable that can be run in {@link JShell}.
+	 *
+	 * @param sourceFormat  the file format of the source code
+	 * @param sourceContent the content of the source code
+	 * @return the source code translated from source code to Java executable code
+	 */
+	@Nonnull
+	private static String convertToRunnable(@Nonnull String sourceFormat, @Nonnull String sourceContent, @Nullable Path resource) {
+		switch (sourceFormat) {
+			case "java" -> { return sourceContent; }
+			case "evitaql" -> {
+				final Query theQuery;
+				try {
+					theQuery = DefaultQueryParser.getInstance().parseQueryUnsafe(sourceContent);
+				} catch (Exception ex) {
+					Assertions.fail(
+						"Failed to parse query " +
+							ofNullable(resource).map(it -> "from resource " + it).orElse("") + ": \n" +
+							sourceContent,
+						ex
+					);
+					throw ex;
+				}
+				final List<String> sourceTemplate = LANGUAGE_TEMPLATES.get(sourceFormat);
+				Assertions.assertNotNull(sourceTemplate, "Failed to find language template for " + sourceFormat);
+				final String result = sourceTemplate
+					.stream()
+					.map(theLine -> {
+						final Matcher replacementMatcher = THE_QUERY_REPLACEMENT.matcher(theLine);
+						if (replacementMatcher.matches()) {
+							return JavaPrettyPrintingVisitor.toString(theQuery, "\t", replacementMatcher.group(1));
+						} else {
+							return theLine;
+						}
+					})
+					.collect(Collectors.joining("\n"));
+				return result;
+			}
+			default -> throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
+		}
+	}
+
+	/**
 	 * Record represents a code block occurrence found in the MarkDown document.
 	 *
 	 * @param name     title of the code snippet allowing its identification in the document
+	 * @param format   source format (language) of the example
 	 * @param path     path to the external file containing the code snippet
 	 * @param content  content of the code snippet
 	 * @param requires reference to the required predecessor code block that must be executed before this one
 	 */
 	private record CodeSnippet(
 		@Nonnull String name,
+		@Nonnull String format,
 		@Nullable String path,
 		@Nonnull String content,
 		@Nullable String[] requires

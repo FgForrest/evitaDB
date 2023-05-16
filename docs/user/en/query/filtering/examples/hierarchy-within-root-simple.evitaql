@@ -1,11 +1,11 @@
 query(
     collection('Category'),
     filterBy(
-        hierarchyWithinRoot()
+        hierarchyWithinRootSelf()
     ),
     require(
         entityFetch(
-            attributes('code')
+            attributeContent('code')
         )
     )
 )

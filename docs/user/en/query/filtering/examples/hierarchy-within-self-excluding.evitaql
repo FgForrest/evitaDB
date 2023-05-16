@@ -11,7 +11,7 @@ query(
     ),
     require(
         entityFetch(
-            attributes('code')
+            attributeContent('code')
         )
     )
 )

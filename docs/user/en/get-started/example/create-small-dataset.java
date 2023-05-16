@@ -18,21 +18,20 @@ evita.updateCatalog(
 
 		session
 			.createNewEntity("Category", 1)
-			.setHierarchicalPlacement(1)
 			.setAttribute("name", Locale.ENGLISH, "Electronics")
 			.setAttribute("name", Locale.GERMAN, "Elektronik")
 			.upsertVia(session);
 
 		session
 			.createNewEntity("Category", 2)
-			.setHierarchicalPlacement(1, 1)
+			.setParent(1)
 			.setAttribute("name", Locale.ENGLISH, "Components")
 			.setAttribute("name", Locale.GERMAN, "Komponenten")
 			.upsertVia(session);
 
 		session
 			.createNewEntity("Category", 3)
-			.setHierarchicalPlacement(1, 2)
+			.setParent(1)
 			.setAttribute("name", Locale.ENGLISH, "Portable computer")
 			.setAttribute("name", Locale.GERMAN, "Tragbarer Computer")
 			.upsertVia(session);

@@ -47,6 +47,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.StreamSupport;
 
 import static io.evitadb.core.query.filter.FilterByVisitor.createFormulaForTheFilter;
@@ -69,10 +70,10 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		return queryContext.computeOnlyOnce(
 			hierarchyWithin,
 			() -> {
-				final String referenceName = hierarchyWithin.getReferenceName();
+				final Optional<String> referenceName = hierarchyWithin.getReferenceName();
 
 				final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
-				final ReferenceSchemaContract referenceSchema = ofNullable(referenceName)
+				final ReferenceSchemaContract referenceSchema = referenceName
 					.map(entitySchema::getReferenceOrThrowException)
 					.orElse(null);
 				final EntitySchemaContract targetEntitySchema = ofNullable(referenceSchema)
@@ -81,7 +82,10 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 
 				Assert.isTrue(
 					targetEntitySchema.isWithHierarchy(),
-					() -> new TargetEntityIsNotHierarchicalException(referenceName, targetEntitySchema.getName())
+					() -> new TargetEntityIsNotHierarchicalException(
+						ofNullable(referenceSchema).map(ReferenceSchemaContract::getName).orElse(null),
+						targetEntitySchema.getName()
+					)
 				);
 
 				final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();

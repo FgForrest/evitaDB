@@ -42,9 +42,9 @@ focus on the category *Accessories* in our [demo dataset](../../get-started/quer
 
 ### Self
 
-**Syntax:**
+setParent
 
-```evitaql
+```evitaql-syntax
 hierarchyWithin(
     filterConstraint:any!,
     filterConstraint:(directRelation|having|excluding|excludingRoot)*
@@ -120,9 +120,7 @@ Yes, it can. Although, it's apparently one of the edge cases, it's possible. Thi
 
 ### Referenced entity
 
-**Syntax:**
-
-```evitaql
+```evitaql-syntax
 hierarchyWithin(
     argument:string!,
     filterConstraint:any!,
@@ -200,9 +198,7 @@ your entity hierarchy and this virtual top root is targeted by this constraint.
 
 ### Self
 
-**Syntax:**
-
-```evitaql
+```evitaql-syntax
 hierarchyWithinRoot(
     filterConstraint:(directRelation|excluding)*
 )
@@ -244,9 +240,7 @@ The query returns the first page of a total of 2 pages of items.
 
 ### Referenced entity
 
-**Syntax:**
-
-```evitaql
+```evitaql-syntax
 hierarchyWithinRoot(
     argument:string!,   
     filterConstraint:(having|excluding)*
@@ -307,9 +301,7 @@ all hierarchy children of the parent node or entities that are transitively or d
 node itself. If the `directRelation` is used as a sub-constraint, this behavior changes and only direct descendants or 
 directly referencing entities are matched.
 
-**Syntax:**
-
-```evitaql
+```evitaql-syntax
 directRelation()
 ```
 
@@ -395,9 +387,7 @@ all hierarchy children of the parent node or entities that are transitively or d
 node itself. When the `excludingRoot` is used as a sub-constraint, this behavior changes and the parent node itself or the
 entities directly related to that parent node are be excluded from the result.
 
-**Syntax:**
-
-```evitaql
+```evitaql-syntax
 excludingRoot()
 ```
 
@@ -484,9 +474,7 @@ subtree).
 
 </Note>
 
-**Syntax:**
-
-```evitaql
+```evitaql-syntax
 having(
     filterConstraint:+
 )
@@ -619,9 +607,7 @@ the `excluding` constraint is satisfied valid, and if so, it excludes that hiera
 
 </Note>
 
-**Syntax:**
-
-```evitaql
+```evitaql-syntax
 excluding(
     filterConstraint:+
 )
