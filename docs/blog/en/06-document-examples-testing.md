@@ -95,9 +95,10 @@ wrapper. The `DynamicTest.dynamicTest(String, URI, Executable)` method accepts t
 3. lambda in the form of `Executable`, which represents the test itself
 
 Creating a single stream of all code snippets is not practical in our case - there are too many of them, and listing 
-the tests in the IDE quickly becomes cluttered. That's why we're using another JUnit 5 invention - `DynamicNode`, which
-is designed to aggregate multiple related tests into a single "node". The node, in our case, represents a particular 
-source markdown file where the code blocks are placed (either directly or by reference).
+the tests in the IDE quickly becomes cluttered. That's why we're using another JUnit 5 invention - 
+[`DynamicContainer`](https://junit.org/junit5/docs/5.8.2/api/org.junit.jupiter.api/org/junit/jupiter/api/DynamicContainer.html),
+which is designed to aggregate multiple related tests into a single "node". The node, in our case, represents 
+a particular source markdown file where the code blocks are placed (either directly or by reference).
 
 ## Compilation and execution code snippets via. JShell
 
