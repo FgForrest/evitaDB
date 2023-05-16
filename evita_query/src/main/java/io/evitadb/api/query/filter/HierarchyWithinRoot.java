@@ -24,6 +24,7 @@
 package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
@@ -38,6 +39,11 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Optional;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * This `withinRootHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
@@ -102,30 +108,33 @@ import java.util.Arrays;
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree starting at the root of the tree (or has reference to any hierarchical entity in the tree).",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class HierarchyWithinRoot extends AbstractFilterConstraintContainer implements HierarchyFilterConstraint, SeparateEntityScopeContainer {
+public class HierarchyWithinRoot extends AbstractFilterConstraintContainer
+	implements HierarchyFilterConstraint, SeparateEntityScopeContainer, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = -4396541048481960654L;
+	private static final String SUFFIX = "self";
 
 	private HierarchyWithinRoot(@Nonnull Serializable[] argument, @Nonnull FilterConstraint[] fineGrainedConstraints, @Nonnull Constraint<?>... additionalChildren) {
 		super(argument, fineGrainedConstraints, additionalChildren);
+		final Optional<String> referenceName = getReferenceName();
 		for (FilterConstraint filterConstraint : fineGrainedConstraints) {
 			Assert.isTrue(
 				filterConstraint instanceof HierarchyExcluding ||
 						filterConstraint instanceof HierarchyHaving ||
-					(filterConstraint instanceof HierarchyDirectRelation && getReferenceName() == null),
+					(filterConstraint instanceof HierarchyDirectRelation && referenceName.isEmpty()),
 				() -> "Constraint hierarchyWithinRoot accepts only " +
-					(getReferenceName() == null ? "Excluding, Having, or DirectRelation when it targets same entity type" :
+					(referenceName.isEmpty() ? "Excluding, Having, or DirectRelation when it targets same entity type" :
 						"Excluding when it targets different entity type") + " as inner query!"
 			);
 		}
 		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
 			() -> "Constraint hierarchyWithinRoot accepts only " +
-				(getReferenceName() == null ? "Excluding, Having, or DirectRelation when it targets same entity type" :
+				(referenceName.isEmpty() ? "Excluding, Having, or DirectRelation when it targets same entity type" :
 					"Excluding when it targets different entity type") + " as inner query!"
 		);
 	}
 
-	@Creator(suffix = "self", silentImplicitClassifier = true)
+	@Creator(suffix = SUFFIX, silentImplicitClassifier = true)
 	public HierarchyWithinRoot(
 		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
 	) {
@@ -142,10 +151,18 @@ public class HierarchyWithinRoot extends AbstractFilterConstraintContainer imple
 
 	@Override
 	@Nullable
-	public String getReferenceName() {
+	public Optional<String> getReferenceName() {
 		final Serializable[] arguments = getArguments();
 		final Serializable firstArgument = arguments.length > 0 ? arguments[0] : null;
-		return firstArgument instanceof Integer ? null : (String) firstArgument;
+		return firstArgument instanceof Integer ? empty() : ofNullable((String) firstArgument);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return getReferenceName()
+			.map(it -> Optional.<String>empty())
+			.orElseGet(() -> of(SUFFIX));
 	}
 
 	/**
