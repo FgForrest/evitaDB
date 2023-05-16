@@ -44,7 +44,7 @@ focus on the category *Accessories* in our [demo dataset](../../get-started/quer
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 hierarchyWithin(
     filterConstraint:any!,
     filterConstraint:(directRelation|having|excluding|excludingRoot)*
@@ -122,7 +122,7 @@ Yes, it can. Although, it's apparently one of the edge cases, it's possible. Thi
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 hierarchyWithin(
     argument:string!,
     filterConstraint:any!,
@@ -202,7 +202,7 @@ your entity hierarchy and this virtual top root is targeted by this constraint.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 hierarchyWithinRoot(
     filterConstraint:(directRelation|excluding)*
 )
@@ -246,7 +246,7 @@ The query returns the first page of a total of 2 pages of items.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 hierarchyWithinRoot(
     argument:string!,   
     filterConstraint:(having|excluding)*
@@ -309,7 +309,7 @@ directly referencing entities are matched.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 directRelation()
 ```
 
@@ -397,7 +397,7 @@ entities directly related to that parent node are be excluded from the result.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 excludingRoot()
 ```
 
@@ -486,7 +486,7 @@ subtree).
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 having(
     filterConstraint:+
 )
@@ -621,7 +621,7 @@ the `excluding` constraint is satisfied valid, and if so, it excludes that hiera
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 excluding(
     filterConstraint:+
 )

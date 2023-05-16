@@ -87,7 +87,7 @@ extra result data structure and are available under the labels that correspond t
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 hierarchyOfSelf(
     orderConstraint:any,
     requireConstraint:(fromRoot|fromNode|siblings|children|parents)+
@@ -128,7 +128,7 @@ reality.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 hierarchyOfReference(
     argument:string+,
     argument:enum(LEAVE_EMPTY|REMOVE_EMPTY),
@@ -192,7 +192,7 @@ settings for different reference types.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 fromRoot(
     argument:string!,
     requireConstraint:(entityFetch|stopAt|statistics)*
@@ -263,7 +263,7 @@ the calculated number remains consistent for the end user.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 fromNode(
     argument:string!,
     requireConstraint:node!,
@@ -339,7 +339,7 @@ the calculated number remains consistent for the end user.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 children
     argument:string!,   
     requireConstraint:(entityFetch|stopAt|statistics)*
@@ -411,7 +411,7 @@ so that the calculated number remains consistent for the end user.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 parents
     argument:string!,   
     requireConstraint:(silings|entityFetch|stopAt|statistics)*
@@ -501,7 +501,7 @@ for the end user.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 siblings(
     argument:string!,   
     requireConstraint:(entityFetch|stopAt|statistics)*
@@ -605,7 +605,7 @@ so that the calculated number remains consistent for the end user.
 
 **Syntax:**
 
-```evitaql
+```evitaql-syntax
 stopAt(
     requireConstraint:(distance|level|node)!
 )
