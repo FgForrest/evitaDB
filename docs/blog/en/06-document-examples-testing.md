@@ -31,6 +31,11 @@ the way.
 So let's dive in.
 
 <Note type="info">
+The complete working code is available in our repository in class 
+<SourceClass>evita_functional_tests/src/test/java/io/evitadb/documentation/UserDocumentationTest.java</SourceClass>.
+</Note>
+
+<Note type="question">
 
 <NoteTitle toggles="true">
 
@@ -59,7 +64,40 @@ The extensions of these files are the key component for recognizing which langua
 
 ## Extraction of the code samples from the MarkDown
 
+Extracting the code to verify is the easiest part of the test. It consists of a deep traversal of the folder containing 
+the documentation files using Java File Walker:
+
+```java
+try (final Stream<Path> walker = Files.walk(getRootDirectory().resolve(DOCS_ROOT))) {
+	walker
+		.filter(path -> path.toString().endsWith(".md"))
+		.map(it -> extractJavaCodeBlocks(it))
+		.toList();
+}
+```
+
+... reading the file contents to a string, and extracting the code blocks either directly from the MarkDown file itself
+or from the externally referenced file. or from the externally referenced file (see the `extractJavaCodeBlocks` method
+body).
+
 ## Generating JUnit 5 dynamic tests
+
+The next piece of the puzzle is the dynamic creation of JUnit tests - ideally with a single separate test per block of 
+code example. Fortunately, the authors of the JUnit 5 framework have already thought of this and prepared support for
+[dynamic tests](https://junit.org/junit5/docs/current/user-guide/#writing-tests-dynamic-tests).
+
+Basically we need to wrap a lambda that does the test itself in a 
+[DynamicTest](https://junit.org/junit5/docs/5.8.2/api/org.junit.jupiter.api/org/junit/jupiter/api/DynamicTest.html) 
+wrapper. The `DynamicTest.dynamicTest(String, URI, Executable)` method accepts three arguments:
+
+1. name of the test to display (equivalent to `@DisplayName`)
+2. file locator (`URI`) that allows you to navigate to the source when you click on the test name in the IDE
+3. lambda in the form of `Executable`, which represents the test itself
+
+Creating a single stream of all code snippets is not practical in our case - there are too many of them, and listing 
+the tests in the IDE quickly becomes cluttered. That's why we're using another JUnit 5 invention - `DynamicNode`, which
+is designed to aggregate multiple related tests into a single "node". The node, in our case, represents a particular 
+source markdown file where the code blocks are placed (either directly or by reference).
 
 ## Compilation and execution code snippets via. JShell
 
