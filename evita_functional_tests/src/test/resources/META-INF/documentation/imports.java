@@ -77,10 +77,16 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.dataType.PaginatedList;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.Query.*;
