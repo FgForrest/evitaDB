@@ -175,7 +175,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			return SkipFormula.INSTANCE;
 		} else {
 			final Formula matchingHierarchyNodeIds = createFormulaFromHierarchyIndex(hierarchyWithin, filterByVisitor);
-			if (hierarchyWithin.getReferenceName() == null) {
+			if (hierarchyWithin.getReferenceName().isEmpty()) {
 				return matchingHierarchyNodeIds;
 			} else {
 				return createFormulaForReferencingEntities(
