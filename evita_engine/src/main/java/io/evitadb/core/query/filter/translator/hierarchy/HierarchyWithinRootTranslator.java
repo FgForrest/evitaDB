@@ -139,7 +139,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 			return SkipFormula.INSTANCE;
 		} else {
 			final Formula matchingHierarchyNodIds = createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor);
-			if (hierarchyWithinRoot.getReferenceName() == null) {
+			if (hierarchyWithinRoot.getReferenceName().isEmpty()) {
 				return matchingHierarchyNodIds;
 			} else {
 				return createFormulaForReferencingEntities(
