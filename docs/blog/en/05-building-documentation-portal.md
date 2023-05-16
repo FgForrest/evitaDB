@@ -28,8 +28,8 @@ After some research, we discovered
 the [MDX Remote example](https://github.com/vercel/next.js/tree/canary/examples/with-mdx-remote), which demonstrated how
 a simple blog could be built using the [next-mdx-remote library](https://github.com/hashicorp/next-mdx-remote) library.
 This library exposes a function and a component, `serialize` and ``<MDXRemote />``. It also enables MDX content to be
-loaded via `getStaticProps` or `getServerSideProps`. Content itself can be loaded from a local folder, a database, or *
-*any other location**, which was the crucial part.
+loaded via `getStaticProps` or `getServerSideProps`. Content itself can be loaded from a local folder, a database, or 
+**any other location**, which was the crucial part.
 
 One of the features of Next.js is the way it renders on the server side and client side. That’s crucial for the single
 page applications (SPAs) it builds, and how it helps those SPAs have much-improved success in terms of SEO (search
@@ -46,7 +46,7 @@ On top of that we knew that Next.js has other positives like:
 
 ## Gitlab/Github API
 
-At first, documents we "living" in private repository on **Gitlab** and we knew we were able
+At first, documents were "living" in private repository on **Gitlab** and we knew we were able
 to [get RAW content](https://docs.gitlab.com/ee/api/repository_files.html#get-raw-file-from-repository) of the files
 using their API and therefore provide external source to "pour" into MDX provider.
 
@@ -54,7 +54,7 @@ using their API and therefore provide external source to "pour" into MDX provide
 > to that was only matter of tweeking the actual request according
 > to [Github API guide](https://docs.github.com/en/rest/guides/getting-started-with-the-rest-api?apiVersion=2022-11-28).
 
-Here is an example of url outsourcing the data from Gitlab:
+Here is an example of URL outsourcing the data from Gitlab:
 
 ```
 https://gitlab.example.com/api/v4/projects/13083/repository/files/app%2Fmodels%2Fkey%2Erb/raw?ref=master
@@ -72,7 +72,7 @@ And here is the example of helper function I've used to get my hands on the file
 ```tsx
 import config from "../config/default";
 import {escapePathGitlab} from "./escapePathGitlab";
-// im main config I keep oll important information (HEADERS, ID, etc.)
+// im main config I keep all important information (HEADERS, ID, etc.)
 const {gitlabApiUrl} = config.genericDocsProps;
 const {headers, projectId, docsUser} = config.DocProps;
 const {branch: postsBranch} = docsUser;
@@ -149,26 +149,28 @@ export default function DocPage({source}) {
 export async function getStaticProps() {
     const documentationPath = CONFIG.docsProps.documentationPath;
     const {params} = props;
-    const gitHubFilePath = `${[documentationPath, params?.slug].join('/');
+    const gitHubFilePath = `${[documentationPath, params?.slug].join('/')}.md`;
+    
     const text = await fetchGlContentData(gitHubFilePath);
     let post;
     let mdxSource;
     const {content, data} = grayMatter(text);
     post = {content, ...data};
     mdxSource = await serialize(content, {
-    mdxOptions: {
-    remarkPlugins: [remarkGfm],
-    rehypePlugins: [rehypeSlug],
-    },
-    scope: data,
+        mdxOptions: {
+            remarkPlugins: [remarkGfm],
+            rehypePlugins: [rehypeSlug],
+        },
+        scope: data,
     });
+    
     return {
-    props: {
-    source: mdxSource,
-    },
-    notFound: post == null,
+        props: {
+            source: mdxSource,
+        },
+        notFound: post == null,
     };
-    }
+}
 
 ```
 
@@ -191,7 +193,7 @@ of one of our source files, you'll see many Custom Components we are using throu
 There are many libraries packed with components to suit our needs, and with many, we took inspiration from elsewhere and
 tweaked them as necessary. However, some features and components were built from the ground up to suit our needs.
 
-In the next post, I will sum up the core functionalities of some more advanced features we used on our Developers'
+In the next post, I will sum up the core functionalities of some more advanced features we used on our Developers
 Portal. For example, how we optimised our Components to be "transient" with plain Markdown, Gitlab/Github routing and
 display.
 
