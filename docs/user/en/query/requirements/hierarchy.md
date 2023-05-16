@@ -85,8 +85,6 @@ extra result data structure and are available under the labels that correspond t
 
 ## Hierarchy of self
 
-**Syntax:**
-
 ```evitaql-syntax
 hierarchyOfSelf(
     orderConstraint:any,
@@ -125,8 +123,6 @@ is a hierarchical entity that is also connected to another hierarchical entity. 
 reality.
 
 ## Hierarchy of reference
-
-**Syntax:**
 
 ```evitaql-syntax
 hierarchyOfReference(
@@ -189,8 +185,6 @@ The `hierarchyOfReference` can be repeated multiple times in a single query if y
 settings for different reference types.
 
 ## From root
-
-**Syntax:**
 
 ```evitaql-syntax
 fromRoot(
@@ -260,8 +254,6 @@ to respect the rules that apply to the [`hierarchyWithin`](../filtering/hierarch
 the calculated number remains consistent for the end user.
 
 ## From node
-
-**Syntax:**
 
 ```evitaql-syntax
 fromNode(
@@ -337,8 +329,6 @@ the calculated number remains consistent for the end user.
 
 ## Children
 
-**Syntax:**
-
 ```evitaql-syntax
 children
     argument:string!,   
@@ -408,8 +398,6 @@ will respect them as well. The reason is simple: when you render a menu for the 
 so that the calculated number remains consistent for the end user.
 
 ## Parents
-
-**Syntax:**
 
 ```evitaql-syntax
 parents
@@ -498,8 +486,6 @@ to the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) so that t
 for the end user.
 
 ## Siblings
-
-**Syntax:**
 
 ```evitaql-syntax
 siblings(
@@ -602,8 +588,6 @@ will respect them as well. The reason is simple: when you render a menu for the 
 so that the calculated number remains consistent for the end user.
 
 ## Stop at
-
-**Syntax:**
 
 ```evitaql-syntax
 stopAt(
