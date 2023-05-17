@@ -54,6 +54,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -115,6 +116,11 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Regex pattern for replacing a placeholder in the Java template.
 	 */
 	private static final Pattern THE_QUERY_REPLACEMENT = Pattern.compile("^(\\s*)#QUERY#.*$", Pattern.DOTALL);
+	/**
+	 * When set in System properties this class creates and overwrites Java example file with the same name as processed
+	 * EvitaQL example.
+	 */
+	private static final String CREATE_JAVA_SNIPPETS = "createJavaSnippets";
 
 	static {
 		try {
@@ -124,6 +130,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				LANGUAGE_TEMPLATES.put("evitaql", IOUtils.readLines(is, StandardCharsets.UTF_8));
 			}
 			NOT_TESTED_LANGUAGES.add("evitaql-syntax");
+			NOT_TESTED_LANGUAGES.add("md");
 		} catch (IOException ex) {
 			throw new IllegalStateException(ex);
 		}
@@ -255,6 +262,91 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Extract the extension from the file name.
+	 */
+	@Nonnull
+	private static String getFileNameExtension(@Nonnull Path referencedFile) {
+		return ofNullable(referencedFile.getFileName().toString())
+			.filter(f -> f.contains("."))
+			.map(f -> f.substring(f.lastIndexOf('.') + 1))
+			.orElseThrow(() -> new IllegalArgumentException("File name must contain `.`!"));
+	}
+
+	/**
+	 * Method converts the source format to the Java executable that can be run in {@link JShell}.
+	 *
+	 * @param sourceFormat  the file format of the source code
+	 * @param sourceContent the content of the source code
+	 * @return the source code translated from source code to Java executable code
+	 */
+	@Nonnull
+	private static String convertToRunnable(@Nonnull String sourceFormat, @Nonnull String sourceContent, @Nullable Path resource) {
+		switch (sourceFormat) {
+			case "java" -> {
+				return sourceContent;
+			}
+			case "evitaql" -> {
+				final Query theQuery;
+				try {
+					theQuery = DefaultQueryParser.getInstance().parseQueryUnsafe(sourceContent);
+				} catch (Exception ex) {
+					Assertions.fail(
+						"Failed to parse query " +
+							ofNullable(resource).map(it -> "from resource " + it).orElse("") + ": \n" +
+							sourceContent,
+						ex
+					);
+					throw ex;
+				}
+				final List<String> sourceTemplate = LANGUAGE_TEMPLATES.get(sourceFormat);
+				Assertions.assertNotNull(sourceTemplate, "Failed to find language template for " + sourceFormat);
+				final String javaCode = sourceTemplate
+					.stream()
+					.map(theLine -> {
+						final Matcher replacementMatcher = THE_QUERY_REPLACEMENT.matcher(theLine);
+						if (replacementMatcher.matches()) {
+							return JavaPrettyPrintingVisitor.toString(theQuery, "\t", replacementMatcher.group(1));
+						} else {
+							return theLine;
+						}
+					})
+					.collect(Collectors.joining("\n"));
+				if (resource != null && System.getProperty(CREATE_JAVA_SNIPPETS) != null) {
+					final String sourceFileName = resource.getFileName().toString();
+					final Path writeFileName = resource.resolveSibling(
+						sourceFileName.substring(0, sourceFileName.lastIndexOf('.')) + ".java"
+					);
+					try {
+						Files.writeString(
+							writeFileName, javaCode,
+							StandardCharsets.UTF_8,
+							StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE, StandardOpenOption.WRITE
+						);
+					} catch (IOException e) {
+						Assertions.fail(e);
+					}
+				}
+				return javaCode;
+			}
+			default -> throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
+		}
+	}
+
+	/**
+	 * Reads UTF-8 string content from the file.
+	 */
+	@Nonnull
+	private static String readFileContent(@Nonnull Path path) {
+		try {
+			return Files.readString(path, StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			Assertions.fail(e);
+			// doesn't happen
+			return "";
+		}
+	}
+
+	/**
 	 * This test scans all MarkDown files in the user documentation directory and generates {@link DynamicTest}
 	 * instances for each source code block found. Tests are organized in nodes that represents the file they're part
 	 * of. The first test of the document always initializes the JShell instance, the last test finalizes the JShell
@@ -297,6 +389,18 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * The test is disabled and should be used only for "debugging" snippets in certain documentation file.
+	 */
+	@DisplayName("Create Java snippets from EvitaQL examples")
+	@TestFactory
+	@Tag(DOCUMENTATION_TEST)
+	@Disabled
+	Stream<DynamicTest> testSingleFileDocumentationAndCreateJavaSnippets() {
+		System.setProperty(CREATE_JAVA_SNIPPETS, "true");
+		return this.createTests(getRootDirectory().resolve("docs/user/en/query/filtering/hierarchy.md")).stream();
+	}
+
+	/**
 	 * Method creates list of {@link DynamicTest} instances for all code blocks in the file of given {@link Path}.
 	 * Method returns empty collection if no code block is found.
 	 */
@@ -305,7 +409,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		// find code blocks
 		final List<CodeSnippet> codeSnippets = extractJavaCodeBlocks(path);
 		// and create an index for them for resolving the dependencies
-		final Map<String, CodeSnippet> codeSnippetIndex = codeSnippets
+		final Map<Path, CodeSnippet> codeSnippetIndex = codeSnippets
 			.stream()
 			.collect(
 				Collectors.toMap(
@@ -318,13 +422,19 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		final AtomicReference<JShell> jShellReference = new AtomicReference<>();
 		final Stream<DynamicTest> tests = codeSnippets
 			.stream()
+			.flatMap(
+				it -> Stream.concat(
+					Stream.of(it),
+					ofNullable(it.relatedSnippets()).stream().flatMap(Arrays::stream)
+				)
+			)
 			.map(
 				codeSnippet ->
 					dynamicTest(
 						// use the name from the code snippet for the name of the test
 						codeSnippet.name(),
 						// if the code snippet refers to an external file, link it here, so that clicks work in IDE
-						ofNullable(codeSnippet.path()).map(it -> Path.of(it).toUri()).orElse(null),
+						ofNullable(codeSnippet.path()).map(Path::toUri).orElse(null),
 						// then execute the snippet
 						() -> {
 							final JShell jShell = getOrInitJShell(jShellReference);
@@ -404,24 +514,19 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	private List<String> composeCodeBlockWithRequiredBlocks(
 		@Nonnull JShell jShell,
 		@Nonnull CodeSnippet codeSnippet,
-		@Nonnull Map<String, CodeSnippet> codeSnippetIndex
+		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex
 	) {
-		final String[] requires = codeSnippet.requires();
+		final Path[] requires = codeSnippet.requires();
 		if (ArrayUtils.isEmpty(requires)) {
 			// simply return contents of the code snippet as result
 			return toJavaSnippets(jShell, codeSnippet.content());
 		} else {
 			final List<String> requiredSnippet = new LinkedList<>();
-			for (String require : requires) {
+			for (Path require : requires) {
 				final CodeSnippet requiredScript = codeSnippetIndex.get(require);
 				// if the code snippet is not found in the index, it's read from the file system
 				if (requiredScript == null) {
-					try {
-						requiredSnippet.addAll(toJavaSnippets(jShell, Files.readString(getRootDirectory().resolve(require))));
-					} catch (IOException e) {
-						Assertions.fail(codeSnippet.name() + " requires `" + require + "` which was not found!", e);
-						return Collections.emptyList();
-					}
+					requiredSnippet.addAll(toJavaSnippets(jShell, readFileContent(getRootDirectory().resolve(require))));
 				} else {
 					requiredSnippet.addAll(composeCodeBlockWithRequiredBlocks(jShell, requiredScript, codeSnippetIndex));
 				}
@@ -439,108 +544,100 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private List<CodeSnippet> extractJavaCodeBlocks(@Nonnull Path path) {
-		try {
-			final String fileContent = Files.readString(path);
-			final AtomicInteger index = new AtomicInteger();
-			final List<CodeSnippet> result = new LinkedList<>();
+		final String fileContent = readFileContent(path);
+		final AtomicInteger index = new AtomicInteger();
+		final List<CodeSnippet> result = new LinkedList<>();
 
-			final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
-			while (sourceCodeMatcher.find()) {
-				final String format = sourceCodeMatcher.group(1);
-				if (!NOT_TESTED_LANGUAGES.contains(format)) {
-					result.add(
-						new CodeSnippet(
-							"Example #" + index.incrementAndGet(),
+		final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
+		while (sourceCodeMatcher.find()) {
+			final String format = sourceCodeMatcher.group(1);
+			if (!NOT_TESTED_LANGUAGES.contains(format)) {
+				result.add(
+					new CodeSnippet(
+						"Example #" + index.incrementAndGet(),
+						format,
+						null,
+						null,
+						convertToRunnable(
 							format,
-							null,
-							convertToRunnable(
-								format,
-								sourceCodeMatcher.group(2),
-								null
-							),
+							sourceCodeMatcher.group(2),
 							null
-						)
-					);
-				}
+						),
+						null
+					)
+				);
 			}
-
-			final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
-			while (sourceCodeTabsMatcher.find()) {
-				final Path referencedFile = getRootDirectory().resolve(sourceCodeTabsMatcher.group(3));
-				final String format = ofNullable(referencedFile.getFileName().toString())
-					.filter(f -> f.contains("."))
-					.map(f -> f.substring(f.lastIndexOf('.') + 1))
-					.orElseThrow(() -> new IllegalArgumentException("File name must contain `.`!"));
-				if (!NOT_TESTED_LANGUAGES.contains(format)) {
-					result.add(
-						new CodeSnippet(
-							"Example `" + referencedFile.getFileName() + "`",
-							format,
-							referencedFile.toAbsolutePath().toString(),
-							convertToRunnable(
-								format,
-								Files.readString(referencedFile),
-								referencedFile
-							),
-							ofNullable(sourceCodeTabsMatcher.group(2))
-								.map(
-									requires -> Arrays.stream(requires.split(","))
-										.filter(it -> !it.isBlank())
-										.map(it -> getRootDirectory().resolve(it).toAbsolutePath().toString())
-										.toArray(String[]::new)
-								)
-								.orElse(null)
-						)
-					);
-				}
-			}
-			return result;
-		} catch (IOException e) {
-			Assertions.fail(e);
-			return Collections.emptyList();
 		}
+
+		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
+		while (sourceCodeTabsMatcher.find()) {
+			final Path referencedFile = getRootDirectory().resolve(sourceCodeTabsMatcher.group(3));
+			final String referencedFileExtension = getFileNameExtension(referencedFile);
+			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
+				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))
+					.map(
+						requires -> Arrays.stream(requires.split(","))
+							.filter(it -> !it.isBlank())
+							.map(it -> getRootDirectory().resolve(it).toAbsolutePath())
+							.toArray(Path[]::new)
+					)
+					.orElse(null);
+				result.add(
+					new CodeSnippet(
+						"Example `" + referencedFile.getFileName() + "`",
+						referencedFileExtension,
+						referencedFile.toAbsolutePath(),
+						findRelatedFiles(referencedFile)
+							.map(relatedFile -> {
+								final String relatedFileExtension = getFileNameExtension(relatedFile);
+								return new CodeSnippet(
+									"Example `" + relatedFile.getFileName() + "`",
+									relatedFileExtension,
+									relatedFile.toAbsolutePath(),
+									null,
+									convertToRunnable(
+										relatedFileExtension,
+										readFileContent(relatedFile),
+										relatedFile
+									),
+									requiredScripts
+								);
+							})
+							.toArray(CodeSnippet[]::new),
+						convertToRunnable(
+							referencedFileExtension,
+							readFileContent(referencedFile),
+							referencedFile
+						),
+						requiredScripts
+					)
+				);
+			}
+		}
+		return result;
 	}
 
 	/**
-	 * Method converts the source format to the Java executable that can be run in {@link JShell}.
-	 *
-	 * @param sourceFormat  the file format of the source code
-	 * @param sourceContent the content of the source code
-	 * @return the source code translated from source code to Java executable code
+	 * Returns array of files with same name and different extension from the same directory.
 	 */
 	@Nonnull
-	private static String convertToRunnable(@Nonnull String sourceFormat, @Nonnull String sourceContent, @Nullable Path resource) {
-		switch (sourceFormat) {
-			case "java" -> { return sourceContent; }
-			case "evitaql" -> {
-				final Query theQuery;
-				try {
-					theQuery = DefaultQueryParser.getInstance().parseQueryUnsafe(sourceContent);
-				} catch (Exception ex) {
-					Assertions.fail(
-						"Failed to parse query " +
-							ofNullable(resource).map(it -> "from resource " + it).orElse("") + ": \n" +
-							sourceContent,
-						ex
-					);
-					throw ex;
-				}
-				final List<String> sourceTemplate = LANGUAGE_TEMPLATES.get(sourceFormat);
-				Assertions.assertNotNull(sourceTemplate, "Failed to find language template for " + sourceFormat);
-				final String result = sourceTemplate
-					.stream()
-					.map(theLine -> {
-						final Matcher replacementMatcher = THE_QUERY_REPLACEMENT.matcher(theLine);
-						if (replacementMatcher.matches()) {
-							return JavaPrettyPrintingVisitor.toString(theQuery, "\t", replacementMatcher.group(1));
-						} else {
-							return theLine;
-						}
-					})
-					.collect(Collectors.joining("\n"));
-				return result;
-			}
-			default -> throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
+	private Stream<Path> findRelatedFiles(@Nonnull Path theFile) {
+		try {
+			final String theFileName = theFile.getFileName().toString();
+			final String theFileExtension = getFileNameExtension(theFile);
+			return Files.list(theFile.getParent())
+				.filter(it -> {
+					final String fileName = it.getFileName().toString();
+					final String fileNameExtension = getFileNameExtension(it);
+					return !NOT_TESTED_LANGUAGES.contains(fileNameExtension) &&
+						fileName.substring(0, fileName.length() - fileNameExtension.length())
+							.equals(theFileName.substring(0, theFileName.length() - theFileExtension.length()));
+				});
+		} catch (IOException e) {
+			Assertions.fail(
+				e.getMessage()
+			);
+			return null;
 		}
 	}
 
@@ -556,9 +653,10 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	private record CodeSnippet(
 		@Nonnull String name,
 		@Nonnull String format,
-		@Nullable String path,
+		@Nullable Path path,
+		@Nullable CodeSnippet[] relatedSnippets,
 		@Nonnull String content,
-		@Nullable String[] requires
+		@Nullable Path[] requires
 	) {
 	}
 
