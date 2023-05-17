@@ -503,7 +503,7 @@ siblings(
 ##### Different `siblings` syntax when used within `parents` parent constraint
 </NoteTitle>
 
-```evitaql
+```evitaql-syntax
 siblings(      
     requireConstraint:(entityFetch|stopAt|statistics)*
 )
@@ -615,7 +615,7 @@ one of the allowed nested constraints. See the usage examples for specific neste
 
 ## Distance
 
-```evitaql
+```evitaql-syntax
 distance(
     argument:int!
 )
@@ -663,7 +663,7 @@ also returns a computed *parent* data structure that lists single direct parent 
 
 ## Level
 
-```evitaql
+```evitaql-syntax
 level(
     argument:int!
 )
@@ -709,7 +709,7 @@ category up to level two.
 
 ## Node
 
-```evitaql
+```evitaql-syntax
 node(
     filterConstraint:any+
 )
@@ -751,7 +751,7 @@ The computed result *subMenu* looks like this (visualized in JSON format):
 
 ## Statistics
 
-```evitaql
+```evitaql-syntax
 statistics(
     argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER),
     argument:enum(CHILDREN_COUNT|QUERIED_ENTITY_COUNT)+,

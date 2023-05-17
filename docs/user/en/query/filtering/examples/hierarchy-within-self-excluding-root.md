@@ -1,21 +1,22 @@
-| primary key | code                  |
-| ----------- |-----------------------|
-| 66480       | christmas-electronics |
-| 66481       | smart-wearable        |
-| 66482       | audio                 |
-| 66483       | monitors              |
-| 66484       | keyboards             |
-| 66486       | smartwatches          |
-| 66487       | smartglasses          |
-| 66488       | wireless-headphones   |
-| 66489       | wired-heaphones       |
-| 66490       | microphones           |
-| 66491       | repro                 |
-| 66492       | cz-keyboards          |
-| 66494       | true-wireless         |
-| 66495       | over-ear              |
-| 66496       | on-ear                |
-| 66497       | earbuds               |
-| 66498       | over-ear-1            |
-| 66499       | on-ear-1              |
-| 66500       | earbuds-1             |
+| entityPrimaryKey |          code          |
+|:----------------:|:----------------------:|
+|      107891      |    'amazfit-bip-3'     |
+|      107893      |   'amazfit-bip-3-1'    |
+|      107894      |   'amazfit-bip-3-2'    |
+|      107895      |   'amazfit-bip-3-3'    |
+|      107899      |  'amazfit-bip-3-pro'   |
+|      107900      | 'amazfit-bip-3-pro-1'  |
+|      107901      | 'amazfit-bip-3-pro-2'  |
+|      107902      | 'amazfit-bip-3-pro-3'  |
+|      107911      |    'amazfit-bip-s'     |
+|      107913      |   'amazfit-bip-s-1'    |
+|      107915      |   'amazfit-bip-s-2'    |
+|      107917      |   'amazfit-bip-s-3'    |
+|      107919      |   'amazfit-bip-s-4'    |
+|      107923      |  'amazfit-bip-s-lite'  |
+|      107924      | 'amazfit-bip-s-lite-1' |
+|      107925      | 'amazfit-bip-s-lite-2' |
+|      107926      | 'amazfit-bip-s-lite-3' |
+|      107933      |    'amazfit-bip-u'     |
+|      107934      |   'amazfit-bip-u-1'    |
+|      107935      |   'amazfit-bip-u-2'    |

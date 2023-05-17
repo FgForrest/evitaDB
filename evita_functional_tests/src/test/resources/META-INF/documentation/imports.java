@@ -93,5 +93,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+import static io.evitadb.api.query.filter.AttributeSpecialValue.*;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.Query.*;

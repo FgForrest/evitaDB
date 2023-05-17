@@ -5,7 +5,10 @@ query(
             'categories',
             attributeEquals('code', 'accessories'),
             having(
-                attributeInRange('validity', 2023-10-01T01:00:00-01:00)
+                or(
+                    attributeIsNull('validity'),
+                    attributeInRange('validity', 2023-10-01T01:00:00-01:00)
+                )
             )
         )
     ),

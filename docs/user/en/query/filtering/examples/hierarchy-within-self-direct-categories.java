@@ -3,10 +3,9 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 	session -> {
 		return session.querySealedEntity(
 			query(
-				collection("Product"),
+				collection("Category"),
 				filterBy(
-					hierarchyWithin(
-						"categories",
+					hierarchyWithinSelf(
 						attributeEquals("code", "accessories"),
 						directRelation()
 					)
