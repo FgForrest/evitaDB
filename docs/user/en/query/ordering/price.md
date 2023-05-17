@@ -13,3 +13,5 @@ This article will contain copy of:
 - [desc](https://evitadb.io/research/assignment/querying/query_language#price-descending)
 
 once it's proof-read.
+
+## Price natural
