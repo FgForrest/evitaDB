@@ -20,3 +20,5 @@
 | 66576            | 'macbook-pro-13-2022-17' |
 | 66577            | 'macbook-pro-13-2022-18' |
 | 66578            | 'macbook-pro-14-2021'    |
+
+**Total number of results:** 4223

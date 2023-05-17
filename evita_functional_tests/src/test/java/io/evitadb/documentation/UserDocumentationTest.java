@@ -119,9 +119,27 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Reads UTF-8 string executable from the file.
 	 */
 	@Nonnull
-	public static String readFileContent(@Nonnull Path path) {
+	public static String readFile(@Nonnull Path path) {
 		try {
 			return Files.readString(path, StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			Assertions.fail(e);
+			// doesn't happen
+			return "";
+		}
+	}
+
+	/**
+	 * Reads UTF-8 string executable from the file with changed extension.
+	 */
+	@Nonnull
+	public static String readFile(@Nonnull Path path, @Nonnull String extension) {
+		final String sourceFileName = path.getFileName().toString();
+		final Path readFileName = path.resolveSibling(
+			sourceFileName.substring(0, sourceFileName.lastIndexOf('.')) + extension
+		);
+		try {
+			return Files.readString(readFileName, StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			Assertions.fail(e);
 			// doesn't happen
@@ -270,7 +288,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		// and create an index for them for resolving the dependencies
 		final Map<Path, CodeSnippet> codeSnippetIndex = new HashMap<>();
 
-		final String fileContent = readFileContent(path);
+		final String fileContent = readFile(path);
 		final AtomicInteger index = new AtomicInteger();
 		final List<CodeSnippet> codeSnippets = new LinkedList<>();
 		final TestContextProvider contextAccessor = new TestContextProvider();
@@ -327,7 +345,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									null,
 									convertToRunnable(
 										relatedFileExtension,
-										readFileContent(relatedFile),
+										readFile(relatedFile),
 										relatedFile,
 										requiredScripts,
 										contextAccessor,
@@ -338,7 +356,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							.toArray(CodeSnippet[]::new),
 						convertToRunnable(
 							referencedFileExtension,
-							readFileContent(referencedFile),
+							readFile(referencedFile),
 							referencedFile,
 							requiredScripts,
 							contextAccessor,

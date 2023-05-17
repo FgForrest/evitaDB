@@ -20,3 +20,5 @@
 | 66499            | 'on-ear-1'            |
 | 66500            | 'earbuds-1'           |
 | 66537            | 'mouses'              |
+
+**Total number of results:** 21

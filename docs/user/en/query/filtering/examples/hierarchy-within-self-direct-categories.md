@@ -7,3 +7,5 @@
 | 66483            | 'monitors'              |
 | 66484            | 'keyboards'             |
 | 66537            | 'mouses'                |
+
+**Total number of results:** 7

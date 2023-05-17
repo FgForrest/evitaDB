@@ -20,3 +20,5 @@
 | 66483            | 'monitors'              |
 | 66484            | 'keyboards'             |
 | 66486            | 'smartwatches'          |
+
+**Total number of results:** 36

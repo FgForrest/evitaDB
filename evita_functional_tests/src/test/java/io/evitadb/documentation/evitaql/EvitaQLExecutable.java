@@ -40,6 +40,7 @@ import io.evitadb.driver.EvitaClient;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.table.Table;
 import org.apache.commons.io.IOUtils;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
@@ -59,6 +60,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -202,7 +204,7 @@ public class EvitaQLExecutable implements Executable {
 		}
 
 		// generate MarkDown
-		return tableBuilder.build().serialize();
+		return tableBuilder.build().serialize() + "\n\n**Total number of results:** " + response.getTotalRecordCount();
 	}
 
 	@Override
@@ -236,13 +238,18 @@ public class EvitaQLExecutable implements Executable {
 		);
 
 		if (resource != null) {
+			final String markdownSnippet = generateMarkdownSnippet(theQuery, theResult);
+			Assertions.assertEquals(
+				markdownSnippet,
+				readFile(resource, ".md")
+			);
+
 			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.JAVA)) {
 				final String javaSnippet = generateJavaSnippet(theQuery);
 				writeFile(resource, ".java", javaSnippet);
 			}
 			// generate Markdown snippet from the result if required
 			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
-				final String markdownSnippet = generateMarkdownSnippet(theQuery, theResult);
 				writeFile(resource, ".md", markdownSnippet);
 			}
 		}

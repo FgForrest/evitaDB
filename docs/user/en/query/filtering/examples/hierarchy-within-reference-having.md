@@ -20,3 +20,5 @@
 | 107933           | 'amazfit-bip-u'        |
 | 107934           | 'amazfit-bip-u-1'      |
 | 107935           | 'amazfit-bip-u-2'      |
+
+**Total number of results:** 491
