@@ -174,9 +174,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					createSnippets
 				);
 			}
-			default -> {
-				throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
-			}
+			default -> throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
 		}
 	}
 

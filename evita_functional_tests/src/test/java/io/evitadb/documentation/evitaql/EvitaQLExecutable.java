@@ -181,7 +181,7 @@ public class EvitaQLExecutable implements Executable {
 
 		// define the table with header line
 		Table.Builder tableBuilder = new Table.Builder()
-			.withAlignment(Table.ALIGN_CENTER)
+			.withAlignment(Table.ALIGN_LEFT)
 			.addRow((Object[]) headers);
 
 		// add rows

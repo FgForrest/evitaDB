@@ -1,1 +1,1 @@
-| entityPrimaryKey | code ||:----------------:|:----:|
+| entityPrimaryKey | code || ---------------- | ---- |
