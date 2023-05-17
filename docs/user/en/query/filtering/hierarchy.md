@@ -583,7 +583,7 @@ of the tree.
 
 ## Excluding
 
-The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyHaving.java</SourceClass>
+The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyExcluding.java</SourceClass>
 is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
 makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
 all hierarchy children of the parent node or entities that are transitively or directly related to them, and the parent
