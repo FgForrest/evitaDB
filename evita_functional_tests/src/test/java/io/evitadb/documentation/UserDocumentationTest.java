@@ -46,15 +46,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -133,17 +125,21 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Reads UTF-8 string executable from the file with changed extension.
 	 */
 	@Nonnull
-	public static String readFile(@Nonnull Path path, @Nonnull String extension) {
+	public static Optional<String> readFile(@Nonnull Path path, @Nonnull String extension) {
 		final String sourceFileName = path.getFileName().toString();
 		final Path readFileName = path.resolveSibling(
 			sourceFileName.substring(0, sourceFileName.lastIndexOf('.')) + extension
 		);
 		try {
-			return Files.readString(readFileName, StandardCharsets.UTF_8);
+			if (readFileName.toFile().exists()) {
+				return Optional.of(Files.readString(readFileName, StandardCharsets.UTF_8));
+			} else {
+				return Optional.empty();
+			}
 		} catch (IOException e) {
 			Assertions.fail(e);
 			// doesn't happen
-			return "";
+			return Optional.empty();
 		}
 	}
 
@@ -259,7 +255,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/filtering/hierarchy.md")
+			getRootDirectory().resolve("docs/user/en/use/api/query-data.md")
 		).stream();
 	}
 
@@ -329,42 +325,42 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							.toArray(Path[]::new)
 					)
 					.orElse(null);
-				codeSnippets.add(
-					new CodeSnippet(
-						"Example `" + referencedFile.getFileName() + "`",
-						referencedFileExtension,
-						referencedFile.toAbsolutePath(),
-						findRelatedFiles(referencedFile)
-							.stream()
-							.map(relatedFile -> {
-								final String relatedFileExtension = getFileNameExtension(relatedFile);
-								return new CodeSnippet(
-									"Example `" + relatedFile.getFileName() + "`",
+				final CodeSnippet codeSnippet = new CodeSnippet(
+					"Example `" + referencedFile.getFileName() + "`",
+					referencedFileExtension,
+					referencedFile.toAbsolutePath(),
+					findRelatedFiles(referencedFile)
+						.stream()
+						.map(relatedFile -> {
+							final String relatedFileExtension = getFileNameExtension(relatedFile);
+							return new CodeSnippet(
+								"Example `" + relatedFile.getFileName() + "`",
+								relatedFileExtension,
+								relatedFile.toAbsolutePath(),
+								null,
+								convertToRunnable(
 									relatedFileExtension,
-									relatedFile.toAbsolutePath(),
-									null,
-									convertToRunnable(
-										relatedFileExtension,
-										readFile(relatedFile),
-										relatedFile,
-										requiredScripts,
-										contextAccessor,
-										codeSnippetIndex
-									)
-								);
-							})
-							.toArray(CodeSnippet[]::new),
-						convertToRunnable(
-							referencedFileExtension,
-							readFile(referencedFile),
-							referencedFile,
-							requiredScripts,
-							contextAccessor,
-							codeSnippetIndex,
-							createSnippets
-						)
+									readFile(relatedFile),
+									relatedFile,
+									requiredScripts,
+									contextAccessor,
+									codeSnippetIndex
+								)
+							);
+						})
+						.toArray(CodeSnippet[]::new),
+					convertToRunnable(
+						referencedFileExtension,
+						readFile(referencedFile),
+						referencedFile,
+						requiredScripts,
+						contextAccessor,
+						codeSnippetIndex,
+						createSnippets
 					)
 				);
+				codeSnippets.add(codeSnippet);
+				codeSnippetIndex.put(codeSnippet.path(), codeSnippet);
 			}
 		}
 

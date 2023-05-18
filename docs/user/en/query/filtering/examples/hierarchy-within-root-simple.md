@@ -21,4 +21,4 @@
 | 66484            | 'keyboards'             |
 | 66486            | 'smartwatches'          |
 
-**Total number of results:** 36
+###### **Total number of results:** 36

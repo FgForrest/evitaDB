@@ -10,4 +10,4 @@
 | 66499            | 'on-ear-1'            |
 | 66500            | 'earbuds-1'           |
 
-**Total number of results:** 9
+###### **Total number of results:** 9
