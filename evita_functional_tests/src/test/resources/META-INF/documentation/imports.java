@@ -86,12 +86,18 @@ import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.data.NonSerializedData;
+import io.evitadb.dataType.data.DiscardedData;
+import io.evitadb.utils.ReflectionLookup;
+import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.net.URL;
+import lombok.Data;
 
 import static io.evitadb.api.query.filter.AttributeSpecialValue.*;
 import static io.evitadb.api.query.QueryConstraints.*;
