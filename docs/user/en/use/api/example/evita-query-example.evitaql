@@ -1,5 +1,5 @@
 query(
-   collection('product'),
+   collection('Product'),
    filterBy(
       and(
          hierarchyWithin(
@@ -19,7 +19,7 @@ query(
                   attributeInSet('code', 'gluten-free', 'original-recipe')
                )
             ),
-            priceBetween('600', '1600')
+            priceBetween(600, 1600)
          )
       )
    ),

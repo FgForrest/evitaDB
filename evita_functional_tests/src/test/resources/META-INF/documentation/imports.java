@@ -69,6 +69,11 @@ import java.util.Locale;
 import java.util.Currency;
 import java.lang.AutoCloseable;
 import java.math.BigDecimal;
+import java.time.LocalTime;
+import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
@@ -88,5 +93,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+import static io.evitadb.api.query.filter.AttributeSpecialValue.*;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.Query.*;

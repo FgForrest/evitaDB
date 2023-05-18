@@ -60,9 +60,7 @@ There can be multiple sub-constraints, and each constraint can be duplicated (us
 Each hierarchy sub-constraint defines a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) 
 argument with a named value that allows to associate the request constraint with the computed result data structure
 in <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
-extra result. Calculated data is not affected by the `hierarchyWithin` filter constraint - the query can filter entities 
-using `hierarchyWithin` from category *Accessories*, while still allowing you to calculate menu at root level (using 
-[`fromRoot`](#from-root)) or menu specific to different parent of the hierarchical tree (using [`fromNode`](#from-node)).
+extra result.
 
 <Note type="info">
 
@@ -97,8 +95,7 @@ hierarchyOfSelf(
     <dd>
         optional ordering constraint that allows you to specify an order of 
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> 
-        `LevelInfo` elements in the result hierarchy data structure; the order can be overridden per sub-constraint 
-        if necessary
+        `LevelInfo` elements in the result hierarchy data structure
     </dd>
     <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
     <dd>
@@ -156,8 +153,7 @@ hierarchyOfReference(
     <dd>
         optional ordering constraint that allows you to specify an order of 
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> 
-        `LevelInfo` elements in the result hierarchy data structure; the order can be overridden per sub-constraint if
-        necessary
+        `LevelInfo` elements in the result hierarchy data structure
     </dd>
     <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
     <dd>
@@ -217,9 +213,13 @@ The `fromRoot` requirement computes the hierarchy tree starting from the "virtua
 regardless of the potential use of the `hierarchyWithin` constraint in the filtering part of the query. The scope of 
 the calculated information can be controlled by the [`stopAt`](#stop-at) constraint. By default, the traversal goes all 
 the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access statistical data, 
-use [`statistics`](#statistics) constraint. Please keep in mind that the full statistic calculation can be
-particularly expensive in the case of the `fromRoot` requirement - it usually requires aggregation for the entire
-queried dataset (see [more information about the calculation](#computational-complexity-of-statistical-data-calculation)).
+use [`statistics`](#statistics) constraint. Calculated data is not affected by the `hierarchyWithin` filter constraint - 
+the query can filter entities using `hierarchyWithin` from category *Accessories*, while still allowing you to correctly
+compute menu at root level.
+
+Please keep in mind that the full statistic calculation can be particularly expensive in the case of the `fromRoot`
+requirement - it usually requires aggregation for the entire queried dataset
+(see [more information about the calculation](#computational-complexity-of-statistical-data-calculation)).
 
 <Note type="info">
 
@@ -292,8 +292,10 @@ The `fromNode` requirement computes the hierarchy tree starting from the pivot n
 by the [`node`](#node) inner constraint. The `fromNode` calculates the result regardless of the potential use of 
 the `hierarchyWithin` constraint in the filtering part of the query. The scope of the calculated
 information can be controlled by the [`stopAt`](#stop-at) constraint. By default, the traversal goes all the way to
-the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access statistical data, use
-[`statistics`](#statistics) constraint.
+the bottom of the hierarchy tree unless you tell it to stop at anywhere. Calculated data is not affected by 
+the `hierarchyWithin` filter constraint - the query can filter entities using `hierarchyWithin` from category 
+*Accessories*, while still allowing you to correctly compute menu at different node defined in a `fromNode` requirement. 
+If you need to access statistical data, use [`statistics`](#statistics) constraint.
 
 <Note type="info">
 
@@ -501,7 +503,7 @@ siblings(
 ##### Different `siblings` syntax when used within `parents` parent constraint
 </NoteTitle>
 
-```evitaql
+```evitaql-syntax
 siblings(      
     requireConstraint:(entityFetch|stopAt|statistics)*
 )
@@ -613,7 +615,7 @@ one of the allowed nested constraints. See the usage examples for specific neste
 
 ## Distance
 
-```evitaql
+```evitaql-syntax
 distance(
     argument:int!
 )
@@ -661,7 +663,7 @@ also returns a computed *parent* data structure that lists single direct parent 
 
 ## Level
 
-```evitaql
+```evitaql-syntax
 level(
     argument:int!
 )
@@ -707,7 +709,7 @@ category up to level two.
 
 ## Node
 
-```evitaql
+```evitaql-syntax
 node(
     filterConstraint:any+
 )
@@ -749,7 +751,7 @@ The computed result *subMenu* looks like this (visualized in JSON format):
 
 ## Statistics
 
-```evitaql
+```evitaql-syntax
 statistics(
     argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER),
     argument:enum(CHILDREN_COUNT|QUERIED_ENTITY_COUNT)+,
@@ -766,9 +768,9 @@ statistics(
         - **WITHOUT_USER_FILTER**: filtering query constraint where the contents of optional 
             [`userFilter`](../filtering/special.md#user-filter) are ignored
 
-        The filtering constraint always ignores `hierarchyWithin` because the focused part of the hierarchy tree is
-        defined on the requirement constraint level, but including having/excluding constraints. The filtering 
-        constraint is crucial for the calculation of `queriedEntityCount` (and therefore also affects the value of 
+        The calculation always ignores `hierarchyWithin` because the focused part of the hierarchy tree is
+        defined on the requirement constraint level, but including having/excluding constraints. The having/excluding 
+        constraints are crucial for the calculation of `queriedEntityCount` (and therefore also affects the value of 
         `childrenCount` transitively)
     </dd>
     <dt>argument:enum(CHILDREN_COUNT|QUERIED_ENTITY_COUNT)+</dt>

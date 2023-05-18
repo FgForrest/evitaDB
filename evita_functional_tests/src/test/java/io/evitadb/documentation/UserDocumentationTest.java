@@ -23,16 +23,13 @@
 
 package io.evitadb.documentation;
 
+import io.evitadb.documentation.evitaql.EvitaQLExecutable;
+import io.evitadb.documentation.evitaql.EvitaTestContextFactory;
+import io.evitadb.documentation.java.JavaExecutable;
+import io.evitadb.documentation.java.JavaTestContextFactory;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.utils.ArrayUtils;
 import jdk.jshell.JShell;
-import jdk.jshell.Snippet;
-import jdk.jshell.SnippetEvent;
-import jdk.jshell.SourceCodeAnalysis;
-import jdk.jshell.VarSnippet;
-import jdk.jshell.execution.LocalExecutionControlProvider;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
+import lombok.Getter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -41,6 +38,7 @@ import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,13 +46,20 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -77,154 +82,141 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for ``` java ``` blocks.
 	 */
 	private static final Pattern SOURCE_CODE_PATTERN = Pattern.compile(
-		"```java(.+?)```",
+		"```\s*(.*?)\s*\n(.+?)```",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
 	 * Pattern for searching for <SourceCodeTabs> blocks.
 	 */
 	private static final Pattern SOURCE_CODE_TABS_PATTERN = Pattern.compile(
-		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?>\\s*\\[.*?\\]\\((.*?)\\)\\s*</SourceCodeTabs>",
+		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
-	/**
-	 * Field contains contents of the `META-INF/documentation/imports.java` file that contains all imports required
-	 * by the tests (code snippets).
-	 */
-	private static final String STATIC_IMPORT;
 	/**
 	 * Field containing the relative directory path to the user documentation.
 	 */
 	private static final String DOCS_ROOT = "docs/user/";
+	/**
+	 * Field contains list of all languages that are not tested by this class.
+	 */
+	private static final Set<String> NOT_TESTED_LANGUAGES = new HashSet<>();
 
 	static {
+		NOT_TESTED_LANGUAGES.add("evitaql-syntax");
+		NOT_TESTED_LANGUAGES.add("md");
+		NOT_TESTED_LANGUAGES.add("bash");
+		NOT_TESTED_LANGUAGES.add("Maven");
+		NOT_TESTED_LANGUAGES.add("Gradle");
+		NOT_TESTED_LANGUAGES.add("shell");
+		NOT_TESTED_LANGUAGES.add("json");
+		NOT_TESTED_LANGUAGES.add("graphql");
+		NOT_TESTED_LANGUAGES.add("rest");
+		NOT_TESTED_LANGUAGES.add("yaml");
+		NOT_TESTED_LANGUAGES.add("plain");
+	}
+
+	/**
+	 * Reads UTF-8 string executable from the file.
+	 */
+	@Nonnull
+	public static String readFile(@Nonnull Path path) {
 		try {
-			STATIC_IMPORT = IOUtils.toString(UserDocumentationTest.class.getClassLoader().getResource("META-INF/documentation/imports.java"), StandardCharsets.UTF_8);
-		} catch (IOException ex) {
-			throw new IllegalStateException(ex);
+			return Files.readString(path, StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			Assertions.fail(e);
+			// doesn't happen
+			return "";
 		}
 	}
 
 	/**
-	 * Method parses the `sourceCode` to separate {@link Snippet} that are executable by the JShell.
+	 * Reads UTF-8 string executable from the file with changed extension.
 	 */
 	@Nonnull
-	private static List<String> toJavaSnippets(@Nonnull JShell jShell, @Nonnull String sourceCode) {
-		final SourceCodeAnalysis sca = jShell.sourceCodeAnalysis();
-		final List<String> snippets = new LinkedList<>();
-		String str = sourceCode;
-		do {
-			SourceCodeAnalysis.CompletionInfo info = sca.analyzeCompletion(str);
-			snippets.add(info.source());
-			str = info.remaining();
-		} while (str.length() > 0);
-		return snippets;
-	}
-
-	/**
-	 * Method executes the list of {@link Snippet} in passed {@link JShell} instance a verifies that the execution
-	 * finished without an error.
-	 */
-	@Nonnull
-	private static InvocationResult executeJShellCommands(@Nonnull JShell jShell, @Nonnull List<String> snippets) {
-		final StringBuilder errorBuilder = new StringBuilder(512);
-		AssertionError error = null;
-		final ArrayList<Snippet> executedSnippets = new ArrayList<>(snippets.size() << 1);
-
-		execution:
-		for (String snippet : snippets) {
-			final List<SnippetEvent> events = jShell.eval(snippet);
-			for (SnippetEvent event : events) {
-				if (!event.status().isActive()) {
-					errorBuilder.append(jShell.diagnostics(event.snippet())
-							.map(it -> "\n- [" + it.getStartPosition() + "-" + it.getEndPosition() + "] " + it.getMessage(Locale.ENGLISH))
-							.collect(Collectors.joining()))
-						.append("\nSource:\n")
-						.append(event.snippet().source());
-					break execution;
-				} else if (event.exception() != null) {
-					errorBuilder.append(
-						printException(event.exception(), new HashSet<>())
-					).append("\n");
-					break execution;
-				} else {
-					executedSnippets.add(event.snippet());
-				}
-			}
-		}
-
-		if (!errorBuilder.isEmpty()) {
-			error = new AssertionError(errorBuilder.toString());
-		}
-
-		return new InvocationResult(
-			executedSnippets,
-			error
+	public static String readFile(@Nonnull Path path, @Nonnull String extension) {
+		final String sourceFileName = path.getFileName().toString();
+		final Path readFileName = path.resolveSibling(
+			sourceFileName.substring(0, sourceFileName.lastIndexOf('.')) + extension
 		);
-	}
-
-	/**
-	 * Prints exception messages to the root cause.
-	 */
-	@Nonnull
-	private static String printException(@Nonnull Throwable exception, @Nonnull Set<Throwable> visitedExceptions) {
-		if (exception.getCause() == null) {
-			return exception.getMessage();
-		} else {
-			visitedExceptions.add(exception);
-			if (!visitedExceptions.contains(exception.getCause())) {
-				return exception.getMessage() + "\n" + printException(exception.getCause(), visitedExceptions);
-			} else {
-				return exception.getMessage();
-			}
+		try {
+			return Files.readString(readFileName, StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			Assertions.fail(e);
+			// doesn't happen
+			return "";
 		}
 	}
 
 	/**
-	 * Method returns already initialized {@link JShell} from the passed {@link AtomicReference} or creates new instance
-	 * initializes it with classpath and imports and stores it into the reference.
+	 * Extract the extension from the file name.
+	 */
+	@Nonnull
+	private static String getFileNameExtension(@Nonnull Path referencedFile) {
+		return ofNullable(referencedFile.getFileName().toString())
+			.filter(f -> f.contains("."))
+			.map(f -> f.substring(f.lastIndexOf('.') + 1))
+			.orElseThrow(() -> new IllegalArgumentException("File name must contain `.`!"));
+	}
+
+	/**
+	 * Method converts the source format to the Java executable that can be run in {@link JShell}.
 	 *
-	 * The {@link JShell} instance is reused between tests to speed them up. The {@link JShell} with full classpath
-	 * initialization takes a noticeable time we could avoid.
+	 * @param sourceFormat  the file format of the source code
+	 * @param sourceContent the executable of the source code
+	 * @return the source code translated from source code to Java executable code
 	 */
 	@Nonnull
-	private static JShell getOrInitJShell(@Nonnull AtomicReference<JShell> jShellReference) {
-		JShell jShell = jShellReference.get();
-		if (jShell == null) {
-			jShell = JShell.builder()
-				// this is faster because JVM is not forked for each test
-				.executionEngine(new LocalExecutionControlProvider(), Collections.emptyMap())
-				.out(System.out)
-				.err(System.err)
-				.build();
-			// we copy the entire classpath of this test to the JShell instance
-			Arrays.stream(System.getProperty("java.class.path").split(":"))
-				.forEach(jShell::addToClasspath);
-			jShellReference.set(jShell);
-			// and now pre initialize all necessary imports
-			executeJShellCommands(jShell, toJavaSnippets(jShell, STATIC_IMPORT));
+	private static Executable convertToRunnable(
+		@Nonnull String sourceFormat,
+		@Nonnull String sourceContent,
+		@Nullable Path resource,
+		@Nullable Path[] requiredResources,
+		@Nonnull TestContextProvider contextAccessor,
+		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex,
+		@Nonnull CreateSnippets... createSnippets
+	) {
+		switch (sourceFormat) {
+			case "java" -> {
+				return new JavaExecutable(
+					contextAccessor.get(JavaTestContextFactory.class),
+					sourceContent,
+					requiredResources,
+					codeSnippetIndex
+				);
+			}
+			case "evitaql" -> {
+				return new EvitaQLExecutable(
+					contextAccessor.get(EvitaTestContextFactory.class),
+					sourceContent,
+					resource,
+					createSnippets
+				);
+			}
+			default -> throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
 		}
-		return jShell;
 	}
 
 	/**
-	 * Method clears the tear down snippet and deletes {@link io.evitadb.core.Evita} directory if it was accessed in
-	 * test.
+	 * Returns array of files with same name and different extension from the same directory.
 	 */
-	private static void clearOnTearDown(@Nonnull JShell jShell, @Nonnull Snippet tearDownSnippet) {
-		if (tearDownSnippet instanceof VarSnippet pathDeclaration && "evitaStoragePathToClear".equals(pathDeclaration.name())) {
-			final String stringValue = jShell.varValue(pathDeclaration);
-			final String pathToClear = stringValue.substring(1, stringValue.length() - 1);
-			if (!pathToClear.isBlank()) {
-				// finally we clear the test directory itself, so that each test starts with empty one
-				try {
-					FileUtils.deleteDirectory(Path.of(pathToClear).toFile());
-				} catch (IOException ex) {
-					// ignore
-				}
-			}
+	@Nonnull
+	private static List<Path> findRelatedFiles(@Nonnull Path theFile) {
+		try (final Stream<Path> siblings = Files.list(theFile.getParent())) {
+			final String theFileName = theFile.getFileName().toString();
+			final String theFileExtension = getFileNameExtension(theFile);
+			return siblings.filter(it -> {
+				final String fileName = it.getFileName().toString();
+				final String fileNameExtension = getFileNameExtension(it);
+				return !NOT_TESTED_LANGUAGES.contains(fileNameExtension) &&
+					fileName.substring(0, fileName.length() - fileNameExtension.length())
+						.equals(theFileName.substring(0, theFileName.length() - theFileExtension.length()));
+			}).toList();
+		} catch (IOException e) {
+			Assertions.fail(
+				e.getMessage()
+			);
+			return null;
 		}
-		jShell.drop(tearDownSnippet);
 	}
 
 	/**
@@ -266,7 +258,25 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Tag(DOCUMENTATION_TEST)
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
-		return this.createTests(getRootDirectory().resolve("docs/user/en/use/api/write-data.md")).stream();
+		return this.createTests(
+			getRootDirectory().resolve("docs/user/en/query/filtering/hierarchy.md")
+		).stream();
+	}
+
+	/**
+	 * The test is disabled and should be used only for MarkDown snippets from EvitaQL examples in certain documentation
+	 * file. The MarkDown snippets are generated according to an attribute list requested by EvitaQL query and taken
+	 * from the last variable found.
+	 */
+	@DisplayName("Create Java snippets from EvitaQL examples")
+	@TestFactory
+	@Tag(DOCUMENTATION_TEST)
+	@Disabled
+	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
+		return this.createTests(
+			getRootDirectory().resolve("docs/user/en/query/filtering/hierarchy.md"),
+			CreateSnippets.JAVA, CreateSnippets.MARKDOWN
+		).stream();
 	}
 
 	/**
@@ -274,210 +284,184 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Method returns empty collection if no code block is found.
 	 */
 	@Nonnull
-	private List<DynamicTest> createTests(@Nonnull Path path) {
-		// find code blocks
-		final List<CodeSnippet> codeSnippets = extractJavaCodeBlocks(path);
+	private List<DynamicTest> createTests(@Nonnull Path path, @Nonnull CreateSnippets... createSnippets) {
 		// and create an index for them for resolving the dependencies
-		final Map<String, CodeSnippet> codeSnippetIndex = codeSnippets
-			.stream()
-			.collect(
-				Collectors.toMap(
-					CodeSnippet::path,
-					Function.identity()
-				)
-			);
+		final Map<Path, CodeSnippet> codeSnippetIndex = new HashMap<>();
 
-		// create tests
-		final AtomicReference<JShell> jShellReference = new AtomicReference<>();
-		final Stream<DynamicTest> tests = codeSnippets
-			.stream()
-			.map(
-				codeSnippet ->
-					dynamicTest(
-						// use the name from the code snippet for the name of the test
-						codeSnippet.name(),
-						// if the code snippet refers to an external file, link it here, so that clicks work in IDE
-						ofNullable(codeSnippet.path()).map(it -> Path.of(it).toUri()).orElse(null),
-						// then execute the snippet
-						() -> {
-							final JShell jShell = getOrInitJShell(jShellReference);
-							// the code block must be successfully compiled and executed without an error
-							// to mark it as ok
-							final InvocationResult result = executeJShellCommands(
-								jShell,
-								composeCodeBlockWithRequiredBlocks(jShell, codeSnippet, codeSnippetIndex)
-							);
+		final String fileContent = readFile(path);
+		final AtomicInteger index = new AtomicInteger();
+		final List<CodeSnippet> codeSnippets = new LinkedList<>();
+		final TestContextProvider contextAccessor = new TestContextProvider();
 
-							// clean up - we travel from the most recent (last) snippet to the first
-							final List<Snippet> snippets = result.snippets();
-							for (int i = snippets.size() - 1; i >= 0; i--) {
-								final Snippet snippet = snippets.get(i);
-								// if the snippet declared an AutoCloseable variable, we need to close it
-								if (snippet instanceof VarSnippet varSnippet) {
-									// there is no way how to get the reference of the variable - so the clean up
-									// must be performed by another snippet
-									executeJShellCommands(
-										jShell,
-										Arrays.asList(
-											// instanceof / cast throws a compiler exception, so that we need to
-											// work around it by runtime evaluation
-											"if (AutoCloseable.class.isInstance(" + varSnippet.name() + ")) {\n\t" +
-												"AutoCloseable.class.cast(" + varSnippet.name() + ").close();\n" +
-												"}\n",
-											// retrieve the folder location
-											"String evitaStoragePathToClear = Evita.class.isInstance(" + varSnippet.name() + ") ? Evita.class.cast(" + varSnippet.name() + ").getConfiguration().storage().storageDirectory().toAbsolutePath().toString() : \"\";\n"
-										)
-									)
-										.snippets()
-										.forEach(it -> clearOnTearDown(jShell, it));
-								}
-								// each snippet is "dropped" by the JShell instance (undone)
-								jShell.drop(snippet);
-							}
-
-							if (result.exception() != null) {
-								throw result.exception();
-							}
-						}
+		final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
+		while (sourceCodeMatcher.find()) {
+			final String format = sourceCodeMatcher.group(1);
+			if (!(format.isBlank() || NOT_TESTED_LANGUAGES.contains(format))) {
+				codeSnippets.add(
+					new CodeSnippet(
+						"Example #" + index.incrementAndGet(),
+						format,
+						null,
+						null,
+						convertToRunnable(
+							format,
+							sourceCodeMatcher.group(2),
+							null,
+							null,
+							contextAccessor,
+							codeSnippetIndex
+						)
 					)
-			);
+				);
+			}
+		}
+
+		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
+		while (sourceCodeTabsMatcher.find()) {
+			final Path referencedFile = getRootDirectory().resolve(sourceCodeTabsMatcher.group(3));
+			final String referencedFileExtension = getFileNameExtension(referencedFile);
+			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
+				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))
+					.map(
+						requires -> Arrays.stream(requires.split(","))
+							.filter(it -> !it.isBlank())
+							.map(it -> getRootDirectory().resolve(it).toAbsolutePath())
+							.toArray(Path[]::new)
+					)
+					.orElse(null);
+				codeSnippets.add(
+					new CodeSnippet(
+						"Example `" + referencedFile.getFileName() + "`",
+						referencedFileExtension,
+						referencedFile.toAbsolutePath(),
+						findRelatedFiles(referencedFile)
+							.stream()
+							.map(relatedFile -> {
+								final String relatedFileExtension = getFileNameExtension(relatedFile);
+								return new CodeSnippet(
+									"Example `" + relatedFile.getFileName() + "`",
+									relatedFileExtension,
+									relatedFile.toAbsolutePath(),
+									null,
+									convertToRunnable(
+										relatedFileExtension,
+										readFile(relatedFile),
+										relatedFile,
+										requiredScripts,
+										contextAccessor,
+										codeSnippetIndex
+									)
+								);
+							})
+							.toArray(CodeSnippet[]::new),
+						convertToRunnable(
+							referencedFileExtension,
+							readFile(referencedFile),
+							referencedFile,
+							requiredScripts,
+							contextAccessor,
+							codeSnippetIndex,
+							createSnippets
+						)
+					)
+				);
+			}
+		}
 
 		// return tests if some code blocks were found
 		return codeSnippets.isEmpty() ?
 			Collections.emptyList() :
 			Stream.of(
-					// always start with shell instance initialization
-					Stream.of(
-						dynamicTest(
-							"Init JShell",
-							() -> getOrInitJShell(jShellReference)
-						)
-					),
+					// always start with context instance initialization
+					contextAccessor.getInitTests().stream(),
 					// execute tests in between
-					tests,
-					// always finish with shell instance tear down
-					Stream.of(
-						dynamicTest(
-							"Destroy JShell",
-							() -> jShellReference.get().close()
+					codeSnippets.stream()
+						.flatMap(
+							it -> Stream.concat(
+								Stream.of(it),
+								ofNullable(it.relatedSnippets()).stream().flatMap(Arrays::stream)
+							)
 						)
-					)
+						.map(
+							codeSnippet ->
+								dynamicTest(
+									// use the name from the code snippet for the name of the test
+									codeSnippet.name(),
+									// if the code snippet refers to an external file, link it here, so that clicks work in IDE
+									ofNullable(codeSnippet.path()).map(Path::toUri).orElse(null),
+									// then execute the snippet
+									() -> codeSnippet.executableLambda().execute()
+								)
+						),
+					// always finish with context instance tear down
+					contextAccessor.getTearDownTests().stream()
 				)
 				.flatMap(Function.identity())
 				.toList();
 	}
 
 	/**
-	 * Method creates list of source code snippets that could be passed to {@link JShell} instance for compilation and
-	 * execution. If the code snippet declares another code snippet via {@link CodeSnippet#requires()} as predecessor,
-	 * the content of such predecessor code snippet is prepended to the list of snippets. If such block is not found
-	 * within the same documentation file, it's read from the file system directly.
+	 * Enum that covers all supported generation options.
 	 */
-	@Nonnull
-	private List<String> composeCodeBlockWithRequiredBlocks(
-		@Nonnull JShell jShell,
-		@Nonnull CodeSnippet codeSnippet,
-		@Nonnull Map<String, CodeSnippet> codeSnippetIndex
-	) {
-		final String[] requires = codeSnippet.requires();
-		if (ArrayUtils.isEmpty(requires)) {
-			// simply return contents of the code snippert as result
-			return toJavaSnippets(jShell, codeSnippet.content());
-		} else {
-			final List<String> requiredSnippet = new LinkedList<>();
-			for (String require : requires) {
-				final CodeSnippet requiredScript = codeSnippetIndex.get(require);
-				// if the code snippet is not found in the index, it's read from the file system
-				if (requiredScript == null) {
-					try {
-						requiredSnippet.addAll(toJavaSnippets(jShell, Files.readString(getRootDirectory().resolve(require))));
-					} catch (IOException e) {
-						Assertions.fail(codeSnippet.name() + " requires `" + require + "` which was not found!", e);
-						return Collections.emptyList();
-					}
-				} else {
-					requiredSnippet.addAll(composeCodeBlockWithRequiredBlocks(jShell, requiredScript, codeSnippetIndex));
-				}
-			}
-			// now combine both required and dependent snippets together
-			return Stream.concat(
-				requiredSnippet.stream(),
-				toJavaSnippets(jShell, codeSnippet.content()).stream()
-			).toList();
-		}
-	}
+	public enum CreateSnippets {
 
-	/**
-	 * Method extracts code blocks from the MarkDown file.
-	 */
-	@Nonnull
-	private List<CodeSnippet> extractJavaCodeBlocks(@Nonnull Path path) {
-		try {
-			final String fileContent = Files.readString(path);
-			final AtomicInteger index = new AtomicInteger();
-			final List<CodeSnippet> result = new LinkedList<>();
+		JAVA, MARKDOWN
 
-			final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
-			while (sourceCodeMatcher.find()) {
-				result.add(
-					new CodeSnippet(
-						"Example #" + index.incrementAndGet(),
-						null,
-						sourceCodeMatcher.group(1),
-						null
-					)
-				);
-			}
-
-			final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
-			while (sourceCodeTabsMatcher.find()) {
-				final Path referencedFile = getRootDirectory().resolve(sourceCodeTabsMatcher.group(3));
-				result.add(
-					new CodeSnippet(
-						"Example `" + referencedFile.getFileName() + "`",
-						referencedFile.toAbsolutePath().toString(),
-						Files.readString(referencedFile),
-						ofNullable(sourceCodeTabsMatcher.group(2))
-							.map(
-								requires -> Arrays.stream(requires.split(","))
-									.filter(it -> !it.isBlank())
-									.map(it -> getRootDirectory().resolve(it).toAbsolutePath().toString())
-									.toArray(String[]::new)
-							)
-							.orElse(null)
-					)
-				);
-			}
-			return result;
-		} catch (IOException e) {
-			Assertions.fail(e);
-			return Collections.emptyList();
-		}
 	}
 
 	/**
 	 * Record represents a code block occurrence found in the MarkDown document.
 	 *
-	 * @param name     title of the code snippet allowing its identification in the document
-	 * @param path     path to the external file containing the code snippet
-	 * @param content  content of the code snippet
-	 * @param requires reference to the required predecessor code block that must be executed before this one
+	 * @param name             title of the code snippet allowing its identification in the document
+	 * @param format           source format (language) of the example
+	 * @param path             path to the external file containing the code snippet
+	 * @param executableLambda the Java code to execute to verify the sample
 	 */
-	private record CodeSnippet(
+	public record CodeSnippet(
 		@Nonnull String name,
-		@Nullable String path,
-		@Nonnull String content,
-		@Nullable String[] requires
+		@Nonnull String format,
+		@Nullable Path path,
+		@Nullable CodeSnippet[] relatedSnippets,
+		@Nonnull Executable executableLambda
 	) {
 	}
 
 	/**
-	 * Record contains result of the Java code execution.
+	 * The class provides access and memory for existing {@link TestContext} instances, along with the
+	 * {@link DynamicTest} instances required to initialize them and tear them down (lazily).
 	 */
-	private record InvocationResult(
-		@Nonnull List<Snippet> snippets,
-		@Nullable Error exception
-	) {
+	private static class TestContextProvider {
+		@Getter
+		private final List<DynamicTest> initTests = new LinkedList<>();
+		@Getter
+		private final List<DynamicTest> tearDownTests = new LinkedList<>();
+		@SuppressWarnings("rawtypes")
+		private final Map<Class<?>, Supplier> contexts = new HashMap<>();
+
+		/**
+		 * Provides or creates and stores new instance of {@link Supplier} that provides access to the {@link TestContext}
+		 * in a lazy fashion. When the supplier is created the init/tearDown tests are automatically registered to be
+		 * executed.
+		 */
+		@Nonnull
+		public <S extends TestContext, T extends TestContextFactory<S>> Supplier<S> get(@Nonnull Class<T> factoryClass) {
+			//noinspection unchecked
+			return (Supplier<S>) contexts.computeIfAbsent(
+				factoryClass,
+				theFactoryClass -> {
+					try {
+						@SuppressWarnings("unchecked") final TestContextFactory<S> factory = (TestContextFactory<S>) theFactoryClass.getConstructor().newInstance();
+						ofNullable(factory.getInitTest()).ifPresent(initTests::add);
+						ofNullable(factory.getTearDownTest()).ifPresent(tearDownTests::add);
+						return factory::getContext;
+					} catch (Exception e) {
+						Assertions.fail(e);
+						return null;
+					}
+				}
+			);
+		}
+
 	}
 
 }

@@ -90,7 +90,8 @@ abstract class BaseConstraint<T extends Constraint<T>> implements Constraint<T> 
 	@Nonnull
 	@Override
 	public String getName() {
-		return name;
+		return name + (this instanceof ConstraintWithSuffix cws ?
+			cws.getSuffixIfApplied().map(StringUtils::capitalize).orElse("") : "");
 	}
 
 	/**

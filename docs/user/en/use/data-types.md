@@ -187,7 +187,7 @@ Associated data may even contain array of complex objects. Such data will be aut
 Storing a complex type to entity is executed as follows:
 
 ``` java
-session.createNewEntity("product", 1)
+session.createNewEntity("Product", 1)
 	   .setAssociatedData(
 	        "stockAvailability", 
 	        new ProductStockAvailability()
