@@ -10,16 +10,17 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 			)
 		),
 		require(
-			hierarchyOfSelf(
+			hierarchyOfReference(
+				"categories",
 				// request computation of all the parents of the "True wireless" category
 				parents(
 					"parentAxis",
-					entityFetch(attributeContent(code)),
+					entityFetch(attributeContent("code")),
+					siblings(),
 					statistics(
 						CHILDREN_COUNT,
 						QUERIED_ENTITY_COUNT
-					),
-					siblings()
+					)
 				)
 			)
 		)

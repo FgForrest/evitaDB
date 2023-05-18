@@ -7,15 +7,16 @@ query(
         )
     ),
     require(
-        hierarchyOfSelf(            
+        hierarchyOfReference(
+            'categories',
             parents(
                 'parentAxis',
-                entityFetch(attributeContent(code)),
+                entityFetch(attributeContent('code')),
+                siblings(),
                 statistics(
                     CHILDREN_COUNT,
                     QUERIED_ENTITY_COUNT
-                ),
-                siblings()
+                )
             )
         )
     )

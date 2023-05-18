@@ -10,13 +10,20 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 			)
 		),
 		require(
-			hierarchyOfSelf(
+			hierarchyOfReference(
+				"categories",
 				// request computation of children of the Accessories category
 				// but stop at nodes starting with letter `w`
 				children(
 					"subMenu",
-					entityFetch(attributeContent(code)),
-					stopAt(node(attributeStartsWith("code", "w")))
+					entityFetch(attributeContent("code")),
+					stopAt(
+						node(
+							filterBy(
+								attributeStartsWith("code", "w")
+							)
+						)
+					)
 				)
 			)
 		)

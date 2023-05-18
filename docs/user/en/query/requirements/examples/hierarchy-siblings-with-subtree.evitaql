@@ -7,10 +7,11 @@ query(
         )
     ),
     require(
-        hierarchyOfSelf(
+        hierarchyOfReference(
+            'categories',
             siblings(
                 'audioSiblings',
-                entityFetch(attributeContent(code)),
+                entityFetch(attributeContent('code')),
                 stopAt(distance(1)),
                 statistics(
                     CHILDREN_COUNT,

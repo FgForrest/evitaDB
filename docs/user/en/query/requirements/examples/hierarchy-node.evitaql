@@ -7,11 +7,18 @@ query(
         )
     ),
     require(
-        hierarchyOfSelf(
+        hierarchyOfReference(
+            'categories',
             children(
                 'subMenu',
-                entityFetch(attributeContent(code)),
-                stopAt(node(attributeStartsWith('code', 'w')))
+                entityFetch(attributeContent('code')),
+                stopAt(
+                    node(
+                        filterBy(
+                            attributeStartsWith('code', 'w')
+                        )
+                    )
+                )
             )
         )
     )

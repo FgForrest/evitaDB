@@ -10,12 +10,17 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 			)
 		),
 		require(
-			hierarchyOfSelf(
+			hierarchyOfReference(
+				"categories",
 				// request computation of direct children of the Portables category
 				fromNode(
 					"sideMenu1",
-					node(attributeEquals("code", "portables"))
-					entityFetch(attributeContent(code)),
+					node(
+						filterBy(
+							attributeEquals("code", "portables")
+						)
+					),
+					entityFetch(attributeContent("code")),
 					stopAt(distance(1)),
 					statistics(
 						CHILDREN_COUNT,
@@ -25,8 +30,12 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 				// request computation of direct children of the Laptops category
 				fromNode(
 					"sideMenu2",
-					node(attributeEquals("code", "laptops"))
-					entityFetch(attributeContent(code)),
+					node(
+						filterBy(
+							attributeEquals("code", "laptops")
+						)
+					),
+					entityFetch(attributeContent("code")),
 					stopAt(distance(1)),
 					statistics(
 						CHILDREN_COUNT,
