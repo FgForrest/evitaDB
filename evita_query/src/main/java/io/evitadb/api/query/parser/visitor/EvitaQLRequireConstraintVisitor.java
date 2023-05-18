@@ -31,9 +31,7 @@ import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.*;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
-import org.antlr.v4.runtime.ParserRuleContext;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -715,6 +713,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.asSerializableArray())
 					.collect(Collectors.toCollection(LinkedList::new));
 
+				// due to the varargs of any value in QL, we don't know which enum is where, on top of that it can be
+				// enum directly or just wrapper
 				final Serializable firstSettings = settings.peekFirst();
 				if (firstSettings instanceof StatisticsBase) {
 					return new HierarchyStatistics(
@@ -729,14 +729,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 							.toArray(StatisticsType[]::new)
 					);
 				}
-				if (isBase(ctx, firstSettings)) {
+				if (firstSettings instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(StatisticsBase.class)) {
 					return new HierarchyStatistics(
 						castArgument(ctx, settings.pop(), EnumWrapper.class)
 							.toEnum(StatisticsBase.class),
 						settings.stream()
 							.map(it -> {
-								if (it instanceof EnumWrapper enumWrapper) {
-									return enumWrapper.toEnum(StatisticsType.class);
+								if (it instanceof EnumWrapper statisticsType) {
+									return statisticsType.toEnum(StatisticsType.class);
 								}
 								return castArgument(ctx, it, StatisticsType.class);
 							})
@@ -756,17 +756,6 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				);
 			}
 		);
-	}
-
-	private boolean isBase(@Nonnull ParserRuleContext ctx, @Nonnull Serializable value) {
-		try {
-			// we need this hack because parser doesn't know how to differentiate between different enums right now
-			final StatisticsBase base = castArgument(ctx, value, EnumWrapper.class)
-				.toEnum(StatisticsBase.class);
-			return true;
-		} catch (EvitaInvalidUsageException ex) {
-			return false;
-		}
 	}
 
 	@Override
