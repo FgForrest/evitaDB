@@ -1125,6 +1125,9 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint0 = parseRequireConstraintUnsafe("statistics()");
 		assertEquals(statistics(), constraint0);
 
+		final RequireConstraint constraint11 = parseRequireConstraintUnsafe("statistics(CHILDREN_COUNT)");
+		assertEquals(statistics(StatisticsType.CHILDREN_COUNT), constraint11);
+
 		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("statistics(COMPLETE_FILTER)");
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER), constraint1);
 
@@ -1137,6 +1140,9 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint4 = parseRequireConstraint("statistics(?)", StatisticsBase.COMPLETE_FILTER);
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER), constraint4);
 
+		final RequireConstraint constraint12 = parseRequireConstraint("statistics(?)", StatisticsType.CHILDREN_COUNT);
+		assertEquals(statistics(StatisticsType.CHILDREN_COUNT), constraint12);
+
 		final RequireConstraint constraint5 = parseRequireConstraint("statistics(?, ?)", StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT);
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT), constraint5);
 
@@ -1148,6 +1154,12 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("base", StatisticsBase.COMPLETE_FILTER)
 		);
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER), constraint7);
+
+		final RequireConstraint constraint13 = parseRequireConstraint(
+			"statistics(@type)",
+			Map.of("type", StatisticsType.CHILDREN_COUNT)
+		);
+		assertEquals(statistics(StatisticsType.CHILDREN_COUNT), constraint13);
 
 		final RequireConstraint constraint8 = parseRequireConstraint(
 			"statistics(@base, @type)",
@@ -1169,10 +1181,9 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT), constraint9);
 
 		final RequireConstraint constraint10 = parseRequireConstraint(
-			"statistics(@base, @type)",
+			"statistics(@settings)",
 			Map.of(
-				"base", StatisticsBase.COMPLETE_FILTER,
-				"type", List.of(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+				"settings", List.of(StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 			)
 		);
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT), constraint10);
@@ -1181,7 +1192,6 @@ class EvitaQLRequireConstraintVisitorTest {
 	@Test
 	void shouldNotParseHierarchyStatisticsConstraint() {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics(CHILDREN_COUNT)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics('CHILDREN_COUNT')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics(COMPLETE_FILTER,COMPLETE_FILTER)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("statistics(CHILDREN_COUNT)"));

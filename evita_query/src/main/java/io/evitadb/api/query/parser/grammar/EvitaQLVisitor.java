@@ -606,19 +606,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitHierarchyStopAtConstraint(EvitaQLParser.HierarchyStopAtConstraintContext ctx);
 	/**
-	 * Visit a parse tree produced by the {@code emptyHierarchyStatisticsConstraint}
+	 * Visit a parse tree produced by the {@code hierarchyStatisticsConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitEmptyHierarchyStatisticsConstraint(EvitaQLParser.EmptyHierarchyStatisticsConstraintContext ctx);
-	/**
-	 * Visit a parse tree produced by the {@code fullHierarchyStatisticsConstraint}
-	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitFullHierarchyStatisticsConstraint(EvitaQLParser.FullHierarchyStatisticsConstraintContext ctx);
+	T visitHierarchyStatisticsConstraint(EvitaQLParser.HierarchyStatisticsConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code hierarchyFromRootConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.

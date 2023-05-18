@@ -1024,29 +1024,17 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitHierarchyStopAtConstraint(EvitaQLParser.HierarchyStopAtConstraintContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code emptyHierarchyStatisticsConstraint}
+	 * Enter a parse tree produced by the {@code hierarchyStatisticsConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterEmptyHierarchyStatisticsConstraint(EvitaQLParser.EmptyHierarchyStatisticsConstraintContext ctx);
+	void enterHierarchyStatisticsConstraint(EvitaQLParser.HierarchyStatisticsConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code emptyHierarchyStatisticsConstraint}
+	 * Exit a parse tree produced by the {@code hierarchyStatisticsConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitEmptyHierarchyStatisticsConstraint(EvitaQLParser.EmptyHierarchyStatisticsConstraintContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code fullHierarchyStatisticsConstraint}
-	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void enterFullHierarchyStatisticsConstraint(EvitaQLParser.FullHierarchyStatisticsConstraintContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code fullHierarchyStatisticsConstraint}
-	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void exitFullHierarchyStatisticsConstraint(EvitaQLParser.FullHierarchyStatisticsConstraintContext ctx);
+	void exitHierarchyStatisticsConstraint(EvitaQLParser.HierarchyStatisticsConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code hierarchyFromRootConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.

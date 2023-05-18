@@ -31,10 +31,13 @@ import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.api.query.require.*;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import org.antlr.v4.runtime.ParserRuleContext;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
@@ -65,8 +68,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	);
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
 	protected final EvitaQLValueTokenVisitor emptyHierarchicalEntityBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(EmptyHierarchicalEntityBehaviour.class);
-	protected final EvitaQLValueTokenVisitor statisticsBaseValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class);
-	protected final EvitaQLValueTokenVisitor statisticsTypeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsType.class);
+	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
 
 	protected final EvitaQLValueTokenVisitor priceContentArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Enum.class, PriceContentMode.class);
 
@@ -701,23 +703,70 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitEmptyHierarchyStatisticsConstraint(@Nonnull EmptyHierarchyStatisticsConstraintContext ctx) {
-		return parse(ctx, HierarchyStatistics::new);
-	}
-
-	@Override
-	public RequireConstraint visitFullHierarchyStatisticsConstraint(@Nonnull FullHierarchyStatisticsConstraintContext ctx) {
+	public RequireConstraint visitHierarchyStatisticsConstraint(@Nonnull HierarchyStatisticsConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyStatistics(
-				ctx.args.statisticsBase
-					.accept(statisticsBaseValueTokenVisitor)
-					.asEnum(StatisticsBase.class),
-				Optional.ofNullable(ctx.args.statisticsTypes)
-					.map(it -> it.accept(statisticsTypeValueTokenVisitor).asEnumArray(StatisticsType.class))
-					.orElse(new StatisticsType[0])
-			)
+			() -> {
+				if (ctx.args == null) {
+					return new HierarchyStatistics();
+				}
+				final LinkedList<Serializable> settings = Arrays.stream(ctx.args.settings
+					.accept(statisticsArgValueTokenVisitor)
+					.asSerializableArray())
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				final Serializable firstSettings = settings.peekFirst();
+				if (firstSettings instanceof StatisticsBase) {
+					return new HierarchyStatistics(
+						castArgument(ctx, settings.pop(), StatisticsBase.class),
+						settings.stream()
+							.map(it -> {
+								if (it instanceof EnumWrapper enumWrapper) {
+									return enumWrapper.toEnum(StatisticsType.class);
+								}
+								return castArgument(ctx, it, StatisticsType.class);
+							})
+							.toArray(StatisticsType[]::new)
+					);
+				}
+				if (isBase(ctx, firstSettings)) {
+					return new HierarchyStatistics(
+						castArgument(ctx, settings.pop(), EnumWrapper.class)
+							.toEnum(StatisticsBase.class),
+						settings.stream()
+							.map(it -> {
+								if (it instanceof EnumWrapper enumWrapper) {
+									return enumWrapper.toEnum(StatisticsType.class);
+								}
+								return castArgument(ctx, it, StatisticsType.class);
+							})
+							.toArray(StatisticsType[]::new)
+					);
+				}
+				return new HierarchyStatistics(
+					StatisticsBase.WITHOUT_USER_FILTER,
+					settings.stream()
+						.map(it -> {
+							if (it instanceof EnumWrapper enumWrapper) {
+								return enumWrapper.toEnum(StatisticsType.class);
+							}
+							return castArgument(ctx, it, StatisticsType.class);
+						})
+						.toArray(StatisticsType[]::new)
+				);
+			}
 		);
+	}
+
+	private boolean isBase(@Nonnull ParserRuleContext ctx, @Nonnull Serializable value) {
+		try {
+			// we need this hack because parser doesn't know how to differentiate between different enums right now
+			final StatisticsBase base = castArgument(ctx, value, EnumWrapper.class)
+				.toEnum(StatisticsBase.class);
+			return true;
+		} catch (EvitaInvalidUsageException ex) {
+			return false;
+		}
 	}
 
 	@Override

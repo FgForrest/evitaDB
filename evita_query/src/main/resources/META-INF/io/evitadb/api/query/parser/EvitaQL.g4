@@ -123,8 +123,7 @@ requireConstraint
     | 'level'                           args = valueArgs                                            # hierarchyLevelConstraint
     | 'node'                            args = filterConstraintArgs                                 # hierarchyNodeConstraint
     | 'stopAt'                          args = requireConstraintArgs                                # hierarchyStopAtConstraint
-    | 'statistics'                      emptyArgs                                                   # emptyHierarchyStatisticsConstraint
-    | 'statistics'                      args = fullHierarchyStatisticsArgs                          # fullHierarchyStatisticsConstraint
+    | 'statistics'                      (emptyArgs | args = hierarchyStatisticsArgs)                # hierarchyStatisticsConstraint
     | 'fromRoot'                        args = hierarchyRequireConstraintArgs                       # hierarchyFromRootConstraint
     | 'fromNode'                        args = hierarchyFromNodeArgs                                # hierarchyFromNodeConstraint
     | 'children'                        args = hierarchyRequireConstraintArgs                       # hierarchyChildrenConstraint
@@ -249,7 +248,7 @@ facetSummaryOfReferenceArgs :                       ARGS_OPENING (
                                                         (referenceName = classifierToken ARGS_DELIMITER depth = valueToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
                                                     ) ARGS_CLOSING ;
 
-fullHierarchyStatisticsArgs :                       ARGS_OPENING statisticsBase = valueToken (ARGS_DELIMITER statisticsTypes = variadicValueTokens)? ARGS_CLOSING ;
+hierarchyStatisticsArgs :                           ARGS_OPENING statisticsTypes = variadicValueTokens ARGS_CLOSING ;
 
 hierarchyRequireConstraintArgs :                    ARGS_OPENING outputName = classifierToken (ARGS_DELIMITER requirements += requireConstraint)* ARGS_CLOSING ;
 

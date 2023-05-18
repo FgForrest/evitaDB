@@ -1050,25 +1050,13 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterEmptyHierarchyStatisticsConstraint(EvitaQLParser.EmptyHierarchyStatisticsConstraintContext ctx) { }
+	@Override public void enterHierarchyStatisticsConstraint(EvitaQLParser.HierarchyStatisticsConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitEmptyHierarchyStatisticsConstraint(EvitaQLParser.EmptyHierarchyStatisticsConstraintContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterFullHierarchyStatisticsConstraint(EvitaQLParser.FullHierarchyStatisticsConstraintContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitFullHierarchyStatisticsConstraint(EvitaQLParser.FullHierarchyStatisticsConstraintContext ctx) { }
+	@Override public void exitHierarchyStatisticsConstraint(EvitaQLParser.HierarchyStatisticsConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
