@@ -50,35 +50,23 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		byte.class,
 		Byte.class,
-		short.class,
 		Short.class,
-		int.class,
 		Integer.class,
-		long.class,
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor inRangeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		byte.class,
 		Byte.class,
-		short.class,
 		Short.class,
-		int.class,
 		Integer.class,
-		long.class,
 		Long.class,
 		BigDecimal.class,
 		OffsetDateTime.class
 	);
 	protected final EvitaQLValueTokenVisitor priceBetweenArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		byte.class,
 		Byte.class,
-		short.class,
 		Short.class,
-		int.class,
 		Integer.class,
-		long.class,
 		Long.class,
 		BigDecimal.class
 	);

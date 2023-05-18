@@ -58,13 +58,9 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
 	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		byte.class,
 		Byte.class,
-		short.class,
 		Short.class,
-		int.class,
 		Integer.class,
-		long.class,
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
