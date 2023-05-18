@@ -4,9 +4,7 @@ query(
       and(
          hierarchyWithin(
             'categories',
-            entityHaving(
-               attributeEquals('url', '/local-food')
-            )
+            attributeEquals('url', '/local-food')
          ),
          entityLocaleEquals('cs-CZ'),
          priceValidIn(),

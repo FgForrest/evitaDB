@@ -184,69 +184,27 @@ Associated data may even contain array of complex objects. Such data will be aut
 
 ### Serialization
 
-Storing a complex type to entity is executed as follows:
-
-``` java
-session.createNewEntity("Product", 1)
-	   .setAssociatedData(
-	        "stockAvailability", 
-	        new ProductStockAvailability()
-        );
-```
-
 All [properties that comply with JavaBean naming rules](https://www.baeldung.com/java-pojo-class#what-is-a-javabean) and
 have both an accessor, a mutator method (i.e. `get` and `set` methods for the property) and are not annotated with
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/data/NonSerializedData.java</SourceClass>
 annotation, are serialized into a complex type. See the following example:
 
-``` java
-public class ProductStockAvailability implements Serializable {
-    private int id;
-    private String stockName;
-    @NonSerializedData
-    private URL stockUrl;
-    private URL stockMotive;
-    
-    // id gets serialized - both methods are present and 
-    // are valid JavaBean property methods
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
-    
-    // stockName gets serialized - both methods are present 
-    // and are valid JavaBean property methods
-    public String getStockName() { return stockName; }
-    public void setStockName(String stockName) { this.stockName = stockName; }
-    
-    // stockUrl will not be serialized 
-    // corresponding field is annotated with @NonSerializedData
-    public URL getStockUrl() { return stockUrl; }
-    public void setStockUrl(URL stockUrl) { this.stockUrl = stockUrl; }
-    
-    // active will not be serialized - it has no corresponding mutator method
-    public isActive() { return false; }
-    
-    // stock motive will not be serialized 
-    // because getter method is marked with @NonSerializedData
-    @NonSerializedData
-    public URL getStockMotive() { return stockMotive; }
-    public void setStockMotive(URL stockMotive) { this.stockMotive = stockMotive; }
-}
-```
+<SourceCodeTabs>
+[Associated data POJO](docs/user/en/use/examples/dto.java)
+</SourceCodeTabs>
+
+Storing a complex type to entity is executed as follows:
+
+<SourceCodeTabs requires="docs/user/en/use/examples/dto.java,docs/user/en/get-started/example/complete-startup.java,docs/user/en/get-started/example/define-test-catalog.java,docs/user/en/get-started/example/define-catalog-with-schema.java,docs/user/en/use/api/example/open-session-manually.java">
+[Storing associated data to an entity](docs/user/en/use/examples/storing.java)
+</SourceCodeTabs>
 
 As you can see, annotations can be placed either on methods or property fields, so that if you use
 [Lombok support](https://projectlombok.org/), you can still easily define the class as:
 
-``` java
-@Data
-public class ProductStockAvailability implements Serializable {
-    private int id;
-    private String stockName;
-    @NonSerializedData private URL stockUrl;
-    @NonSerializedData private URL stockMotive;
-    
-    public isActive() { return false; }
-}
-```
+<SourceCodeTabs>
+[Associated data Lombok POJO](docs/user/en/use/examples/dto-lombok.java)
+</SourceCodeTabs>
 
 If the serialization process encounters any property that cannot be serialized, the
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/exception/SerializationFailedException.java</SourceClass>
@@ -257,15 +215,9 @@ is thrown.
 You can use collections in complex types, but the specific collection types must be extractable from the collection 
 generics in deserialization time. Look at the following example:
 
-``` java
-@Data
-public class SomeDataWithCollections implements Serializable {
-    private List<String> names;
-    private Map<String, Integer> index;
-    private Set<BigDecimal> amounts;
-    private SomeDataWithCollections[] innerContainers;
-}
-```
+<SourceCodeTabs>
+[Associated data POJO with collections](docs/user/en/use/examples/dto-collection.java)
+</SourceCodeTabs>
 
 This class will (de)serialize just fine.
 
@@ -303,12 +255,9 @@ void verifyProductStockAvailabilityIsProperlySerialized() {
 
 Retrieving a complex type from an entity is executed as follows:
 
-``` java
-final SealedEntity entity = session.getEntity("product", 1); //some custom logic to load proper entity
-final ProductStockAvailability stockAvailability = entity.getAssociatedData(
-    "stockAvailability", ProductStockAvailability.class
-);
-```
+<SourceCodeTabs requires="docs/user/en/use/examples/storing.java">
+[Loading associated data from an entity](docs/user/en/use/examples/loading.java)
+</SourceCodeTabs>
 
 Complex types are internally converted to a 
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/ComplexDataObject.java</SourceClass> type,
@@ -356,7 +305,7 @@ discarded when the associated data gets rewritten by the new version of the clas
 
 ``` java
 @Data
-@DiscardedData("id");
+@DiscardedData("id")
 public class ProductStockAvailability implements Serializable {
     private String stockName;
 }

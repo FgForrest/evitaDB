@@ -204,6 +204,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				final String fileName = it.getFileName().toString();
 				final String fileNameExtension = getFileNameExtension(it);
 				return !NOT_TESTED_LANGUAGES.contains(fileNameExtension) &&
+					!theFileExtension.equals(fileNameExtension) &&
 					fileName.substring(0, fileName.length() - fileNameExtension.length())
 						.equals(theFileName.substring(0, theFileName.length() - theFileExtension.length()));
 			}).toList();
@@ -255,7 +256,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/use/api/query-data.md")
+			getRootDirectory().resolve("docs/user/en/use/data-types.md")
 		).stream();
 	}
 
