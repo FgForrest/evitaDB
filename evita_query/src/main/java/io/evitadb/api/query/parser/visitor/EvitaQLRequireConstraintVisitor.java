@@ -1005,7 +1005,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitBasicHierarchyOfSelfConstraint(BasicHierarchyOfSelfConstraintContext ctx) {
+	public RequireConstraint visitBasicHierarchyOfSelfConstraint(@Nonnull BasicHierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfSelf(
@@ -1018,7 +1018,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFullHierarchyOfSelfConstraint(FullHierarchyOfSelfConstraintContext ctx) {
+	public RequireConstraint visitFullHierarchyOfSelfConstraint(@Nonnull FullHierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfSelf(
@@ -1032,11 +1032,28 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitBasicHierarchyOfReferenceConstraint(BasicHierarchyOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitBasicHierarchyOfReferenceConstraint(@Nonnull BasicHierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				ctx.args.referenceNames.accept(classifierTokenVisitor).asClassifierArray(),
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitBasicHierarchyOfReferenceWithBehaviourConstraint(@Nonnull BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfReference(
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
 				ctx.args.emptyHierarchicalEntityBehaviour
 					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)
 					.asEnum(EmptyHierarchicalEntityBehaviour.class),
@@ -1049,11 +1066,29 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFullHierarchyOfReferenceConstraint(FullHierarchyOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitFullHierarchyOfReferenceConstraint(@Nonnull FullHierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				ctx.args.referenceNames.accept(classifierTokenVisitor).asClassifierArray(),
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
+				visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class),
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFullHierarchyOfReferenceWithBehaviourConstraint(@Nonnull FullHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfReference(
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
 				ctx.args.emptyHierarchicalEntityBehaviour
 					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)
 					.asEnum(EmptyHierarchicalEntityBehaviour.class),

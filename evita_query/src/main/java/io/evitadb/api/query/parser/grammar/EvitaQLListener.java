@@ -1156,6 +1156,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitBasicHierarchyOfReferenceConstraint(EvitaQLParser.BasicHierarchyOfReferenceConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code basicHierarchyOfReferenceWithBehaviourConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterBasicHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code basicHierarchyOfReferenceWithBehaviourConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitBasicHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code fullHierarchyOfReferenceConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
@@ -1167,6 +1179,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFullHierarchyOfReferenceConstraint(EvitaQLParser.FullHierarchyOfReferenceConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code fullHierarchyOfReferenceWithBehaviourConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterFullHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code fullHierarchyOfReferenceWithBehaviourConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitFullHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code queryTelemetryConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -1580,15 +1604,15 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitFacetSummaryOfReferenceArgs(EvitaQLParser.FacetSummaryOfReferenceArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#fullHierarchyStatisticsArgs}.
+	 * Enter a parse tree produced by {@link EvitaQLParser#hierarchyStatisticsArgs}.
 	 * @param ctx the parse tree
 	 */
-	void enterFullHierarchyStatisticsArgs(EvitaQLParser.FullHierarchyStatisticsArgsContext ctx);
+	void enterHierarchyStatisticsArgs(EvitaQLParser.HierarchyStatisticsArgsContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#fullHierarchyStatisticsArgs}.
+	 * Exit a parse tree produced by {@link EvitaQLParser#hierarchyStatisticsArgs}.
 	 * @param ctx the parse tree
 	 */
-	void exitFullHierarchyStatisticsArgs(EvitaQLParser.FullHierarchyStatisticsArgsContext ctx);
+	void exitHierarchyStatisticsArgs(EvitaQLParser.HierarchyStatisticsArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#hierarchyRequireConstraintArgs}.
 	 * @param ctx the parse tree
@@ -1630,6 +1654,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitBasicHierarchyOfReferenceArgs(EvitaQLParser.BasicHierarchyOfReferenceArgsContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#basicHierarchyOfReferenceWithBehaviourArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterBasicHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#basicHierarchyOfReferenceWithBehaviourArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitBasicHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourArgsContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#fullHierarchyOfReferenceArgs}.
 	 * @param ctx the parse tree
 	 */
@@ -1639,6 +1673,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFullHierarchyOfReferenceArgs(EvitaQLParser.FullHierarchyOfReferenceArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#fullHierarchyOfReferenceWithBehaviourArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterFullHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#fullHierarchyOfReferenceWithBehaviourArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitFullHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#positionalParameter}.
 	 * @param ctx the parse tree

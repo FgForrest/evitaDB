@@ -683,12 +683,26 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitBasicHierarchyOfReferenceConstraint(EvitaQLParser.BasicHierarchyOfReferenceConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code basicHierarchyOfReferenceWithBehaviourConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBasicHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code fullHierarchyOfReferenceConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitFullHierarchyOfReferenceConstraint(EvitaQLParser.FullHierarchyOfReferenceConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code fullHierarchyOfReferenceWithBehaviourConstraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFullHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code queryTelemetryConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
@@ -937,11 +951,11 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFacetSummaryOfReferenceArgs(EvitaQLParser.FacetSummaryOfReferenceArgsContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#fullHierarchyStatisticsArgs}.
+	 * Visit a parse tree produced by {@link EvitaQLParser#hierarchyStatisticsArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
-	T visitFullHierarchyStatisticsArgs(EvitaQLParser.FullHierarchyStatisticsArgsContext ctx);
+	T visitHierarchyStatisticsArgs(EvitaQLParser.HierarchyStatisticsArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#hierarchyRequireConstraintArgs}.
 	 * @param ctx the parse tree
@@ -967,11 +981,23 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitBasicHierarchyOfReferenceArgs(EvitaQLParser.BasicHierarchyOfReferenceArgsContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#basicHierarchyOfReferenceWithBehaviourArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitBasicHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourArgsContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#fullHierarchyOfReferenceArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
 	 */
 	T visitFullHierarchyOfReferenceArgs(EvitaQLParser.FullHierarchyOfReferenceArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#fullHierarchyOfReferenceWithBehaviourArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitFullHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#positionalParameter}.
 	 * @param ctx the parse tree
