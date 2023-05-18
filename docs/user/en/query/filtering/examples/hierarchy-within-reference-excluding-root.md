@@ -5,4 +5,4 @@
 | 113805           | 'logitech-ergo-k860'                  |
 | 113811           | 'logitech-mx-mechanical-mini-for-mac' |
 
-**Total number of results:** 4
+###### **Total number of results:** 4
