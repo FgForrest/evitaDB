@@ -7,10 +7,11 @@ query(
         )
     ),
     require(
-        hierarchyOfSelf(
+        hierarchyOfReference(
+            'categories',
             children(
                 'subcategories',
-                entityFetch(attributeContent(code)),
+                entityFetch(attributeContent('code')),
                 stopAt(distance(1)),
                 statistics(
                     CHILDREN_COUNT,

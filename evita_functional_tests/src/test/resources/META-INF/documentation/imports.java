@@ -84,6 +84,8 @@ import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.data.NonSerializedData;
@@ -100,5 +102,6 @@ import java.net.URL;
 import lombok.Data;
 
 import static io.evitadb.api.query.filter.AttributeSpecialValue.*;
+import static io.evitadb.api.query.require.StatisticsType.*;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.Query.*;

@@ -1,7 +1,7 @@
 query(
     collection('Category'),
     filterBy(
-        hierarchyWithin(
+        hierarchyWithinSelf(
             attributeEquals('code', 'audio')
         )
     ),
@@ -10,7 +10,7 @@ query(
             children(
                 'directChildren',
                 entityFetch(attributeContent()),
-                stopAt(distance(1)),
+                stopAt(distance(1))
             ),
             parents(
                 'directParent',

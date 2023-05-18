@@ -10,11 +10,12 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 			)
 		),
 		require(
-			hierarchyOfSelf(
+			hierarchyOfReference(
+				"categories",
 				// request computation of direct children of the Audio category
 				children(
 					"subcategories",
-					entityFetch(attributeContent(code)),
+					entityFetch(attributeContent("code")),
 					stopAt(distance(1)),
 					statistics(
 						CHILDREN_COUNT,

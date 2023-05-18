@@ -7,11 +7,16 @@ query(
         )
     ),
     require(
-        hierarchyOfSelf(            
+        hierarchyOfReference(
+            'categories',
             fromNode(
                 'sideMenu1',
-                node(attributeEquals('code', 'portables'))
-                entityFetch(attributeContent(code)),
+                node(
+                    filterBy(
+                        attributeEquals('code', 'portables')
+                    )
+                ),
+                entityFetch(attributeContent('code')),
                 stopAt(distance(1)),
                 statistics(
                     CHILDREN_COUNT,
@@ -20,8 +25,12 @@ query(
             ),            
             fromNode(
                 'sideMenu2',
-                node(attributeEquals('code', 'laptops'))
-                entityFetch(attributeContent(code)),
+                node(
+                    filterBy(
+                        attributeEquals('code', 'laptops')
+                    )
+                ),
+                entityFetch(attributeContent('code')),
                 stopAt(distance(1)),
                 statistics(
                     CHILDREN_COUNT,

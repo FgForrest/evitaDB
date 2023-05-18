@@ -73,7 +73,7 @@ The following code snippet contains a query that lists all (transitive) categori
 returns menu items that contain direct children of the *Audio* category and its direct parent category (which is 
 *Accessories*):
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Hierarchy request association](docs/user/en/query/requirements/examples/hierarchy-data-structure-association.java)
 </SourceCodeTabs>
 
@@ -233,7 +233,7 @@ requires a computed *megaMenu* data structure that lists the top 2 levels of the
 a computed count of child categories for each menu item and an aggregated count of all filtered products that would 
 fall into the given category.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.java)
 </SourceCodeTabs>
 
@@ -243,7 +243,7 @@ The computed result of the *megaMenu* looks like this:
 
 ... and here is the data structure output in JSON format:
 
-<MDInclude>[Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.md)</MDInclude>
+<MDInclude sourceVariable="extraResult.Hierarchy.categories.megaMenu">[Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.json)</MDInclude>
 </Note>
 
 The calculated result for `fromRoot` is not affected by the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
@@ -309,7 +309,7 @@ return a computed *sideMenu1* and *sideMenu2* data structure that lists the flat
 *Portables* and *Laptops* with a computed count of child categories for each menu item and an aggregated count of all 
 products that would fall into the given category.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `hierarchyWithin` and `fromNode` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-node.java)
 </SourceCodeTabs>
 
@@ -377,7 +377,7 @@ returns a computed *subcategories* data structure that lists the flat category l
 *Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-children.java)
 </SourceCodeTabs>
 
@@ -447,7 +447,7 @@ also returns a computed *parentAxis* data structure that lists all the parent no
 *True wireless* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-parents.java)
 </SourceCodeTabs>
 
@@ -461,7 +461,7 @@ The computed result *parentAxis* looks like this:
 
 You can also list all siblings of the parent node as you move up the tree:
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-parents-siblings.java)
 </SourceCodeTabs>
 
@@ -557,7 +557,7 @@ returns a computed *audioSiblings* data structure that lists the flat category l
 *Audio* with a computed count of child categories for each menu item and an aggregated count of all products that
 would fall into the given category.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `siblings` requirement](docs/user/en/query/requirements/examples/hierarchy-siblings.java)
 </SourceCodeTabs>
 
@@ -572,7 +572,7 @@ The computed result *audioSiblings* looks like this:
 If you need to return all siblings and also the level below them (their children), just use `stopAt` constraint and
 extend the default scope of the `siblings` constraint.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `siblings` subtree requirement](docs/user/en/query/requirements/examples/hierarchy-siblings-with-subtree.java)
 </SourceCodeTabs>
 
@@ -647,7 +647,7 @@ The following query lists products in category *Audio* and its subcategories. Al
 returns a computed *subcategories* data structure that lists the flat category list the currently focused category
 *Audio*.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `distance` with `children` requirement](docs/user/en/query/requirements/examples/hierarchy-direct-children.java)
 </SourceCodeTabs>
 
@@ -655,7 +655,7 @@ The following query lists products in the category *Audio* and its subcategories
 also returns a computed *parent* data structure that lists single direct parent category of the currently focused 
 *Audio* category.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `distance` with `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parent.java)
 </SourceCodeTabs>
 
@@ -693,7 +693,7 @@ following figure:
 The following query lists products in *Audio* category and its subcategories. Along with the products returned, it also
 returns a computed *subcategories* data structure that lists top two levels of the entire hierarchy.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `level` with `fromRoot` requirement](docs/user/en/query/requirements/examples/hierarchy-level.java)
 </SourceCodeTabs>
 
@@ -701,7 +701,7 @@ The following query lists products in the *Audio* category and its subcategories
 also returns a computed *parent* data structure that lists all the parents of the currently focused *True wireless*
 category up to level two.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `level` with `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-level-parent.java)
 </SourceCodeTabs>
 
@@ -739,7 +739,7 @@ a meaningful example of this in the demo dataset, so our example query will be s
 demonstration, let's list the entire *Accessories* hierarchy, but stop traversing at the nodes whose code starts with 
 the letter *w*.
 
-<SourceCodeTabs>
+<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `node` with `children` requirement](docs/user/en/query/requirements/examples/hierarchy-node.java)
 </SourceCodeTabs>
 

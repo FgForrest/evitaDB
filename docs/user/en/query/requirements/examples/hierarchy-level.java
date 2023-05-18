@@ -10,11 +10,12 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 			)
 		),
 		require(
-			hierarchyOfSelf(
+			hierarchyOfReference(
+				"categories",
 				// request computation top 2 levels from top
 				fromRoot(
 					"megaMenu",
-					entityFetch(attributeContent(code)),
+					entityFetch(attributeContent("code")),
 					stopAt(level(2))
 				)
 			)

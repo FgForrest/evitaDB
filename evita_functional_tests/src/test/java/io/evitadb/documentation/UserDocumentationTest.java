@@ -85,6 +85,13 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
+	 * Pattern for searching for <MDInclude> blocks.
+	 */
+	private static final Pattern MD_INCLUDE_PATTERN = Pattern.compile(
+		"<MDInclude\\s*(sourceVariable=\"(.*?)\")?>\\s*\\[.*?]\\((.*?)\\)\\s*</MDInclude>",
+		Pattern.DOTALL | Pattern.MULTILINE
+	);
+	/**
 	 * Field containing the relative directory path to the user documentation.
 	 */
 	private static final String DOCS_ROOT = "docs/user/";
@@ -92,6 +99,10 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Field contains list of all languages that are not tested by this class.
 	 */
 	private static final Set<String> NOT_TESTED_LANGUAGES = new HashSet<>();
+	/**
+	 * Generic extension used for pair {@link OutputSnippet} with {@link CodeSnippet}.
+	 */
+	private static final String GENERIC_EXTENSION = "generic";
 
 	static {
 		NOT_TESTED_LANGUAGES.add("evitaql-syntax");
@@ -126,10 +137,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	public static Optional<String> readFile(@Nonnull Path path, @Nonnull String extension) {
-		final String sourceFileName = path.getFileName().toString();
-		final Path readFileName = path.resolveSibling(
-			sourceFileName.substring(0, sourceFileName.lastIndexOf('.')) + extension
-		);
+		final Path readFileName = resolveSiblingWithDifferentExtension(path, extension);
 		try {
 			if (readFileName.toFile().exists()) {
 				return Optional.of(Files.readString(readFileName, StandardCharsets.UTF_8));
@@ -141,6 +149,17 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			// doesn't happen
 			return Optional.empty();
 		}
+	}
+
+	/**
+	 * Resolves sibling file with different filename extension.
+	 */
+	@Nonnull
+	public static Path resolveSiblingWithDifferentExtension(@Nonnull Path path, @Nonnull String extension) {
+		final String sourceFileName = path.getFileName().toString();
+		return path.resolveSibling(
+			sourceFileName.substring(0, sourceFileName.lastIndexOf('.')) + extension
+		);
 	}
 
 	/**
@@ -169,6 +188,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		@Nullable Path[] requiredResources,
 		@Nonnull TestContextProvider contextAccessor,
 		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex,
+		@Nullable OutputSnippet outputSnippet,
 		@Nonnull CreateSnippets... createSnippets
 	) {
 		switch (sourceFormat) {
@@ -185,6 +205,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					contextAccessor.get(EvitaTestContextFactory.class),
 					sourceContent,
 					resource,
+					outputSnippet,
 					createSnippets
 				);
 			}
@@ -256,7 +277,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/use/data-types.md")
+			getRootDirectory().resolve("docs/user/en/query/requirements/hierarchy.md")
 		).stream();
 	}
 
@@ -271,7 +292,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/filtering/hierarchy.md"),
+			getRootDirectory().resolve("docs/user/en/query/requirements/hierarchy.md"),
 			CreateSnippets.JAVA, CreateSnippets.MARKDOWN
 		).stream();
 	}
@@ -306,11 +327,23 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							null,
 							null,
 							contextAccessor,
-							codeSnippetIndex
+							codeSnippetIndex,
+							null
 						)
 					)
 				);
 			}
+		}
+
+		final Map<Path, OutputSnippet> outputSnippetIndex = new HashMap<>();
+		final Matcher mdIncludeMatcher = MD_INCLUDE_PATTERN.matcher(fileContent);
+		while (mdIncludeMatcher.find()) {
+			final String sourceVariable = mdIncludeMatcher.group(2);
+			final Path referencedFile = getRootDirectory().resolve(mdIncludeMatcher.group(3));
+			outputSnippetIndex.put(
+				resolveSiblingWithDifferentExtension(referencedFile, GENERIC_EXTENSION),
+				new OutputSnippet(getFileNameExtension(referencedFile), referencedFile, sourceVariable)
+			);
 		}
 
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
@@ -345,7 +378,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									relatedFile,
 									requiredScripts,
 									contextAccessor,
-									codeSnippetIndex
+									codeSnippetIndex,
+									null
 								)
 							);
 						})
@@ -357,6 +391,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						requiredScripts,
 						contextAccessor,
 						codeSnippetIndex,
+						outputSnippetIndex.get(
+							resolveSiblingWithDifferentExtension(referencedFile, GENERIC_EXTENSION)
+						),
 						createSnippets
 					)
 				);
@@ -421,6 +458,22 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		@Nullable CodeSnippet[] relatedSnippets,
 		@Nonnull Executable executableLambda
 	) {
+	}
+
+	/**
+	 * Record represents a MarkDown include referencing an external file that conforms with the expected output of
+	 * the {@link CodeSnippet}.
+	 *
+	 * @param format         format (language) of the output snippet
+	 * @param path           path to the external file containing the output snippet
+	 * @param sourceVariable text from `sourceVariable` attribute of the MDInclude
+	 */
+	public record OutputSnippet(
+		@Nonnull String format,
+		@Nonnull Path path,
+		@Nullable String sourceVariable
+	) {
+
 	}
 
 	/**

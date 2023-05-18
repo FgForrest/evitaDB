@@ -4,7 +4,7 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 		collection("Category"),
 		// target "Accessories" category
 		filterBy(
-			hierarchyWithin(
+			hierarchyWithinSelf(
 				attributeEquals("code", "audio")
 			)
 		),
@@ -14,7 +14,7 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 				children(
 					"directChildren",
 					entityFetch(attributeContent()),
-					stopAt(distance(1)),
+					stopAt(distance(1))
 				),
 				// request computation of immediate parent of the category
 				parents(
@@ -32,11 +32,11 @@ final Hierarchy hierarchyResult = result.getExtraResult(Hierarchy.class);
 final List<LevelInfo> directChildren = hierarchyResult.getSelfHierarchy("directChildren");
 for (LevelInfo directChild : directChildren) {
 	System.out.println(
-		((SealedEntity)directChild.entity()).getAttribute("code")
+		((SealedEntity)directChild.entity()).getAttribute("code", String.class)
 	);
 }
 // display parent
 final List<LevelInfo> directParent = hierarchyResult.getSelfHierarchy("directParent");
 System.out.println(
-	((SealedEntity)directParent.get(0).entity()).getAttribute("code")
+	((SealedEntity)directParent.get(0).entity()).getAttribute("code", String.class)
 );
