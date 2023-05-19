@@ -13,13 +13,13 @@ final EvitaResponse<SealedEntity> result = session.querySealedEntity(
 				// request computation of direct children of the category
 				children(
 					"directChildren",
-					entityFetch(attributeContent()),
+					entityFetch(attributeContent("code")),
 					stopAt(distance(1))
 				),
 				// request computation of immediate parent of the category
 				parents(
 					"directParent",
-					entityFetch(attributeContent()),
+					entityFetch(attributeContent("code")),
 					stopAt(distance(1))
 				)
 			)

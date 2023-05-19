@@ -9,12 +9,12 @@ query(
         hierarchyOfSelf(
             children(
                 'directChildren',
-                entityFetch(attributeContent()),
+                entityFetch(attributeContent('code')),
                 stopAt(distance(1))
             ),
             parents(
                 'directParent',
-                entityFetch(attributeContent()),
+                entityFetch(attributeContent('code')),
                 stopAt(distance(1))
             )
         )
