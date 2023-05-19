@@ -42,6 +42,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -62,10 +63,10 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		return queryContext.computeOnlyOnce(
 			hierarchyWithinRoot,
 			() -> {
-				final String referenceName = hierarchyWithinRoot.getReferenceName();
+				final Optional<String> referenceName = hierarchyWithinRoot.getReferenceName();
 
 				final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
-				final ReferenceSchemaContract referenceSchema = ofNullable(referenceName)
+				final ReferenceSchemaContract referenceSchema = referenceName
 					.map(entitySchema::getReferenceOrThrowException)
 					.orElse(null);
 				final EntitySchemaContract targetEntitySchema = ofNullable(referenceSchema)
@@ -74,7 +75,10 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 
 				Assert.isTrue(
 					targetEntitySchema.isWithHierarchy(),
-					() -> new TargetEntityIsNotHierarchicalException(referenceName, targetEntitySchema.getName())
+					() -> new TargetEntityIsNotHierarchicalException(
+						ofNullable(referenceSchema).map(ReferenceSchemaContract::getName).orElse(null),
+						targetEntitySchema.getName()
+					)
 				);
 
 				return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
@@ -135,7 +139,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 			return SkipFormula.INSTANCE;
 		} else {
 			final Formula matchingHierarchyNodIds = createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor);
-			if (hierarchyWithinRoot.getReferenceName() == null) {
+			if (hierarchyWithinRoot.getReferenceName().isEmpty()) {
 				return matchingHierarchyNodIds;
 			} else {
 				return createFormulaForReferencingEntities(

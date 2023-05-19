@@ -182,7 +182,7 @@ instance. One of the options is to listen to Java process termination:
 
 You should see the following information logged to the console when you start the API web server:
 
-```
+```plain
 Root CA Certificate fingerprint:        CERTIFICATE AUTHORITY FINGERPRINT
 API `gRPC` listening on                 https://your-domain:5556/
 API `graphQL` listening on              https://your-domain:5555/gql/
@@ -212,7 +212,7 @@ index.docker.io/evitadb/evitadb:latest
 
 When you start the evitaDB server you should see the following information in the console output:
 
-```
+```plain
             _ _        ____  ____  
   _____   _(_) |_ __ _|  _ \| __ ) 
  / _ \ \ / / | __/ _` | | | |  _ \ 

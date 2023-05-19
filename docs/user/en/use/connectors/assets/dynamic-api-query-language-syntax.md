@@ -73,7 +73,7 @@ data with data in the database).
 
 
 All possible parts combinations are:
-```
+```plain
 {constraint name} -> `and` (only usable for generic constraints)
 {property type}{constraint name} -> `hierarchyWithinSelf` (in this case the classifier of used hierarchy is implicitly defined by rest of a query)
 {property type}{classifier}{constraint name} -> `attributeCodeEquals` (key with all metadata)

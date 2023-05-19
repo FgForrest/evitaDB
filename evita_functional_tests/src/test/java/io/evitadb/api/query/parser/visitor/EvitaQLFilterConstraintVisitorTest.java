@@ -886,11 +886,17 @@ class EvitaQLFilterConstraintVisitorTest {
         final FilterConstraint constraint1 = parseFilterConstraintUnsafe("priceBetween(10.0,50.5)");
         assertEquals(priceBetween(BigDecimal.valueOf(10.0), BigDecimal.valueOf(50.5)), constraint1);
 
+        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("priceBetween(10,50)");
+        assertEquals(priceBetween(BigDecimal.valueOf(10), BigDecimal.valueOf(50)), constraint5);
+
         final FilterConstraint constraint2 = parseFilterConstraintUnsafe("priceBetween( 10.0  , 50.5  )");
         assertEquals(priceBetween(BigDecimal.valueOf(10.0), BigDecimal.valueOf(50.5)), constraint2);
 
         final FilterConstraint constraint3 = parseFilterConstraint("priceBetween(?,?)", BigDecimal.valueOf(10.0), BigDecimal.valueOf(50.5));
         assertEquals(priceBetween(BigDecimal.valueOf(10.0), BigDecimal.valueOf(50.5)), constraint3);
+
+        final FilterConstraint constraint6 = parseFilterConstraint("priceBetween(?,?)", 10, 50);
+        assertEquals(priceBetween(BigDecimal.valueOf(10), BigDecimal.valueOf(50)), constraint6);
 
         final FilterConstraint constraint4 = parseFilterConstraint(
             "priceBetween(@from,@to)",
@@ -900,6 +906,12 @@ class EvitaQLFilterConstraintVisitorTest {
             )
         );
         assertEquals(priceBetween(BigDecimal.valueOf(10.0), BigDecimal.valueOf(50.5)), constraint4);
+
+        final FilterConstraint constraint7 = parseFilterConstraint(
+            "priceBetween(@from,@to)",
+            Map.of("from",  10, "to", 50)
+        );
+        assertEquals(priceBetween(BigDecimal.valueOf(10), BigDecimal.valueOf(50)), constraint7);
     }
 
     @Test
@@ -907,9 +919,9 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceBetween(10.0,50.5)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceBetween(?,?)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceBetween(@a,@b)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("priceBetween(10,11)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceBetween"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceBetween()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceBetween(10,11)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceBetween('a',1)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceBetween(10.0,50.0,78)"));
     }
@@ -1097,6 +1109,9 @@ class EvitaQLFilterConstraintVisitorTest {
 
     @Test
     void shouldParseHierarchyWithinRootSelfConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("hierarchyWithinRootSelf()");
+        assertEquals(hierarchyWithinRootSelf(), constraint1);
+
         final FilterConstraint constraint2 = parseFilterConstraintUnsafe("hierarchyWithinRootSelf(directRelation())");
         assertEquals(hierarchyWithinRootSelf(directRelation()), constraint2);
 

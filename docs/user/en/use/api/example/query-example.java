@@ -1,12 +1,13 @@
 final EvitaResponse<SealedEntity> response = evita.queryCatalog(
 	"evita",
 	session -> {
-		return session.query(
+		return session.querySealedEntity(
 			query(
 				collection("Product"),
 				filterBy(
 					and(
 						hierarchyWithin(
+							"categories",
 							attributeEquals("url", "/en/macbooks")
 						),
 						entityLocaleEquals(Locale.ENGLISH),
@@ -18,16 +19,15 @@ final EvitaResponse<SealedEntity> response = evita.queryCatalog(
 					page(2, 24),
 					entityFetch(
 						attributeContent(),
-						priceContent(),
+						priceContent()
 					),
 					facetSummary()
 				)
-			),
-			SealedEntity.class
+			)
 		);
 	}
 );
-PaginatedList<SealedEntity> paginatedList = response.getRecordPage();
+PaginatedList<SealedEntity> paginatedList = (PaginatedList<SealedEntity>) response.getRecordPage();
 List<SealedEntity> entities = paginatedList.getData();
 int pageNumber = paginatedList.getPageNumber();
 int pageSize = paginatedList.getPageSize();

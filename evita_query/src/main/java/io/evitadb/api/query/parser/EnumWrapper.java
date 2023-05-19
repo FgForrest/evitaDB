@@ -73,9 +73,17 @@ public class EnumWrapper implements Serializable, Comparable<EnumWrapper> {
 	@Nonnull
 	public <E extends Enum<E>> E toEnum(@Nonnull Class<E> targetEnum) {
 		return Arrays.stream(targetEnum.getEnumConstants())
-			.filter(enumValue -> enumValue.toString().equals(value))
+			.filter(enumValue -> enumValue.name().equals(value))
 			.findFirst()
 			.orElseThrow(() -> new EvitaInvalidUsageException("Unknown enum " + targetEnum + " value: " + value));
+	}
+
+	/**
+	 * Checks whether value of this enum wrapper can be safely mapped to the target enum class.
+	 */
+	public boolean canBeMappedTo(@Nonnull Class<? extends Enum<?>> targetEnum) {
+		return Arrays.stream(targetEnum.getEnumConstants())
+			.anyMatch(enumValue -> enumValue.name().equals(value));
 	}
 
 	@Override

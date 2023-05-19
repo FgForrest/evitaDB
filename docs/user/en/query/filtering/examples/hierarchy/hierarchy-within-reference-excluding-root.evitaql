@@ -1,0 +1,15 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'keyboards'),
+            excludingRoot()
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent('code')
+        )
+    )
+)

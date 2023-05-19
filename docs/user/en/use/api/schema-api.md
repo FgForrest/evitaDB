@@ -145,6 +145,6 @@ The procedure and documentation for schema definition from C# will be added.
 
 <LanguageSpecific to="evitaql">
 Unfortunately, it is currently not possible to define a schema using EvitaQL. This extension is also not planned to be
-implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API) are sufficient 
+implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API) are available 
 for schema definition.
 </LanguageSpecific>

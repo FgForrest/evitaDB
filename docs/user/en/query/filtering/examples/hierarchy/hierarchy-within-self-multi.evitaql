@@ -1,0 +1,13 @@
+query(
+    collection('Category'),
+    filterBy(
+        hierarchyWithinSelf(
+            attributeStartsWith('code', 'wire')
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent('code')
+        )
+    )
+)

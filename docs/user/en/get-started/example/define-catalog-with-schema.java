@@ -1,6 +1,6 @@
 evita.defineCatalog("testCatalog")
 	.withEntitySchema(
-		"brand",
+		"Brand",
 		entitySchema -> entitySchema
 			.withDescription("""
 				Brand is entity that represents manufacturer or
@@ -16,7 +16,7 @@ evita.defineCatalog("testCatalog")
 			)
 	)
 	.withEntitySchema(
-		"category",
+		"Category",
 		entitySchema -> entitySchema
 			.withDescription("""
 				Category is entity that forms a hierarchical tree and
@@ -35,7 +35,7 @@ evita.defineCatalog("testCatalog")
 			)
 	)
 	.withEntitySchema(
-		"product",
+		"Product",
 		entitySchema -> entitySchema
 			.withDescription("""
 				Product represents an article that can be displayed and sold on e-shop.
@@ -54,6 +54,7 @@ evita.defineCatalog("testCatalog")
 					.localized()
 					.filterable()
 					.sortable()
+					.nullable()
 			)
 			.withAttribute(
 				"catalogCode", String.class,
@@ -61,6 +62,7 @@ evita.defineCatalog("testCatalog")
 					.withDescription("Product designation in your sales catalogue.")
 					.filterable()
 					.sortable()
+					.nullable()
 			)
 			.withAttribute(
 				"stockQuantity", Integer.class,
@@ -73,6 +75,7 @@ evita.defineCatalog("testCatalog")
 			.withAssociatedData(
 				"gallery", String[].class,
 				whichIs -> whichIs
+					.nullable()
 					.withDescription("List of links to images in the product gallery.")
 			)
 			.withReferenceToEntity(

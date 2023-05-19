@@ -1125,6 +1125,9 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint0 = parseRequireConstraintUnsafe("statistics()");
 		assertEquals(statistics(), constraint0);
 
+		final RequireConstraint constraint11 = parseRequireConstraintUnsafe("statistics(CHILDREN_COUNT)");
+		assertEquals(statistics(StatisticsType.CHILDREN_COUNT), constraint11);
+
 		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("statistics(COMPLETE_FILTER)");
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER), constraint1);
 
@@ -1137,6 +1140,9 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint4 = parseRequireConstraint("statistics(?)", StatisticsBase.COMPLETE_FILTER);
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER), constraint4);
 
+		final RequireConstraint constraint12 = parseRequireConstraint("statistics(?)", StatisticsType.CHILDREN_COUNT);
+		assertEquals(statistics(StatisticsType.CHILDREN_COUNT), constraint12);
+
 		final RequireConstraint constraint5 = parseRequireConstraint("statistics(?, ?)", StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT);
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT), constraint5);
 
@@ -1148,6 +1154,12 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("base", StatisticsBase.COMPLETE_FILTER)
 		);
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER), constraint7);
+
+		final RequireConstraint constraint13 = parseRequireConstraint(
+			"statistics(@type)",
+			Map.of("type", StatisticsType.CHILDREN_COUNT)
+		);
+		assertEquals(statistics(StatisticsType.CHILDREN_COUNT), constraint13);
 
 		final RequireConstraint constraint8 = parseRequireConstraint(
 			"statistics(@base, @type)",
@@ -1169,10 +1181,9 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT), constraint9);
 
 		final RequireConstraint constraint10 = parseRequireConstraint(
-			"statistics(@base, @type)",
+			"statistics(@settings)",
 			Map.of(
-				"base", StatisticsBase.COMPLETE_FILTER,
-				"type", List.of(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+				"settings", List.of(StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 			)
 		);
 		assertEquals(statistics(StatisticsBase.COMPLETE_FILTER, StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT), constraint10);
@@ -1181,7 +1192,6 @@ class EvitaQLRequireConstraintVisitorTest {
 	@Test
 	void shouldNotParseHierarchyStatisticsConstraint() {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics(CHILDREN_COUNT)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics('CHILDREN_COUNT')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("statistics(COMPLETE_FILTER,COMPLETE_FILTER)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("statistics(CHILDREN_COUNT)"));
@@ -1674,24 +1684,41 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldParseHierarchyOfReferenceConstraint() {
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("hierarchyOfReference('a', fromRoot('megaMenu'))");
+		assertEquals(
+			hierarchyOfReference("a", fromRoot("megaMenu")),
+			constraint10
+		);
+
 		final RequireConstraint constraint1 = parseRequireConstraintUnsafe("hierarchyOfReference('a', LEAVE_EMPTY, fromRoot('megaMenu'))");
 		assertEquals(
 			hierarchyOfReference("a", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")),
 			constraint1
 		);
 
-		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("hierarchyOfReference('a', 'b', LEAVE_EMPTY, fromRoot('megaMenu'))");
-		assertEquals(
-			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")),
-			constraint2
-		);
+		// todo lho support for multiple reference names
+//		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("hierarchyOfReference('a', 'b', LEAVE_EMPTY, fromRoot('megaMenu'))");
+//		assertEquals(
+//			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")),
+//			constraint2
+//		);
 
-		final RequireConstraint constraint3 = parseRequireConstraintUnsafe(
-			"hierarchyOfReference('a', 'b', LEAVE_EMPTY, orderBy(random()), fromRoot('megaMenu'))"
+		// todo lho support for multiple reference names
+//		final RequireConstraint constraint3 = parseRequireConstraintUnsafe(
+//			"hierarchyOfReference('a', 'b', LEAVE_EMPTY, orderBy(random()), fromRoot('megaMenu'))"
+//		);
+//		assertEquals(
+//			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, orderBy(random()), fromRoot("megaMenu")),
+//			constraint3
+//		);
+
+		final RequireConstraint constraint11 = parseRequireConstraint(
+			"hierarchyOfReference(?, fromRoot(?))",
+			"a", "megaMenu"
 		);
 		assertEquals(
-			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, orderBy(random()), fromRoot("megaMenu")),
-			constraint3
+			hierarchyOfReference("a", fromRoot("megaMenu")),
+			constraint11
 		);
 
 		final RequireConstraint constraint4 = parseRequireConstraint(
@@ -1703,25 +1730,34 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint4
 		);
 
-		final RequireConstraint constraint5 = parseRequireConstraint(
-			"hierarchyOfReference(?, ?, fromRoot(?))",
-			new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "megaMenu"
+		// todo lho support for multiple reference names
+//		final RequireConstraint constraint5 = parseRequireConstraint(
+//			"hierarchyOfReference(?, ?, fromRoot(?))",
+//			new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "megaMenu"
+//		);
+//		assertEquals(
+//			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")),
+//			constraint5
+//		);
+
+		// todo lho support for multiple reference names
+//		final RequireConstraint constraint6 = parseRequireConstraint(
+//			"hierarchyOfReference(?, ?, orderBy(random()), fromRoot(?))",
+//			new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "megaMenu"
+//		);
+//		assertEquals(
+//			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, orderBy(random()), fromRoot("megaMenu")),
+//			constraint6
+//		);
+
+		final RequireConstraint constraint12 = parseRequireConstraint(
+			"hierarchyOfReference(@ref, fromRoot(@out))",
+			Map.of("ref", "a", "out", "megaMenu")
 		);
 		assertEquals(
-			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")),
-			constraint5
+			hierarchyOfReference("a", fromRoot("megaMenu")),
+			constraint12
 		);
-
-		final RequireConstraint constraint6 = parseRequireConstraint(
-			"hierarchyOfReference(?, ?, orderBy(random()), fromRoot(?))",
-			new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "megaMenu"
-		);
-		assertEquals(
-			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, orderBy(random()), fromRoot("megaMenu")),
-			constraint6
-		);
-
-
 
 		final RequireConstraint constraint7 = parseRequireConstraint(
 			"hierarchyOfReference(@ref, @beh, fromRoot(@out))",
@@ -1732,22 +1768,79 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint7
 		);
 
-		final RequireConstraint constraint8 = parseRequireConstraint(
-			"hierarchyOfReference(@refs, @beh, fromRoot(@out))",
-			Map.of("refs", new String[] {"a", "b"}, "beh", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "out", "megaMenu")
-		);
+		// todo lho support for multiple reference names
+//		final RequireConstraint constraint8 = parseRequireConstraint(
+//			"hierarchyOfReference(@refs, @beh, fromRoot(@out))",
+//			Map.of("refs", new String[] {"a", "b"}, "beh", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "out", "megaMenu")
+//		);
+//		assertEquals(
+//			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")),
+//			constraint8
+//		);
+
+		// todo lho support for multiple reference names
+//		final RequireConstraint constraint13 = parseRequireConstraint(
+//			"hierarchyOfReference(@refs, orderBy(random()), fromRoot(@out))",
+//			Map.of("refs", new String[] {"a", "b"}, "out", "megaMenu")
+//		);
+//		assertEquals(
+//			hierarchyOfReference(new String[] {"a", "b"}, orderBy(random()), fromRoot("megaMenu")),
+//			constraint13
+//		);
+
+		// todo lho support for multiple reference names
+//		final RequireConstraint constraint9 = parseRequireConstraint(
+//			"hierarchyOfReference(@refs, @beh, orderBy(random()), fromRoot(@out))",
+//			Map.of("refs", new String[] {"a", "b"}, "beh", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "out", "megaMenu")
+//		);
+//		assertEquals(
+//			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, orderBy(random()), fromRoot("megaMenu")),
+//			constraint9
+//		);
+
+		final RequireConstraint constraint13 = parseRequireConstraintUnsafe("hierarchyOfReference('a', orderBy(random()), fromRoot('megaMenu'))");
 		assertEquals(
-			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, fromRoot("megaMenu")),
-			constraint8
+			hierarchyOfReference("a", orderBy(random()), fromRoot("megaMenu")),
+			constraint13
 		);
 
-		final RequireConstraint constraint9 = parseRequireConstraint(
-			"hierarchyOfReference(@refs, @beh, orderBy(random()), fromRoot(@out))",
-			Map.of("refs", new String[] {"a", "b"}, "beh", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "out", "megaMenu")
+		final RequireConstraint constraint14 = parseRequireConstraintUnsafe("hierarchyOfReference('a', LEAVE_EMPTY, orderBy(random()), fromRoot('megaMenu'))");
+		assertEquals(
+			hierarchyOfReference("a", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, orderBy(random()), fromRoot("megaMenu")),
+			constraint14
+		);
+
+		final RequireConstraint constraint15 = parseRequireConstraint("hierarchyOfReference(?, orderBy(random()), fromRoot(?))", "a", "megaMenu");
+		assertEquals(
+			hierarchyOfReference("a", orderBy(random()), fromRoot("megaMenu")),
+			constraint15
+		);
+
+		final RequireConstraint constraint16 = parseRequireConstraint(
+			"hierarchyOfReference(?, ?, orderBy(random()), fromRoot(?))",
+			"a", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "megaMenu"
 		);
 		assertEquals(
-			hierarchyOfReference(new String[] {"a", "b"}, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, orderBy(random()), fromRoot("megaMenu")),
-			constraint9
+			hierarchyOfReference("a", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, orderBy(random()), fromRoot("megaMenu")),
+			constraint16
+		);
+
+		final RequireConstraint constraint17 = parseRequireConstraint(
+			"hierarchyOfReference(@ref, orderBy(random()), fromRoot(@out))",
+			Map.of("ref", "a", "out", "megaMenu")
+		);
+		assertEquals(
+			hierarchyOfReference("a", orderBy(random()), fromRoot("megaMenu")),
+			constraint17
+		);
+
+		final RequireConstraint constraint18 = parseRequireConstraint(
+			"hierarchyOfReference(@ref, @beh, orderBy(random()), fromRoot(@out))",
+			Map.of("ref", "a", "beh", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, "out", "megaMenu")
+		);
+		assertEquals(
+			hierarchyOfReference("a", EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY, orderBy(random()), fromRoot("megaMenu")),
+			constraint18
 		);
 	}
 

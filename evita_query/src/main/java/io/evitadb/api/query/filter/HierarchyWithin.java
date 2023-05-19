@@ -24,6 +24,7 @@
 package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
@@ -39,6 +40,11 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Optional;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * This `withinHierarchy` query accepts [Serializable](https://docs.oracle.com/javase/8/docs/api/java/io/Serializable.html)
@@ -129,10 +135,16 @@ import java.util.Arrays;
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree (or has reference to any hierarchical entity in the tree).",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class HierarchyWithin extends AbstractFilterConstraintContainer implements HierarchyFilterConstraint, SeparateEntityScopeContainer {
+public class HierarchyWithin extends AbstractFilterConstraintContainer
+	implements HierarchyFilterConstraint, SeparateEntityScopeContainer, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = 5346689836560255185L;
+	private static final String SUFFIX = "self";
 
-	private HierarchyWithin(@Nonnull Serializable[] argument, @Nonnull FilterConstraint[] fineGrainedConstraints, @Nonnull Constraint<?>... additionalChildren) {
+	private HierarchyWithin(
+		@Nonnull Serializable[] argument,
+		@Nonnull FilterConstraint[] fineGrainedConstraints,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(argument, fineGrainedConstraints);
 		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
@@ -140,7 +152,7 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 		);
 	}
 
-	@Creator(suffix = "self", silentImplicitClassifier = true)
+	@Creator(suffix = SUFFIX, silentImplicitClassifier = true)
 	public HierarchyWithin(
 		@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint ofParent,
 		@Nonnull @Child(uniqueChildren = true) HierarchySpecificationFilterConstraint... with
@@ -171,8 +183,16 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer implement
 
 	@Override
 	@Nullable
-	public String getReferenceName() {
-		return getArguments().length == 0 ? null : (String) getArguments()[0];
+	public Optional<String> getReferenceName() {
+		return getArguments().length == 0 ? empty() : ofNullable((String) getArguments()[0]);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return getReferenceName()
+			.map(it -> Optional.<String>empty())
+			.orElseGet(() -> of(SUFFIX));
 	}
 
 	/**

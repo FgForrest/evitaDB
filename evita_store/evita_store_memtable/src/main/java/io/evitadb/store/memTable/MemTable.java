@@ -335,13 +335,7 @@ public class MemTable {
 			try {
 				// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
 				if (lastSyncedPosition < nonFlushedValue.fileLocation().getEndPosition()) {
-					writeHandle.execute(
-						"Syncing changes to disk.",
-						it -> {
-							doSync(it);
-							return null;
-						}
-					);
+					doSoftFlush();
 				}
 				//noinspection unchecked
 				return (T) get(nonFlushedValue.fileLocation(), recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
@@ -387,13 +381,7 @@ public class MemTable {
 			try {
 				// if the record was not yet flushed to the disk we need to enforce sync so that we can read it
 				if (lastSyncedPosition < nonFlushedValue.fileLocation().getEndPosition()) {
-					writeHandle.execute(
-						"Syncing changes to disk.",
-						it -> {
-							doSync(it);
-							return null;
-						}
-					);
+					doSoftFlush();
 				}
 				return getBinary(nonFlushedValue.fileLocation(), recordTypeRegistry.typeFor(nonFlushedValue.recordType()));
 			} catch (KryoException exception) {
@@ -797,6 +785,32 @@ public class MemTable {
 			return newMemTableDescriptor;
 		} else {
 			return memTableDescriptor;
+		}
+	}
+
+	/**
+	 * Method executes soft flush meaning, that all records currently held in the buffer are fSynced on disk so that
+	 * they can be read. This soft flush happens outside regular flushes that we want to do not so frequently, but
+	 * when there is request to read the record, that has been just written, and it still sits in non-flushed memory,
+	 * we have to enforce the flush.
+	 */
+	private void doSoftFlush() {
+		if (!this.nonFlushedValues.isEmpty()) {
+			writeHandle.execute(
+				"Syncing changes to disk.",
+				it -> {
+					doSync(it);
+					return null;
+				}
+			);
+			// propagate changes in KeyCompressor to the read kryo pool
+			if (memTableDescriptor.resetDirty()) {
+				this.memTableDescriptor = new MemTableDescriptor(
+					memTableDescriptor.getFileLocation(),
+					memTableDescriptor
+				);
+				this.readKryoPool.expireAllPreviouslyCreated();
+			}
 		}
 	}
 

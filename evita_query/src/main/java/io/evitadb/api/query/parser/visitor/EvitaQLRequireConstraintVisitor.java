@@ -35,6 +35,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
@@ -58,19 +59,14 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
 	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		byte.class,
 		Byte.class,
-		short.class,
 		Short.class,
-		int.class,
 		Integer.class,
-		long.class,
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
 	protected final EvitaQLValueTokenVisitor emptyHierarchicalEntityBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(EmptyHierarchicalEntityBehaviour.class);
-	protected final EvitaQLValueTokenVisitor statisticsBaseValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class);
-	protected final EvitaQLValueTokenVisitor statisticsTypeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsType.class);
+	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
 
 	protected final EvitaQLValueTokenVisitor priceContentArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Enum.class, PriceContentMode.class);
 
@@ -705,22 +701,60 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitEmptyHierarchyStatisticsConstraint(@Nonnull EmptyHierarchyStatisticsConstraintContext ctx) {
-		return parse(ctx, HierarchyStatistics::new);
-	}
-
-	@Override
-	public RequireConstraint visitFullHierarchyStatisticsConstraint(@Nonnull FullHierarchyStatisticsConstraintContext ctx) {
+	public RequireConstraint visitHierarchyStatisticsConstraint(@Nonnull HierarchyStatisticsConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyStatistics(
-				ctx.args.statisticsBase
-					.accept(statisticsBaseValueTokenVisitor)
-					.asEnum(StatisticsBase.class),
-				Optional.ofNullable(ctx.args.statisticsTypes)
-					.map(it -> it.accept(statisticsTypeValueTokenVisitor).asEnumArray(StatisticsType.class))
-					.orElse(new StatisticsType[0])
-			)
+			() -> {
+				if (ctx.args == null) {
+					return new HierarchyStatistics();
+				}
+				final LinkedList<Serializable> settings = Arrays.stream(ctx.args.settings
+					.accept(statisticsArgValueTokenVisitor)
+					.asSerializableArray())
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				// due to the varargs of any value in QL, we don't know which enum is where, on top of that it can be
+				// enum directly or just wrapper
+				final Serializable firstSettings = settings.peekFirst();
+				if (firstSettings instanceof StatisticsBase) {
+					return new HierarchyStatistics(
+						castArgument(ctx, settings.pop(), StatisticsBase.class),
+						settings.stream()
+							.map(it -> {
+								if (it instanceof EnumWrapper enumWrapper) {
+									return enumWrapper.toEnum(StatisticsType.class);
+								}
+								return castArgument(ctx, it, StatisticsType.class);
+							})
+							.toArray(StatisticsType[]::new)
+					);
+				}
+				if (firstSettings instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(StatisticsBase.class)) {
+					return new HierarchyStatistics(
+						castArgument(ctx, settings.pop(), EnumWrapper.class)
+							.toEnum(StatisticsBase.class),
+						settings.stream()
+							.map(it -> {
+								if (it instanceof EnumWrapper statisticsType) {
+									return statisticsType.toEnum(StatisticsType.class);
+								}
+								return castArgument(ctx, it, StatisticsType.class);
+							})
+							.toArray(StatisticsType[]::new)
+					);
+				}
+				return new HierarchyStatistics(
+					StatisticsBase.WITHOUT_USER_FILTER,
+					settings.stream()
+						.map(it -> {
+							if (it instanceof EnumWrapper enumWrapper) {
+								return enumWrapper.toEnum(StatisticsType.class);
+							}
+							return castArgument(ctx, it, StatisticsType.class);
+						})
+						.toArray(StatisticsType[]::new)
+				);
+			}
 		);
 	}
 
@@ -960,7 +994,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitBasicHierarchyOfSelfConstraint(BasicHierarchyOfSelfConstraintContext ctx) {
+	public RequireConstraint visitBasicHierarchyOfSelfConstraint(@Nonnull BasicHierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfSelf(
@@ -973,7 +1007,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFullHierarchyOfSelfConstraint(FullHierarchyOfSelfConstraintContext ctx) {
+	public RequireConstraint visitFullHierarchyOfSelfConstraint(@Nonnull FullHierarchyOfSelfConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfSelf(
@@ -987,11 +1021,28 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitBasicHierarchyOfReferenceConstraint(BasicHierarchyOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitBasicHierarchyOfReferenceConstraint(@Nonnull BasicHierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				ctx.args.referenceNames.accept(classifierTokenVisitor).asClassifierArray(),
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitBasicHierarchyOfReferenceWithBehaviourConstraint(@Nonnull BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfReference(
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
 				ctx.args.emptyHierarchicalEntityBehaviour
 					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)
 					.asEnum(EmptyHierarchicalEntityBehaviour.class),
@@ -1004,11 +1055,29 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
-	public RequireConstraint visitFullHierarchyOfReferenceConstraint(FullHierarchyOfReferenceConstraintContext ctx) {
+	public RequireConstraint visitFullHierarchyOfReferenceConstraint(@Nonnull FullHierarchyOfReferenceConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new HierarchyOfReference(
-				ctx.args.referenceNames.accept(classifierTokenVisitor).asClassifierArray(),
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
+				EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
+				visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class),
+				ctx.args.requirements
+					.stream()
+					.map(c -> visitChildConstraint(c, HierarchyRequireConstraint.class))
+					.toArray(HierarchyRequireConstraint[]::new)
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitFullHierarchyOfReferenceWithBehaviourConstraint(@Nonnull FullHierarchyOfReferenceWithBehaviourConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new HierarchyOfReference(
+				// todo lho support for multiple reference names
+				ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier(),
 				ctx.args.emptyHierarchicalEntityBehaviour
 					.accept(emptyHierarchicalEntityBehaviourValueTokenVisitor)
 					.asEnum(EmptyHierarchicalEntityBehaviour.class),

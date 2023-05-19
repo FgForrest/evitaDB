@@ -109,6 +109,14 @@ public class Value {
         return asSpecificType(Number.class);
     }
 
+    /**
+     * Casts original value to {@link Number} and tries to convert that value into desired type.
+     */
+    @Nonnull
+    public <T extends Number> T asNumber(@Nonnull Class<T> numberType) {
+        return EvitaDataTypes.toTargetType(asNumber(), numberType);
+    }
+
     public int asInt() {
         if (actualValue instanceof final Long longNumber) {
             try {
