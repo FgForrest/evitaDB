@@ -724,7 +724,6 @@ category up to level two.
 ... returns output:
 
 <MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parents">[Parents up to level 2](docs/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.java.json.md)</MDInclude>
-</Note>
 
 </Note>
 
