@@ -21,29 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.requestResponse.mutation;
+package io.evitadb.api.query.require;
 
-import com.google.protobuf.Message;
-import io.evitadb.api.requestResponse.mutation.Mutation;
-
-import javax.annotation.Nonnull;
+import io.evitadb.api.query.HierarchyConstraint;
+import io.evitadb.api.query.RequireConstraint;
 
 /**
- * Converter for converting between concrete implementations of {@link Mutation} and their gRPC variants.
+ * This interface marks all top level hierarchy constraints.
  *
- * @param <J> type of mutation in Java (core Evita) implementation
- * @param <G> type of mutation in gRPC
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface MutationConverter<J extends Mutation, G extends Message> {
-
-	/**
-	 * Converts core Evita's mutation into gRPC equivalent.
-	 */
-	@Nonnull G convert(@Nonnull J mutation);
-
-	/**
-	 * Converts gRPC mutation into core Evita's equivalent.
-	 */
-	@Nonnull J convert(@Nonnull G mutation);
+public interface RootHierarchyConstraint extends HierarchyConstraint<RequireConstraint>, RequireConstraint {
 }

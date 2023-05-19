@@ -24,12 +24,26 @@
 package io.evitadb.externalApi.grpc.requestResponse.data.mutation;
 
 import com.google.protobuf.Message;
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.mutation.Mutation;
+
+import javax.annotation.Nonnull;
 
 /**
- * Ancestor for all converters converting implementations of {@link EntityMutation}.
+ * Converter for converting between concrete implementations of {@link Mutation} and their gRPC variants.
  *
+ * @param <J> type of mutation in Java (core Evita) implementation
+ * @param <G> type of mutation in gRPC
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface EntityMutationConverter<J extends EntityMutation, G extends Message> extends MutationConverter<J, G> {
+public interface MutationConverter<J extends Mutation, G extends Message> {
+
+	/**
+	 * Converts core Evita's mutation into gRPC equivalent.
+	 */
+	@Nonnull G convert(@Nonnull J mutation);
+
+	/**
+	 * Converts gRPC mutation into core Evita's equivalent.
+	 */
+	@Nonnull J convert(@Nonnull G mutation);
 }

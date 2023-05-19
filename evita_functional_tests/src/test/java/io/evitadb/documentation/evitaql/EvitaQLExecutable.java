@@ -23,9 +23,12 @@
 
 package io.evitadb.documentation.evitaql;
 
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
@@ -35,13 +38,18 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.documentation.JavaPrettyPrintingVisitor;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
 import io.evitadb.documentation.UserDocumentationTest.OutputSnippet;
 import io.evitadb.driver.EvitaClient;
+import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
@@ -72,6 +80,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
+import static io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker.allow;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -90,7 +99,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class EvitaQLExecutable implements Executable {
+public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	/**
 	 * Mandatory header column with entity primary key.
 	 */
@@ -117,9 +126,21 @@ public class EvitaQLExecutable implements Executable {
 	 */
 	static {
 		OBJECT_MAPPER = new ObjectMapper();
-		// set pretty printing to ObjectMapper
+		OBJECT_MAPPER.setVisibility(
+			new CustomJsonVisibilityChecker(
+				allow(EntityClassifier.class),
+				allow(EntityClassifierWithParent.class),
+				allow(Hierarchy.class),
+				allow(Hierarchy.LevelInfo.class)
+			)
+		);
+		OBJECT_MAPPER.registerModule(new Jdk8Module());
+		OBJECT_MAPPER.registerModule(
+			new SimpleModule()
+				.addSerializer(EntityContract.class, new EntityDocumentationJsonSerializer()));
+
+		OBJECT_MAPPER.setSerializationInclusion(Include.NON_DEFAULT);
 		OBJECT_MAPPER.enable(SerializationFeature.INDENT_OUTPUT);
-		OBJECT_MAPPER.enable(SerializationFeature.WRAP_ROOT_VALUE);
 		OBJECT_MAPPER.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 		OBJECT_MAPPER.enable(SerializationFeature.WRITE_DATE_KEYS_AS_TIMESTAMPS);
 
@@ -138,6 +159,10 @@ public class EvitaQLExecutable implements Executable {
 	 * Contains the tested EvitaQL code.
 	 */
 	private final @Nonnull String sourceContent;
+	/**
+	 * Contains root directory.
+	 */
+	private final @Nonnull Path rootDirectory;
 	/**
 	 * Contains the path of the source file (used when output files are generated and the MarkDown file content
 	 * is verified.
@@ -161,9 +186,19 @@ public class EvitaQLExecutable implements Executable {
 	 */
 	private static void writeFile(@Nonnull Path originalFile, @Nonnull String extension, @Nonnull String fileContent) {
 		final Path writeFileName = resolveSiblingWithDifferentExtension(originalFile, extension);
+		writeFile(writeFileName, fileContent);
+	}
+
+	/**
+	 * Method writes new content to the file.
+	 *
+	 * @param targetFile  original file name to copy name and location from
+	 * @param fileContent new content of the file
+	 */
+	private static void writeFile(@Nonnull Path targetFile, @Nonnull String fileContent) {
 		try {
 			Files.writeString(
-				writeFileName, fileContent,
+				targetFile, fileContent,
 				StandardCharsets.UTF_8,
 				StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE, StandardOpenOption.WRITE
 			);
@@ -199,7 +234,7 @@ public class EvitaQLExecutable implements Executable {
 		@Nonnull EvitaResponse<SealedEntity> response,
 		@Nullable OutputSnippet outputSnippet
 	) {
-		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::format).orElse("md");
+		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
 		if (outputFormat.equals("md")) {
 			return generateMarkDownAttributeTable(query, response);
 		} else if (outputFormat.equals("json")) {
@@ -301,7 +336,7 @@ public class EvitaQLExecutable implements Executable {
 	 */
 	@Nullable
 	private static Object extractValueFrom(@Nonnull Object theObject, @Nonnull String[] sourceVariableParts) {
-		if (theObject instanceof Map<?,?> map) {
+		if (theObject instanceof Map<?, ?> map) {
 			for (Entry<?, ?> entry : map.entrySet()) {
 				final Object key = entry.getKey();
 				final String keyAsString;
@@ -382,20 +417,33 @@ public class EvitaQLExecutable implements Executable {
 				writeFile(resource, "java", javaSnippet);
 			}
 			// generate Markdown snippet from the result if required
-			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::format).orElse("md");
+			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
 			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
-				writeFile(resource, outputFormat, markdownSnippet);
+				if (outputSnippet == null) {
+					writeFile(resource, outputFormat, markdownSnippet);
+				} else {
+					writeFile(outputSnippet.path(), markdownSnippet);
+				}
 			}
 
 			// assert MarkDown file contents
-			final Optional<String> markDownFile = readFile(resource, outputFormat);
+			final Optional<String> markDownFile = outputSnippet == null ?
+				readFile(resource, outputFormat) : readFile(outputSnippet.path());
 			markDownFile.ifPresent(
-				content -> assertEquals(
-					markdownSnippet,
-					content
-				)
+				content -> {
+					assertEquals(
+						markdownSnippet,
+						content
+					);
+
+					final Path assertSource = outputSnippet == null ?
+						resolveSiblingWithDifferentExtension(resource, outputFormat).normalize() :
+						outputSnippet.path().normalize();
+
+					final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
+					System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
+				}
 			);
 		}
 	}
-
 }

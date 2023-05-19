@@ -54,7 +54,7 @@ import java.util.Optional;
  * Facet summary respects current query filtering constraints excluding the conditions inside {@link UserFilter}
  * container constraint.
  *
- * When this requirement is used an additional object {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} is stored to result.
+ * When this requirement is used an additional object {@link FacetSummary} is stored to result.
  *
  * Optionally accepts single enum argument:
  *

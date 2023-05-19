@@ -21,8 +21,17 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.query;
+package io.evitadb.externalApi.grpc.requestResponse;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.EntityGroupFetch;
+import io.evitadb.api.query.require.FacetSummaryOfReference;
+import io.evitadb.api.query.require.HierarchyOfReference;
+import io.evitadb.api.query.require.HierarchyOfSelf;
+import io.evitadb.api.query.require.HierarchyRequireConstraint;
+import io.evitadb.api.query.require.RootHierarchyConstraint;
 import io.evitadb.api.requestResponse.EvitaEntityResponse;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
@@ -46,12 +55,15 @@ import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -140,27 +152,88 @@ public class ResponseConverter {
 			);
 		}
 		if (extraResults.hasSelfHierarchy() || extraResults.getHierarchyCount() > 0) {
+			final List<RootHierarchyConstraint> hierarchyConstraints = QueryUtils.findRequires(
+				evitaRequest.getQuery(), RootHierarchyConstraint.class
+			);
 			result.add(
 				new Hierarchy(
-					toHierarchy(entitySchemaFetcher, evitaRequest, extraResults.getSelfHierarchy()),
+					extraResults.hasSelfHierarchy() ?
+						toHierarchy(
+							entitySchemaFetcher, evitaRequest,
+							hierarchyConstraints.stream().filter(HierarchyOfSelf.class::isInstance).findFirst().orElseThrow(),
+							extraResults.getSelfHierarchy()
+						) : null,
 					extraResults.getHierarchyMap()
 						.entrySet()
 						.stream()
 						.collect(
 							Collectors.toMap(
 								Entry::getKey,
-								it -> toHierarchy(entitySchemaFetcher, evitaRequest, it.getValue())
+								it -> toHierarchy(
+									entitySchemaFetcher,
+									evitaRequest,
+									hierarchyConstraints.stream()
+										.filter(HierarchyOfReference.class::isInstance)
+										.map(HierarchyOfReference.class::cast)
+										.filter(hor -> Arrays.stream(hor.getReferenceNames()).anyMatch(refName -> Objects.equals(refName, it.getKey())))
+										.findFirst()
+										.orElseThrow(),
+									it.getValue()
+								)
 							)
 						)
 				)
 			);
 		}
 		if (extraResults.getFacetGroupStatisticsCount() > 0) {
+			final io.evitadb.api.query.require.FacetSummary facetSummaryRequirementDefaults = QueryUtils.findRequire(
+				evitaRequest.getQuery(), io.evitadb.api.query.require.FacetSummary.class
+			);
+			final EntityFetch defaultEntityFetch = Optional.ofNullable(facetSummaryRequirementDefaults)
+				.map(io.evitadb.api.query.require.FacetSummary::getFacetEntityRequirement)
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.orElse(null);
+			final EntityGroupFetch defaultEntityGroupFetch = Optional.ofNullable(facetSummaryRequirementDefaults)
+				.map(io.evitadb.api.query.require.FacetSummary::getGroupEntityRequirement)
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.orElse(null);
+
+			final Map<String, FacetSummaryOfReference> facetSummaryRequestIndex = QueryUtils.findRequires(
+				evitaRequest.getQuery(), FacetSummaryOfReference.class
+			)
+				.stream()
+				.collect(
+					Collectors.toMap(
+						FacetSummaryOfReference::getReferenceName,
+						Function.identity()
+					)
+				);
+
 			result.add(
 				new FacetSummary(
 					extraResults.getFacetGroupStatisticsList()
 						.stream()
-						.map(it -> toFacetGroupStatistics(entitySchemaFetcher, evitaRequest, it))
+						.map(it -> {
+							final String referenceName = it.getReferenceName();
+							final EntityFetch entityFetch = Optional.ofNullable(facetSummaryRequestIndex.get(referenceName))
+								.map(io.evitadb.api.query.require.FacetSummaryOfReference::getFacetEntityRequirement)
+								.filter(Optional::isPresent)
+								.map(Optional::get)
+								.orElse(defaultEntityFetch);
+							final EntityGroupFetch entityGroupFetch = Optional.ofNullable(facetSummaryRequestIndex.get(referenceName))
+								.map(io.evitadb.api.query.require.FacetSummaryOfReference::getGroupEntityRequirement)
+								.filter(Optional::isPresent)
+								.map(Optional::get)
+								.orElse(defaultEntityGroupFetch);
+
+							return toFacetGroupStatistics(
+								entitySchemaFetcher, evitaRequest,
+								entityFetch, entityGroupFetch,
+								it
+							);
+						})
 						.toList()
 				)
 			);
@@ -175,17 +248,27 @@ public class ResponseConverter {
 	private static FacetGroupStatistics toFacetGroupStatistics(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nonnull GrpcFacetGroupStatistics grpcFacetGroupStatistics
 	) {
 		return new FacetGroupStatistics(
 			grpcFacetGroupStatistics.getReferenceName(),
 			grpcFacetGroupStatistics.hasGroupEntity() ?
-				toSealedEntity(entitySchemaFetcher, evitaRequest, grpcFacetGroupStatistics.getGroupEntity()) :
+				toSealedEntity(
+					entitySchemaFetcher,
+					evitaRequest.deriveCopyWith(
+						grpcFacetGroupStatistics.getGroupEntity().getEntityType(), entityGroupFetch
+					),
+					grpcFacetGroupStatistics.getGroupEntity()
+				) :
 				toEntityReference(grpcFacetGroupStatistics.getGroupEntityReference()),
 			grpcFacetGroupStatistics.getCount(),
 			grpcFacetGroupStatistics.getFacetStatisticsList()
 				.stream()
-				.map(it -> toFacetStatistics(entitySchemaFetcher, evitaRequest, it))
+				.map(
+					it -> toFacetStatistics(entitySchemaFetcher, evitaRequest, entityFetch, it)
+				)
 				.collect(
 					Collectors.toMap(
 						it -> it.getFacetEntity().getPrimaryKey(),
@@ -202,11 +285,16 @@ public class ResponseConverter {
 	private static FacetStatistics toFacetStatistics(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nullable EntityFetch entityFetch,
 		@Nonnull GrpcFacetStatistics grpcFacetStatistics
 	) {
 		return new FacetStatistics(
 			grpcFacetStatistics.hasFacetEntity() ?
-				toSealedEntity(entitySchemaFetcher, evitaRequest, grpcFacetStatistics.getFacetEntity()) :
+				toSealedEntity(
+					entitySchemaFetcher,
+					evitaRequest.deriveCopyWith(grpcFacetStatistics.getFacetEntity().getEntityType(), entityFetch),
+					grpcFacetStatistics.getFacetEntity()
+				) :
 				toEntityReference(grpcFacetStatistics.getFacetEntityReference()),
 			grpcFacetStatistics.getRequested(),
 			grpcFacetStatistics.getCount(),
@@ -226,6 +314,7 @@ public class ResponseConverter {
 	private static Map<String, List<LevelInfo>> toHierarchy(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull RootHierarchyConstraint rootHierarchyConstraint,
 		@Nonnull GrpcHierarchy grpcHierarchy
 	) {
 		return grpcHierarchy
@@ -235,10 +324,17 @@ public class ResponseConverter {
 			.collect(
 				Collectors.toMap(
 					Entry::getKey,
-					it -> it.getValue().getLevelInfosList()
-						.stream()
-						.map(x -> toLevelInfo(entitySchemaFetcher, evitaRequest, x))
-						.collect(Collectors.toList())
+					it -> {
+						final Constraint<?> hierarchyConstraint = QueryUtils.findConstraint(
+							rootHierarchyConstraint,
+							cnt -> cnt instanceof HierarchyRequireConstraint hrc && Objects.equals(it.getKey(), hrc.getOutputName())
+						);
+						final EntityFetch entityFetch = QueryUtils.findConstraint(hierarchyConstraint, EntityFetch.class);
+						return it.getValue().getLevelInfosList()
+							.stream()
+							.map(x -> toLevelInfo(entitySchemaFetcher, evitaRequest, entityFetch, x))
+							.collect(Collectors.toList());
+					}
 				)
 			);
 	}
@@ -250,13 +346,16 @@ public class ResponseConverter {
 	private static LevelInfo toLevelInfo(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nullable EntityFetch entityFetch,
 		@Nonnull GrpcLevelInfo grpcLevelInfo
 	) {
 		return new LevelInfo(
-			grpcLevelInfo.hasEntity() ? toSealedEntity(entitySchemaFetcher, evitaRequest, grpcLevelInfo.getEntity()) : toEntityReference(grpcLevelInfo.getEntityReference()),
+			grpcLevelInfo.hasEntity() ?
+				toSealedEntity(entitySchemaFetcher, evitaRequest.deriveCopyWith(grpcLevelInfo.getEntity().getEntityType(), entityFetch), grpcLevelInfo.getEntity()) :
+				toEntityReference(grpcLevelInfo.getEntityReference()),
 			grpcLevelInfo.getQueriedEntityCount().isInitialized() ? grpcLevelInfo.getQueriedEntityCount().getValue() : null,
 			grpcLevelInfo.getChildrenCount().isInitialized() ? grpcLevelInfo.getChildrenCount().getValue() : null,
-			grpcLevelInfo.getItemsList().stream().map(it -> toLevelInfo(entitySchemaFetcher, evitaRequest, it)).collect(Collectors.toList())
+			grpcLevelInfo.getItemsList().stream().map(it -> toLevelInfo(entitySchemaFetcher, evitaRequest, entityFetch, it)).collect(Collectors.toList())
 		);
 	}
 

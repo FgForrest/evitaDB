@@ -24,6 +24,7 @@
 package io.evitadb.documentation.java;
 
 import io.evitadb.core.Evita;
+import io.evitadb.documentation.UserDocumentationTest;
 import io.evitadb.documentation.UserDocumentationTest.CodeSnippet;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
@@ -54,8 +55,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static io.evitadb.documentation.UserDocumentationTest.readFile;
 
 /**
  * The implementation of the Java source code dynamic test verifying single Java example from the documentation.
@@ -257,7 +256,7 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 				final CodeSnippet requiredScript = codeSnippetIndex.get(require);
 				// if the code snippet is not found in the index, it's read from the file system
 				if (requiredScript == null) {
-					requiredSnippet.addAll(toJavaSnippets(jShell, readFile(getRootDirectory().resolve(require))));
+					requiredSnippet.addAll(toJavaSnippets(jShell, UserDocumentationTest.readFileOrThrowException(getRootDirectory().resolve(require))));
 				} else {
 					final Executable executable = requiredScript.executableLambda();
 					Assert.isTrue(executable instanceof JavaExecutable, "Java example may require only Java executables!");
