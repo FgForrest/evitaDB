@@ -711,7 +711,6 @@ returns a computed *subcategories* data structure that lists top two levels of t
 Which returns:
 
 <MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Top 2 level of categories](docs/user/en/query/requirements/examples/hierarchy/hierarchy-level.java.json.md)</MDInclude>
-</Note>
 
 The following query lists products in the *Audio* category and its subcategories. Along with the products returned, it
 also returns a computed *parent* data structure that lists all the parents of the currently focused *True wireless*
