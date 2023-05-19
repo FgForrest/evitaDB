@@ -74,7 +74,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for ``` java ``` blocks.
 	 */
 	private static final Pattern SOURCE_CODE_PATTERN = Pattern.compile(
-		"```\\s*(.*?)\\s*\n(.+?)```",
+		"```\\s*(\\S+)?\\s*\n(.+?)```",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -235,7 +235,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					createSnippets
 				);
 			}
-			default -> throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
+			default -> {
+				throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
+			}
 		}
 	}
 
@@ -340,7 +342,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 		final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
 		while (sourceCodeMatcher.find()) {
-			final String format = sourceCodeMatcher.group(1);
+			final String format = sourceCodeMatcher.groupCount() > 2 ? sourceCodeMatcher.group(1) : "plain";
+			final String content = sourceCodeMatcher.groupCount() > 2 ? sourceCodeMatcher.group(2) : sourceCodeMatcher.group(1);
 			if (!(format.isBlank() || NOT_TESTED_LANGUAGES.contains(format))) {
 				codeSnippets.add(
 					new CodeSnippet(
@@ -350,7 +353,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						null,
 						convertToRunnable(
 							format,
-							sourceCodeMatcher.group(2),
+							content,
 							rootDirectory,
 							null,
 							null,

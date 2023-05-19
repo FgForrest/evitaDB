@@ -66,7 +66,7 @@ in the set. To access the dataset on your hardware, you need to:
 
 When this procedure is completed you should see the similar output in the console:
 
-```
+```plain
 
             _ _        ____  ____  
   _____   _(_) |_ __ _|  _ \| __ ) 

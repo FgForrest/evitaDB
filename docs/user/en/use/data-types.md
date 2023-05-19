@@ -105,19 +105,19 @@ types. The offset date times are written in the ISO format.
 
 - when both boundaries are specified:
 
-```
+```plain
 [2021-01-01T00:00:00+01:00,2022-01-01T00:00:00+01:00]
 ```
 
 - when a left boundary (since) is specified:
 
-```
+```plain
 [2021-01-01T00:00:00+01:00,]
 ```
 
 - when a right boundary (until) is specified:
 
-```
+```plain
 [,2022-01-01T00:00:00+01:00]
 ```
 
@@ -135,19 +135,19 @@ and Byte as upper bound.
 
 - when both boundaries are specified:
 
-```
+```plain
 [1,3.256]
 ```
 
 - when a left boundary (since) is specified:
 
-```
+```plain
 [1,]
 ```
 
 - when a right boundary (until) is specified:
 
-```
+```plain
 [,3.256]
 ```
 

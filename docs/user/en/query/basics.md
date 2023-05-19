@@ -93,7 +93,7 @@ query(
 
 In the documentation, constraints are described by a **Syntax** section that follows this format:
 
-```
+```evitaql-syntax
 constraintName(
     argument:type,specification
     constraint:type,specification

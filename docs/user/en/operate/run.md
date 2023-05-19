@@ -28,7 +28,7 @@ index.docker.io/evitadb/evitadb:latest
 
 When you start the evitaDB server you should see the following information in the console output:
 
-```
+```plain
             _ _        ____  ____  
   _____   _(_) |_ __ _|  _ \| __ ) 
  / _ \ \ / / | __/ _` | | | |  _ \ 
@@ -178,7 +178,7 @@ You will need to replace `__data_dir__` with the path to the folder on your host
 The folder begins to fill with data as you create your first catalogs and collections of entities. The organisation of
 folder will look like this:
 
-```
+```plain
 ├── catalogA
 ├── catalogB
 └── catalogC
