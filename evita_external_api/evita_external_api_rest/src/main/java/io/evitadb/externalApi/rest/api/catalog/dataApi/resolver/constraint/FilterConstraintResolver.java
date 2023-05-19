@@ -32,14 +32,10 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
-import io.evitadb.utils.Assert;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Set;
+import java.util.Optional;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -54,7 +50,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class FilterConstraintResolver extends RestConstraintResolver<FilterConstraint> {
 
-	@Getter @Nonnull private final ConstraintDescriptor wrapperContainer;
+	@Nonnull private final ConstraintDescriptor wrapperContainer;
 
 	public FilterConstraintResolver(@Nonnull CollectionRestHandlingContext restHandlingContext) {
 		super(
@@ -82,6 +78,12 @@ public class FilterConstraintResolver extends RestConstraintResolver<FilterConst
 	@Override
 	protected ConstraintType getConstraintType() {
 		return ConstraintType.FILTER;
+	}
+
+	@Nonnull
+	@Override
+	protected Optional<ConstraintDescriptor> getWrapperContainer() {
+		return Optional.of(wrapperContainer);
 	}
 
 	@Nonnull

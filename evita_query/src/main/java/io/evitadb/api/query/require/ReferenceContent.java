@@ -185,12 +185,13 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 		super(new String[] { referencedEntityType }, new RequireConstraint[] {groupEntityRequirement}, filterBy, orderBy);
 	}
 
-	public ReferenceContent(@Nonnull String referencedEntityType,
-							@Nullable FilterBy filterBy,
-	                        @Nullable OrderBy orderBy,
-	                        @Nullable EntityFetch entityRequirement,
-	                        @Nullable EntityGroupFetch groupEntityRequirement) {
-		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityRequirement, groupEntityRequirement}, filterBy, orderBy);
+	@Creator
+	public ReferenceContent(@Nonnull @Classifier String referencedEntityType,
+							@Nullable @AdditionalChild FilterBy filterBy,
+	                        @Nullable @AdditionalChild OrderBy orderBy,
+	                        @Nullable @Child EntityFetch entityFetch,
+	                        @Nullable @Child EntityGroupFetch entityGroupFetch) {
+		super(new String[] { referencedEntityType }, new RequireConstraint[] {entityFetch, entityGroupFetch}, filterBy, orderBy);
 	}
 
 	public ReferenceContent(@Nonnull String referencedEntityType,
@@ -209,14 +210,6 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 
 	public ReferenceContent(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		super(entityRequirement, groupEntityRequirement);
-	}
-
-	@Creator
-	private ReferenceContent(@Nonnull @Classifier String referencedEntityType,
-	                         @Nullable @AdditionalChild FilterBy filterBy,
-	                         @Nullable @AdditionalChild OrderBy orderBy,
-	                         @Nullable @Child(uniqueChildren = true) EntityRequire... requirements) {
-		super(new String[] { referencedEntityType }, requirements, filterBy, orderBy);
 	}
 
 	/**

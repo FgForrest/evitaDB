@@ -61,7 +61,7 @@ public class EntityGroupFetch extends AbstractRequireConstraintContainer impleme
 	}
 
 	@Creator
-	public EntityGroupFetch(@Nonnull @Child EntityContentRequire... requirements) {
+	public EntityGroupFetch(@Nonnull @Child(uniqueChildren = true) EntityContentRequire... requirements) {
 		super(requirements);
 	}
 

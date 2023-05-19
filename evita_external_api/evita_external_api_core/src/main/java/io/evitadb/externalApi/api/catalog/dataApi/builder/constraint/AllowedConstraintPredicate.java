@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -43,75 +44,85 @@ import java.util.stream.Stream;
  */
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
+@EqualsAndHashCode
 public class AllowedConstraintPredicate implements Predicate<ConstraintDescriptor> {
 
-	private final Set<Class<? extends Constraint<?>>> allowedConstraints;
-	private final Set<Class<? extends Constraint<?>>> forbiddenConstraints;
+	@Nonnull private final Class<? extends Constraint<?>> baseConstraintType;
+	@Nonnull private final Set<Class<? extends Constraint<?>>> locallyAllowedConstraints;
+	@Nonnull private final Set<Class<? extends Constraint<?>>> globallyAllowedConstraints;
+
+	@Nonnull private final Set<Class<? extends Constraint<?>>> forbiddenConstraints;
 
 	/**
-	 * Creates predicate from children parameter descriptor and its allowed/forbidden children.
-	 */
-	public AllowedConstraintPredicate(@Nonnull ChildParameterDescriptor childParameter) {
-		this.allowedConstraints = childParameter.allowedChildTypes();
-		this.forbiddenConstraints = childParameter.forbiddenChildTypes();
-	}
-
-	/**
-	 * Creates predicate from children parameter descriptor and its allowed/forbidden children but these are
-	 * restricted by {@code allowedConstraints}/{@code forbiddenConstraints} rules.
+	 * Creates predicate for constraint's child parameter. Tested constraint must be a subclass of parameter type,
+	 * be allowed by parameter allowed set and be allowed by global set of constraints.
 	 */
 	public AllowedConstraintPredicate(@Nonnull ChildParameterDescriptor childParameter,
-	                                  @Nonnull Set<Class<? extends Constraint<?>>> allowedConstraints,
-	                                  @Nonnull Set<Class<? extends Constraint<?>>> forbiddenConstraints) {
-		if (allowedConstraints.isEmpty() && childParameter.allowedChildTypes().isEmpty()) {
-			final Class<? extends Constraint<?>> constraintBaseType;
-			final Class<?> childParameterType = childParameter.type();
-			if (childParameterType.isArray()) {
-				//noinspection unchecked
-				constraintBaseType = (Class<? extends Constraint<?>>) childParameterType.getComponentType();
-			} else {
-				//noinspection unchecked
-				constraintBaseType = (Class<? extends Constraint<?>>) childParameterType;
-			}
+	                                  @Nonnull Set<Class<? extends Constraint<?>>> globallyAllowedConstraints,
+	                                  @Nonnull Set<Class<? extends Constraint<?>>> globallyForbiddenConstraints) {
+		this.baseConstraintType = resolveChildParameterBaseType(childParameter);
+		this.locallyAllowedConstraints = childParameter.allowedChildTypes();
+		this.globallyAllowedConstraints = globallyAllowedConstraints;
 
-			this.allowedConstraints = Set.of(constraintBaseType);
-		} else if (allowedConstraints.isEmpty()) {
-			this.allowedConstraints = childParameter.allowedChildTypes();
-		} else if (childParameter.allowedChildTypes().isEmpty()) {
-			this.allowedConstraints = allowedConstraints;
+		this.forbiddenConstraints = resolveForbiddenConstraints(childParameter, globallyForbiddenConstraints);
+	}
+
+	@Override
+	public boolean test(@Nonnull ConstraintDescriptor constraintDescriptor) {
+		return isConstraintAllowed(constraintDescriptor.constraintClass()) &&
+			!isConstraintForbidden(constraintDescriptor.constraintClass());
+	}
+
+	@Nonnull
+	private Class<? extends Constraint<?>> resolveChildParameterBaseType(@Nonnull ChildParameterDescriptor childParameter) {
+		final Class<?> parameterType = childParameter.type();
+		if (parameterType.isArray()) {
+			//noinspection unchecked
+			return (Class<? extends Constraint<?>>) parameterType.getComponentType();
 		} else {
-			// if both sets are not empty we want to do an intersection of both sets
-			this.allowedConstraints = childParameter.allowedChildTypes()
-				.stream()
-				.filter(allowedConstraints::contains)
-				.collect(Collectors.toSet());
+			//noinspection unchecked
+			return (Class<? extends Constraint<?>>) parameterType;
 		}
+	}
 
-		this.forbiddenConstraints = Stream.concat(
-				childParameter.forbiddenChildTypes().stream(),
-				forbiddenConstraints.stream()
+	@Nonnull
+	private Set<Class<? extends Constraint<?>>> resolveForbiddenConstraints(@Nonnull ChildParameterDescriptor childParameter,
+	                                                                        @Nonnull Set<Class<? extends Constraint<?>>> globallyForbiddenConstraints) {
+		final Set<Class<? extends Constraint<?>>> locallyForbiddenConstraints = childParameter.forbiddenChildTypes();
+		return Stream.concat(
+				globallyForbiddenConstraints.stream(),
+				locallyForbiddenConstraints.stream()
 			)
 			.collect(Collectors.toSet());
 	}
 
-
-	@Override
-	public boolean test(@Nonnull ConstraintDescriptor constraintDescriptor) {
-		if (allowedConstraints.isEmpty() && forbiddenConstraints.isEmpty()) {
-			return true;
-		} else if (!allowedConstraints.isEmpty() && !forbiddenConstraints.isEmpty()) {
-			return testConstraint(allowedConstraints, constraintDescriptor.constraintClass()) &&
-				!testConstraint(forbiddenConstraints, constraintDescriptor.constraintClass());
-		} else if (!allowedConstraints.isEmpty()) {
-			return testConstraint(allowedConstraints, constraintDescriptor.constraintClass());
-		} else {
-			return !testConstraint(forbiddenConstraints, constraintDescriptor.constraintClass());
-		}
+	private boolean isConstraintAllowed(@Nonnull Class<?> constraint) {
+		return baseConstraintType.isAssignableFrom(constraint) &&
+			isConstraintAllowed(constraint, globallyAllowedConstraints) &&
+			isConstraintAllowed(constraint, locallyAllowedConstraints);
 	}
 
-	private boolean testConstraint(@Nonnull Set<Class<? extends Constraint<?>>> constraintSet,
-	                               @Nonnull Class<?> testedConstraint) {
-		return constraintSet.stream()
-			.anyMatch(constraint -> constraint.isAssignableFrom(testedConstraint));
+	private boolean isConstraintAllowed(@Nonnull Class<?> constraint,
+	                                    @Nonnull Set<Class<? extends Constraint<?>>> set) {
+		if (set.isEmpty()) {
+			return true;
+		}
+		return isConstraintInSet(constraint, set);
+	}
+
+	private boolean isConstraintForbidden(@Nonnull Class<?> constraint) {
+		if (forbiddenConstraints.isEmpty()) {
+			return false;
+		}
+		return isConstraintInSet(constraint, forbiddenConstraints);
+	}
+
+	/**
+	 * Checks if the set of constraints either directly contains the constraint or the constraint is subclass of any
+	 * class in the set.
+	 */
+	private boolean isConstraintInSet(@Nonnull Class<?> constraint,
+	                                  @Nonnull Set<Class<? extends Constraint<?>>> set) {
+		return set.stream().anyMatch(it -> it.isAssignableFrom(constraint));
 	}
 }

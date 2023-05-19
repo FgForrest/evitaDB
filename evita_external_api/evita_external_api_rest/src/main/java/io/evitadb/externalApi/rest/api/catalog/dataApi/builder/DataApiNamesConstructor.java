@@ -36,9 +36,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkAggregateDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.HierarchyOfDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -135,8 +136,20 @@ public class DataApiNamesConstructor {
 	}
 
 	@Nonnull
-	public static String constructHierarchyStatisticsObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+	public static String constructHierarchyObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
 		return HierarchyDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema);
+	}
+
+	@Nonnull
+	public static String constructHierarchyOfSelfObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return HierarchyOfDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, entitySchema);
+	}
+
+	@Nonnull
+	public static String constructHierarchyOfReferenceObjectName(@Nonnull EntitySchemaContract entitySchema,
+	                                                             @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                             boolean localized) {
+		return HierarchyOfDescriptor.THIS.name(getLocalizedSuffix(localized), entitySchema, referenceSchema);
 	}
 
 	@Nonnull

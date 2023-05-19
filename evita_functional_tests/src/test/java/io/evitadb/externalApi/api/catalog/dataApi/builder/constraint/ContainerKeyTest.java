@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
 
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.Not;
@@ -43,26 +44,114 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 class ContainerKeyTest {
 
 	@Test
-	void shouldGenerateSameHashes() {
+	void shouldKeysBeEqual() {
 		assertEquals(
-			new ContainerKey(ConstraintType.FILTER, new EntityDataLocator("product"), Set.of(), Set.of()).toHash(),
-			new ContainerKey(ConstraintType.FILTER, new EntityDataLocator("product"), Set.of(), Set.of()).toHash()
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(), Set.of(), Set.of())
+			),
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(), Set.of(), Set.of())
+			)
 		);
 		assertEquals(
-			new ContainerKey(ConstraintType.FILTER, new EntityDataLocator("product"), Set.of(And.class, Or.class), Set.of(Not.class)).toHash(),
-			new ContainerKey(ConstraintType.FILTER, new EntityDataLocator("product"), Set.of(And.class, Or.class), Set.of(Not.class)).toHash()
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class, Or.class), Set.of(And.class), Set.of(Not.class))
+			),
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class, Or.class), Set.of(And.class), Set.of(Not.class))
+			)
+		);
+	}
+
+	@Test
+	void shouldNotKeyBeEqual() {
+		assertNotEquals(
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(), Set.of(), Set.of())
+			),
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("order"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(), Set.of(), Set.of())
+			)
+		);
+		assertNotEquals(
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class, Or.class), Set.of(),  Set.of(Not.class))
+			),
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class), Set.of(), Set.of(Or.class, Not.class))
+			)
+		);
+	}
+
+	@Test
+	void shouldGenerateSameHashes() {
+		assertEquals(
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(), Set.of(), Set.of())
+			).toHash(),
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(), Set.of(), Set.of())
+			).toHash()
+		);
+		assertEquals(
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class, Or.class), Set.of(And.class), Set.of(Not.class))
+			).toHash(),
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class, Or.class), Set.of(And.class), Set.of(Not.class))
+			).toHash()
 		);
 	}
 
 	@Test
 	void shouldNotGenerateSameHashes() {
 		assertNotEquals(
-			new ContainerKey(ConstraintType.FILTER, new EntityDataLocator("product"), Set.of(), Set.of()).toHash(),
-			new ContainerKey(ConstraintType.FILTER, new EntityDataLocator("order"), Set.of(), Set.of()).toHash()
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(), Set.of(), Set.of())
+			).toHash(),
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("order"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(), Set.of(), Set.of())
+			).toHash()
 		);
 		assertNotEquals(
-			new ContainerKey(ConstraintType.FILTER, new EntityDataLocator("product"), Set.of(And.class, Or.class), Set.of(Not.class)).toHash(),
-			new ContainerKey(ConstraintType.FILTER, new EntityDataLocator("product"), Set.of(And.class), Set.of(Or.class, Not.class)).toHash()
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class, Or.class), Set.of(),  Set.of(Not.class))
+			).toHash(),
+			new ContainerKey(
+				ConstraintType.FILTER,
+				new EntityDataLocator("product"),
+				new AllowedConstraintPredicate(FilterConstraint.class, Set.of(And.class), Set.of(), Set.of(Or.class, Not.class))
+			).toHash()
 		);
 	}
 }

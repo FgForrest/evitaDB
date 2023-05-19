@@ -75,6 +75,9 @@ class HierarchySiblingsTest {
 
 		final HierarchySiblings hierarchySiblings2 = siblings("megaMenu", statistics());
 		assertEquals("siblings('megaMenu',statistics(WITHOUT_USER_FILTER))", hierarchySiblings2.toString());
+
+		final HierarchySiblings hierarchySiblings3 = siblings(statistics());
+		assertEquals("siblings(statistics(WITHOUT_USER_FILTER))", hierarchySiblings3.toString());
 	}
 
 	@Test

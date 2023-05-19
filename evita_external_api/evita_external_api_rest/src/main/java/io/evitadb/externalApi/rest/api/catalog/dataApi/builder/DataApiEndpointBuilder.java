@@ -174,6 +174,10 @@ public class DataApiEndpointBuilder {
 	public Optional<OpenApiCatalogEndpoint> buildGetUnknownEntityEndpoint(@Nonnull CatalogRestBuildingContext buildingContext,
 	                                                                      @Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
 	                                                                      boolean localized) {
+		if (buildingContext.getEntitySchemas().isEmpty()) {
+			return Optional.empty();
+		}
+
 		final List<OpenApiEndpointParameter> queryParameters = new LinkedList<>();
 		queryParameters.addAll(
 			globallyUniqueAttributes.stream()
@@ -206,6 +210,10 @@ public class DataApiEndpointBuilder {
 	public Optional<OpenApiCatalogEndpoint> buildListUnknownEntityEndpoint(@Nonnull CatalogRestBuildingContext buildingContext,
 	                                                                       @Nonnull List<GlobalAttributeSchemaContract> globallyUniqueAttributes,
 	                                                                       boolean localized) {
+		if (buildingContext.getEntitySchemas().isEmpty()) {
+			return Optional.empty();
+		}
+
 		final List<OpenApiEndpointParameter> queryParameters = new LinkedList<>();
 		queryParameters.add(ListUnknownEntitiesEndpointHeaderDescriptor.LIMIT
 			.to(operationQueryParameterBuilderTransformer)

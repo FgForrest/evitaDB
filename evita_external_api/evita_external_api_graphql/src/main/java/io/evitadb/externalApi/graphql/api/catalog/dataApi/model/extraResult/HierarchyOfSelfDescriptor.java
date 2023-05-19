@@ -21,23 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.dataApi.model;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * The global part of {@link SectionedAssociatedDataDescriptor} for global associated data of an entity.
+ * Represents {@link Hierarchy#getSelfHierarchy()}
  *
- * Note: this descriptor is supposed to be only template.
- *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * Note: this descriptor is meant be template for generated specific DTOs base on internal data. Fields in this
+ * descriptor are supposed to be dynamically registered to target generated DTO.
  */
-public interface GlobalAssociatedDataDescriptor {
+public interface HierarchyOfSelfDescriptor extends HierarchyOfDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*GlobalAssociatedData")
+		.name("*Hierarchy")
 		.description("""
-			Set of global associated data which don't have specified locale.
+			This DTO contains hierarchical structures of hierarchical entities of same type is the queried one. It copies
+			hierarchical structure of those entities and contains their identification or full body as well as information on
+			cardinality of referencing entities.
 			""")
 		.build();
 }

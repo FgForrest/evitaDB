@@ -33,6 +33,7 @@ import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.api.system.builder.SystemEndpointBuilder;
 import io.evitadb.externalApi.rest.api.system.builder.SystemRestBuildingContext;
 import io.evitadb.externalApi.rest.api.system.model.CreateCatalogRequestDescriptor;
@@ -97,12 +98,12 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 	}
 
 	@Nonnull
-	private OpenApiObject buildCatalogUnion() {
+	private OpenApiUnion buildCatalogUnion() {
 		return CatalogUnionDescriptor.THIS
-			.to(objectBuilderTransformer)
-			.unionType(OpenApiObjectUnionType.ONE_OF)
-			.unionObject(typeRefTo(CatalogDescriptor.THIS.name()))
-			.unionObject(typeRefTo(CorruptedCatalogDescriptor.THIS.name()))
+			.to(unionBuilderTransformer)
+			.type(OpenApiObjectUnionType.ONE_OF)
+			.object(typeRefTo(CatalogDescriptor.THIS.name()))
+			.object(typeRefTo(CorruptedCatalogDescriptor.THIS.name()))
 			.build();
 	}
 }

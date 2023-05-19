@@ -35,14 +35,15 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.GlobalAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.GlobalAttributesDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.LocalizedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.LocalizedAssociatedDataForLocaleDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.LocalizedAttributesDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.LocalizedAttributesForLocaleDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.GlobalAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.GlobalAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.LocalizedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.LocalizedAssociatedDataForLocaleDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.LocalizedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.LocalizedAttributesForLocaleDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
@@ -80,7 +81,7 @@ public class EntityObjectBuilder {
 
 	public void buildCommonTypes() {
 		buildingContext.registerType(PriceDescriptor.THIS.to(objectBuilderTransformer).build());
-		buildingContext.registerType(EntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RestEntityDescriptor.THIS_ENTITY_REFERENCE.to(objectBuilderTransformer).build());
 	}
 
 	/**
@@ -102,28 +103,33 @@ public class EntityObjectBuilder {
 	@Nonnull
 	public OpenApiObject buildEntityObject(@Nonnull EntitySchemaContract entitySchema,
 	                                       boolean localized) {
+		final String objectName = constructEntityObjectName(entitySchema, localized);
+
 		// build specific entity object
-		final OpenApiObject.Builder entityObject = EntityDescriptor.THIS
+		final OpenApiObject.Builder entityObject = RestEntityDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(constructEntityObjectName(entitySchema, localized));
+			.name(objectName)
+			.description(entitySchema.getDescription());
 
 		// build locale fields
 		if (!entitySchema.getLocales().isEmpty()) {
-			entityObject.property(EntityDescriptor.LOCALES.to(propertyBuilderTransformer));
-			entityObject.property(EntityDescriptor.ALL_LOCALES.to(propertyBuilderTransformer));
+			entityObject.property(RestEntityDescriptor.LOCALES.to(propertyBuilderTransformer));
+			entityObject.property(RestEntityDescriptor.ALL_LOCALES.to(propertyBuilderTransformer));
 		}
 
 		// build hierarchy placement field
 		if (entitySchema.isWithHierarchy()) {
-			// todo lho follow java api structure rather than GQL structure, custom extesion of descriptor
-//			entityObject.property(EntityDescriptor.PARENT.to(propertyBuilderTransformer));
+			entityObject.property(RestEntityDescriptor.PARENT.to(propertyBuilderTransformer));
+			entityObject.property(RestEntityDescriptor.PARENT_ENTITY
+				.to(propertyBuilderTransformer)
+				.type(typeRefTo(objectName)));
 		}
 
 		// build price fields
 		if (!entitySchema.getCurrencies().isEmpty()) {
-			entityObject.property(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(propertyBuilderTransformer));
-			entityObject.property(EntityDescriptor.PRICE_FOR_SALE.to(propertyBuilderTransformer));
-			entityObject.property(EntityDescriptor.PRICES.to(propertyBuilderTransformer));
+			entityObject.property(RestEntityDescriptor.PRICE_INNER_RECORD_HANDLING.to(propertyBuilderTransformer));
+			entityObject.property(RestEntityDescriptor.PRICE_FOR_SALE.to(propertyBuilderTransformer));
+			entityObject.property(RestEntityDescriptor.PRICES.to(propertyBuilderTransformer));
 		}
 
 		// build attributes
@@ -148,7 +154,7 @@ public class EntityObjectBuilder {
 	private OpenApiProperty buildEntityAttributesProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                      boolean localized) {
 		final OpenApiTypeReference attributesObject = buildEntityAttributesObject(entitySchema, localized);
-		return EntityDescriptor.ATTRIBUTES
+		return RestEntityDescriptor.ATTRIBUTES
 			.to(propertyBuilderTransformer)
 			.type(nonNull(attributesObject))
 			.build();
@@ -262,7 +268,7 @@ public class EntityObjectBuilder {
 			distinguishLocalizedData
 		);
 
-		return EntityDescriptor.ASSOCIATED_DATA
+		return RestEntityDescriptor.ASSOCIATED_DATA
 			.to(propertyBuilderTransformer)
 			.type(nonNull(associatedDataObject))
 			.build();
@@ -438,7 +444,7 @@ public class EntityObjectBuilder {
 			final var entityName = constructEntityObjectName(referencedEntitySchema, localized);
 			referencedEntityObject = typeRefTo(entityName);
 		} else {
-			referencedEntityObject = typeRefTo(EntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			referencedEntityObject = typeRefTo(RestEntityDescriptor.THIS_ENTITY_REFERENCE.name());
 		}
 
 		return referencedEntityObject;
@@ -474,7 +480,7 @@ public class EntityObjectBuilder {
 			final var groupType = constructEntityObjectName(referencedGroupSchema, localized);
 			groupEntityObject = typeRefTo(groupType);
 		} else {
-			groupEntityObject = typeRefTo(EntityDescriptor.THIS_ENTITY_REFERENCE.name());
+			groupEntityObject = typeRefTo(RestEntityDescriptor.THIS_ENTITY_REFERENCE.name());
 		}
 
 		return groupEntityObject;

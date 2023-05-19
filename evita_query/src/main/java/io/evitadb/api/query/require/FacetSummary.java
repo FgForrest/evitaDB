@@ -115,6 +115,7 @@ public class FacetSummary extends AbstractRequireConstraintContainer implements 
 		super(new Serializable[]{statisticsDepth});
 	}
 
+	// todo lho přepsat na entityFetch a groupFetch?
 	@Creator
 	public FacetSummary(
 		@Nonnull @Value FacetStatisticsDepth statisticsDepth,

@@ -166,5 +166,45 @@ public class RestTester extends JsonExternalApiTester<Request> {
 			}
 			return tester.executeAndThen(this);
 		}
+
+		/**
+		 * Executes configured request against REST APi and returns response with validation methods.
+		 */
+		public ValidatableResponse executeAndThen(int statusCode) {
+			return executeAndThen()
+				.statusCode(statusCode);
+		}
+
+		/**
+		 * Executes configured request against REST API, validates that status code is 200 and returns response with
+		 * validation methods.
+		 */
+		public ValidatableResponse executeAndExpectOkAndThen() {
+			return executeAndThen(200);
+		}
+
+		/**
+		 * Executes configured request against REST API, validates that status code is 400 and returns response with
+		 * validation methods.
+		 */
+		public ValidatableResponse executeAndExpectBadRequestAndThen() {
+			return executeAndThen(400);
+		}
+
+		/**
+		 * Executes configured request against REST API, validates that status code is 500 and returns response with
+		 * validation methods.
+		 */
+		public ValidatableResponse executeAndExpectServerErrorAndThen() {
+			return executeAndThen(500);
+		}
+
+		/**
+		 * Executes configured request against REST API, validates that status code is 404 and returns response with
+		 * validation methods.
+		 */
+		public ValidatableResponse executeAndExpectNotFoundAndThen() {
+			return executeAndThen(404);
+		}
 	}
 }

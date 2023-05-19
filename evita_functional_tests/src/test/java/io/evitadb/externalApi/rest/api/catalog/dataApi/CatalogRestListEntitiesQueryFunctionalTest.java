@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
@@ -587,10 +587,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 						"require": {
 						    "entityFetch": {
 						        "referenceBrandContent": {
-						            "requirements": {
-							             "entityFetch": {
-							                "attributeContent": ["marketShare"]
-							            }
+						             "entityFetch": {
+						                "attributeContent": ["marketShare"]
 						            }
 						        }
 					        }

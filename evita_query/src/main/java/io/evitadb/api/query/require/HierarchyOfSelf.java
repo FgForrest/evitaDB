@@ -152,7 +152,6 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer implemen
 	@Creator(silentImplicitClassifier = true)
 	public HierarchyOfSelf(
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
-		// todo lho we cannot use uniqueChildren here because we need duplicate constraints, but we dont have any generic joining containers here. What to do?
 		@Nonnull @Child HierarchyRequireConstraint... requirements
 	) {
 		super(new Serializable[0], requirements, orderBy);
