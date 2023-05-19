@@ -243,7 +243,7 @@ The computed result of the *megaMenu* looks like this:
 
 ... and here is the data structure output in JSON format:
 
-<MDInclude sourceVariable="extraResult.Hierarchy.categories.megaMenu">[Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.json)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Example of using `hierarchyWithin` and `fromRoot` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-root.json)</MDInclude>
 </Note>
 
 The calculated result for `fromRoot` is not affected by the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
@@ -319,7 +319,7 @@ The computed result both of the *sideMenu1* and *sideMenu2* looks like this:
 
 ... and here is the data structure output in JSON format:
 
-<MDInclude>[Example of using `hierarchyWithin` and `fromNode` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-node.md)</MDInclude>
+<MDInclude>[Example of using `hierarchyWithin` and `fromNode` in a single query](docs/user/en/query/requirements/examples/hierarchy-from-node.json)</MDInclude>
 </Note>
 
 The calculated result for `fromNode` is not affected by the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
@@ -387,7 +387,7 @@ The computed result *subcategories* looks like this:
 
 ... and here is the data structure output in JSON format:
 
-<MDInclude>[Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-children.md)</MDInclude>
+<MDInclude>[Example of using `children` requirement](docs/user/en/query/requirements/examples/hierarchy-children.json)</MDInclude>
 </Note>
 
 The calculated result for `children` is connected with the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within)
@@ -457,7 +457,7 @@ The computed result *parentAxis* looks like this:
 
 ... and here is the data structure output in JSON format:
 
-<MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents.md)</MDInclude>
+<MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents.json)</MDInclude>
 
 You can also list all siblings of the parent node as you move up the tree:
 
@@ -471,7 +471,7 @@ The computed result *parentAxis* with siblings now looks like this:
 
 ... and here is the data structure output in JSON format:
 
-<MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents-siblings.md)</MDInclude>
+<MDInclude>[Example of using `parents` requirement](docs/user/en/query/requirements/examples/hierarchy-parents-siblings.json)</MDInclude>
 
 If you need each of these siblings to fetch their child nodes as well (no matter if they are only one level deep or 
 more), you can do this by adding a `stopAt` constraint to the `siblings` constraint container. However, this scenario 
@@ -567,7 +567,7 @@ The computed result *audioSiblings* looks like this:
 
 ... and here is the data structure output in JSON format:
 
-<MDInclude>[Example of using `siblings` requirement](docs/user/en/query/requirements/examples/hierarchy-siblings.md)</MDInclude>
+<MDInclude>[Example of using `siblings` requirement](docs/user/en/query/requirements/examples/hierarchy-siblings.json)</MDInclude>
 
 If you need to return all siblings and also the level below them (their children), just use `stopAt` constraint and
 extend the default scope of the `siblings` constraint.
@@ -578,7 +578,7 @@ extend the default scope of the `siblings` constraint.
 
 The computed result *audioSiblings* with their direct children looks like this (visualized in JSON format):
 
-<MDInclude>[Example of using `siblings` subtree requirement](docs/user/en/query/requirements/examples/hierarchy-siblings-with-subtree.md)</MDInclude>
+<MDInclude>[Example of using `siblings` subtree requirement](docs/user/en/query/requirements/examples/hierarchy-siblings-with-subtree.json)</MDInclude>
 
 </Note>
 
@@ -745,7 +745,7 @@ the letter *w*.
 
 The computed result *subMenu* looks like this (visualized in JSON format):
 
-<MDInclude>[Example of using `node` requirement](docs/user/en/query/requirements/examples/hierarchy-node.md)</MDInclude>
+<MDInclude>[Example of using `node` requirement](docs/user/en/query/requirements/examples/hierarchy-node.json)</MDInclude>
 
 </Note>
 
