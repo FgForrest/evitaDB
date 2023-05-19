@@ -74,7 +74,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for ``` java ``` blocks.
 	 */
 	private static final Pattern SOURCE_CODE_PATTERN = Pattern.compile(
-		"```\s*(.*?)\s*\n(.+?)```",
+		"```\\s*(.*?)\\s*\n(.+?)```",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
