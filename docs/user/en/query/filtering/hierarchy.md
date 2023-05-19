@@ -678,4 +678,4 @@ present in the listing.
 </Note>
 
 When the product is assigned to two categories - one excluded and one part of the visible category tree, the product
-remains in the result. See [example](#what-if-the-product-is-linked-to-two-categories---one-that-meets-the-constraint-and-one-that-does-not).
+remains in the result. See [the example](#what-if-the-product-is-linked-to-two-categories---one-that-meets-the-constraint-and-one-that-does-not).
