@@ -3,7 +3,7 @@ title: Validating examples in documentation using JUnit 5 and JShell
 perex: |
   The documentation on evitaDB site is getting bigger and bigger. The more examples we add, the more we're afraid they
   will become obsolete or broken. How do we tame this beast of hundreds of examples?
-date: '08.5.2023'
+date: '21.5.2023'
 author: 'Jan Novotný'
 motive: assets/images/06-document-examples-testing.png
 proofreading: 'needed'
