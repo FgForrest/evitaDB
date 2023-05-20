@@ -9,17 +9,17 @@ motive: assets/images/06-document-examples-testing.png
 proofreading: 'needed'
 ---
 
-Because evitaDB is a built on top of a Java platform it gets all its benefits and all its disadvantages. The Java 
-language is a statically typed and compiled language. Before you can run any piece of code, you need to compile it,
-load it into a classloader and then execute. Our code examples are scattered over different MarkDown files - sometimes
-embedded directly, sometimes referenced to separate file in the repository. At first, we thought there is no easy way
-for verifying the validity and consistence of the documentation code samples. Initial thoughts went towards writing 
-a custom Maven plugin that would generate test source codes, that would envelope the examples, compile them with Javac,
-and then execute as a part of our test suite.
+Because evitaDB is built on a Java platform, it has all the advantages and disadvantages of Java. Java is a statically
+typed and compiled language. Before you can execute a piece of code, you have to compile it, load it into a class loader 
+and then execute it. Our code examples are scattered across various MarkDown files - sometimes directly embedded, 
+sometimes referencing a separate file in the repository. At first, we thought there was no easy way to verify 
+the validity and consistency of the documentation code examples. Initial thoughts were to write a custom Maven plugin 
+that would generate test code, wrap the examples in a Java template file, compile them with Javac, and then run them 
+as part of our test suite.
 
 Fortunately, there is easier and more dynamic approach. Java provides a [JShell REPL](https://www.geeksforgeeks.org/jshell-java-9-new-feature/)
 (since version 9) allowing you to interactively enter, compile, and run Java source code. The JShell can also be 
-[executed programmatically,](https://arbitrary-but-fixed.net/teaching/java/jshell/2018/10/18/jshell-exceptions.html),
+[executed programmatically](https://arbitrary-but-fixed.net/teaching/java/jshell/2018/10/18/jshell-exceptions.html),
 although it's not its primary use-case (that's why the information about this approach are scarce and hard to find).
 We suspected the JShell might be a way for overcoming the difficulties with the compilation step and were determined to
 at least try it.
