@@ -71,13 +71,14 @@ the documentation files using Java File Walker:
 try (final Stream<Path> walker = Files.walk(getRootDirectory().resolve(DOCS_ROOT))) {
 	walker
 		.filter(path -> path.toString().endsWith(".md"))
-		.map(it -> /* extractCodeBlocks(it) */ )
+		.map(it -> /* createTests(it) */ )
 		.toList();
 }
 ```
 
 ... reading the file contents to a string, and extracting the code blocks either directly from the MarkDown file itself
-or from the externally referenced file (see the `extractCodeBlocks` method body).
+or from the externally referenced file (see the `createTests` method body). Extraction involves only a little bit of 
+RegEx pattern magic.
 
 ## Generating JUnit 5 dynamic tests
 
