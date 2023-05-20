@@ -46,12 +46,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -107,60 +105,54 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	static InvocationResult executeJShellCommands(@Nonnull JShell jShell, @Nonnull List<String> snippets) {
-		final StringBuilder errorBuilder = new StringBuilder(512);
-		AssertionError error = null;
+		final List<RuntimeException> exceptions = new LinkedList<>();
 		final ArrayList<Snippet> executedSnippets = new ArrayList<>(snippets.size() << 1);
 
-		execution:
+		// iterate over snippets and execute them
 		for (String snippet : snippets) {
 			final List<SnippetEvent> events = jShell.eval(snippet);
+			// verify the output events triggered by the execution
 			for (SnippetEvent event : events) {
+				// if the snippet is not active
 				if (!event.status().isActive()) {
-					errorBuilder.append(jShell.diagnostics(event.snippet())
-							.map(it -> "\n- [" + it.getStartPosition() + "-" + it.getEndPosition() + "] " + it.getMessage(Locale.ENGLISH))
-							.collect(Collectors.joining()))
-						.append("\nSource:\n")
-						.append(event.snippet().source());
-					break execution;
+					// collect the compilation error and the problematic position and register exception
+					exceptions.add(
+						new JavaCompilationException(
+							jShell.diagnostics(event.snippet())
+								.map(it ->
+									"\n- [" + it.getStartPosition() + "-" + it.getEndPosition() + "] " +
+										it.getMessage(Locale.ENGLISH)
+								)
+								.collect(Collectors.joining()),
+							event.snippet().source()
+						)
+					);
+				// it the event contains exception
 				} else if (event.exception() != null) {
-					errorBuilder.append(
-						printException(event.exception(), new HashSet<>())
-					).append("\n");
+					// it means, that code was successfully compiled, but threw exception upon evaluation
+					exceptions.add(
+						new JavaExecutionException(event.exception())
+					);
+					// add the snippet to the list of executed ones
 					if (event.status() == Status.VALID) {
-						jShell.drop(event.snippet());
+						executedSnippets.add(event.snippet());
 					}
-					break execution;
 				} else {
+					// it means, that code was successfully compiled and executed without exception
 					executedSnippets.add(event.snippet());
 				}
 			}
-		}
-
-		if (!errorBuilder.isEmpty()) {
-			error = new AssertionError(errorBuilder.toString());
-		}
-
-		return new InvocationResult(
-			executedSnippets,
-			error
-		);
-	}
-
-	/**
-	 * Prints exception messages to the root cause.
-	 */
-	@Nonnull
-	private static String printException(@Nonnull Throwable exception, @Nonnull Set<Throwable> visitedExceptions) {
-		if (exception.getCause() == null) {
-			return exception.getMessage();
-		} else {
-			visitedExceptions.add(exception);
-			if (!visitedExceptions.contains(exception.getCause())) {
-				return exception.getMessage() + "\n" + printException(exception.getCause(), visitedExceptions);
-			} else {
-				return exception.getMessage();
+			// if the exception is not null, fail fast and report the exception
+			if (!exceptions.isEmpty()) {
+				break;
 			}
 		}
+
+		// return all snippets that has been executed and report exception if occurred
+		return new InvocationResult(
+			executedSnippets,
+			exceptions.isEmpty() ? null : exceptions.get(0)
+		);
 	}
 
 	/**
@@ -207,7 +199,9 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 							"AutoCloseable.class.cast(" + varSnippet.name() + ").close();\n" +
 							"}\n",
 						// retrieve the folder location
-						"String evitaStoragePathToClear = Evita.class.isInstance(" + varSnippet.name() + ") ? Evita.class.cast(" + varSnippet.name() + ").getConfiguration().storage().storageDirectory().toAbsolutePath().toString() : \"\";\n"
+						"String evitaStoragePathToClear = Evita.class.isInstance(" + varSnippet.name() + ") ? " +
+							"Evita.class.cast(" + varSnippet.name() + ").getConfiguration().storage()" +
+							".storageDirectory().toAbsolutePath().toString() : \"\";\n"
 					)
 				)
 					.snippets()
@@ -278,7 +272,7 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	 */
 	private record InvocationResult(
 		@Nonnull List<Snippet> snippets,
-		@Nullable Error exception
+		@Nullable Exception exception
 	) {
 	}
 
