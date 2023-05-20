@@ -77,8 +77,7 @@ try (final Stream<Path> walker = Files.walk(getRootDirectory().resolve(DOCS_ROOT
 ```
 
 ... reading the file contents to a string, and extracting the code blocks either directly from the MarkDown file itself
-or from the externally referenced file. or from the externally referenced file (see the `extractJavaCodeBlocks` method
-body).
+or from the externally referenced file (see the `extractCodeBlocks` method body).
 
 ## Generating JUnit 5 dynamic tests
 
