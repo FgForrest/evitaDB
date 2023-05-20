@@ -64,8 +64,8 @@ The extensions of these files are the key component for recognizing which langua
 
 ## Extraction of the code samples from the MarkDown
 
-Extracting the code to verify is the easiest part of the test. It consists of a deep traversal of the folder containing 
-the documentation files using Java File Walker:
+Extracting the code to verify is the easiest part of the process. It consists of a deep traversal of the folder 
+containing the documentation files using Java File Walker:
 
 ```java
 try (final Stream<Path> walker = Files.walk(getRootDirectory().resolve(DOCS_ROOT))) {
