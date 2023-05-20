@@ -142,7 +142,7 @@ documentation file. We don't want to share the same JShell instance for multiple
 ultimate goal is to be able to run our documentation test in parallel once the [JUnit 5 issue #2497](https://github.com/junit-team/junit5/issues/2497) 
 is resolved. Reusing the same JShell instance for multiple tests in a single documentation file raises the question of 
 proper state cleanup so that the relics of one example don't affect the other examples that run after it. Read on - 
-this issue will be resolved in the [tear down chapter](#tear-down).
+this question will be addressed in the [tear down chapter](#tear-down).
 
 ### Source code preparation and execution
 
