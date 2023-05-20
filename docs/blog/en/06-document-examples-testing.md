@@ -101,7 +101,7 @@ a particular source markdown file where the code blocks are placed (either direc
 
 The executed tests looks like this:
 
-![IntelliJ Idea test execution tab](/docs/blog/en/assets/images/06-sourcetab-component-example.png "IntelliJ Idea test execution tab")
+![IntelliJ Idea test execution tab](assets/images/06-sourcetab-component-example.png "IntelliJ Idea test execution tab")
 
 ## Compilation and execution code snippets via. JShell
 
