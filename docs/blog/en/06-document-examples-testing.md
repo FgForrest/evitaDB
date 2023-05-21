@@ -297,7 +297,7 @@ evaluated and affected the state of the JShell instance. The `drop` operation be
 operation and rolls back all operations that affected the JShell instance (but not the side effects associated with 
 network or file system calls).
 
-### Test prerequisites, chaining
+## Test prerequisites, chaining
 
 Some examples build on the context of other examples in the same document - naturally as the described use case
 unfolds. We certainly don't want to clutter up the example code by repeating the statements that set up the environment
@@ -306,7 +306,7 @@ for the example itself - the examples should be as short as possible.
 That's why we introduced the `requires` attribute for our `SourceCodeTabs` component, which allows you to specify one 
 or more other files that must be executed before the code in the example itself is executed.
 
-### Example translation
+## Example translation
 
 Another special feature of our documentation is the ability to switch between different flavors and even content of 
 the documentation by selecting different *preferred language* to view the documentation in:
@@ -326,7 +326,7 @@ reviewed by a human and committed to Git along with the documentation. However, 
 they are compiled and executed by our test suite, so their correctness is automatically verified. See for yourself how
 the generated snippets look like: <SourceClass>/docs/user/en/query/filtering/examples/hierarchy/</SourceClass>
 
-### Verification, assertions
+## Verification, assertions
 
 The examples that query our [demo dataset](/documentation/getting-started/query-our-dataset) usually contain the preview 
 of the result that the reader can expect if they run the query themselves. Since our dataset is not static, but evolves 
