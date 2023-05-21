@@ -10,8 +10,7 @@ proofreading: 'needed'
 ---
 
 Because evitaDB is built on a Java platform, it has all the advantages and disadvantages of Java. Java is a statically
-typed and compiled language. Before you can execute a piece of code, you have to compile it, load it into a class loader 
-and then execute it. Our code examples are scattered across various MarkDown files - sometimes directly embedded, 
+typed and compiled language. Before you can execute a piece of code, you have to compile it and load it into a class loader. Our code examples are scattered across various MarkDown files - sometimes directly embedded, 
 sometimes referencing a separate file in the repository. At first, we thought there was no easy way to verify 
 the validity and consistency of the documentation code examples. Initial thoughts were to write a custom Maven plugin 
 that would generate test code, wrap the examples in a Java template file, compile them with Javac, and then run them 
@@ -71,7 +70,7 @@ containing the documentation files using Java File Walker:
 try (final Stream<Path> walker = Files.walk(getRootDirectory().resolve(DOCS_ROOT))) {
 	walker
 		.filter(path -> path.toString().endsWith(".md"))
-		.map(it -> /* createTests(it) */ )
+		.map(this::createTests)
 		.toList();
 }
 ```
@@ -96,9 +95,9 @@ wrapper. The `DynamicTest.dynamicTest(String, URI, Executable)` method accepts t
 
 Creating a single stream of all code snippets is not practical in our case - there are too many of them, and listing 
 the tests in the IDE quickly becomes cluttered. That's why we're using another JUnit 5 invention - 
-[`DynamicContainer`](https://junit.org/junit5/docs/5.8.2/api/org.junit.jupiter.api/org/junit/jupiter/api/DynamicContainer.html),
+[DynamicContainer](https://junit.org/junit5/docs/5.8.2/api/org.junit.jupiter.api/org/junit/jupiter/api/DynamicContainer.html),
 which is designed to aggregate multiple related tests into a single "node". The node, in our case, represents 
-a particular source markdown file where the code blocks are placed (either directly or by reference).
+a particular source markdown file where the code blocks are placed (either directly or by reference). This way, we can quickly identify the proper document to which the failed example belongs.
 
 The executed tests looks like this:
 
@@ -137,13 +136,6 @@ Next, we initialize the classpath for the JShell instance by copying the full cl
 suite runs in, and finally we initialize all the imports that our Java examples need using this file:
 <SourceClass>evita_functional_tests/src/test/resources/META-INF/documentation/imports.java</SourceClass>. 
 For initializing imports, we use the same logic as for executing the source code itself.
-
-Initializing and preparing the JShell instance is costly, so we reuse a single instance for all examples in the same 
-documentation file. We don't want to share the same JShell instance for multiple documentation files because our 
-ultimate goal is to be able to run our documentation test in parallel once the [JUnit 5 issue #2497](https://github.com/junit-team/junit5/issues/2497) 
-is resolved. Reusing the same JShell instance for multiple tests in a single documentation file raises the question of 
-proper state cleanup so that the relics of one example don't affect the other examples that run after it. Read on - 
-this question will be addressed in the [tear down chapter](#tear-down).
 
 ### Source code preparation and execution
 
@@ -202,7 +194,7 @@ static InvocationResult executeJShellCommands(@Nonnull JShell jShell, @Nonnull L
 				);
 				// add the snippet to the list of executed ones
 				if (event.status() == Status.VALID) {
-	                executedSnippets.add(event.snippet());
+					executedSnippets.add(event.snippet());
 				}
 			} else {
 				// it means, that code was successfully compiled and executed without exception
@@ -223,7 +215,7 @@ static InvocationResult executeJShellCommands(@Nonnull JShell jShell, @Nonnull L
 }
 ```
 
-JShell generates a list of events for each evaluated Java snippet (expression), describing what happened. The most 
+JShell generates a list of events for each evaluated Java snippet (expression) describing what happened. The most 
 important information for us is whether the snippet was applied successfully and is part of the JShell state - this can
 be verified by calling `event.status().isActive()`. If the event is not active, a serious error has occurred and we will
 use the JShell diagnostic to distill the root cause of the problem.
@@ -237,6 +229,12 @@ the snippet was successfully evaluated. The snippet is added to the list of snip
 JShell and are returned as a result of this method.
 
 ### Tear down
+
+Initializing and preparing the JShell instance is costly, so we reuse a single instance for all examples in the same
+documentation file. We don't want to share the same JShell instance for multiple documentation files because our
+ultimate goal is to be able to run our documentation test in parallel once the [JUnit 5 issue #2497](https://github.com/junit-team/junit5/issues/2497)
+is resolved. Reusing the same JShell instance for multiple tests in a single documentation file raises the question of
+proper state cleanup so that the relics of one example don't affect the other examples that run after it.
 
 When the test is finished, we need to clean up the JShell instance that will be reused for another example in the same 
 documentation file. Fortunately, the JShell provides a way to *drop evaluated statement* that effectively eliminates its 
@@ -290,18 +288,18 @@ Interestingly, if you try to replace `AutoCloseable.class.isInstance(" + varSnip
 `varSnippet.name() + " instanceof AutoCloseable"`, you will end up with a compilation exception for variables that are 
 not instances of `AutoCloseable`. Although this is correct source code for normal Java code, the JShell 
 interpreter/compiler behaves differently, and we have to work around this problem by using methods on a `Class` 
-interface. 
+interface. See [JDK issue #8211697](https://bugs.openjdk.org/browse/JDK-8211697).
 
 </Note>
 
-Finally, we need to drop both the `AutoCloseable` unclosing snippets and all the sample source code snippets that were 
+**Finally**, we need to drop both the `AutoCloseable` unclosing snippets and all the sample source code snippets that were 
 evaluated and affected the state of the JShell instance. The `drop` operation behaves similarly to a database rollback 
 operation and rolls back all operations that affected the JShell instance (but not the side effects associated with 
 network or file system calls).
 
 ### Test prerequisites, chaining
 
-Some examples build on the context of other examples in the same document - naturally as the use case description 
+Some examples build on the context of other examples in the same document - naturally as the described use case
 unfolds. We certainly don't want to clutter up the example code by repeating the statements that set up the environment
 for the example itself - the examples should be as short as possible.
 
@@ -325,7 +323,8 @@ as you will read in the next chapter.
 
 The sample translation is a manual operation that is not invoked by our CI workflows. The generated files need to be 
 reviewed by a human and committed to Git along with the documentation. However, once the examples/files are generated, 
-they are compiled and executed by our test suite, so their correctness is automatically verified.
+they are compiled and executed by our test suite, so their correctness is automatically verified. See for yourself how
+the generated snippets look like: <SourceClass>/docs/user/en/query/filtering/examples/hierarchy/</SourceClass>
 
 ### Verification, assertions
 
@@ -341,6 +340,13 @@ correct our evitaDB engine or document the backward incompatible behavior.
 That's why we automatically compare the expected result MarkDown snippets with the actual results of the evitaDB query
 given in the example, and if these results differ, we mark the tests as failed and force human intervention.
 
+There is a special GitHub workflow <SourceClass>.github/workflows/ci-dev-documentation.yml</SourceClass> associated with 
+documentation verification. The tests, which check the executability of our source code examples and compare their 
+output to the last checked output, run automatically whenever there is a change in the 
+<SourceClass>docs/user/</SourceClass> folder. They also run every Sunday night, so that we can detect possible changes 
+in [the demo dataset](/documentation/getting-started/query-our-dataset), even if the documentation itself hasn't 
+changed.
+
 ## Summary
 
 So far we've written hundreds of pages of documentation and executable examples. The documentation still grows over time
@@ -349,8 +355,10 @@ answers is pretty important. There is nothing worse than outdated or incorrect d
 
 The pleasant side effects of the described process is that it saves a considerable amount of tedious work in defining
 the examples for all languages we support and also adds another layer of integration testing, that has uncovered some 
-bugs in the evitaDB core. The queries run against our [demo dataset](/documentation/get-started/query-our-dataset) and 
-verify that our demo server API is working correctly and that we haven't broken it with some update, and that's also 
-pretty important - we want our demo server to be available to anyone who wants to play with it.
+bugs in the evitaDB core / query parser.
+
+The queries run against our [demo dataset](/documentation/get-started/query-our-dataset) and verify that our demo server 
+API is working correctly and that we haven't broken it with some update, and that's also pretty important - we want our
+demo server to be available to anyone who wants to play with it.
 
 The work has already paid off, and we're sure it's going to pay off even more in the long run.
