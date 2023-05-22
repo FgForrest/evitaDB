@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
@@ -55,9 +56,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
@@ -71,6 +72,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.text.Collator;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -2045,7 +2047,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.stream()
 					.map(it -> storesIndexedByPk.get(it.getReferencedPrimaryKey()))
 					.filter(it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null)
-					.sorted(Comparator.comparing(it -> (String) it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE), Comparator.reverseOrder()))
+					.sorted(
+						Comparator.comparing(
+							it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class),
+							new LocalizedStringComparator(Collator.getInstance(CZECH_LOCALE)).reversed()
+						)
+					)
 					.map(reference ->
 						map()
 							.e(ReferenceDescriptor.REFERENCED_ENTITY.name(), map()

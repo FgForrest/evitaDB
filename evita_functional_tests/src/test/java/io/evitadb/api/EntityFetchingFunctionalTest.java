@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
@@ -58,6 +59,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.text.Collator;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -2285,7 +2287,9 @@ public class EntityFetchingFunctionalTest {
 						.map(it -> it.getAttribute(ATTRIBUTE_NAME, String.class))
 						.toArray(String[]::new);
 					assertArrayEquals(
-						Arrays.stream(receivedOrderedNames).sorted(Comparator.reverseOrder()).toArray(String[]::new),
+						Arrays.stream(receivedOrderedNames)
+							.sorted(new LocalizedStringComparator(Collator.getInstance(CZECH_LOCALE)).reversed())
+							.toArray(String[]::new),
 						receivedOrderedNames
 					);
 

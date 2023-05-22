@@ -29,6 +29,7 @@ import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -57,7 +58,7 @@ public class ArrayUtils {
 	 * @param array to check
 	 * @return true if empty
 	 */
-	public static boolean isEmpty(final Object[] array) {
+	public static boolean isEmpty(@Nullable Object[] array) {
 		return array == null || array.length == 0;
 	}
 
@@ -67,7 +68,7 @@ public class ArrayUtils {
 	 * @param array to check
 	 * @return true if empty
 	 */
-	public static boolean isEmpty(final int[] array) {
+	public static boolean isEmpty(@Nullable int[] array) {
 		return array == null || array.length == 0;
 	}
 
@@ -77,7 +78,7 @@ public class ArrayUtils {
 	 * @param array to check
 	 * @return true if empty
 	 */
-	public static boolean isEmpty(final long[] array) {
+	public static boolean isEmpty(@Nullable long[] array) {
 		return array == null || array.length == 0;
 	}
 
@@ -99,7 +100,7 @@ public class ArrayUtils {
 	 * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
 	 * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
 	 */
-	public static <T, U> int binarySearch(T[] a, U b, ToIntBiFunction<T, U> comparator) {
+	public static <T, U> int binarySearch(@Nonnull T[] a, @Nonnull U b, @Nonnull ToIntBiFunction<T, U> comparator) {
 		return binarySearch(a, b, 0, a.length, comparator);
 	}
 
@@ -124,7 +125,7 @@ public class ArrayUtils {
 	 * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
 	 * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
 	 */
-	public static <T, U> int binarySearch(T[] a, U b, int fromIndex, int toIndex, ToIntBiFunction<T, U> comparator) {
+	public static <T, U> int binarySearch(@Nonnull T[] a, @Nonnull U b, int fromIndex, int toIndex, @Nonnull ToIntBiFunction<T, U> comparator) {
 		if (fromIndex > toIndex) {
 			throw new IllegalArgumentException(
 				"fromIndex(" + fromIndex + ") > toIndex(" + toIndex + ")");
@@ -177,7 +178,7 @@ public class ArrayUtils {
 	 * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
 	 * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
 	 */
-	public static <T, U> int binarySearchWithDuplicates(T[] a, U b, ToIntBiFunction<T, U> comparator) {
+	public static <T, U> int binarySearchWithDuplicates(@Nonnull T[] a, @Nonnull U b, @Nonnull ToIntBiFunction<T, U> comparator) {
 		return binarySearchWithDuplicates(a, b, 0, a.length, comparator);
 	}
 
@@ -207,7 +208,7 @@ public class ArrayUtils {
 	 * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
 	 * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
 	 */
-	public static <T, U> int binarySearchWithDuplicates(T[] a, U b, int fromIndex, int toIndex, ToIntBiFunction<T, U> comparator) {
+	public static <T, U> int binarySearchWithDuplicates(@Nonnull T[] a, @Nonnull U b, int fromIndex, int toIndex, @Nonnull ToIntBiFunction<T, U> comparator) {
 		int index = binarySearch(a, b, fromIndex, toIndex, comparator);
 		while (index > 0 && comparator.applyAsInt(a[index - 1], b) == 0) {
 			index--;
@@ -233,7 +234,7 @@ public class ArrayUtils {
 	 * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
 	 * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
 	 */
-	public static int binarySearch(int[] a, int b, IntBinaryOperator comparator) {
+	public static int binarySearch(@Nonnull int[] a, int b, @Nonnull IntBinaryOperator comparator) {
 		return binarySearch(a, b, 0, a.length, comparator);
 	}
 
@@ -258,7 +259,7 @@ public class ArrayUtils {
 	 * @throws IllegalArgumentException       if {@code fromIndex > toIndex}
 	 * @throws ArrayIndexOutOfBoundsException if {@code fromIndex < 0 or toIndex > a.length}
 	 */
-	public static int binarySearch(int[] a, int b, int fromIndex, int toIndex, IntBinaryOperator comparator) {
+	public static int binarySearch(@Nonnull int[] a, int b, int fromIndex, int toIndex, @Nonnull IntBinaryOperator comparator) {
 		if (fromIndex > toIndex) {
 			throw new IllegalArgumentException(
 				"fromIndex(" + fromIndex + ") > toIndex(" + toIndex + ")");
@@ -292,7 +293,7 @@ public class ArrayUtils {
 	 * Method computes insertion point of an arbitrary record into the ordered array.
 	 * Result object contains information about the position and whether the record is already in the array.
 	 */
-	public static <T, U extends Comparable<U>> InsertionPosition computeInsertPositionOfObjInOrderedArray(T[] a, U b, ToIntBiFunction<T, U> comparator) {
+	public static <T, U extends Comparable<U>> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T[] a, @Nonnull U b, @Nonnull ToIntBiFunction<T, U> comparator) {
 		final int index = binarySearch(a, b, comparator);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
@@ -306,7 +307,7 @@ public class ArrayUtils {
 	 * Integer is inserted only when array doesn't yet contain the record.
 	 */
 	@Nonnull
-	public static int[] insertIntIntoOrderedArray(int recId, int[] recordIds) {
+	public static int[] insertIntIntoOrderedArray(int recId, @Nonnull int[] recordIds) {
 		final InsertionPosition position = computeInsertPositionOfIntInOrderedArray(recId, recordIds);
 		return position.alreadyPresent() ? recordIds : insertIntIntoArrayOnIndex(recId, recordIds, position.position());
 	}
@@ -318,7 +319,7 @@ public class ArrayUtils {
 	 * be used for the binary search algorithm that precedes the insertion.
 	 */
 	@Nonnull
-	public static int[] insertIntIntoOrderedArray(int recId, int[] recordIds, IntBinaryOperator comparator) {
+	public static int[] insertIntIntoOrderedArray(int recId, @Nonnull int[] recordIds, @Nonnull IntBinaryOperator comparator) {
 		final InsertionPosition position = computeInsertPositionOfIntInOrderedArray(recId, recordIds, comparator);
 		return position.alreadyPresent() ? recordIds : insertIntIntoArrayOnIndex(recId, recordIds, position.position());
 	}
@@ -327,7 +328,7 @@ public class ArrayUtils {
 	 * Inserts new integer to the array on target position.
 	 */
 	@Nonnull
-	public static int[] insertIntIntoArrayOnIndex(int recId, int[] recordIds, int position) {
+	public static int[] insertIntIntoArrayOnIndex(int recId, @Nonnull int[] recordIds, int position) {
 		int len = recordIds.length;
 		final int targetSize = len + 1;
 		int[] newElements = new int[targetSize];
@@ -341,7 +342,7 @@ public class ArrayUtils {
 	 * Removes integer from ordered array and shrinks it.
 	 */
 	@Nonnull
-	public static int[] removeIntFromOrderedArray(int recId, int[] recordIds) {
+	public static int[] removeIntFromOrderedArray(int recId, @Nonnull int[] recordIds) {
 		int len = recordIds.length;
 		final int index = Arrays.binarySearch(recordIds, recId);
 		if (index >= 0) {
@@ -360,7 +361,7 @@ public class ArrayUtils {
 	 * Removes integer from array on specified index and shrinks it.
 	 */
 	@Nonnull
-	public static int[] removeIntFromArrayOnIndex(int[] recordIds, int index) {
+	public static int[] removeIntFromArrayOnIndex(@Nonnull int[] recordIds, int index) {
 		int len = recordIds.length;
 		final int targetSize = len - 1;
 		int[] newElements = new int[targetSize];
@@ -374,7 +375,7 @@ public class ArrayUtils {
 	 * Long is inserted only when array doesn't yet contain the record.
 	 */
 	@Nonnull
-	public static long[] insertLongIntoOrderedArray(long recId, long[] recordIds) {
+	public static long[] insertLongIntoOrderedArray(long recId, @Nonnull long[] recordIds) {
 		final InsertionPosition position = computeInsertPositionOfLongInOrderedArray(recId, recordIds);
 		return position.alreadyPresent() ? recordIds : insertLongIntoArrayOnIndex(recId, recordIds, position.position());
 	}
@@ -383,7 +384,7 @@ public class ArrayUtils {
 	 * Inserts new integer to the array on target position.
 	 */
 	@Nonnull
-	public static long[] insertLongIntoArrayOnIndex(long recId, long[] recordIds, int position) {
+	public static long[] insertLongIntoArrayOnIndex(long recId, @Nonnull long[] recordIds, int position) {
 		int len = recordIds.length;
 		final int targetSize = len + 1;
 		long[] newElements = new long[targetSize];
@@ -397,7 +398,7 @@ public class ArrayUtils {
 	 * Removes integer from ordered array and shrinks it.
 	 */
 	@Nonnull
-	public static long[] removeLongFromOrderedArray(long recId, long[] recordIds) {
+	public static long[] removeLongFromOrderedArray(long recId, @Nonnull long[] recordIds) {
 		final int len = recordIds.length;
 		final int index = Arrays.binarySearch(recordIds, recId);
 		if (index >= 0) {
@@ -416,7 +417,7 @@ public class ArrayUtils {
 	 * Removes integer from array on specified index and shrinks it.
 	 */
 	@Nonnull
-	public static long[] removeLongFromArrayOnIndex(long[] recordIds, int index) {
+	public static long[] removeLongFromArrayOnIndex(@Nonnull long[] recordIds, int index) {
 		final int len = recordIds.length;
 		final int targetSize = len - 1;
 		long[] newElements = new long[targetSize];
@@ -430,7 +431,7 @@ public class ArrayUtils {
 	 * Record is inserted only when array doesn't yet contain the record.
 	 */
 	@Nonnull
-	public static <T extends Comparable<T>> T[] insertRecordIntoOrderedArray(T recId, T[] recordIds) {
+	public static <T extends Comparable<T>> T[] insertRecordIntoOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds) {
 		final int index = Arrays.binarySearch(recordIds, recId);
 		if (index >= 0) {
 			return recordIds;
@@ -443,7 +444,8 @@ public class ArrayUtils {
 	 * Inserts new record to the sorted array on proper place determined by comparator and returns new expanded array.
 	 * Integer is inserted only when array doesn't yet contain the record.
 	 */
-	public static <T> T[] insertRecordIntoOrderedArray(T b, T[] a, Comparator<T> comparator) {
+	@Nonnull
+	public static <T> T[] insertRecordIntoOrderedArray(@Nonnull T b, @Nonnull T[] a, @Nonnull Comparator<T> comparator) {
 		final int index = binarySearch(a, b, comparator::compare);
 		if (index < 0) {
 			return insertRecordIntoArray(b, a, -1 * (index) - 1);
@@ -460,7 +462,7 @@ public class ArrayUtils {
 	 * @param mutator used to mutate existing or create new item to be placed on target position
 	 */
 	@Nonnull
-	public static <T extends Comparable<T>> T[] insertRecordIntoOrderedArray(T newItem, UnaryOperator<T> mutator, T[] records) {
+	public static <T extends Comparable<T>> T[] insertRecordIntoOrderedArray(@Nonnull T newItem, @Nonnull UnaryOperator<T> mutator, @Nonnull T[] records) {
 		final InsertionPosition position = computeInsertPositionOfObjInOrderedArray(newItem, records);
 		final int posIndex = position.position();
 		if (position.alreadyPresent()) {
@@ -477,7 +479,7 @@ public class ArrayUtils {
 	 * Inserts any arbitrary record into the array on specific position.
 	 */
 	@Nonnull
-	public static <T> T[] insertRecordIntoArray(T recId, T[] recordIds, int position) {
+	public static <T> T[] insertRecordIntoArray(@Nonnull T recId, @Nonnull T[] recordIds, int position) {
 		int len = recordIds.length;
 		final int targetSize = len + 1;
 		@SuppressWarnings("unchecked")
@@ -492,7 +494,7 @@ public class ArrayUtils {
 	 * Removes arbitrary record from ordered array and shrinks it.
 	 */
 	@Nonnull
-	public static <T extends Comparable<?>> T[] removeRecordFromOrderedArray(T recId, T[] recordIds) {
+	public static <T extends Comparable<?>> T[] removeRecordFromOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds) {
 		int len = recordIds.length;
 		final int index = Arrays.binarySearch(recordIds, recId);
 		if (index >= 0) {
@@ -512,7 +514,8 @@ public class ArrayUtils {
 	 * Removes existing record from the sorted array on proper place determined by comparator and returns new expanded array.
 	 * Integer is removed only when array doesn't yet contain the record.
 	 */
-	public static <T> T[] removeRecordFromOrderedArray(T b, T[] a, Comparator<T> comparator) {
+	@Nonnull
+	public static <T> T[] removeRecordFromOrderedArray(@Nonnull T b, @Nonnull T[] a, @Nonnull Comparator<T> comparator) {
 		final int index = binarySearch(a, b, comparator::compare);
 		if (index >= 0) {
 			return removeRecordFromArrayOnIndex(a, index);
@@ -525,9 +528,10 @@ public class ArrayUtils {
 	 * Removes arbitrary record from array on specified index and shrinks it.
 	 */
 	@Nonnull
-	public static <T> T[] removeRecordFromArrayOnIndex(T[] recordIds, int index) {
+	public static <T> T[] removeRecordFromArrayOnIndex(@Nonnull T[] recordIds, int index) {
 		int len = recordIds.length;
 		final int targetSize = len - 1;
+		@SuppressWarnings("unchecked")
 		T[] newElements = (T[]) Array.newInstance(recordIds.getClass().getComponentType(), targetSize);
 		System.arraycopy(recordIds, 0, newElements, 0, index);
 		System.arraycopy(recordIds, index + 1, newElements, index, recordIds.length - index - 1);
@@ -550,7 +554,8 @@ public class ArrayUtils {
 	 * Method computes insertion point of an integer into the ordered array.
 	 * Result object contains information about the position and whether the integer is already in the array.
 	 */
-	public static InsertionPosition computeInsertPositionOfIntInOrderedArray(int recId, int[] recordIds) {
+	@Nonnull
+	public static InsertionPosition computeInsertPositionOfIntInOrderedArray(int recId, @Nonnull int[] recordIds) {
 		final int index = Arrays.binarySearch(recordIds, recId);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
@@ -565,7 +570,8 @@ public class ArrayUtils {
 	 * Method uses comparator to locate the proper position in the array so that other than natural int ordering can
 	 * be used for the binary search algorithm.
 	 */
-	public static InsertionPosition computeInsertPositionOfIntInOrderedArray(int recId, int[] recordIds, IntBinaryOperator comparator) {
+	@Nonnull
+	public static InsertionPosition computeInsertPositionOfIntInOrderedArray(int recId, @Nonnull int[] recordIds, @Nonnull IntBinaryOperator comparator) {
 		final int index = ArrayUtils.binarySearch(recordIds, recId, comparator);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
@@ -578,7 +584,8 @@ public class ArrayUtils {
 	 * Method computes insertion point of a long into the ordered array.
 	 * Result object contains information about the position and whether the long is already in the array.
 	 */
-	public static InsertionPosition computeInsertPositionOfLongInOrderedArray(long recId, long[] recordIds) {
+	@Nonnull
+	public static InsertionPosition computeInsertPositionOfLongInOrderedArray(long recId, @Nonnull long[] recordIds) {
 		final int index = Arrays.binarySearch(recordIds, recId);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
@@ -591,8 +598,23 @@ public class ArrayUtils {
 	 * Method computes insertion point of an arbitrary record into the ordered array.
 	 * Result object contains information about the position and whether the record is already in the array.
 	 */
-	public static <T extends Comparable<T>> InsertionPosition computeInsertPositionOfObjInOrderedArray(T recId, T[] recordIds) {
+	@Nonnull
+	public static <T extends Comparable<T>> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds) {
 		final int index = Arrays.binarySearch(recordIds, recId);
+		if (index >= 0) {
+			return new InsertionPosition(index, true);
+		} else {
+			return new InsertionPosition(-1 * (index) - 1, false);
+		}
+	}
+
+	/**
+	 * Method computes insertion point of an arbitrary record into the ordered array.
+	 * Result object contains information about the position and whether the record is already in the array.
+	 */
+	@Nonnull
+	public static <T extends Comparable<T>> InsertionPosition computeInsertPositionOfObjInOrderedArray(@Nonnull T recId, @Nonnull T[] recordIds, @Nonnull Comparator<T> comparator) {
+		final int index = Arrays.binarySearch(recordIds, recId, comparator);
 		if (index >= 0) {
 			return new InsertionPosition(index, true);
 		} else {
@@ -603,7 +625,7 @@ public class ArrayUtils {
 	/**
 	 * Returns TRUE if ALL subSet items are part of superSet items.
 	 */
-	public static <T> boolean contains(T[] superSet, T[] subSet) {
+	public static <T> boolean contains(@Nonnull T[] superSet, @Nonnull T[] subSet) {
 		for (T subSetItem : subSet) {
 			if (!contains(superSet, subSetItem)) {
 				return false;
@@ -615,7 +637,7 @@ public class ArrayUtils {
 	/**
 	 * Returns TRUE if item is part of superSet items.
 	 */
-	public static <T> boolean contains(T[] superSet, T item) {
+	public static <T> boolean contains(@Nonnull T[] superSet, @Nonnull T item) {
 		for (T superSetItem : superSet) {
 			if (item.equals(superSetItem)) {
 				return true;
@@ -627,7 +649,7 @@ public class ArrayUtils {
 	/**
 	 * Returns TRUE if item is part of superSet items.
 	 */
-	public static boolean contains(int[] superSet, int item) {
+	public static boolean contains(@Nonnull int[] superSet, int item) {
 		for (int superSetItem : superSet) {
 			if (item == superSetItem) {
 				return true;
@@ -657,6 +679,7 @@ public class ArrayUtils {
 	 * Reverses contents of the array - i.e. first element becomes the last element of the array.
 	 * Doesn't modify contents of the passed array - instead crates and returns new.
 	 */
+	@Nonnull
 	public static int[] reverse(@Nonnull int[] array) {
 		final int[] result = new int[array.length];
 		System.arraycopy(array, 0, result, 0, array.length);
@@ -679,7 +702,7 @@ public class ArrayUtils {
 	 * Sorts second array by the natural ordering of first array. Contents of the first are not changed, but the contents
 	 * of the second array are changed.
 	 */
-	public static void sortSecondAlongFirstArray(int[] first, int[] second) {
+	public static void sortSecondAlongFirstArray(@Nonnull int[] first, @Nonnull int[] second) {
 		Assert.isTrue(first.length == second.length, "Both arrays must have same length!");
 		// now sort positions according to recordId value - this will change ordered positions to unordered ones
 		final IntArrayWrapper wrapper = new IntArrayWrapper(second);
@@ -691,7 +714,8 @@ public class ArrayUtils {
 	 * Third array is created in the process and sorted contents of the second array are returned in this new third
 	 * array as the output of the method.
 	 */
-	public static <T extends Comparable<T>> int[] computeSortedSecondAlongFirstArray(T[] first, int[] second) {
+	@Nonnull
+	public static <T extends Comparable<T>> int[] computeSortedSecondAlongFirstArray(@Nonnull T[] first, @Nonnull int[] second) {
 		Assert.isTrue(first.length == second.length, "Both arrays must have same length!");
 		return computeSortedSecondAlongFirstArray(Comparator.comparing(o -> first[o]), second);
 	}
@@ -701,7 +725,8 @@ public class ArrayUtils {
 	 * Second array is created in the process and sorted contents of the array are returned in this new second array
 	 * as the output of the method.
 	 */
-	public static int[] computeSortedSecondAlongFirstArray(Comparator<Integer> comparator, int[] array) {
+	@Nonnull
+	public static int[] computeSortedSecondAlongFirstArray(@Nonnull Comparator<Integer> comparator, @Nonnull int[] array) {
 		// clone original array
 		int[] sortedRecordIds = new int[array.length];
 		System.arraycopy(array, 0, sortedRecordIds, 0, array.length);
@@ -717,7 +742,7 @@ public class ArrayUtils {
 	/**
 	 * Sorts array by the Comparator passed in first argument. Contents of the array are changed.
 	 */
-	public static void sortArray(Comparator<Integer> comparator, int[] array) {
+	public static void sortArray(@Nonnull Comparator<Integer> comparator, @Nonnull int[] array) {
 		// now sort positions according to recordId value - this will change ordered positions to unordered ones
 		final IntArrayWrapper wrapper = new IntArrayWrapper(array);
 		wrapper.sort(comparator);
@@ -728,7 +753,7 @@ public class ArrayUtils {
 	 * Result array is not sorted.
 	 */
 	@Nonnull
-	public static <T> T[] mergeArrays(T[]... array) {
+	public static <T> T[] mergeArrays(@Nonnull T[]... array) {
 		if (array.length == 0) {
 			throw new IllegalArgumentException("Empty argument is not allowed!");
 		}

@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
@@ -45,6 +46,8 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
+import static java.text.Normalizer.Form;
+import static java.text.Normalizer.normalize;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -56,6 +59,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class SortIndexTest implements TimeBoundedTestSupport {
+
+	private static final Locale CZECH_LOCALE = new Locale("cs");
 
 	@Test
 	void shouldCreateIndexWithDifferentCardinalities() {
@@ -84,7 +89,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldIndexRecordsAndReturnInAscendingOrder() {
-		final SortIndex sortIndex = new SortIndex(Integer.class);
+		final SortIndex sortIndex = new SortIndex(Integer.class, null);
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -99,7 +104,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldIndexRecordsAndReturnInDescendingOrder() {
-		final SortIndex sortIndex = new SortIndex(Integer.class);
+		final SortIndex sortIndex = new SortIndex(Integer.class, null);
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -114,7 +119,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Test
 	void shouldPassGenerationalTest1() {
-		final SortIndex sortIndex = new SortIndex(String.class);
+		final SortIndex sortIndex = new SortIndex(String.class, null);
 		sortIndex.addRecord("W", 49);
 		sortIndex.addRecord("Z", 150);
 		sortIndex.addRecord("[", 175);
@@ -132,6 +137,32 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		);
 	}
 
+	@Test
+	void shouldSortNationalCharactersCorrectly() {
+		final SortIndex sortIndex = new SortIndex(String.class, CZECH_LOCALE);
+		sortIndex.addRecord("A", 1);
+		sortIndex.addRecord("Š", 2);
+		sortIndex.addRecord("T", 3);
+		sortIndex.addRecord("B", 4);
+		sortIndex.addRecord("Ž", 5);
+		sortIndex.addRecord("Ř", 6);
+		sortIndex.addRecord("Ň", 7);
+
+		assertArrayEquals(
+			new String[]{
+				normalize("A", Form.NFD), 
+				normalize("B", Form.NFD), 
+				normalize("Ň", Form.NFD), 
+				normalize("Ř", Form.NFD), 
+				normalize("Š", Form.NFD), 
+				normalize("T", Form.NFD), 
+				normalize("Ž", Form.NFD)
+			}, 
+			sortIndex.sortedRecordsValues.getArray()
+		);
+		assertArrayEquals(new int[]{1, 4, 7, 6, 2, 3, 5}, sortIndex.sortedRecords.getArray());
+	}
+
 	@ParameterizedTest(name = "SortIndex should survive generational randomized test applying modifications on it")
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
@@ -144,7 +175,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			1_000,
-			new TestState(new StringBuilder(), new SortIndex(String.class)),
+			new TestState(new StringBuilder(), new SortIndex(String.class, null)),
 			(random, testState) -> {
 				final StringBuilder ops = testState.code();
 				ops.append("final SortIndex sortIndex = new SortIndex(String.class);\n")
@@ -208,6 +239,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 						committedResult.set(
 							new SortIndex(
 								committed.getType(),
+								committed.getLocale(),
 								committed.sortedRecords.getArray(),
 								committed.sortedRecordsValues.getArray(),
 								new HashMap<>(committed.valueCardinalities)
@@ -226,7 +258,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 	@Nonnull
 	private SortIndex createIndexWithBaseCardinalities() {
-		final SortIndex sortIndex = new SortIndex(String.class);
+		final SortIndex sortIndex = new SortIndex(String.class, Locale.ENGLISH);
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("C", 3);

@@ -851,6 +851,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			attributeKey,
 			new SortIndex(
 				sortIndexCnt.getType(),
+				sortIndexCnt.getAttributeKey().getLocale(),
 				sortIndexCnt.getSortedRecords(),
 				sortIndexCnt.getSortedRecordsValues(),
 				sortIndexCnt.getValueCardinalities()

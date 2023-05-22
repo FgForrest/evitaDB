@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
@@ -66,6 +67,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.text.Collator;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -1148,7 +1150,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					.stream()
 					.map(it -> storesIndexedByPk.get(it.getReferencedPrimaryKey()))
 					.filter(it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null)
-					.sorted(Comparator.comparing(it -> (String) it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE), Comparator.reverseOrder()))
+					.sorted(
+						Comparator.comparing(
+							it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class),
+							new LocalizedStringComparator(Collator.getInstance(CZECH_LOCALE)).reversed()
+						)
+					)
 					.map(referencedEntity -> entity.getReference(referencedEntity.getType(), referencedEntity.getPrimaryKey()).orElseThrow())
 					.toList();
 				assertFalse(references.isEmpty());

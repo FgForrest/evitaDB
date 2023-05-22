@@ -37,8 +37,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
-import java.util.function.ToIntBiFunction;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
@@ -62,10 +62,12 @@ import static io.evitadb.core.Transaction.isTransactionAvailable;
 public class TransactionalObjArray<T extends Comparable<T>> implements TransactionalLayerProducer<ObjArrayChanges<T>, T[]>, Serializable {
 	@Serial private static final long serialVersionUID = 3207853222537134300L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-	private T[] delegate;
+	@Nonnull private T[] delegate;
+	@Nonnull private final Comparator<T> comparator;
 
-	public TransactionalObjArray(T[] delegate) {
+	public TransactionalObjArray(@Nonnull T[] delegate, @Nonnull Comparator<T> comparator) {
 		this.delegate = delegate;
+		this.comparator = comparator;
 	}
 
 	/**
@@ -83,6 +85,7 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 	/**
 	 * Method returns the underlying array or record ids.
 	 */
+	@Nonnull
 	public T[] getArray() {
 		final ObjArrayChanges<T> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
@@ -95,19 +98,19 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 	/**
 	 * Method adds new record to the array.
 	 */
-	public void add(T recordId) {
+	public void add(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
-			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(recordId, this.delegate);
+			this.delegate = ArrayUtils.insertRecordIntoOrderedArray(recordId, this.delegate, comparator);
 		} else {
-			layer.addRecordId(recordId);
+			layer.addRecordId(recordId, comparator);
 		}
 	}
 
 	/**
 	 * Method adds multiple record ids to the array.
 	 */
-	public void addAll(T[] recordIds) {
+	public void addAll(@Nonnull T[] recordIds) {
 		for (T recordId : recordIds) {
 			add(recordId);
 		}
@@ -116,19 +119,19 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 	/**
 	 * Method removes record id from the array.
 	 */
-	public void remove(T recordId) {
+	public void remove(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
-			this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate);
+			this.delegate = ArrayUtils.removeRecordFromOrderedArray(recordId, this.delegate, comparator);
 		} else {
-			layer.removeRecordId(recordId);
+			layer.removeRecordId(recordId, comparator);
 		}
 	}
 
 	/**
 	 * Method removes multiple record ids from the array.
 	 */
-	public void removeAll(T[] recordIds) {
+	public void removeAll(@Nonnull T[] recordIds) {
 		for (T recordId : recordIds) {
 			remove(recordId);
 		}
@@ -163,44 +166,31 @@ public class TransactionalObjArray<T extends Comparable<T>> implements Transacti
 	 *
 	 * @return negative value when record is not found, positive if found
 	 */
-	public int indexOf(T recordId) {
+	public int indexOf(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return Arrays.binarySearch(this.delegate, recordId, Comparable::compareTo);
+			return Arrays.binarySearch(this.delegate, recordId, comparator);
 		} else {
-			return layer.indexOf(recordId);
+			return layer.indexOf(recordId, comparator);
 		}
 	}
 
 	/**
 	 * Returns true if record id is part of the array.
 	 */
-	public boolean contains(T recordId) {
+	public boolean contains(@Nonnull T recordId) {
 		final ObjArrayChanges<T> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
-			return Arrays.binarySearch(this.delegate, recordId, Comparable::compareTo) >= 0;
+			return Arrays.binarySearch(this.delegate, recordId, comparator) >= 0;
 		} else {
-			return layer.contains(recordId);
-		}
-	}
-
-	/**
-	 * Returns index (position) of the record id in the array.
-	 *
-	 * @return negative value when record is not found, positive if found
-	 */
-	public <U> boolean contains(U recordId, ToIntBiFunction<T, U> idExtractor) {
-		final ObjArrayChanges<T> layer = getTransactionalMemoryLayerIfExists(this);
-		if (layer == null) {
-			return ArrayUtils.binarySearch(this.delegate, recordId, idExtractor) >= 0;
-		} else {
-			return layer.contains(recordId, idExtractor);
+			return layer.contains(recordId, comparator);
 		}
 	}
 
 	/**
 	 * Returns iterator that allows to iterate through all record ids of the array.
 	 */
+	@Nonnull
 	public Iterator<T> iterator() {
 		final ObjArrayChanges<T> layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
