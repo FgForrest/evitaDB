@@ -61,7 +61,7 @@ public class EntityFetch extends AbstractRequireConstraintContainer implements E
 	}
 
 	@Creator
-	public EntityFetch(@Nonnull @Child EntityContentRequire... requirements) {
+	public EntityFetch(@Nonnull @Child(uniqueChildren = true) EntityContentRequire... requirements) {
 		super(requirements);
 	}
 

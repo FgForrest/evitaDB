@@ -48,10 +48,12 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
@@ -142,7 +144,9 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		this.fullResponseObjectBuilder = new FullResponseObjectBuilder(
 			buildingContext,
 			propertyBuilderTransformer,
-			objectBuilderTransformer
+			objectBuilderTransformer,
+			unionBuilderTransformer,
+			dictionaryBuilderTransformer
 		);
 		this.dataMutationBuilder = new DataMutationBuilder(
 			buildingContext,
@@ -201,8 +205,8 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			buildingContext.registerEndpoint(endpointBuilder.buildDeleteEntitiesByQueryEndpoint(entitySchema));
 		});
 
-		buildingContext.registerType(buildEntityUnionObject(false));
-		buildingContext.registerType(buildEntityUnionObject(true));
+		buildEntityUnion(false).ifPresent(buildingContext::registerType);
+		buildEntityUnion(true).ifPresent(buildingContext::registerType);
 
 		final List<GlobalAttributeSchemaContract> globallyUniqueAttributes = buildingContext.getSchema()
 			.getAttributes()
@@ -343,23 +347,32 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 	}
 
 	@Nonnull
-	private OpenApiObject buildEntityUnionObject(boolean localized) {
+	private Optional<OpenApiUnion> buildEntityUnion(boolean localized) {
 		if (localized) {
-			final OpenApiObject.Builder localizedEntityUnionBuilder = EntityUnion.THIS_LOCALIZED
-				.to(objectBuilderTransformer)
-				.unionType(OpenApiObjectUnionType.ONE_OF)
-				.unionDiscriminator(EntityDescriptor.TYPE.name());
-			buildingContext.getLocalizedEntityObjects().forEach(localizedEntityUnionBuilder::unionObject);
+			final List<OpenApiTypeReference> entityObjects = buildingContext.getLocalizedEntityObjects();
+			if (entityObjects.isEmpty()) {
+				return Optional.empty();
+			}
 
-			return localizedEntityUnionBuilder.build();
+			final OpenApiUnion.Builder localizedEntityUnionBuilder = EntityUnion.THIS_LOCALIZED
+				.to(unionBuilderTransformer)
+				.type(OpenApiObjectUnionType.ONE_OF)
+				.discriminator(EntityDescriptor.TYPE.name());
+			entityObjects.forEach(localizedEntityUnionBuilder::object);
+
+			return Optional.of(localizedEntityUnionBuilder.build());
 		} else {
-			final OpenApiObject.Builder entityUnionBuilder = EntityUnion.THIS
-				.to(objectBuilderTransformer)
-				.unionType(OpenApiObjectUnionType.ONE_OF)
-				.unionDiscriminator(EntityDescriptor.TYPE.name());
-			buildingContext.getEntityObjects().forEach(entityUnionBuilder::unionObject);
+			final List<OpenApiTypeReference> entityObjects = buildingContext.getEntityObjects();
+			if (entityObjects.isEmpty()) {
+				return Optional.empty();
+			}
+			final OpenApiUnion.Builder entityUnionBuilder = EntityUnion.THIS
+				.to(unionBuilderTransformer)
+				.type(OpenApiObjectUnionType.ONE_OF)
+				.discriminator(EntityDescriptor.TYPE.name());
+			entityObjects.forEach(entityUnionBuilder::object);
 
-			return entityUnionBuilder.build();
+			return Optional.of(entityUnionBuilder.build());
 		}
 	}
 

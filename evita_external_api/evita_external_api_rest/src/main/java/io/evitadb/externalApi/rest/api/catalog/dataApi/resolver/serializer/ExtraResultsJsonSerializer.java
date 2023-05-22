@@ -44,6 +44,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.utils.NamingConvention;
@@ -57,6 +58,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 
 /**
  * Handles serializing of Evita extra results into JSON structure
@@ -95,7 +97,7 @@ public class ExtraResultsJsonSerializer {
 			} else if (extraResult instanceof PriceHistogram priceHistogram) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.PRICE_HISTOGRAM.name(), serializePriceHistogram(priceHistogram));
 			} else if (extraResult instanceof Hierarchy hierarchyStats) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchyStatistics(hierarchyStats));
+				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchy(hierarchyStats));
 			} else if (extraResult instanceof FacetSummary facetSummary) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.FACET_SUMMARY.name(), serializeFacetSummary(facetSummary));
 			}
@@ -164,48 +166,50 @@ public class ExtraResultsJsonSerializer {
 	}
 
 	@Nonnull
-	private JsonNode serializeHierarchyStatistics(@Nonnull Hierarchy statistics) {
-		final ObjectNode statisticsNode = objectJsonSerializer.objectNode();
+	private JsonNode serializeHierarchy(@Nonnull Hierarchy hierarchy) {
+		final ObjectNode hierarchyNode = objectJsonSerializer.objectNode();
 
-		final Map<String, List<LevelInfo>> selfStatistics = statistics.getSelfHierarchy();
-		if (!selfStatistics.isEmpty()) {
-			statisticsNode.putIfAbsent(HierarchyDescriptor.SELF.name(), serializeLevelInfos(selfStatistics));
+		final Map<String, List<LevelInfo>> selfHierarchy = hierarchy.getSelfHierarchy();
+		if (!selfHierarchy.isEmpty()) {
+			hierarchyNode.putIfAbsent(HierarchyDescriptor.SELF.name(), serializeHierarchyOf(selfHierarchy));
 		}
 
-		statistics.getReferenceHierarchies().forEach((key, value) ->
-			statisticsNode.putIfAbsent(referenceNameToFieldName.get(key), serializeLevelInfos(value))
+		hierarchy.getReferenceHierarchies().forEach((referenceName, hierarchyOfReference) ->
+			hierarchyNode.putIfAbsent(referenceNameToFieldName.get(referenceName), serializeHierarchyOf(hierarchyOfReference))
 		);
 
-		return statisticsNode;
+		return hierarchyNode;
 	}
 
 	@Nonnull
-	private JsonNode serializeLevelInfos(@Nonnull Map<String, List<LevelInfo>> levelInfos) {
+	private JsonNode serializeHierarchyOf(@Nonnull Map<String, List<LevelInfo>> hierarchyOf) {
+		final ObjectNode hierarchyOfNode = objectJsonSerializer.objectNode();
+		hierarchyOf.forEach((outputName, levelInfos) -> {
+			hierarchyOfNode.putIfAbsent(outputName, serializeLevelInfos(levelInfos));
+		});
+		return hierarchyOfNode;
+	}
+
+	@Nonnull
+	private JsonNode serializeLevelInfos(@Nonnull List<LevelInfo> levelInfos) {
 		final ArrayNode levelInfoNodes = objectJsonSerializer.arrayNode();
-		/*
-		TODO LHO - handle new contents
 		for (LevelInfo levelInfo : levelInfos) {
 			final ObjectNode levelInfoNode = objectJsonSerializer.objectNode();
-			levelInfoNode.putIfAbsent(HierarchyStatisticsLevelInfoDescriptor.CARDINALITY.name(), objectJsonSerializer.serializeObject(levelInfo.cardinality()));
-			levelInfoNode.putIfAbsent(HierarchyStatisticsLevelInfoDescriptor.ENTITY.name(), serializeEntity(levelInfo.entity()));
-			final List<LevelInfo> childrenStats = levelInfo.childrenStatistics();
-			if (!childrenStats.isEmpty()) {
-				levelInfoNode.putIfAbsent(HierarchyStatisticsLevelInfoDescriptor.CHILDREN_STATISTICS.name(), serializeLevelInfos(childrenStats));
+
+			levelInfoNode.putIfAbsent(LevelInfoDescriptor.ENTITY.name(), serializeEntity(levelInfo.entity()));
+			Optional.ofNullable(levelInfo.queriedEntityCount())
+				.ifPresent(queriedEntityCount -> levelInfoNode.put(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), queriedEntityCount));
+			Optional.ofNullable(levelInfo.childrenCount())
+				.ifPresent(childrenCount -> levelInfoNode.put(LevelInfoDescriptor.CHILDREN_COUNT.name(), childrenCount));
+
+			final List<LevelInfo> children = levelInfo.children();
+			if (!children.isEmpty()) {
+				levelInfoNode.putIfAbsent(LevelInfoDescriptor.CHILDREN.name(), serializeLevelInfos(children));
 			}
 
 			levelInfoNodes.add(levelInfoNode);
 		}
-		 */
 		return levelInfoNodes;
-	}
-
-	@Nonnull
-	private ArrayNode serializeParentEntities(@Nonnull EntityClassifier[] entityValues) {
-		final ArrayNode parentEntitiesNode = objectJsonSerializer.arrayNode();
-		for (EntityClassifier entity : entityValues) {
-			parentEntitiesNode.add(serializeEntity(entity));
-		}
-		return parentEntitiesNode;
 	}
 
 	@Nonnull

@@ -57,7 +57,7 @@ public class Require extends AbstractRequireConstraintContainer implements Gener
 	@Serial private static final long serialVersionUID = 6115101893250263038L;
 
 	@Creator
-	public Require(@Nonnull @Child RequireConstraint... children) {
+	public Require(@Nonnull @Child(uniqueChildren = true) RequireConstraint... children) {
 		super(children);
 	}
 

@@ -21,24 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.dataApi.model;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * The global part of {@link SectionedAttributesDescriptor} for global attributes of an entity.
+ * The localized part of {@link SectionedAttributesDescriptor} for localized attributes of an entity.
+ * This object is used as container for all locales.
  *
  * Note: this descriptor is supposed to be only template.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface GlobalAttributesDescriptor {
+public interface LocalizedAttributesDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*GlobalAttributes")
+		.name("*LocalizedAttributes")
 		.description("""
-			Set of global attributes which don't have specified locale.
-			Attributes may be used for fast filtering or can be used to sort along.
+			Set of localized attributes categorized by their locales.
 			""")
 		.build();
 }

@@ -21,24 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.dataApi.model;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * The localized part of {@link SectionedAssociatedDataDescriptor} for localized associated data of an entity.
- * This object is used as container of actual associated data of specific locale inside parent container.
- *
- * Note: this descriptor is supposed to be only template.
+ * Descriptor of object containing named hierarchies for single reference (or self) of {@link io.evitadb.api.requestResponse.extraResult.Hierarchy}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface LocalizedAssociatedDataForLocaleDescriptor {
+public interface HierarchyOfDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*LocalizedAssociatedDataForLocale")
+		.name("*Hierarchy")
 		.description("""
-			Set of localized associated data which all have specified particular locale.
+            Hold named hierarchies for specific reference or hierarchy entity.
 			""")
 		.build();
 }

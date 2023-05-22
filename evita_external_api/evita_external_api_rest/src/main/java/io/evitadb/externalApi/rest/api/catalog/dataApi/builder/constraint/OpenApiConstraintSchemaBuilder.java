@@ -28,6 +28,7 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParamete
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.AllowedConstraintPredicate;
@@ -35,6 +36,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintB
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKey;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter.ConvertedEnum;
@@ -45,6 +48,7 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -203,19 +207,39 @@ public abstract class OpenApiConstraintSchemaBuilder
 	@Override
 	protected OpenApiSimpleType buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                      @Nonnull ChildParameterDescriptor childParameter) {
-		final OpenApiSimpleType childContainer = obtainContainer(
-			buildContext.switchToChildContext(resolveChildDataLocator(buildContext, childParameter.domain())),
-			childParameter
-		);
+		final DataLocator childDataLocator = resolveChildDataLocator(buildContext, childParameter.domain());
+		final ConstraintBuildContext childBuildContext = buildContext.switchToChildContext(childDataLocator);
+		final OpenApiSimpleType childType;
 
-		if (childContainer instanceof OpenApiScalar) {
-			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
-			return childContainer;
+		final Class<?> childParameterType = childParameter.type();
+		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
+			//noinspection unchecked
+			final ConstraintDescriptor childConstraintDescriptor = ConstraintDescriptorProvider.getConstraint(
+				(Class<? extends Constraint<?>>) childParameterType
+			);
+
+			// we need switch child domain again manually based on property type of the child constraint because there
+			// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
+			final DataLocator childConstraintDataLocator = resolveChildDataLocator(
+				buildContext,
+				ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())
+			);
+			childType = build(
+				childBuildContext.switchToChildContext(childConstraintDataLocator),
+				childConstraintDescriptor
+			);
 		} else {
-			if (childParameter.type().isArray() && !isChildrenUnique(childParameter)) {
-				return arrayOf(childContainer);
+			childType = obtainContainer(childBuildContext, childParameter);
+		}
+
+		if (childType instanceof OpenApiScalar) {
+			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
+			return childType;
+		} else {
+			if (childParameterType.isArray() && !isChildrenUnique(childParameter)) {
+				return arrayOf(childType);
 			} else {
-				return childContainer;
+				return childType;
 			}
 		}
 	}

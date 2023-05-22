@@ -109,7 +109,7 @@ class ConstraintDescriptorProviderTest {
 		final ConstraintDescriptor descriptorByNameAndClassifier3 = ConstraintDescriptorProvider.getConstraint(
 			ConstraintType.REQUIRE,
 			ConstraintPropertyType.FACET,
-			"summaryOfReference",
+			"summary",
 			"parameter"
 		).get();
 		assertEquals(FacetSummaryOfReference.class, descriptorByNameAndClassifier3.constraintClass());

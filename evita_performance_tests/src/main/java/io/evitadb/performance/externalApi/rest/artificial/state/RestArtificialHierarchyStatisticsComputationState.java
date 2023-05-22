@@ -61,7 +61,7 @@ public class RestArtificialHierarchyStatisticsComputationState extends AbstractR
 				});
 			Assert.isTrue(!referencedHierarchicalEntities.isEmpty(), "No referenced entity is hierarchical!");
 		}
-		final RestQuery restQuery = generateRandomParentSummaryQuery(
+		final RestQuery restQuery = generateRandomHierarchyQuery(
 			benchmarkState.getRandom(), benchmarkState.getProductSchema(), referencedHierarchicalEntities
 		);
 

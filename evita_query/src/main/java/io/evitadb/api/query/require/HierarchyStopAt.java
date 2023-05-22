@@ -56,7 +56,7 @@ public class HierarchyStopAt extends AbstractRequireConstraintContainer implemen
 	}
 
 	@Creator
-	public HierarchyStopAt(@Nonnull @Child HierarchyStopAtRequireConstraint genericHierarchyOutput) {
+	public HierarchyStopAt(@Nonnull @Child(uniqueChildren = true) HierarchyStopAtRequireConstraint genericHierarchyOutput) {
 		super(CONSTRAINT_NAME, genericHierarchyOutput);
 	}
 

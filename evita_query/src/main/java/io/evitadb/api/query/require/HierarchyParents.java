@@ -79,7 +79,7 @@ public class HierarchyParents extends AbstractRequireConstraintContainer impleme
 		);
 	}
 
-	@Creator(silentImplicitClassifier = true)
+	@Creator
 	public HierarchyParents(@Nonnull @Value String outputName,
 	                        @Nullable @Child EntityFetch entityFetch,
 	                        @Nullable @Child HierarchySiblings siblings,

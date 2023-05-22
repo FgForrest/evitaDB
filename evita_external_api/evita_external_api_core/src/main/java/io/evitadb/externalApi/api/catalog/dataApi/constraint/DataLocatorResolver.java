@@ -201,20 +201,25 @@ public class DataLocatorResolver {
 							parentDataLocator instanceof ReferenceDataLocator,
 							() -> new ExternalApiInternalError("Reference constraints without classifier must be encapsulated into parent reference containers.")
 						);
+						yield parentDataLocator;
 					} else if (constraintDescriptor.propertyType().equals(ConstraintPropertyType.HIERARCHY)) {
-						Assert.isPremiseValid(
-							parentDataLocator instanceof HierarchyDataLocator,
-							() -> new ExternalApiInternalError("Hierarchy constraints without classifier must be encapsulated into parent hierarchy containers.")
-						);
+						if (parentDataLocator instanceof HierarchyDataLocator) {
+							yield parentDataLocator;
+						}
+						if (parentDataLocator instanceof EntityDataLocator &&
+							catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType()).isWithHierarchy()) {
+							yield new HierarchyDataLocator(parentDataLocator.entityType());
+						}
+						throw new ExternalApiInternalError("Hierarchy constraints must have specified hierarchy");
 					} else if (constraintDescriptor.propertyType().equals(ConstraintPropertyType.FACET)) {
 						Assert.isPremiseValid(
 							parentDataLocator instanceof GenericDataLocator || parentDataLocator instanceof FacetDataLocator,
 							() -> new ExternalApiInternalError("Facet constraints without classifier must be encapsulated into parent generic or facet containers.")
 						);
+						yield parentDataLocator;
 					} else {
 						throw new ExternalApiInternalError("Unexpected property type `" + constraintDescriptor.propertyType() + "`.");
 					}
-					yield parentDataLocator;
 				}
 			}
 			default -> throw new ExternalApiInternalError("Unsupported property type `" + constraintDescriptor.propertyType() + "`.");

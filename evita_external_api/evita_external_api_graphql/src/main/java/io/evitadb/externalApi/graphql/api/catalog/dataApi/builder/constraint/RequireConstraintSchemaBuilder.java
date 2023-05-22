@@ -136,13 +136,4 @@ public class RequireConstraintSchemaBuilder extends GraphQLConstraintSchemaBuild
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
 		return attributeSchema -> true;
 	}
-
-	@Override
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		// We don't want list of wrapper container because in "require" constraints there are no generic conjunction
-		// containers (and also there is currently no need to support that). Essentially, we want require constraints
-		// with children to act as if they were `ChildParameterDescriptor#uniqueChildren` as, although they are
-		// originally not, in case of GraphQL where classifiers are in keys those fields are in fact unique children.
-		return true;
-	}
 }

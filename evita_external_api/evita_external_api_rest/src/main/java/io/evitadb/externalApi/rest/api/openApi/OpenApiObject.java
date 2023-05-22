@@ -25,7 +25,6 @@ package io.evitadb.externalApi.rest.api.openApi;
 
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
-import io.swagger.v3.oas.models.media.Discriminator;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.AccessLevel;
@@ -40,7 +39,6 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -50,10 +48,10 @@ import java.util.stream.Collectors;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * Represents complex object built from {@link OpenApiProperty} or other referenced types (as union) and must be globally registered in OpenAPI
+ * Represents complex object composed of several {@link OpenApiProperty} and must be globally registered in OpenAPI
  * so that there are no duplicates and client can generate prettier client libraries.
  *
- * It translates into {@link ObjectSchema} with properties or into generic {@link Schema} with oneOf, anyOf or allOf keywords.
+ * It translates into {@link ObjectSchema} with properties.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
@@ -71,22 +69,6 @@ public class OpenApiObject implements OpenApiComplexType {
 	private final String deprecationNotice;
 	@Nonnull
 	private final List<OpenApiProperty> properties;
-
-	/**
-	 * How referenced objects will be combined into this new one
-	 */
-	@Nonnull
-	private final OpenApiObjectUnionType unionType;
-	/**
-	 * Name of discriminator of union objects.
-	 */
-	@Nullable
-	private final String unionDiscriminator;
-	/**
-	 * Objects that are combined to form new (this) object.
-	 */
-	@Nonnull
-	private final List<OpenApiTypeReference> unionObjects;
 
 	/**
 	 * Create new empty builder of object.
@@ -107,22 +89,7 @@ public class OpenApiObject implements OpenApiComplexType {
 	@Nonnull
 	@Override
 	public Schema<Object> toSchema() {
-		final Schema<Object> schema;
-
-		if (!unionObjects.isEmpty()) {
-			schema = new Schema<>();
-			switch (unionType) {
-				case ONE_OF -> unionObjects.forEach(it -> schema.addOneOfItem(it.toSchema()));
-				case ANY_OF -> unionObjects.forEach(it -> schema.addAnyOfItem(it.toSchema()));
-				case ALL_OF -> unionObjects.forEach(it -> schema.addAllOfItem(it.toSchema()));
-			}
-			if (unionDiscriminator != null) {
-				schema.discriminator(new Discriminator().propertyName(unionDiscriminator));
-			}
-		} else {
-			schema = new ObjectSchema();
-			schema.setProperties(new LinkedHashMap<>(this.properties.size()));
-		}
+		final Schema<Object> schema = new ObjectSchema();
 
 		schema.name(this.name);
 		schema.description(this.description);
@@ -130,6 +97,7 @@ public class OpenApiObject implements OpenApiComplexType {
 			schema.deprecated(true); // openapi doesn't support false here
 		}
 
+		schema.setProperties(new LinkedHashMap<>(this.properties.size()));
 		this.properties.forEach(prop -> {
 			schema.addProperty(prop.getName(), prop.getSchema());
 			if (prop.isNonNull()) {
@@ -152,16 +120,8 @@ public class OpenApiObject implements OpenApiComplexType {
 		@Nonnull
 		private final Map<String, OpenApiProperty> properties;
 
-		@Nonnull
-		private OpenApiObjectUnionType unionType = OpenApiObjectUnionType.ONE_OF;
-		@Nullable
-		private String unionDiscriminator;
-		@Nonnull
-		private final List<OpenApiTypeReference> unionObjects;
-
 		private Builder() {
 			this.properties = createHashMap(20);
-			this.unionObjects = new LinkedList<>();
 		}
 
 		private Builder(@Nonnull OpenApiObject existingObject) {
@@ -169,10 +129,7 @@ public class OpenApiObject implements OpenApiComplexType {
 				existingObject.name,
 				existingObject.description,
 				existingObject.deprecationNotice,
-				new HashMap<>(existingObject.properties.stream().collect(Collectors.toMap(OpenApiProperty::getName, Function.identity()))),
-				existingObject.unionType,
-				existingObject.unionDiscriminator,
-				existingObject.unionObjects
+				new HashMap<>(existingObject.properties.stream().collect(Collectors.toMap(OpenApiProperty::getName, Function.identity())))
 			);
 		}
 
@@ -232,33 +189,6 @@ public class OpenApiObject implements OpenApiComplexType {
 		}
 
 		/**
-		 * Sets type of union (used only if {@link #unionObject(OpenApiTypeReference)} is used as well). Default is {@link OpenApiObjectUnionType#ONE_OF}.
-		 */
-		@Nonnull
-		public Builder unionType(@Nonnull OpenApiObjectUnionType unionType) {
-			this.unionType = unionType;
-			return this;
-		}
-
-		/**
-		 * Sets name of union discriminator (used only if {@link #unionObject(OpenApiTypeReference)} is used as well).
-		 */
-		@Nonnull
-		public Builder unionDiscriminator(@Nonnull String unionDiscriminator) {
-			this.unionDiscriminator = unionDiscriminator;
-			return this;
-		}
-
-		/**
-		 * Adds union object. Make sure to set correct {@link #unionType(OpenApiObjectUnionType)} and {@link #unionDiscriminator(String)}.
-		 */
-		@Nonnull
-		public Builder unionObject(@Nonnull OpenApiTypeReference unionObject) {
-			this.unionObjects.add(unionObject);
-			return this;
-		}
-
-		/**
 		 * Checks existence of property by name.
 		 */
 		public boolean hasProperty(@Nonnull String name) {
@@ -271,7 +201,7 @@ public class OpenApiObject implements OpenApiComplexType {
 				name != null && !name.isEmpty(),
 				() -> new OpenApiBuildingError("Missing object name.")
 			);
-			return new OpenApiObject(name, description, deprecationNotice, new ArrayList<>(properties.values()), unionType, unionDiscriminator, unionObjects);
+			return new OpenApiObject(name, description, deprecationNotice, new ArrayList<>(properties.values()));
 		}
 	}
 }

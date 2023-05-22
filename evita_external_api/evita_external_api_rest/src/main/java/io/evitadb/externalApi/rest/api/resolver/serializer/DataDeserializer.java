@@ -26,6 +26,8 @@ package io.evitadb.externalApi.rest.api.resolver.serializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.ValueNode;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -186,44 +188,55 @@ public class DataDeserializer {
 	 */
 	@Nullable
 	public Object deserializeTree(@Nonnull Schema<?> schema, @Nonnull JsonNode jsonNode) {
-		if(jsonNode instanceof NullNode) {
+		if (jsonNode instanceof NullNode) {
 			return null;
-		}
-		if(jsonNode instanceof ArrayNode arrayNode) {
+		} else if (schema instanceof ArraySchema || OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
 			Assert.isTrue(
-				schema instanceof ArraySchema || OpenApiConstants.TYPE_ARRAY.equals(schema.getType()),
-				() -> new RestInvalidArgumentException("Can't parse data form an ArrayNode when schema is not an ArraySchema. " +
-					"Schema: " + schema.getName(), "Error when parsing data.")
+				jsonNode instanceof ArrayNode,
+				() -> new RestInvalidArgumentException(
+					"Expected `ArrayNode` for schema `" + schema.getName() + "` but got `" + jsonNode.getClass().getSimpleName() + "`.",
+					"Expected JSON array."
+				)
 			);
+			final ArrayNode arrayNode = (ArrayNode) jsonNode;
 
 			final ArrayList<Object> objects = new ArrayList<>(arrayNode.size());
 			for (JsonNode node : arrayNode) {
 				objects.add(deserializeTree(SchemaUtils.getTargetSchemaFromRefOrOneOf(schema.getItems(), openApi), node));
 			}
 			return objects;
-		} else {
-			if(schema instanceof ArraySchema || OpenApiConstants.TYPE_ARRAY.equals(schema.getType())) {
-				throw new RestInvalidArgumentException("Can't parse data form an JsonNode when schema is an ArraySchema but JsonNode " +
-					"is not an ArrayNode. Schema: " + schema.getName(), "Error when parsing data.");
-			}
+		} else if (schema.getType() == null || OpenApiConstants.TYPE_OBJECT.equals(schema.getType())) {
+			Assert.isTrue(
+				jsonNode instanceof ObjectNode,
+				() -> new RestInvalidArgumentException(
+					"Expected `ObjectNode` for schema `" + schema.getName() + "` but got `" + jsonNode.getClass().getSimpleName() + "`.",
+					"Expected JSON object."
+				)
+			);
+			final ObjectNode objectNode = (ObjectNode) jsonNode;
 
-			if(schema.getType() == null || OpenApiConstants.TYPE_OBJECT.equals(schema.getType())) {
-				final Map<String, Object> dataMap = createHashMap(jsonNode.size());
-				final Iterator<String> namesIterator = jsonNode.fieldNames();
-				while (namesIterator.hasNext()) {
-					final String fieldName = namesIterator.next();
-					final Schema<?> propertySchema = schema.getProperties().get(fieldName);
-					if (propertySchema != null) {
-						final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, openApi);
-						dataMap.put(fieldName, deserializeTree(targetPropertySchema, jsonNode.get(fieldName)));
-					} else {
-						throw new RestInvalidArgumentException("Invalid property name: " + fieldName);
-					}
+			final Map<String, Object> dataMap = createHashMap(objectNode.size());
+			final Iterator<String> namesIterator = objectNode.fieldNames();
+			while (namesIterator.hasNext()) {
+				final String fieldName = namesIterator.next();
+				final Schema<?> propertySchema = schema.getProperties().get(fieldName);
+				if (propertySchema != null) {
+					final Schema<?> targetPropertySchema = SchemaUtils.getTargetSchemaFromRefOrOneOf(propertySchema, openApi);
+					dataMap.put(fieldName, deserializeTree(targetPropertySchema, objectNode.get(fieldName)));
+				} else {
+					throw new RestInvalidArgumentException("Invalid property name: " + fieldName);
 				}
-				return dataMap;
-			} else {
-				return deserializeValue(schema, jsonNode);
 			}
+			return dataMap;
+		} else {
+			Assert.isTrue(
+				jsonNode instanceof ValueNode,
+				() -> new RestInvalidArgumentException(
+					"Expected `ValueNode` for schema `" + schema.getName() + "` but got `" + jsonNode.getClass().getSimpleName() + "`.",
+					"Expected JSON value."
+				)
+			);
+			return deserializeValue(schema, jsonNode);
 		}
 	}
 

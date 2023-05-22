@@ -57,6 +57,10 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 		DataInLocales.class,
 		PriceContent.class,
 		ReferenceContent.class,
+		HierarchyContent.class,
+		HierarchyDistance.class,
+		HierarchyLevel.class,
+		HierarchyNode.class,
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
@@ -69,6 +73,10 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 		EntityFetch.class,
 		AssociatedDataContent.class,
 		AttributeContent.class,
+		HierarchyContent.class,
+		HierarchyDistance.class,
+		HierarchyLevel.class,
+		HierarchyNode.class,
 		DataInLocales.class,
 		PriceContent.class,
 		ReferenceContent.class
@@ -81,6 +89,10 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 		DataInLocales.class,
 		PriceContent.class,
 		ReferenceContent.class,
+		HierarchyContent.class,
+		HierarchyDistance.class,
+		HierarchyLevel.class,
+		HierarchyNode.class,
 		Strip.class,
 		Page.class
 	);
@@ -140,13 +152,5 @@ public class RequireConstraintSchemaBuilder extends OpenApiConstraintSchemaBuild
 	@Override
 	protected Predicate<AttributeSchemaContract> getAttributeSchemaFilter() {
 		return attributeSchema -> true;
-	}
-
-	@Override
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		// We don't want list of wrapper container because in "require" constraints there are no generic conjunction
-		// containers (and also there is currently no need to support that). Essentially, we want require constraints
-		// with children to act as if they were `ChildParameterDescriptor#uniqueChildren`.
-		return true;
 	}
 }

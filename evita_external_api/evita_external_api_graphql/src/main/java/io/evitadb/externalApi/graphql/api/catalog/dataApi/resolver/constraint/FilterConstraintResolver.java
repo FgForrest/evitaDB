@@ -37,6 +37,8 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import java.util.Optional;
+
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -50,9 +52,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public class FilterConstraintResolver extends GraphQLConstraintResolver<FilterConstraint> {
 
-	@Getter
-	@Nonnull
-	private final ConstraintDescriptor wrapperContainer;
+	@Nonnull private final ConstraintDescriptor wrapperContainer;
 
 	public FilterConstraintResolver(@Nonnull CatalogSchemaContract catalogSchema) {
 		super(
@@ -80,6 +80,12 @@ public class FilterConstraintResolver extends GraphQLConstraintResolver<FilterCo
 	@Nonnull
 	protected ConstraintType getConstraintType() {
 		return ConstraintType.FILTER;
+	}
+
+	@Nonnull
+	@Override
+	protected Optional<ConstraintDescriptor> getWrapperContainer() {
+		return Optional.of(wrapperContainer);
 	}
 
 	@Nonnull

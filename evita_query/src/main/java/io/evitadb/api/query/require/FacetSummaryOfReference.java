@@ -72,7 +72,7 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "summaryOfReference",
+	name = "summary",
 	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with custom \"fetching\" settings for specific reference."
 )
 public class FacetSummaryOfReference extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
@@ -119,14 +119,13 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	}
 
 	public FacetSummaryOfReference(
-		@Nonnull @Classifier String referenceName,
-		@Nonnull @Value FacetStatisticsDepth statisticsDepth,
-		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
+		@Nonnull String referenceName,
+		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nonnull EntityRequire... requirements
 	) {
 		this(new Serializable[]{referenceName, statisticsDepth}, requirements);
 	}
 
-	// todo lho check if domain entity will work for external entities
 	@Creator
 	public FacetSummaryOfReference(
 		@Nonnull @Classifier String referenceName,

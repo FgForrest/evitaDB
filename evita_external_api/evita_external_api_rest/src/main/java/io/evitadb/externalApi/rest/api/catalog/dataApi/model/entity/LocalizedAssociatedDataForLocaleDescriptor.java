@@ -21,24 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.catalog.dataApi.model;
+package io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity;
 
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
  * The localized part of {@link SectionedAssociatedDataDescriptor} for localized associated data of an entity.
- * This object is used as container for all locales.
+ * This object is used as container of actual associated data of specific locale inside parent container.
  *
  * Note: this descriptor is supposed to be only template.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface LocalizedAssociatedDataDescriptor {
+public interface LocalizedAssociatedDataForLocaleDescriptor {
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("*LocalizedAssociatedData")
+		.name("*LocalizedAssociatedDataForLocale")
 		.description("""
-			Set of localized associated data categorized by their locales.
+			Set of localized associated data which all have specified particular locale.
 			""")
 		.build();
 }

@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
@@ -61,11 +62,11 @@ import static java.util.Optional.of;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
-	name = "hierarchy",
+	name = "content",
 	shortDescription = "The constraint triggers fetching parent hierarchy entity parent chain and its bodies into returned main entities.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class HierarchyContent extends AbstractRequireConstraintContainer implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {
+public class HierarchyContent extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {
 	@Serial private static final long serialVersionUID = -6406509157596655207L;
 
 	private HierarchyContent(@Nonnull RequireConstraint[] requirements) {
@@ -80,18 +81,15 @@ public class HierarchyContent extends AbstractRequireConstraintContainer impleme
 		super(stopAt);
 	}
 
-	public HierarchyContent(@Nonnull EntityFetch entityRequirement) {
-		super(entityRequirement);
+	public HierarchyContent(@Nonnull EntityFetch entityFetch) {
+		super(entityFetch);
 	}
 
 	@Creator
-	public HierarchyContent(
-		@Nullable @Child HierarchyStopAt stopAt,
-		@Nullable @Child EntityFetch entityRequirement
-	) {
+	public HierarchyContent(@Nullable @Child HierarchyStopAt stopAt, @Nullable @Child EntityFetch entityFetch) {
 		super(
 			NO_ARGS,
-			Arrays.stream(new RequireConstraint[]{stopAt, entityRequirement}).filter(Objects::nonNull).toArray(RequireConstraint[]::new)
+			Arrays.stream(new RequireConstraint[]{stopAt, entityFetch}).filter(Objects::nonNull).toArray(RequireConstraint[]::new)
 		);
 	}
 

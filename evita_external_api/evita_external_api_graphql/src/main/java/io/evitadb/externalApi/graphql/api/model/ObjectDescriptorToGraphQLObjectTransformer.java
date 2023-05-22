@@ -54,11 +54,9 @@ public class ObjectDescriptorToGraphQLObjectTransformer implements ObjectDescrip
 			objectBuilder.description(objectDescriptor.description());
 		}
 
-		if (objectDescriptor.staticFields() != null) {
-			objectDescriptor.staticFields().stream()
-				.map(fieldBuilderTransformer)
-				.forEach(objectBuilder::field);
-		}
+		objectDescriptor.staticFields().stream()
+			.map(fieldBuilderTransformer)
+			.forEach(objectBuilder::field);
 
 		return objectBuilder;
 	}

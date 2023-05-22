@@ -37,18 +37,25 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkAggregateDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.HierarchyOfDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
+import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
+import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiUnionTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiDictionary;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObjectUnionType;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiProperty;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
+import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import lombok.RequiredArgsConstructor;
 
@@ -60,6 +67,7 @@ import java.util.Optional;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.*;
+import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityObjectName;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
@@ -77,6 +85,8 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final CatalogRestBuildingContext buildingContext;
 	@Nonnull private final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull private final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToOpenApiUnionTransformer unionBuilderTransformer;
+	@Nonnull private final ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer;
 
 	public void buildCommonTypes() {
 		buildingContext.registerType(BucketDescriptor.THIS.to(objectBuilderTransformer).build());
@@ -110,13 +120,13 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildDataChunkObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                  boolean localized) {
-		final OpenApiObject dataChunkObject = DataChunkAggregateDescriptor.THIS
-			.to(objectBuilderTransformer)
+		final OpenApiUnion dataChunkObject = DataChunkAggregateDescriptor.THIS
+			.to(unionBuilderTransformer)
 			.name(constructEntityDataChunkAggregateObjectName(entitySchema, localized))
-			.unionType(OpenApiObjectUnionType.ONE_OF)
-			.unionDiscriminator(DataChunkAggregateDescriptor.DISCRIMINATOR.name())
-			.unionObject(buildRecordPageObject(entitySchema, localized))
-			.unionObject(buildRecordStripObject(entitySchema, localized))
+			.type(OpenApiObjectUnionType.ONE_OF)
+			.discriminator(DataChunkAggregateDescriptor.DISCRIMINATOR.name())
+			.object(buildRecordPageObject(entitySchema, localized))
+			.object(buildRecordStripObject(entitySchema, localized))
 			.build();
 
 		return buildingContext.registerType(dataChunkObject);
@@ -196,7 +206,7 @@ public class FullResponseObjectBuilder {
 		buildAttributeHistogramProperty(entitySchema).ifPresent(extraResultProperties::add);
 		buildPriceHistogramProperty(entitySchema).ifPresent(extraResultProperties::add);
 		buildFacetSummaryProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
-		extraResultProperties.addAll(buildHierarchyExtraResultProperties(entitySchema, localized));
+		buildHierarchyProperty(entitySchema, localized).ifPresent(extraResultProperties::add);
 		extraResultProperties.add(ExtraResultsDescriptor.QUERY_TELEMETRY.to(propertyBuilderTransformer).build());
 
 		if (extraResultProperties.isEmpty()) {
@@ -389,8 +399,8 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private List<OpenApiProperty> buildHierarchyExtraResultProperties(@Nonnull EntitySchemaContract entitySchema,
-	                                                                  boolean localized) {
+	private Optional<OpenApiProperty> buildHierarchyProperty(@Nonnull EntitySchemaContract entitySchema,
+	                                                         boolean localized) {
 		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
 			.getReferences()
 			.values()
@@ -402,112 +412,133 @@ public class FullResponseObjectBuilder {
 			.toList();
 
 		if (referenceSchemas.isEmpty() && !entitySchema.isWithHierarchy()) {
-			return List.of();
+			return Optional.empty();
 		}
 
-		final List<OpenApiProperty> hierarchyExtraResultProperties = new ArrayList<>(1);
-
-		// todo lho reimplement
-//		final OpenApiTypeReference hierarchyStatisticsObject = buildHierarchyStatisticsObject(
-//			entitySchema,
-//			referenceSchemas,
-//			localized
-//		);
-//		final OpenApiProperty hierarchyStatisticsProperty = ExtraResultsDescriptor.HIERARCHY
-//			.to(propertyBuilderTransformer)
-//			.type(hierarchyStatisticsObject)
-//			.build();
-//		hierarchyExtraResultProperties.add(hierarchyStatisticsProperty);
-
-		return hierarchyExtraResultProperties;
+		final OpenApiTypeReference hierarchyObject = buildHierarchyObject(entitySchema, referenceSchemas, localized);
+		return Optional.of(
+			ExtraResultsDescriptor.HIERARCHY
+				.to(propertyBuilderTransformer)
+				.type(hierarchyObject)
+				.build()
+		);
 	}
 
-//	@Nonnull
-//	private OpenApiTypeReference buildHierarchyStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
-//	                                                            @Nonnull List<ReferenceSchemaContract> referenceSchemas,
-//	                                                            boolean localized) {
-//		final OpenApiObject.Builder hierarchyStatisticsObjectBuilder = HierarchyDescriptor.THIS
-//			.to(objectBuilderTransformer)
-//			.name(constructHierarchyStatisticsObjectName(entitySchema, localized));
-//
-//		if (entitySchema.isWithHierarchy()) {
-//			hierarchyStatisticsObjectBuilder.property(buildSelfLevelInfoProperty(entitySchema, localized));
-//		}
-//
-//		referenceSchemas.forEach(referenceSchema ->
-//			hierarchyStatisticsObjectBuilder.property(buildLevelInfoProperty(entitySchema, referenceSchema, localized)));
-//
-//		return buildingContext.registerType(hierarchyStatisticsObjectBuilder.build());
-//	}
+	@Nonnull
+	private OpenApiTypeReference buildHierarchyObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                  @Nonnull List<ReferenceSchemaContract> referenceSchemas,
+	                                                  boolean localized) {
+		final OpenApiObject.Builder hierarchyStatisticsObjectBuilder = HierarchyDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(constructHierarchyObjectName(entitySchema, localized));
 
-//	@Nonnull
-//	private OpenApiTypeReference buildSelfLevelInfoObject(@Nonnull EntitySchemaContract entitySchema,
-//	                                                      boolean localized) {
-//		final String selfLevelInfoObjectName = constructSelfLevelInfoObjectName(entitySchema, localized);
-//
-//		final OpenApiObject selfLevelInfoObject = LevelInfoDescriptor.THIS
-//			.to(objectBuilderTransformer)
-//			.name(selfLevelInfoObjectName)
-//			.property(LevelInfoDescriptor.CHILDREN_STATISTICS
-//				.to(propertyBuilderTransformer)
-//				.type(nonNull(arrayOf(typeRefTo(selfLevelInfoObjectName)))))
-//			.property(buildSelfLevelInfoEntityProperty(entitySchema, localized))
-//			.build();
-//
-//		return buildingContext.registerType(selfLevelInfoObject);
-//	}
-//
-//	@Nonnull
-//	private OpenApiProperty buildSelfLevelInfoEntityProperty(@Nonnull EntitySchemaContract entitySchema,
-//	                                                         boolean localized) {
-//		final String referencedEntityObjectName = constructEntityObjectName(entitySchema, localized);
-//
-//		return LevelInfoDescriptor.ENTITY
-//			.to(propertyBuilderTransformer)
-//			.type(nonNull(typeRefTo(referencedEntityObjectName)))
-//			.build();
-//	}
+		if (entitySchema.isWithHierarchy()) {
+			hierarchyStatisticsObjectBuilder.property(buildHierarchyOfSelfProperty(entitySchema, localized));
+		}
 
-//	@Nonnull
-//	private OpenApiProperty buildLevelInfoProperty(@Nonnull EntitySchemaContract entitySchema,
-//	                                               @Nonnull ReferenceSchemaContract referenceSchema,
-//	                                               boolean localized) {
-//		final OpenApiTypeReference levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema, localized);
-//		return newProperty()
-//			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-//			.type(arrayOf(levelInfoObject))
-//			.build();
-//	}
-//
-//	@Nonnull
-//	private OpenApiTypeReference buildLevelInfoObject(@Nonnull EntitySchemaContract entitySchema,
-//	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
-//	                                                  boolean localized) {
-//		final String levelInfoObjectName = constructLevelInfoObjectName(entitySchema, referenceSchema, localized);
-//
-//		final OpenApiObject levelInfoObject = LevelInfoDescriptor.THIS
-//			.to(objectBuilderTransformer)
-//			.name(levelInfoObjectName)
-//			.property(LevelInfoDescriptor.CHILDREN_STATISTICS
-//				.to(propertyBuilderTransformer)
-//				.type(nonNull(arrayOf(typeRefTo(levelInfoObjectName)))))
-//			.property(buildLevelInfoEntityProperty(referenceSchema, localized))
-//			.build();
-//
-//		return buildingContext.registerType(levelInfoObject);
-//	}
-//
-//	@Nonnull
-//	private OpenApiProperty buildLevelInfoEntityProperty(@Nonnull ReferenceSchemaContract referenceSchema,
-//	                                                     boolean localized) {
-//		final EntitySchemaContract referencedEntitySchema = buildingContext
-//			.getSchema()
-//			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
-//		final String referencedEntityObjectName = constructEntityObjectName(referencedEntitySchema, localized);
-//
-//		return LevelInfoDescriptor.ENTITY
-//			.to(propertyBuilderTransformer)
-//			.type(nonNull(typeRefTo(referencedEntityObjectName)))
-//			.build();
-//	}
+		referenceSchemas.forEach(referenceSchema ->
+			hierarchyStatisticsObjectBuilder.property(buildHierarchyOfReferenceProperty(entitySchema, referenceSchema, localized)));
+
+		return buildingContext.registerType(hierarchyStatisticsObjectBuilder.build());
+	}
+
+	@Nonnull
+	private OpenApiProperty buildHierarchyOfSelfProperty(@Nonnull EntitySchemaContract entitySchema,
+	                                                     boolean localized) {
+		final OpenApiTypeReference hierarchyOfSelfObject = buildHierarchyOfSelfObject(entitySchema, localized);
+		return HierarchyDescriptor.SELF
+			.to(propertyBuilderTransformer)
+			.type(nonNull(hierarchyOfSelfObject))
+			.build();
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildHierarchyOfSelfObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                        boolean localized) {
+		final OpenApiTypeReference selfLevelInfoObject = buildSelfLevelInfoObject(entitySchema, localized);
+		final OpenApiDictionary hierarchyOfSelfObject = HierarchyOfDescriptor.THIS
+			.to(dictionaryBuilderTransformer)
+			.name(constructHierarchyOfSelfObjectName(entitySchema, localized))
+			.valueType(arrayOf(selfLevelInfoObject))
+			.build();
+		return buildingContext.registerType(hierarchyOfSelfObject);
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildSelfLevelInfoObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                      boolean localized) {
+		final String objectName = constructSelfLevelInfoObjectName(entitySchema, localized);
+
+		final OpenApiObject selfLevelInfoObject = LevelInfoDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(objectName)
+			.property(LevelInfoDescriptor.ENTITY
+				.to(propertyBuilderTransformer)
+				.type(nonNull(typeRefTo(constructEntityObjectName(entitySchema, localized)))))
+			.property(LevelInfoDescriptor.CHILDREN
+				.to(propertyBuilderTransformer)
+				.type(nonNull(arrayOf(typeRefTo(objectName)))))
+			.build();
+
+		return buildingContext.registerType(selfLevelInfoObject);
+	}
+
+	@Nonnull
+	private OpenApiProperty buildHierarchyOfReferenceProperty(@Nonnull EntitySchemaContract entitySchema,
+															  @Nonnull ReferenceSchemaContract referenceSchema,
+                                                              boolean localized) {
+		final OpenApiTypeReference hierarchyOfSelfObject = buildHierarchyOfReferenceObject(entitySchema, referenceSchema, localized);
+		return HierarchyDescriptor.REFERENCE
+			.to(propertyBuilderTransformer)
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+			.description(HierarchyDescriptor.REFERENCE.description(referenceSchema.getReferencedEntityType()))
+			.type(nonNull(hierarchyOfSelfObject))
+			.build();
+	}
+
+	@Nonnull
+	private OpenApiTypeReference buildHierarchyOfReferenceObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                             @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                             boolean localized) {
+		final OpenApiTypeReference levelInfoObject = buildLevelInfoObject(entitySchema, referenceSchema, localized);
+		final OpenApiDictionary hierarchyOfReferenceObject = HierarchyOfDescriptor.THIS
+			.to(dictionaryBuilderTransformer)
+			.name(constructHierarchyOfReferenceObjectName(entitySchema, referenceSchema, localized))
+			.valueType(arrayOf(levelInfoObject))
+			.build();
+		return buildingContext.registerType(hierarchyOfReferenceObject);
+	}
+
+
+	@Nonnull
+	private OpenApiTypeReference buildLevelInfoObject(@Nonnull EntitySchemaContract entitySchema,
+	                                                  @Nonnull ReferenceSchemaContract referenceSchema,
+	                                                  boolean localized) {
+		final String levelInfoObjectName = constructLevelInfoObjectName(entitySchema, referenceSchema, localized);
+
+		final OpenApiObject levelInfoObject = LevelInfoDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.name(levelInfoObjectName)
+			.property(buildLevelInfoEntityProperty(referenceSchema, localized))
+			.property(LevelInfoDescriptor.CHILDREN
+				.to(propertyBuilderTransformer)
+				.type(nonNull(arrayOf(typeRefTo(levelInfoObjectName)))))
+			.build();
+
+		return buildingContext.registerType(levelInfoObject);
+	}
+
+	@Nonnull
+	private OpenApiProperty buildLevelInfoEntityProperty(@Nonnull ReferenceSchemaContract referenceSchema,
+	                                                     boolean localized) {
+		final EntitySchemaContract referencedEntitySchema = buildingContext
+			.getSchema()
+			.getEntitySchemaOrThrowException(referenceSchema.getReferencedEntityType());
+		final String referencedEntityObjectName = constructEntityObjectName(referencedEntitySchema, localized);
+
+		return LevelInfoDescriptor.ENTITY
+			.to(propertyBuilderTransformer)
+			.type(nonNull(typeRefTo(referencedEntityObjectName)))
+			.build();
+	}
 }
