@@ -514,7 +514,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final SealedEntity category = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final List<SealedEntity> categories = session.queryList(
+				final SealedEntity c = session.queryOneSealedEntity(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
@@ -525,12 +525,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								hierarchyContent()
 							)
 						)
-					),
-					SealedEntity.class
-				);
+					)
+				).orElseThrow();
 
-				assertEquals(1, categories.size());
-				final SealedEntity c = categories.get(0);
 				// check that it has at least 2 parents
 				assertTrue(c.getParentEntity().isPresent());
 				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
@@ -573,7 +570,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final SealedEntity category = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final List<SealedEntity> categories = session.queryList(
+				final SealedEntity c = session.queryOneSealedEntity(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
@@ -588,12 +585,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								)
 							)
 						)
-					),
-					SealedEntity.class
-				);
+					)
+				).orElseThrow();
 
-				assertEquals(1, categories.size());
-				final SealedEntity c = categories.get(0);
 				// check that it has at least 2 parents
 				assertTrue(c.getParentEntity().isPresent());
 				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
@@ -640,7 +634,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final SealedEntity category = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final List<SealedEntity> categories = session.queryList(
+				final SealedEntity c = session.queryOneSealedEntity(
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(
@@ -653,12 +647,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								)
 							)
 						)
-					),
-					SealedEntity.class
-				);
+					)
+				).orElseThrow();
 
-				assertEquals(1, categories.size());
-				final SealedEntity c = categories.get(0);
 				// check that it has only one direct parent
 				assertTrue(c.getParentEntity().isPresent());
 				assertTrue(c.getParentEntity().get().getParentEntity().isEmpty());
@@ -705,7 +696,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final SealedEntity product = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final List<SealedEntity> products = session.queryList(
+				final List<SealedEntity> products = session.queryListOfSealedEntities(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
@@ -725,8 +716,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								)
 							)
 						)
-					),
-					SealedEntity.class
+					)
 				);
 
 				assertEquals(1, products.size());
@@ -788,7 +778,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final SealedEntity product = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final List<SealedEntity> products = session.queryList(
+				final List<SealedEntity> products = session.queryListOfSealedEntities(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
@@ -812,8 +802,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								)
 							)
 						)
-					),
-					SealedEntity.class
+					)
 				);
 
 				assertEquals(1, products.size());
@@ -879,7 +868,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		final SealedEntity product = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final List<SealedEntity> products = session.queryList(
+				final List<SealedEntity> products = session.queryListOfSealedEntities(
 					query(
 						collection(Entities.PRODUCT),
 						filterBy(
@@ -901,8 +890,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								)
 							)
 						)
-					),
-					SealedEntity.class
+					)
 				);
 
 				assertEquals(1, products.size());
