@@ -44,7 +44,6 @@ import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -685,6 +684,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		prefetchParents(
 			hierarchyContent,
 			queryContext,
+			entityCollection,
 			richEnoughEntity.getParent()
 				.stream()
 				.toArray()
@@ -729,6 +729,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		prefetchParents(
 			hierarchyContent,
 			queryContext,
+			entityCollection,
 			entities.stream()
 				.map(EntityContract::getParent)
 				.filter(OptionalInt::isPresent)
@@ -938,7 +939,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param queryContext     query context used for querying the entity
 	 * @param parentsId        the array of parent entity primary keys to prefetch
 	 */
-	private void prefetchParents(@Nullable HierarchyContent hierarchyContent, @Nonnull QueryContext queryContext, int[] parentsId) {
+	private void prefetchParents(
+		@Nullable HierarchyContent hierarchyContent,
+		@Nonnull QueryContext queryContext,
+		@Nonnull EntityCollectionContract entityCollection,
+		@Nonnull int[] parentsId
+	) {
 		// prefetch only if there is any requirement
 		if (hierarchyContent != null) {
 			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(parentsId.length);
@@ -947,8 +953,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				new IntHashSet(parentsId.length * 3) : null;
 
 			// initialize used data structures
-			final GlobalEntityIndex globalIndex = queryContext.getGlobalEntityIndex();
-			final String entityType = globalIndex.getEntitySchema().getName();
+			final String entityType = entityCollection.getEntityType();
+			final GlobalEntityIndex globalIndex = entityCollection instanceof EntityCollection ec ? ec.getGlobalIndex() :
+				queryContext.getGlobalEntityIndex(entityType);
 			// scope predicate limits the parent traversal
 			final HierarchyTraversalPredicate scopePredicate = hierarchyContent.getStopAt()
 				.map(stopAt -> stopAtConstraintToPredicate(TraversalDirection.BOTTOM_UP, stopAt, queryContext, globalIndex, null))
