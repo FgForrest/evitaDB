@@ -25,6 +25,8 @@ package io.evitadb.documentation.evitaql;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.util.DefaultIndenter;
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
@@ -109,6 +111,10 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 */
 	private final static ObjectMapper OBJECT_MAPPER;
 	/**
+	 * Pretty printer used to format JSON output.
+	 */
+	private final static DefaultPrettyPrinter DEFAULT_PRETTY_PRINTER;
+	/**
 	 * Contents of the Java code template that is used to generate Java examples from EvitaQL queries.
 	 */
 	private final static List<String> JAVA_CODE_TEMPLATE;
@@ -143,6 +149,10 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		OBJECT_MAPPER.enable(SerializationFeature.INDENT_OUTPUT);
 		OBJECT_MAPPER.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 		OBJECT_MAPPER.enable(SerializationFeature.WRITE_DATE_KEYS_AS_TIMESTAMPS);
+
+		DEFAULT_PRETTY_PRINTER = new DefaultPrettyPrinter();
+		DEFAULT_PRETTY_PRINTER.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
+		DEFAULT_PRETTY_PRINTER.indentObjectsWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
 
 		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.java");) {
 			JAVA_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
@@ -315,7 +325,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		final String json = ofNullable(theValue)
 			.map(it -> {
 				try {
-					return OBJECT_MAPPER.writeValueAsString(it);
+					return OBJECT_MAPPER.writer(DEFAULT_PRETTY_PRINTER).writeValueAsString(it);
 				} catch (JsonProcessingException e) {
 					fail(e);
 					return "";
