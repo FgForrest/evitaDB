@@ -36,7 +36,7 @@ The grammar of the query is as follows:
 
 ``` evitaql
 query(
-    collection('product'),
+    collection('Product'),
     filterBy(entityPrimaryKeyInSet(1, 2, 3)),
     orderBy(attributeNatural('name', DESC)),
     require(entityFetch())
@@ -47,11 +47,11 @@ Or more complex one:
 
 ``` evitaql
 query(
-    collection('product'),
+    collection('Product'),
     filterBy(
        and(
           entityPrimaryKeyInSet(1, 2, 3),
-          attributeEquals('visible', true)
+          attributeEquals('visibility', 'VISIBLE')
        )
     ),
     orderBy(
@@ -73,7 +73,7 @@ important). I.e. the following query is still a valid query:
 
 ``` evitaql
 query(
-    collection('product'),   
+    collection('Product'),   
     require(entityFetch())
 )
 ```
@@ -85,7 +85,7 @@ query(
 query(
     require(entityFetch()),
     orderBy(attributeNatural('name', ASC)),
-    collection('product')
+    collection('Product')
 )
 ```
 
@@ -93,7 +93,7 @@ query(
 
 In the documentation, constraints are described by a **Syntax** section that follows this format:
 
-```
+```evitaql-syntax
 constraintName(
     argument:type,specification
     constraint:type,specification

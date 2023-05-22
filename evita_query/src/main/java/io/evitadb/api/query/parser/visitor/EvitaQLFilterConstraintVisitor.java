@@ -50,28 +50,26 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		byte.class,
 		Byte.class,
-		short.class,
 		Short.class,
-		int.class,
 		Integer.class,
-		long.class,
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor inRangeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-		byte.class,
 		Byte.class,
-		short.class,
 		Short.class,
-		int.class,
 		Integer.class,
-		long.class,
 		Long.class,
 		BigDecimal.class,
 		OffsetDateTime.class
 	);
-	protected final EvitaQLValueTokenVisitor floatValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(BigDecimal.class);
+	protected final EvitaQLValueTokenVisitor priceBetweenArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		Byte.class,
+		Short.class,
+		Integer.class,
+		Long.class,
+		BigDecimal.class
+	);
 	protected final EvitaQLValueTokenVisitor offsetDateTimeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OffsetDateTime.class);
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
 	protected final EvitaQLValueTokenVisitor currencyValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Currency.class);
@@ -426,8 +424,8 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new PriceBetween(
-				ctx.args.valueFrom.accept(floatValueTokenVisitor).asBigDecimal(),
-				ctx.args.valueTo.accept(floatValueTokenVisitor).asBigDecimal()
+				ctx.args.valueFrom.accept(priceBetweenArgValueTokenVisitor).asNumber(BigDecimal.class),
+				ctx.args.valueTo.accept(priceBetweenArgValueTokenVisitor).asNumber(BigDecimal.class)
 			)
 		);
 	}
@@ -505,12 +503,17 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitHierarchyWithinRootSelfConstraint(@Nonnull EvitaQLParser.HierarchyWithinRootSelfConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new HierarchyWithinRoot(
-				ctx.args.constrains
-					.stream()
-					.map(c -> visitChildConstraint(c, HierarchySpecificationFilterConstraint.class))
-					.toArray(HierarchySpecificationFilterConstraint[]::new)
-			)
+			() -> {
+				if (ctx.args == null) {
+					return new HierarchyWithinRoot();
+				}
+				return new HierarchyWithinRoot(
+					ctx.args.constrains
+						.stream()
+						.map(c -> visitChildConstraint(c, HierarchySpecificationFilterConstraint.class))
+						.toArray(HierarchySpecificationFilterConstraint[]::new)
+				);
+			}
 		);
 	}
 

@@ -33,6 +33,8 @@ import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Optional;
+
 /**
  * This {@link Serializer} implementation reads/writes {@link HierarchyWithin} from/to binary format.
  *
@@ -43,7 +45,13 @@ public class HierarchyWithinRootSerializer extends Serializer<HierarchyWithinRoo
 
 	@Override
 	public void write(Kryo kryo, Output output, HierarchyWithinRoot object) {
-		output.writeString(object.getReferenceName());
+		final Optional<String> referenceName = object.getReferenceName();
+		if (referenceName.isEmpty()) {
+			output.writeBoolean(false);
+		} else {
+			output.writeBoolean(true);
+			output.writeString(referenceName.get());
+		}
 		final FilterConstraint[] children = object.getChildren();
 		output.writeVarInt(children.length, true);
 		for (FilterConstraint child : children) {
@@ -53,12 +61,17 @@ public class HierarchyWithinRootSerializer extends Serializer<HierarchyWithinRoo
 
 	@Override
 	public HierarchyWithinRoot read(Kryo kryo, Input input, Class<? extends HierarchyWithinRoot> type) {
-		final String entityType = input.readString();
+		final String referenceName;
+		if (input.readBoolean()) {
+			referenceName = input.readString();
+		} else {
+			referenceName = null;
+		}
 		final HierarchySpecificationFilterConstraint[] children = new HierarchySpecificationFilterConstraint[input.readVarInt(true)];
 		for (int i = 0; i < children.length; i++) {
 			children[i] = (HierarchySpecificationFilterConstraint) kryo.readClassAndObject(input);
 		}
-		return new HierarchyWithinRoot(entityType, children);
+		return new HierarchyWithinRoot(referenceName, children);
 	}
 
 }

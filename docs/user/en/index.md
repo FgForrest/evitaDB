@@ -75,9 +75,9 @@ the first version to the general public.
 
 1. [Basics](query/basics.md)
 2. **Filtering**
-   1. [Bitwise](query/filtering/logical.md)
-   2. [Boolean](query/filtering/boolean.md)
-   3. [Comparable](query/filtering/comparable.md)
+   1. [Constant](query/filtering/constant.md)
+   2. [Comparable](query/filtering/comparable.md)
+   3. [Logical](query/filtering/logical.md)
    4. [String](query/filtering/string.md)
    5. [Locale](query/filtering/locale.md)
    6. [Range](query/filtering/range.md)
@@ -90,7 +90,7 @@ the first version to the general public.
    2. [Price](query/ordering/price.md)
    3. [Reference](query/ordering/reference.md)
    4. [Random](query/ordering/random.md)
-4. Requirements**
+4. **Requirements**
    1. [Paging](query/requirements/paging.md)
    2. [Fetching](query/requirements/fetching.md)
    3. [Price](query/requirements/price.md)

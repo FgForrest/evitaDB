@@ -72,7 +72,8 @@ import java.util.Optional;
 	name = "summary",
 	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with default \"fetching\" settings for all referenced entities."
 )
-public class FacetSummary extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
+public class FacetSummary extends AbstractRequireConstraintContainer
+	implements FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 2377379601711709241L;
 
 	private FacetSummary(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {

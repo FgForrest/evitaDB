@@ -768,7 +768,7 @@ public class EvitaRequest {
 						query.getFilterBy(),
 						HierarchyFilterConstraint.class
 					)
-					.forEach(it -> hierarchyWithin.put(it.getReferenceName(), it));
+					.forEach(it -> hierarchyWithin.put(it.getReferenceName().orElse(null), it));
 			}
 			requiredWithinHierarchy = true;
 		}

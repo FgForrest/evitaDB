@@ -94,7 +94,7 @@ If you need to connect to a server that provides a self-signed certificate from 
 the variable `NODE_TLS_REJECT_UNAUTHORIZED` to the value `0`. However, this setting will cause Node.JS to log a warning 
 message:
 
-```
+```plain
 Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure 
 by disabling certificate verification.
 ```
@@ -334,7 +334,7 @@ starts and `generateAndUseSelfSigned` is set to `true` (default), it generates t
 The `client.crt` is automatically added to the list of trusted client certificates. Both `client.crt` and `client.key`
 are available for downloading using `system` endpoint. You'll see those when the evitaDB server starts:
 
-```
+```plain
 API `system` listening on               http://your-domain:5557/system/
    - server certificate served at:      http://your-domain:5557/system/evitaDB-CA-selfSigned.crt
    - client certificate served at:      http://your-domain:5557/system/client.crt
@@ -365,7 +365,7 @@ the used <Term>certificate authority</Term> both on the server side and the clie
 
 The fingerprint is written to the console output when the server starts - it looks like this:
 
-```
+```plain
 Root CA Certificate fingerprint: 84:F0:29:87:D8:F5:F6:92:B4:7B:AA:AE:F3:5A:29:A1:C1:86:C4:B2:4D:44:63:6B:2D:F2:AD:75:B7:C6:F2:7E
 ```
 
@@ -373,7 +373,7 @@ Root CA Certificate fingerprint: 84:F0:29:87:D8:F5:F6:92:B4:7B:AA:AE:F3:5A:29:A1
 
 Client logs the fingerprint using [configured logging library](run.md#control-logging) on `INFO` level in this form:
 
-```
+```plain
 16:11:18.712 INFO  i.e.d.c.ClientCertificateManager - Server's CA certificate fingerprint: 04:B0:9C:00:FB:32:D8:8A:7A:C9:34:19:5D:90:48:8A:BF:BF:E8:22:32:53:4C:4F:14:E1:EC:FA:C2:99:C3:DD
 ```
 </Note>

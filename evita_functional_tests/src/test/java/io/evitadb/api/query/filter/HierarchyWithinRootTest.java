@@ -39,7 +39,7 @@ class HierarchyWithinRootTest {
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
 		final HierarchyWithinRoot hierarchyWithinRoot = hierarchyWithinRoot("brand");
-		assertEquals("brand", hierarchyWithinRoot.getReferenceName());
+		assertEquals("brand", hierarchyWithinRoot.getReferenceName().orElse(null));
 		assertArrayEquals(new FilterConstraint[0], hierarchyWithinRoot.getExcludedChildrenFilter());
 		assertFalse(hierarchyWithinRoot.isDirectRelation());
 	}
@@ -47,7 +47,7 @@ class HierarchyWithinRootTest {
 	@Test
 	void shouldCreateViaFactoryUsingExcludingSubConstraintClassWorkAsExpected() {
 		final HierarchyWithinRoot hierarchyWithinRoot = hierarchyWithinRoot("brand", excluding(entityPrimaryKeyInSet(5, 7)));
-		assertEquals("brand", hierarchyWithinRoot.getReferenceName());
+		assertEquals("brand", hierarchyWithinRoot.getReferenceName().orElse(null));
 		assertArrayEquals(new FilterConstraint[] {new EntityPrimaryKeyInSet(5, 7)}, hierarchyWithinRoot.getExcludedChildrenFilter());
 		assertFalse(hierarchyWithinRoot.isDirectRelation());
 	}
@@ -55,7 +55,7 @@ class HierarchyWithinRootTest {
 	@Test
 	void shouldCreateViaFactoryUsingDirectRelationSubConstraintClassWorkAsExpected() {
 		final HierarchyWithinRoot hierarchyWithinRoot = hierarchyWithinRootSelf(directRelation());
-		assertNull(hierarchyWithinRoot.getReferenceName());
+		assertNull(hierarchyWithinRoot.getReferenceName().orElse(null));
 		assertArrayEquals(new FilterConstraint[0], hierarchyWithinRoot.getExcludedChildrenFilter());
 		assertTrue(hierarchyWithinRoot.isDirectRelation());
 	}
@@ -70,7 +70,7 @@ class HierarchyWithinRootTest {
 		final HierarchyWithinRoot hierarchyWithinRoot = hierarchyWithinRootSelf(
 			excluding(entityPrimaryKeyInSet(3, 7))
 		);
-		assertNull(hierarchyWithinRoot.getReferenceName());
+		assertNull(hierarchyWithinRoot.getReferenceName().orElse(null));
 		assertArrayEquals(new FilterConstraint[] {new EntityPrimaryKeyInSet(3, 7)}, hierarchyWithinRoot.getExcludedChildrenFilter());
 	}
 

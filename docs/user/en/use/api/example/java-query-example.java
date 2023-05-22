@@ -1,7 +1,7 @@
 final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 	"evita",
 	session -> {
-		return session.query(
+		return session.querySealedEntity(
 			query(
 				collection("Brand"),
 				filterBy(
@@ -16,8 +16,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				require(
 					entityFetchAll()
 				)
-			),
-			SealedEntity.class
+			)
 		);
 	}
 );

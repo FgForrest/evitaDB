@@ -99,7 +99,8 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 	@Nullable
 	@Override
 	public String getOutputName() {
-		return (String) getArguments()[0];
+		final Serializable[] arguments = getArguments();
+		return arguments.length > 0 ? (String) arguments[0] : null;
 	}
 
 	/**

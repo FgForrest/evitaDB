@@ -1,0 +1,19 @@
+query(   
+    collection('Product'),   
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'true-wireless')
+        )
+    ),
+    require(
+        hierarchyOfReference(
+            'categories',
+            parents(
+                'parents',
+                entityFetch(attributeContent('code')),
+                stopAt(level(2))
+            )
+        )
+    )
+)
