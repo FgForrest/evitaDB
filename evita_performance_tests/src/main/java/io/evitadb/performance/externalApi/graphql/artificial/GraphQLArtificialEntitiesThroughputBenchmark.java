@@ -102,11 +102,6 @@ public class GraphQLArtificialEntitiesThroughputBenchmark extends GraphQLArtific
 	}
 
 	@Override
-	public void parentsComputation(GraphQLArtificialHierarchyBenchmarkState benchmarkState, GraphQLArtificialParentsComputationState state, Blackhole blackhole) {
-		super.parentsComputation(benchmarkState, state, blackhole);
-	}
-
-	@Override
 	public void hierarchyStatisticsComputation(GraphQLArtificialHierarchyBenchmarkState benchmarkState, GraphQLArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(benchmarkState, state, blackhole);
 	}

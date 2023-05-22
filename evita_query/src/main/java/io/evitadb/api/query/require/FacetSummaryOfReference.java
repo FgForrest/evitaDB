@@ -118,7 +118,6 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		super(new Serializable[]{referenceName, FacetStatisticsDepth.COUNTS});
 	}
 
-	// todo lho přepsat na entityFetch a groupFetch?
 	public FacetSummaryOfReference(
 		@Nonnull String referenceName,
 		@Nonnull FacetStatisticsDepth statisticsDepth,

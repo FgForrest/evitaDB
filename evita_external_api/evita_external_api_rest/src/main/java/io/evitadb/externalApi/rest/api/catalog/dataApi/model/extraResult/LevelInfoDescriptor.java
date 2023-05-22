@@ -69,7 +69,7 @@ public interface LevelInfoDescriptor {
 		.name("children")
 		.description("""
 			Whether this hierarchical entity has any child entities.
-						""")
+			""")
 		// type is expected be a recursive list of this LevelInfo object
 		.build();
 

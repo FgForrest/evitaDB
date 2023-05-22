@@ -363,7 +363,7 @@ public interface RandomQueryGenerator {
 			),
 			require(
 				page(1, 20),
-				hierarchyOfReference(pickRandom(random, referencedHierarchyEntities))
+				hierarchyOfReference(pickRandom(random, referencedHierarchyEntities), fromRoot("megaMenu"))
 			)
 		);
 	}

@@ -52,6 +52,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintBuildContext;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.graphql.api.dataType.coercing.AnyCoercing;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -316,7 +317,10 @@ public interface GraphQLRandomQueryGenerator {
 			for (int i = 0; i < 5; i++) {
 				excludedIds[i] = categoryIds.get(Math.abs(rndKey * (i + 1)) % (categoryIds.size()));
 			}
-			specification.add(new GraphQLConstraint(HierarchyExcluding.class, excludedIds));
+			specification.add(new GraphQLConstraint(
+				HierarchyExcluding.class,
+				new GraphQLConstraint(EntityPrimaryKeyInSet.class, excludedIds)
+			));
 		} else {
 			excludedIds = null;
 		}
@@ -326,8 +330,16 @@ public interface GraphQLRandomQueryGenerator {
 			specification.add(new GraphQLConstraint(HierarchyDirectRelation.class, true));
 		}
 		final int parentId = categoryIds.get(rndKey % categoryIds.size());
-		// todo lho update ofParent value
-		hierarchyConstraint = new GraphQLConstraint(hierarchyEntityType, HierarchyWithin.class, Map.of("ofParent", parentId, "with", specification.toArray(EMPTY_HSFC_ARRAY)));
+		hierarchyConstraint = new GraphQLConstraint(
+			hierarchyEntityType,
+			HierarchyWithin.class,
+			Map.of(
+				"ofParent",
+				new GraphQLConstraint(EntityPrimaryKeyInSet.class, parentId),
+				"with",
+				specification.toArray(EMPTY_HSFC_ARRAY)
+			)
+		);
 
 		return new GraphQLQuery(
 			null,
@@ -409,8 +421,7 @@ public interface GraphQLRandomQueryGenerator {
 				UserFilter.class,
 				selectedFacets.entrySet()
 					.stream()
-					/* TODO LHO - check this if it works after facetHaving refactoring */
-					.map(it -> new GraphQLConstraint(it.getKey(), FacetHaving.class, it.getValue().toArray(new Integer[0])))
+					.map(it -> new GraphQLConstraint(it.getKey(), FacetHaving.class, new GraphQLConstraint(EntityPrimaryKeyInSet.class, it.getValue().toArray(new Integer[0]))))
 					.toArray(GraphQLConstraint[]::new)
 			),
 			null,
@@ -422,61 +433,10 @@ public interface GraphQLRandomQueryGenerator {
 	}
 
 	/**
-	 * Creates randomized query requiring {@link io.evitadb.api.requestResponse.extraResult.Parents} computation for passed entity
-	 * schema based on passed set.
-	 */
-	default GraphQLQuery generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities, int maxProductId) {
-		final Integer[] requestedPks = new Integer[20];
-		int firstPk = random.nextInt(maxProductId / 2);
-		for (int i = 0; i < requestedPks.length; i++) {
-			requestedPks[i] = firstPk;
-			firstPk += random.nextInt(maxProductId / 40);
-		}
-
-		return new GraphQLQuery(
-			null,
-			schema.getName(),
-			new GraphQLConstraint(
-				EntityPrimaryKeyInSet.class,
-				requestedPks
-			),
-			null,
-			new GraphQLConstraint[0],
-			1,
-			20,
-			new String[] {
-				String.format(
-					"""
-	                hierarchyParents {
-	                   %s
-	                }
-					""",
-					Arrays.stream(getRandomItems(random, referencedHierarchyEntities).toArray(String[]::new))
-						.map(it -> String.format(
-							"""
-							%s {
-								primaryKey
-								references {
-								    primaryKey
-								    parentEntities {
-								        primaryKey
-								    }
-								}
-							}
-							""",
-							StringUtils.toCamelCase(it)
-						))
-						.collect(Collectors.joining("\n"))
-				)
-			}
-		);
-	}
-
-	/**
 	 * Creates randomized query requiring {@link Hierarchy} computation for
 	 * passed entity schema based on passed set.
 	 */
-	default GraphQLQuery generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {
+	default GraphQLQuery generateRandomHierarchyQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {
 		return new GraphQLQuery(
 			null,
 			schema.getName(),
@@ -499,21 +459,13 @@ public interface GraphQLRandomQueryGenerator {
 						.map(it -> String.format(
 							"""
                             %s {
-                                cardinality
-                                entity {
-                                    primaryKey
-                                }
-                                childrenStatistics {
-                                    cardinality
-                                    entity {
-                                        primaryKey
-                                    }
-                                    childrenStatistics {
-	                                    cardinality
-	                                    entity {
-	                                        primaryKey
-	                                    }
+                                megaMenu: fromRoot {
+	                                parentPrimaryKey
+                                    level
+	                                entity {
+	                                    primaryKey
 	                                }
+	                                hasChildren
                                 }
                             }
 							""",
@@ -542,15 +494,27 @@ public interface GraphQLRandomQueryGenerator {
 			if (!groupIds.isEmpty()) {
 				if (dice == 1) {
 					requireConstraints.add(
-						new GraphQLConstraint(facetHaving.getReferenceName(), FacetGroupsConjunction.class, getRandomItem(random, groupIds))
+						new GraphQLConstraint(
+							facetHaving.getReferenceName(),
+							FacetGroupsConjunction.class,
+							new GraphQLConstraint(EntityPrimaryKeyInSet.class, getRandomItem(random, groupIds))
+						)
 					);
 				} else if (dice == 2) {
 					requireConstraints.add(
-						new GraphQLConstraint(facetHaving.getReferenceName(), FacetGroupsDisjunction.class, getRandomItem(random, groupIds))
+						new GraphQLConstraint(
+							facetHaving.getReferenceName(),
+							FacetGroupsDisjunction.class,
+							new GraphQLConstraint(EntityPrimaryKeyInSet.class, getRandomItem(random, groupIds))
+						)
 					);
 				} else if (dice == 3) {
 					requireConstraints.add(
-						new GraphQLConstraint(facetHaving.getReferenceName(), FacetGroupsNegation.class, getRandomItem(random, groupIds))
+						new GraphQLConstraint(
+							facetHaving.getReferenceName(),
+							FacetGroupsNegation.class,
+							new GraphQLConstraint(EntityPrimaryKeyInSet.class, getRandomItem(random, groupIds))
+						)
 					);
 				}
 			}
@@ -669,7 +633,7 @@ public interface GraphQLRandomQueryGenerator {
 			return switch (random.nextInt(3)) {
 				case 0 -> new GraphQLConstraint(attribute.getName(), AttributeIs.class, AttributeSpecialValue.NULL);
 				case 1 -> new GraphQLConstraint(attribute.getName(), AttributeIs.class, AttributeSpecialValue.NOT_NULL);
-				case 2 -> statistics == null ? new GraphQLConstraint(attribute.getName(), AttributeIs.class, AttributeSpecialValue.NOT_NULL.name()) : new GraphQLConstraint(attribute.getName(), AttributeEquals.class, statistics.getSomeValue(random));
+				case 2 -> statistics == null ? new GraphQLConstraint(attribute.getName(), AttributeIs.class, AttributeSpecialValue.NOT_NULL.name()) : new GraphQLConstraint(attribute.getName(), AttributeEquals.class, (Object) statistics.getSomeValue(random));
 				case 3 -> statistics == null ? new GraphQLConstraint(attribute.getName(), AttributeIs.class, AttributeSpecialValue.NOT_NULL.name()) : new GraphQLConstraint(attribute.getName(), AttributeInSet.class, statistics.getSomeValue(random), statistics.getSomeValue(random));
 				default -> new GraphQLConstraint(attribute.getName(), AttributeIs.class, AttributeSpecialValue.NULL);
 			};
@@ -1384,6 +1348,18 @@ public interface GraphQLRandomQueryGenerator {
 			this.value = convertValues(values);
 		}
 
+		private GraphQLConstraint(@Nonnull String classifier, @Nonnull Class<? extends Constraint<?>> constraintClass, @Nonnull GraphQLConstraint children) {
+			final ConstraintDescriptor constraintDescriptor = ConstraintDescriptorProvider.getConstraints(constraintClass)
+				.stream()
+				.filter(it -> it.creator().hasClassifierParameter())
+				.findFirst()
+				.orElseThrow();
+
+			this.constraintDescriptor = constraintDescriptor;
+			this.classifier = classifier;
+			this.value = convertChildren(new GraphQLConstraint[] {children}, constraintDescriptor);
+		}
+
 		@Nonnull
 		private static String convertValue(@Nonnull Object value) {
 			if (value instanceof Enum<?> enumValue) {
@@ -1456,7 +1432,17 @@ public interface GraphQLRandomQueryGenerator {
 
 		@Override
 		public String toString() {
-			final String key = new ConstraintKeyBuilder().build(new ConstraintBuildContext(new GenericDataLocator("")), constraintDescriptor, () -> classifier);
+			final Class<?> constraintClass = constraintDescriptor.constraintClass();
+			final ConstraintBuildContext buildContext;
+			if (HierarchyExcluding.class.isAssignableFrom(constraintClass) ||
+				HierarchyExcludingRoot.class.isAssignableFrom(constraintClass) ||
+				HierarchyDirectRelation.class.isAssignableFrom(constraintClass) ||
+				HierarchyHaving.class.isAssignableFrom(constraintClass)) {
+				buildContext = new ConstraintBuildContext(new HierarchyDataLocator("")).switchToChildContext(new HierarchyDataLocator(""));
+			} else {
+				buildContext = new ConstraintBuildContext(new GenericDataLocator(""));
+			}
+			final String key = new ConstraintKeyBuilder().build(buildContext, constraintDescriptor, () -> classifier);
 			return key + ": " + value;
 		}
 	}
