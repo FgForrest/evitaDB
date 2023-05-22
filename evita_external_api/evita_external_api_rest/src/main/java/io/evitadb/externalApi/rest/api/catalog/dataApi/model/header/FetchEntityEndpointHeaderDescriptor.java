@@ -115,6 +115,13 @@ public interface FetchEntityEndpointHeaderDescriptor {
             """)
 		.type(nullable(String[].class))
 		.build();
+	PropertyDescriptor HIERARCHY_CONTENT = PropertyDescriptor.builder()
+		.name("hierarchyContent")
+		.description("""
+           Parameter specifying whether hierarchy data will be present in returned entity.
+            """)
+		.type(nullable(Boolean.class))
+		.build();
 
 	PropertyDescriptor REFERENCE_CONTENT_ALL = PropertyDescriptor.builder()
 		.name("referenceContentAll")

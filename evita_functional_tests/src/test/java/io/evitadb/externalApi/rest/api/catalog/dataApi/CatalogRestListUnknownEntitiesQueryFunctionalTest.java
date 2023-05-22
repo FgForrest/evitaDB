@@ -47,12 +47,18 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for GraphQL catalog unknown entity list query.
@@ -273,6 +279,50 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			.statusCode(200)
 			.body("store", equalTo(expectedBody));
 	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entity references")
+	void shouldReturnAllDirectCategoryParentEntityReferences(Evita evita, RestTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, "Automotive-21")
+						),
+						require(
+							entityFetch(
+								hierarchyContent()
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has at least 2 parents
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
+				return c;
+			}
+		);
+
+		final var expectedBody = Stream.of(category)
+			.map(entity -> createEntityWithSelfParentsDto(entity, false).build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/entity/list")
+			.httpMethod(Request.METHOD_GET)
+			.requestParam(ATTRIBUTE_CODE, "Automotive-21")
+			.requestParam(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.name(), true)
+			.executeAndExpectOkAndThen()
+			.body("", equalTo(expectedBody));
+	}
+
 
 	@Override
 	@Nonnull

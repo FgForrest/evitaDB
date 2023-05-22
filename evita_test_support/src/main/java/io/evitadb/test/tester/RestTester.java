@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.restassured.RestAssured.given;
 
 /**
@@ -113,7 +114,7 @@ public class RestTester extends JsonExternalApiTester<Request> {
 		@Nullable
 		private String requestBody;
 		@Nullable
-		private Map<String,?> requestParams;
+		private Map<String,Object> requestParams;
 		@Nullable
 		private String urlPathSuffix;
 
@@ -124,8 +125,16 @@ public class RestTester extends JsonExternalApiTester<Request> {
 			return this;
 		}
 
-		public Request requestParams(Map<String,?> requestParams) {
+		public Request requestParams(Map<String,Object> requestParams) {
 			this.requestParams = requestParams;
+			return this;
+		}
+
+		public Request requestParam(@Nonnull String name, @Nonnull Object value) {
+			if (this.requestParams == null) {
+				this.requestParams = createHashMap(5);
+			}
+			this.requestParams.put(name, value);
 			return this;
 		}
 

@@ -36,6 +36,7 @@ import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -47,10 +48,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for REST catalog unknown single entity query.
@@ -185,6 +191,45 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			.executeAndThen()
 			.statusCode(200)
 			.body("prices", equalTo(createPricesDto(entity)));
+	}
+
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entity references")
+	@Disabled
+	void shouldReturnAllDirectCategoryParentEntityReferences(Evita evita, RestTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity entity = session.queryOneSealedEntity(
+					query(
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, "Automotive-21")
+						),
+						require(
+							entityFetch(
+								hierarchyContent()
+							)
+						)
+					)
+				).orElseThrow();
+
+				// check that it has at least 2 parents
+				assertTrue(entity.getParentEntity().isPresent());
+				assertTrue(entity.getParentEntity().get().getParentEntity().isPresent());
+				return entity;
+			}
+		);
+
+		final var expectedBody = createEntityWithSelfParentsDto(category, false).build();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/entity/get")
+			.httpMethod(Request.METHOD_GET)
+			.requestParam(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.name(), true)
+			.executeAndExpectOkAndThen()
+			.body("", equalTo(expectedBody));
 	}
 
 

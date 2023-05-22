@@ -310,6 +310,7 @@ public class DataApiEndpointBuilder {
 		queryParameters.add(FetchEntityEndpointHeaderDescriptor.ATTRIBUTE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
 		queryParameters.add(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.to(operationQueryParameterBuilderTransformer).build());
 		queryParameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
+		queryParameters.add(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.to(operationQueryParameterBuilderTransformer).build());
 
 		return queryParameters;
 	}
@@ -396,6 +397,9 @@ public class DataApiEndpointBuilder {
 		if (!entitySchema.getReferences().isEmpty()) {
 			parameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT.to(operationQueryParameterBuilderTransformer).build());
 			parameters.add(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.to(operationQueryParameterBuilderTransformer).build());
+		}
+		if (entitySchema.isWithHierarchy()) {
+			parameters.add(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.to(operationQueryParameterBuilderTransformer).build());
 		}
 
 		return parameters;
