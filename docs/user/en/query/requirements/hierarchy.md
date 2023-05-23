@@ -702,7 +702,7 @@ following figure:
 </NoteTitle>
 
 The following query lists products in *Audio* category and its subcategories. Along with the products returned, it also
-returns a computed *subcategories* data structure that lists top two levels of the entire hierarchy.
+returns a computed *megaMenu* data structure that lists top two levels of the entire hierarchy.
 
 <SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `level` with `fromRoot` requirement](docs/user/en/query/requirements/examples/hierarchy/hierarchy-level.java)

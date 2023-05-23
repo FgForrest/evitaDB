@@ -33,6 +33,7 @@ import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -149,9 +150,13 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	@Override
 	public void visit(@Nonnull HierarchyNode node, int level, int distance, @Nonnull Runnable traverser) {
 		// traverse parents - filling up the accumulator
-		traverser.run();
-
 		final int entityPrimaryKey = node.entityPrimaryKey();
+		if (scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
+			selfTraversingPredicate.traverse(entityPrimaryKey, level, distance, traverser);
+		} else {
+			traverser.run();
+		}
+
 		if (scopePredicate.test(entityPrimaryKey, level, distance)) {
 			if (filterPredicate.test(entityPrimaryKey)) {
 				// and create element in accumulator that will be filled in

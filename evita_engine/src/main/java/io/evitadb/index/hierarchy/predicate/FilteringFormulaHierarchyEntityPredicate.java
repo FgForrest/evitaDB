@@ -37,6 +37,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 
@@ -52,7 +53,7 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilteringPredicate, HierarchyTraversalPredicate {
+public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilteringPredicate, SelfTraversingPredicate {
 	/**
 	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
 	 */
@@ -61,6 +62,11 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * Formula computes id of all hierarchical entities that match input filter by constraint.
 	 */
 	@Getter @Nonnull private final Formula filteringFormula;
+	/**
+	 * Signalizes that the {@link HierarchyTraversalPredicate} reached a node that was marked as "stop" node and its
+	 * children should be tested by a predicate logic as "false".
+	 */
+	private boolean stopNodeEncountered;
 
 	/**
 	 * This constructor should be used from filtering translators that need to take the attributes on references
@@ -227,7 +233,21 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 	@Override
 	public boolean test(int hierarchyNodeId, int level, int distance) {
-		return filteringFormula.compute().contains(hierarchyNodeId);
+		return !stopNodeEncountered;
+	}
+
+	@Override
+	public void traverse(int hierarchyNodeId, int level, int distance, @Nonnull Runnable traverser) {
+		if (filteringFormula.compute().contains(hierarchyNodeId)) {
+			try {
+				stopNodeEncountered = true;
+				traverser.run();
+			} finally {
+				stopNodeEncountered = false;
+			}
+		} else {
+			traverser.run();
+		}
 	}
 
 	@Override

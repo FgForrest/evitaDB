@@ -35,6 +35,7 @@ import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -162,7 +163,11 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 							)
 						);
 						// traverse subtree - filling up the accumulator on previous row
-						traverser.run();
+						if (scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
+							selfTraversingPredicate.traverse(entityPrimaryKey, level, distance + distanceCompensation, traverser);
+						} else {
+							traverser.run();
+						}
 						// now remove current accumulator from stack
 						final Accumulator finalizedAccumulator = accumulator.pop();
 						// and if its cardinality is greater than zero (contains at least one queried entity)

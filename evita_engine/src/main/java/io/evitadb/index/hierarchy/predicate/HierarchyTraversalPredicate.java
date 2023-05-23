@@ -60,4 +60,19 @@ public interface HierarchyTraversalPredicate {
 		return (hierarchyNodeId, level, distance) ->
 			test(hierarchyNodeId, level, distance) && other.test(hierarchyNodeId, level, distance);
 	}
+
+	/**
+	 * The interface allows to declare that {@link HierarchyTraversalPredicate} wants to execute hierarchy traversal
+	 * in its own "scope".
+	 */
+	interface SelfTraversingPredicate extends HierarchyTraversalPredicate {
+
+		/**
+		 * Analogous method to {@link HierarchyTraversalPredicate#test(int, int, int)} that accepts traversal lambda
+		 * which can be optionally invoked by the implementation in its own scope.
+		 */
+		void traverse(int hierarchyNodeId, int level, int distance, @Nonnull Runnable traverser);
+
+	}
+
 }
