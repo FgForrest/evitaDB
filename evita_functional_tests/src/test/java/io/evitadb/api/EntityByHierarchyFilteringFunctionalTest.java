@@ -1440,7 +1440,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) &&
 						(sealedEntity.getPrimaryKey() == 1 || hasParentNode) &&
-						(level <= 2);
+						(level <= 3);
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(

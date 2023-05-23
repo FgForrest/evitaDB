@@ -59,7 +59,7 @@ public class HierarchySiblingsTranslator
 		final HierarchyProducerContext context = producer.getContext(siblings.getName());
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
 			.map(it -> stopAtConstraintToPredicate(TraversalDirection.TOP_DOWN, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
-			.orElse(HierarchyTraversalPredicate.ONLY_DIRECT_DESCENDANTS);
+			.orElse(HierarchyTraversalPredicate.ONLY_SELF);
 		producer.addComputer(
 			siblings.getName(),
 			siblings.getOutputName(),

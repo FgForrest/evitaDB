@@ -1288,7 +1288,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				);
 
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
-				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
+				final TestHierarchyPredicate scopePredicate = (sealedEntity, parentItems) -> {
 					final int level = parentItems.size() + 1;
 					// has parent node 1
 					final boolean hasParentNode = parentItems
@@ -1296,13 +1296,13 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) &&
 						(sealedEntity.getPrimaryKey() == 1 || hasParentNode) &&
-						(level <= 2);
+						(level <= 3);
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalProductEntities, originalCategoryIndex,
 					product -> product.getLocales().contains(CZECH_LOCALE),
-					languagePredicate, treePredicate,
+					languagePredicate, scopePredicate,
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeSiblings(
