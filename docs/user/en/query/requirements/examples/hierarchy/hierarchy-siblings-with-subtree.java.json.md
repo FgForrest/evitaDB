@@ -19,7 +19,39 @@
       }
     },
     "queriedEntityCount" : 285,
-    "childrenCount" : 3
+    "childrenCount" : 3,
+    "children" : [
+      {
+        "entity" : {
+          "primaryKey" : 66486,
+          "parent" : 66481,
+          "attributes" : {
+            "code" : "smartwatches"
+          }
+        },
+        "queriedEntityCount" : 269
+      },
+      {
+        "entity" : {
+          "primaryKey" : 66487,
+          "parent" : 66481,
+          "attributes" : {
+            "code" : "smartglasses"
+          }
+        },
+        "queriedEntityCount" : 3
+      },
+      {
+        "entity" : {
+          "primaryKey" : 108126,
+          "parent" : 66481,
+          "attributes" : {
+            "code" : "bands"
+          }
+        },
+        "queriedEntityCount" : 13
+      }
+    ]
   },
   {
     "entity" : {
@@ -30,7 +62,51 @@
       }
     },
     "queriedEntityCount" : 116,
-    "childrenCount" : 4
+    "childrenCount" : 4,
+    "children" : [
+      {
+        "entity" : {
+          "primaryKey" : 66488,
+          "parent" : 66482,
+          "attributes" : {
+            "code" : "wireless-headphones"
+          }
+        },
+        "queriedEntityCount" : 73,
+        "childrenCount" : 4
+      },
+      {
+        "entity" : {
+          "primaryKey" : 66489,
+          "parent" : 66482,
+          "attributes" : {
+            "code" : "wired-heaphones"
+          }
+        },
+        "queriedEntityCount" : 8,
+        "childrenCount" : 3
+      },
+      {
+        "entity" : {
+          "primaryKey" : 66490,
+          "parent" : 66482,
+          "attributes" : {
+            "code" : "microphones"
+          }
+        },
+        "queriedEntityCount" : 15
+      },
+      {
+        "entity" : {
+          "primaryKey" : 66491,
+          "parent" : 66482,
+          "attributes" : {
+            "code" : "repro"
+          }
+        },
+        "queriedEntityCount" : 20
+      }
+    ]
   },
   {
     "entity" : {
@@ -51,7 +127,19 @@
       }
     },
     "queriedEntityCount" : 20,
-    "childrenCount" : 1
+    "childrenCount" : 1,
+    "children" : [
+      {
+        "entity" : {
+          "primaryKey" : 66492,
+          "parent" : 66484,
+          "attributes" : {
+            "code" : "cz-keyboards"
+          }
+        },
+        "queriedEntityCount" : 4
+      }
+    ]
   },
   {
     "entity" : {
