@@ -3475,6 +3475,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								siblings(
 									"rootSiblings",
 									entityFetch(attributeContent()),
+									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -3554,6 +3555,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								siblings(
 									"rootSiblings",
 									entityFetch(attributeContent()),
+									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -4075,6 +4077,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								siblings(
 									"rootSiblings",
 									entityFetch(attributeContent()),
+									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								)
@@ -4160,6 +4163,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								siblings(
 									"rootSiblings",
 									entityFetch(attributeContent()),
+									stopAt(distance(1)),
 									statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
 										new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
 								)
