@@ -183,7 +183,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 							topAccumulator.add(finalizedAccumulator);
 						}
 					}
-				} else if (!statisticsType.isEmpty()) {
+				} else if (!statisticsType.isEmpty() || removeEmptyResults) {
 					// and create element in accumulator that will be filled in
 					final Accumulator theOmmissionAccumulator = new Accumulator(
 						() -> queriedEntityComputer.apply(node.entityPrimaryKey())
@@ -195,11 +195,12 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 					// now remove current accumulator from stack
 					accumulator.pop();
 					// when we exit the omission block we may resolve the children count
-					if (statisticsType.contains(StatisticsType.CHILDREN_COUNT)) {
+					if (statisticsType.contains(StatisticsType.CHILDREN_COUNT) || removeEmptyResults) {
 						if (removeEmptyResults) {
 							// we need to fully compute cardinality of queried entities
 							if (theOmmissionAccumulator.hasQueriedEntity()) {
 								topAccumulator.registerOmittedChild();
+								topAccumulator.registerOmittedCardinality(theOmmissionAccumulator.getQueriedEntitiesFormula());
 							}
 						} else {
 							topAccumulator.registerOmittedChild();
