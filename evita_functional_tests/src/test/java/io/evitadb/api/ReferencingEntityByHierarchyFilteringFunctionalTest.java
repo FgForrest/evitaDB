@@ -1504,7 +1504,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								fromRoot(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									stopAt(node(filterBy(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1514,7 +1514,10 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				);
 
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
-				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> languagePredicate.test(sealedEntity, parentItems) && !sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
+				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) ->
+					languagePredicate.test(sealedEntity, parentItems) &&
+						(sealedEntity.getParent().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalProductEntities, originalCategoryIndex,
@@ -1573,7 +1576,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 									"megaMenu",
 									node(filterBy(entityPrimaryKeyInSet(1))),
 									entityFetch(attributeContent()),
-									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									stopAt(node(filterBy(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1589,7 +1592,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
+						(sealedEntity.getParent().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
@@ -1649,7 +1653,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								children(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									stopAt(node(filterBy(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1660,14 +1664,13 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
-					final int level = parentItems.size() + 1;
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class) &&
-						level <= 2;
+						(sealedEntity.getParent().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
@@ -1727,7 +1730,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								siblings(
 									"megaMenu",
 									entityFetch(attributeContent()),
-									stopAt(node(filterBy(attributeEqualsFalse(ATTRIBUTE_SHORTCUT)))),
+									stopAt(node(filterBy(attributeEqualsTrue(ATTRIBUTE_SHORTCUT)))),
 									statisticsType.isEmpty() ? null : statistics(statisticsType.toArray(StatisticsType[]::new))
 								)
 							)
@@ -1738,14 +1741,13 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
-					final int level = parentItems.size() + 1;
 					final boolean withinCategory1 = Objects.equals(1, sealedEntity.getPrimaryKey()) ||
 						parentItems
 							.stream()
 							.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && withinCategory1 &&
-						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class) &&
-						level <= 2;
+						(sealedEntity.getParent().isEmpty() ||
+							!originalCategoryIndex.get(sealedEntity.getParent().getAsInt()).getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class));
 				};
 
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
