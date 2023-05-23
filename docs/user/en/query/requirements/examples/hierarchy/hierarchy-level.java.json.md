@@ -120,6 +120,24 @@
       },
       {
         "entity" : {
+          "primaryKey" : 66481,
+          "parent" : 66468,
+          "attributes" : {
+            "code" : "smart-wearable"
+          }
+        }
+      },
+      {
+        "entity" : {
+          "primaryKey" : 66482,
+          "parent" : 66468,
+          "attributes" : {
+            "code" : "audio"
+          }
+        }
+      },
+      {
+        "entity" : {
           "primaryKey" : 66483,
           "parent" : 66468,
           "attributes" : {
