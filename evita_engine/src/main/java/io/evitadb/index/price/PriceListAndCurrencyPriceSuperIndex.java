@@ -58,6 +58,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -121,7 +122,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		this.indexedPriceIds = new TransactionalBitmap();
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = new RangeIndex();
-		this.priceRecords = new TransactionalObjArray<>(new PriceRecordContract[0]);
+		this.priceRecords = new TransactionalObjArray<>(new PriceRecordContract[0], Comparator.naturalOrder());
 		this.entityPrices = new TransactionalMap<>(new HashMap<>());
 	}
 
@@ -133,7 +134,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		this.dirty = new TransactionalBoolean();
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = validityIndex;
-		this.priceRecords = new TransactionalObjArray<>(priceRecords);
+		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
 		this.entityPrices = new TransactionalMap<>(createHashMap(priceRecords.length));
 
 		final int[] priceIds = new int[priceRecords.length];
@@ -164,7 +165,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		this.indexedPriceIds = new TransactionalBitmap(priceIds);
 		this.entityPrices = new TransactionalMap<>(entityPrices);
 		this.validityIndex = validityIndex;
-		this.priceRecords = new TransactionalObjArray<>(priceRecords);
+		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
 	}
 
 	/**

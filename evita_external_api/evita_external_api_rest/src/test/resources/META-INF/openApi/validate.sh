@@ -22,6 +22,10 @@
 #   limitations under the License.
 #
 
-mkdir /tmp/evita-rest
-wget --no-check-certificate "https://localhost:5555/rest/evita" -O /tmp/evita-rest/evita.yaml
-redocly lint --config=redocly-config.yaml /tmp/evita-rest/evita.yaml
+CATALOG_NAME=$1
+TMP=/tmp/evita-rest
+SPEC=$TMP/$CATALOG_NAME.yaml
+
+mkdir $TMP
+wget --no-check-certificate "https://localhost:5555/rest/$CATALOG_NAME" -O $SPEC
+redocly lint --config=redocly-config.yaml $SPEC

@@ -142,8 +142,8 @@ class RegisteredConstraintProvider {
 		PriceType.class,
 		// references
 		ReferenceContent.class,
-		HierarchyContent.class,
 		// hierarchy
+		HierarchyContent.class,
 		HierarchyChildren.class,
 		HierarchyDistance.class,
 		HierarchyFromNode.class,

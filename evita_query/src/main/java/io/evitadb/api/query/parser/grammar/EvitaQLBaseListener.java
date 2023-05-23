@@ -1050,25 +1050,13 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterEmptyHierarchyStatisticsConstraint(EvitaQLParser.EmptyHierarchyStatisticsConstraintContext ctx) { }
+	@Override public void enterHierarchyStatisticsConstraint(EvitaQLParser.HierarchyStatisticsConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitEmptyHierarchyStatisticsConstraint(EvitaQLParser.EmptyHierarchyStatisticsConstraintContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void enterFullHierarchyStatisticsConstraint(EvitaQLParser.FullHierarchyStatisticsConstraintContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitFullHierarchyStatisticsConstraint(EvitaQLParser.FullHierarchyStatisticsConstraintContext ctx) { }
+	@Override public void exitHierarchyStatisticsConstraint(EvitaQLParser.HierarchyStatisticsConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1194,6 +1182,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterBasicHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitBasicHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterFullHierarchyOfReferenceConstraint(EvitaQLParser.FullHierarchyOfReferenceConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1201,6 +1201,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitFullHierarchyOfReferenceConstraint(EvitaQLParser.FullHierarchyOfReferenceConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFullHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFullHierarchyOfReferenceWithBehaviourConstraint(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1698,13 +1710,13 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterFullHierarchyStatisticsArgs(EvitaQLParser.FullHierarchyStatisticsArgsContext ctx) { }
+	@Override public void enterHierarchyStatisticsArgs(EvitaQLParser.HierarchyStatisticsArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitFullHierarchyStatisticsArgs(EvitaQLParser.FullHierarchyStatisticsArgsContext ctx) { }
+	@Override public void exitHierarchyStatisticsArgs(EvitaQLParser.HierarchyStatisticsArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1758,6 +1770,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterBasicHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitBasicHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.BasicHierarchyOfReferenceWithBehaviourArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterFullHierarchyOfReferenceArgs(EvitaQLParser.FullHierarchyOfReferenceArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1765,6 +1789,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitFullHierarchyOfReferenceArgs(EvitaQLParser.FullHierarchyOfReferenceArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterFullHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitFullHierarchyOfReferenceWithBehaviourArgs(EvitaQLParser.FullHierarchyOfReferenceWithBehaviourArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

@@ -1,0 +1,19 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'audio')
+        )
+    ),
+    require(
+        hierarchyOfReference(
+            'categories',
+            fromRoot(
+                'megaMenu',
+                entityFetch(attributeContent('code')),
+                stopAt(level(2))
+            )
+        )
+    )
+)

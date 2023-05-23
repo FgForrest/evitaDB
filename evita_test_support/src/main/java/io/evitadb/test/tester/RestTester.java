@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.restassured.RestAssured.given;
 
 /**
@@ -113,7 +114,7 @@ public class RestTester extends JsonExternalApiTester<Request> {
 		@Nullable
 		private String requestBody;
 		@Nullable
-		private Map<String,?> requestParams;
+		private Map<String,Object> requestParams;
 		@Nullable
 		private String urlPathSuffix;
 
@@ -124,8 +125,16 @@ public class RestTester extends JsonExternalApiTester<Request> {
 			return this;
 		}
 
-		public Request requestParams(Map<String,?> requestParams) {
+		public Request requestParams(Map<String,Object> requestParams) {
 			this.requestParams = requestParams;
+			return this;
+		}
+
+		public Request requestParam(@Nonnull String name, @Nonnull Object value) {
+			if (this.requestParams == null) {
+				this.requestParams = createHashMap(5);
+			}
+			this.requestParams.put(name, value);
 			return this;
 		}
 
@@ -165,6 +174,46 @@ public class RestTester extends JsonExternalApiTester<Request> {
 				this.headers.put(ACCEPT_HEADER, new Header(ACCEPT_HEADER, MimeTypes.APPLICATION_JSON));
 			}
 			return tester.executeAndThen(this);
+		}
+
+		/**
+		 * Executes configured request against REST APi and returns response with validation methods.
+		 */
+		public ValidatableResponse executeAndThen(int statusCode) {
+			return executeAndThen()
+				.statusCode(statusCode);
+		}
+
+		/**
+		 * Executes configured request against REST API, validates that status code is 200 and returns response with
+		 * validation methods.
+		 */
+		public ValidatableResponse executeAndExpectOkAndThen() {
+			return executeAndThen(200);
+		}
+
+		/**
+		 * Executes configured request against REST API, validates that status code is 400 and returns response with
+		 * validation methods.
+		 */
+		public ValidatableResponse executeAndExpectBadRequestAndThen() {
+			return executeAndThen(400);
+		}
+
+		/**
+		 * Executes configured request against REST API, validates that status code is 500 and returns response with
+		 * validation methods.
+		 */
+		public ValidatableResponse executeAndExpectServerErrorAndThen() {
+			return executeAndThen(500);
+		}
+
+		/**
+		 * Executes configured request against REST API, validates that status code is 404 and returns response with
+		 * validation methods.
+		 */
+		public ValidatableResponse executeAndExpectNotFoundAndThen() {
+			return executeAndThen(404);
 		}
 	}
 }

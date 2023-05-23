@@ -25,6 +25,7 @@ package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
 import org.antlr.v4.runtime.ParserRuleContext;
 
 import javax.annotation.Nonnull;
@@ -50,5 +51,20 @@ public abstract class EvitaQLBaseVisitor<T> extends io.evitadb.api.query.parser.
 			// wrap client error into QL specific client error with more QL-specific details
 			throw new EvitaQLInvalidQueryError(ctx, ex.getPublicMessage());
 		}
+	}
+
+	/**
+	 * Tries to cast argument to target class.
+	 */
+	@Nonnull
+	protected <A> A castArgument(@Nonnull ParserRuleContext ctx,
+                                 @Nonnull Object arg,
+                                 @Nonnull Class<A> argClass) {
+		Assert.isTrue(
+			argClass.isAssignableFrom(arg.getClass()),
+			() -> new EvitaQLInvalidQueryError(ctx, "Invalid argument.")
+		);
+		//noinspection unchecked
+		return (A) arg;
 	}
 }

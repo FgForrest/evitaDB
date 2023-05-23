@@ -1,0 +1,42 @@
+query(   
+    collection('Product'),    
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'audio')
+        )
+    ),
+    require(
+        hierarchyOfReference(
+            'categories',
+            fromNode(
+                'sideMenu1',
+                node(
+                    filterBy(
+                        attributeEquals('code', 'portables')
+                    )
+                ),
+                entityFetch(attributeContent('code')),
+                stopAt(distance(1)),
+                statistics(
+                    CHILDREN_COUNT,
+                    QUERIED_ENTITY_COUNT
+                )
+            ),            
+            fromNode(
+                'sideMenu2',
+                node(
+                    filterBy(
+                        attributeEquals('code', 'laptops')
+                    )
+                ),
+                entityFetch(attributeContent('code')),
+                stopAt(distance(1)),
+                statistics(
+                    CHILDREN_COUNT,
+                    QUERIED_ENTITY_COUNT
+                )
+            )
+        )
+    )
+)

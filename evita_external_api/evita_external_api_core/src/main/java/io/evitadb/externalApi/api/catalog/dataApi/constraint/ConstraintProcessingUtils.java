@@ -62,8 +62,6 @@ public class ConstraintProcessingUtils {
 	private static final String HIERARCHY_PREFIX = "hierarchy";
 	private static final String FACET_PREFIX = "facet";
 
-	public static final String KEY_PARTS_DELIMITER = "_";
-
 	private static final Map<ConstraintPropertyType, String> PROPERTY_TYPE_TO_PREFIX = Map.of(
 		ConstraintPropertyType.GENERIC, GENERIC_PREFIX,
 		ConstraintPropertyType.ENTITY, ENTITY_PREFIX,
@@ -91,6 +89,17 @@ public class ConstraintProcessingUtils {
 		ConstraintDomain.REFERENCE, ConstraintPropertyType.REFERENCE,
 		ConstraintDomain.HIERARCHY, ConstraintPropertyType.HIERARCHY,
 		ConstraintDomain.FACET, ConstraintPropertyType.FACET
+	);
+
+	private static final Map<ConstraintPropertyType, ConstraintDomain> PROPERTY_TYPE_TO_DOMAIN = Map.of(
+		ConstraintPropertyType.GENERIC, ConstraintDomain.GENERIC,
+		ConstraintPropertyType.ENTITY, ConstraintDomain.ENTITY,
+		ConstraintPropertyType.ATTRIBUTE, ConstraintDomain.GENERIC, // this property type doesn't currently have its own domain, generic domain is used as safe fallback
+		ConstraintPropertyType.ASSOCIATED_DATA, ConstraintDomain.GENERIC, // this property type doesn't currently have its own domain, generic domain is used as safe fallback
+		ConstraintPropertyType.PRICE, ConstraintDomain.GENERIC, // this property type doesn't currently have its own domain, generic domain is used as safe fallback
+		ConstraintPropertyType.REFERENCE, ConstraintDomain.REFERENCE,
+		ConstraintPropertyType.HIERARCHY, ConstraintDomain.HIERARCHY,
+		ConstraintPropertyType.FACET, ConstraintDomain.FACET
 	);
 
 
@@ -133,6 +142,15 @@ public class ConstraintProcessingUtils {
 		);
 		return Optional.ofNullable(DOMAIN_TO_PROPERTY_TYPE.get(domain))
 			.orElseThrow(() -> new ExternalApiInternalError("Domain `" + domain + "` doesn't have assigned property type."));
+	}
+
+	/**
+	 * Finds domain that corresponds to specified property type of constraint.
+	 */
+	@Nonnull
+	public static ConstraintDomain getDomainForPropertyType(@Nonnull ConstraintPropertyType propertyType) {
+		return Optional.ofNullable(PROPERTY_TYPE_TO_DOMAIN.get(propertyType))
+			.orElseThrow(() -> new ExternalApiInternalError("Property type `" + propertyType + "` doesn't have assigned default domain."));
 	}
 
 	/**

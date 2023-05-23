@@ -60,7 +60,7 @@ public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComput
 
 	@Override
 	protected int getDistanceCompensation() {
-		return 0;
+		return -1;
 	}
 
 	@Override

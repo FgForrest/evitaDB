@@ -31,6 +31,8 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
+import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiUnionTransformer;
+import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDataTypeDescriptorToOpenApiTypeTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationQueryParameterTransformer;
@@ -64,6 +66,8 @@ public abstract class RestBuilder<C extends RestBuildingContext> {
 	@Nonnull protected final PropertyDataTypeDescriptorToOpenApiTypeTransformer propertyDataTypeBuilderTransformer;
 	@Nonnull protected final PropertyDescriptorToOpenApiPropertyTransformer propertyBuilderTransformer;
 	@Nonnull protected final ObjectDescriptorToOpenApiObjectTransformer objectBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToOpenApiUnionTransformer unionBuilderTransformer;
+	@Nonnull protected final ObjectDescriptorToOpenApiDictionaryTransformer dictionaryBuilderTransformer;
 	@Nonnull protected final PropertyDescriptorToOpenApiOperationPathParameterTransformer operationPathParameterBuilderTransformer;
 	@Nonnull protected final PropertyDescriptorToOpenApiOperationQueryParameterTransformer operationQueryParameterBuilderTransformer;
 
@@ -75,6 +79,8 @@ public abstract class RestBuilder<C extends RestBuildingContext> {
 		this.propertyDataTypeBuilderTransformer = new PropertyDataTypeDescriptorToOpenApiTypeTransformer(buildingContext);
 		this.propertyBuilderTransformer = new PropertyDescriptorToOpenApiPropertyTransformer(propertyDataTypeBuilderTransformer);
 		this.objectBuilderTransformer = new ObjectDescriptorToOpenApiObjectTransformer(propertyBuilderTransformer);
+		this.unionBuilderTransformer = new ObjectDescriptorToOpenApiUnionTransformer();
+		this.dictionaryBuilderTransformer = new ObjectDescriptorToOpenApiDictionaryTransformer();
 		this.operationPathParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationPathParameterTransformer(propertyDataTypeBuilderTransformer);
 		this.operationQueryParameterBuilderTransformer = new PropertyDescriptorToOpenApiOperationQueryParameterTransformer(propertyDataTypeBuilderTransformer);
 	}

@@ -24,23 +24,18 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.require.Require;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.CollectionRestHandlingContext;
-import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -88,18 +83,14 @@ public class RequireConstraintResolver extends RestConstraintResolver<RequireCon
 
 	@Override
 	@Nonnull
-	protected ConstraintDescriptor getWrapperContainer() {
-		throw new RestInternalError("Wrapper container is not supported for `require` constraints.");
+	protected Optional<ConstraintDescriptor> getWrapperContainer() {
+		// Wrapper container is not supported for `require` constraints.
+		return Optional.empty();
 	}
 
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		return ConstraintDescriptorProvider.getConstraint(Require.class);
-	}
-
-	@Override
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		return true;
 	}
 }

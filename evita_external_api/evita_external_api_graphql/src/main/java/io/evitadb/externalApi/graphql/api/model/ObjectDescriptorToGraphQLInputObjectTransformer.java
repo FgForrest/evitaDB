@@ -54,11 +54,9 @@ public class ObjectDescriptorToGraphQLInputObjectTransformer implements ObjectDe
 			objectBuilder.description(objectDescriptor.description());
 		}
 
-		if (objectDescriptor.staticFields() != null) {
-			objectDescriptor.staticFields().stream()
-				.map(inputFieldBuilderTransformer)
-				.forEach(objectBuilder::field);
-		}
+		objectDescriptor.staticFields().stream()
+			.map(inputFieldBuilderTransformer)
+			.forEach(objectBuilder::field);
 
 		return objectBuilder;
 	}

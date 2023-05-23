@@ -281,7 +281,10 @@ public interface RestRandomQueryGenerator {
 			for (int i = 0; i < 5; i++) {
 				excludedIds[i] = categoryIds.get(Math.abs(rndKey * (i + 1)) % (categoryIds.size()));
 			}
-			specification.add(new RestConstraint(HierarchyExcluding.class, excludedIds));
+			specification.add(new RestConstraint(
+				HierarchyExcluding.class,
+				new RestConstraint(EntityPrimaryKeyInSet.class, (Object[]) excludedIds)
+			));
 		} else {
 			excludedIds = null;
 		}
@@ -291,8 +294,16 @@ public interface RestRandomQueryGenerator {
 			specification.add(new RestConstraint(HierarchyDirectRelation.class, true));
 		}
 		final int parentId = categoryIds.get(rndKey % categoryIds.size());
-		// todo lho update ofParent value
-		hierarchyConstraint = new RestConstraint(hierarchyEntityType, HierarchyWithin.class, Map.of("ofParent", parentId, "with", specification.toArray(EMPTY_HSFC_ARRAY)));
+		hierarchyConstraint = new RestConstraint(
+			hierarchyEntityType,
+			HierarchyWithin.class,
+			Map.of(
+				"ofParent",
+				new RestConstraint(EntityPrimaryKeyInSet.class, parentId),
+				"with",
+				specification.toArray(EMPTY_HSFC_ARRAY)
+			)
+		);
 
 		return new RestQuery(
 			null,
@@ -354,7 +365,11 @@ public interface RestRandomQueryGenerator {
 				UserFilter.class,
 				selectedFacets.entrySet()
 					.stream()
-					.map(it -> new RestConstraint(it.getKey(), FacetHaving.class, (Object[]) it.getValue().toArray(new Integer[0])))
+					.map(it -> new RestConstraint(
+						it.getKey(),
+						FacetHaving.class,
+						new RestConstraint(EntityPrimaryKeyInSet.class, (Object[]) it.getValue().toArray(new Integer[0]))
+					))
 					.toArray(RestConstraint[]::new)
 			),
 			null,
@@ -368,7 +383,7 @@ public interface RestRandomQueryGenerator {
 	 * Creates randomized query requiring {@link Hierarchy} computation for
 	 * passed entity schema based on passed set.
 	 */
-	default RestQuery generateRandomParentSummaryQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {
+	default RestQuery generateRandomHierarchyQuery(@Nonnull Random random, @Nonnull EntitySchemaContract schema, @Nonnull Set<String> referencedHierarchyEntities) {
 		return new RestQuery(
 			null,
 			schema.getName(),
@@ -380,7 +395,11 @@ public interface RestRandomQueryGenerator {
 			new RestConstraint[] {
 				new RestConstraint(Page.class, Map.of("number", 1, "size", 20)),
 				Optional.of(pickRandom(random, referencedHierarchyEntities))
-					.map(it -> new RestConstraint(it, HierarchyOfReference.class, true))
+					.map(it -> new RestConstraint(
+						it,
+						HierarchyOfReference.class,
+						new RestConstraint(HierarchyFromRoot.class, "megaMenu")
+					))
 					.orElseThrow()
 			}
 		);

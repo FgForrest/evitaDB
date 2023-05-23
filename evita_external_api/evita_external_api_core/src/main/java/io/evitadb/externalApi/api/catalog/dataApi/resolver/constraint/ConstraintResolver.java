@@ -41,6 +41,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.Constraint
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,6 +52,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -189,7 +191,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 * inner constraints.
 	 */
 	@Nonnull
-	protected abstract ConstraintDescriptor getWrapperContainer();
+	protected abstract Optional<ConstraintDescriptor> getWrapperContainer();
 
 	/**
 	 * Returns root query container from which other nested constraints will be built.
@@ -547,10 +549,24 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	                                                               @Nullable Object argument,
 	                                                               @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                               @Nonnull ChildParameterDescriptor parameterDescriptor) {
+
+
 		if (argument == null) {
 			// we can return null if parameter isn't required
 			return null;
-		} else if (parameterDescriptor.type().isArray()) {
+		}
+
+		// Actual constraint will be resolved as root constraint for proper context switching without wrapper containers.
+		final Class<?> childParameterType = parameterDescriptor.type();
+		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
+			return resolve(
+				resolveContext,
+				parameterDescriptor.name(),
+				argument
+			);
+		}
+
+		if (parameterDescriptor.type().isArray()) {
 			if (argument instanceof Boolean) {
 				// child containers doesn't have any usable children, therefore placeholder value is used
 				return convertConstraintStreamToSpecificArray((Class<C>) parameterDescriptor.type().getComponentType(), Stream.of());
@@ -566,14 +582,24 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				);
 			} else {
 				final List<Object> children = convertInputListToJavaList(argument, parsedConstraintDescriptor);
-				return convertConstraintStreamToSpecificArray(
-					(Class<C>) parameterDescriptor.type().getComponentType(),
-					children.stream()
-						// there is additional wrapper object to be able to handle all constraints inside the container,
-						// but this object is implicit "and" container, therefore we need to resolve it manually to "and"
-						// constraint
-						.map(ch -> resolveWrapperContainer(resolveContext, parsedConstraintDescriptor, ch))
-				);
+				if (getWrapperContainer().isEmpty()) {
+					// we want to flatten the wrapper container because there is no equivalent constraint to represent
+					// the wrapper container
+					return convertConstraintStreamToSpecificArray(
+						(Class<C>) parameterDescriptor.type().getComponentType(),
+						children.stream()
+							.flatMap(ch -> resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, ch))
+					);
+				} else {
+					return convertConstraintStreamToSpecificArray(
+						(Class<C>) parameterDescriptor.type().getComponentType(),
+						children.stream()
+							// there is additional wrapper object to be able to handle all constraints inside the container,
+							// but this object is implicit "and" container, therefore we need to resolve it manually to "and"
+							// constraint
+							.map(ch -> resolveWrapperContainer(resolveContext, parsedConstraintDescriptor, ch))
+					);
+				}
 			}
 		} else {
 			if (argument instanceof Boolean) {
@@ -604,6 +630,10 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 
 				return !children.isEmpty() ? children.get(0) : null;
 			} else {
+				Assert.isPremiseValid(
+					getWrapperContainer().isPresent(),
+					() -> createQueryResolvingInternalError("Child is not array but no wrapper container is configured.")
+				);
 				return resolveWrapperContainer(resolveContext, parsedConstraintDescriptor, argument);
 			}
 		}
@@ -721,14 +751,19 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 * to the {@link #getWrapperContainer()} wrapping constraint container.
 	 */
 	@Nonnull
-	private C resolveWrapperContainer(@Nonnull ConstraintResolveContext resolveContext, @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor, @Nonnull Object value) {
+	private C resolveWrapperContainer(@Nonnull ConstraintResolveContext resolveContext,
+	                                  @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                  @Nonnull Object value) {
 		final C[] innerConstraints = convertConstraintStreamToSpecificArray(
 			getConstraintClass(),
 			resolveContainerInnerConstraints(resolveContext, parsedConstraintDescriptor, value)
 		);
 		// expects that default container has constructor with only array of children
 		//noinspection unchecked
-		return (C) getWrapperContainer().creator().instantiateConstraint(new Object[] { innerConstraints }, parsedConstraintDescriptor.originalKey());
+		return (C) getWrapperContainer()
+			.orElseThrow(() -> createQueryResolvingInternalError("Missing required wrapper container."))
+			.creator()
+			.instantiateConstraint(new Object[] { innerConstraints }, parsedConstraintDescriptor.originalKey());
 	}
 
 	/**
@@ -736,8 +771,8 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 */
 	@Nonnull
 	private Stream<C> resolveContainerInnerConstraints(@Nonnull ConstraintResolveContext resolveContext,
-	                                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                     @Nonnull Object value) {
+	                                                   @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                   @Nonnull Object value) {
 		if (!(value instanceof Map<?, ?>)) {
 			throw createQueryResolvingInternalError(
 				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` expected to has container with nested constraints."

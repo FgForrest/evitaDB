@@ -74,7 +74,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
-import io.evitadb.externalApi.grpc.query.ResponseConverter;
+import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.EntityMutationConverter;

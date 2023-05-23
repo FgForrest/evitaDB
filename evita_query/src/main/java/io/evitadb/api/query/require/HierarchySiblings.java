@@ -77,7 +77,7 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 	                         @Nonnull @Child(uniqueChildren = true) HierarchyOutputRequireConstraint... requirements) {
 		super(
 			CONSTRAINT_NAME,
-			new Serializable[]{outputName},
+			outputName == null ? NO_ARGS : new Serializable[]{outputName},
 			ArrayUtils.mergeArrays(
 				new RequireConstraint[]{entityFetch},
 				requirements
@@ -99,7 +99,8 @@ public class HierarchySiblings extends AbstractRequireConstraintContainer implem
 	@Nullable
 	@Override
 	public String getOutputName() {
-		return (String) getArguments()[0];
+		final Serializable[] arguments = getArguments();
+		return arguments.length > 0 ? (String) arguments[0] : null;
 	}
 
 	/**

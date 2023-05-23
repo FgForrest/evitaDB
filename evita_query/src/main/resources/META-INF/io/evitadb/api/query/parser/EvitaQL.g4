@@ -123,8 +123,7 @@ requireConstraint
     | 'level'                           args = valueArgs                                            # hierarchyLevelConstraint
     | 'node'                            args = filterConstraintArgs                                 # hierarchyNodeConstraint
     | 'stopAt'                          args = requireConstraintArgs                                # hierarchyStopAtConstraint
-    | 'statistics'                      emptyArgs                                                   # emptyHierarchyStatisticsConstraint
-    | 'statistics'                      args = fullHierarchyStatisticsArgs                          # fullHierarchyStatisticsConstraint
+    | 'statistics'                      (emptyArgs | args = hierarchyStatisticsArgs)                # hierarchyStatisticsConstraint
     | 'fromRoot'                        args = hierarchyRequireConstraintArgs                       # hierarchyFromRootConstraint
     | 'fromNode'                        args = hierarchyFromNodeArgs                                # hierarchyFromNodeConstraint
     | 'children'                        args = hierarchyRequireConstraintArgs                       # hierarchyChildrenConstraint
@@ -135,7 +134,9 @@ requireConstraint
     | 'hierarchyOfSelf'                 args = requireConstraintListArgs                            # basicHierarchyOfSelfConstraint
     | 'hierarchyOfSelf'                 args = fullHierarchyOfSelfArgs                              # fullHierarchyOfSelfConstraint
     | 'hierarchyOfReference'            args = basicHierarchyOfReferenceArgs                        # basicHierarchyOfReferenceConstraint
+    | 'hierarchyOfReference'            args = basicHierarchyOfReferenceWithBehaviourArgs           # basicHierarchyOfReferenceWithBehaviourConstraint
     | 'hierarchyOfReference'            args = fullHierarchyOfReferenceArgs                         # fullHierarchyOfReferenceConstraint
+    | 'hierarchyOfReference'            args = fullHierarchyOfReferenceWithBehaviourArgs            # fullHierarchyOfReferenceWithBehaviourConstraint
     | 'queryTelemetry'                  emptyArgs                                                   # queryTelemetryConstraint
     ;
 
@@ -249,7 +250,7 @@ facetSummaryOfReferenceArgs :                       ARGS_OPENING (
                                                         (referenceName = classifierToken ARGS_DELIMITER depth = valueToken ARGS_DELIMITER facetEntityRequirement = requireConstraint ARGS_DELIMITER groupEntityRequirement = requireConstraint)
                                                     ) ARGS_CLOSING ;
 
-fullHierarchyStatisticsArgs :                       ARGS_OPENING statisticsBase = valueToken (ARGS_DELIMITER statisticsTypes = variadicValueTokens)? ARGS_CLOSING ;
+hierarchyStatisticsArgs :                           ARGS_OPENING settings = variadicValueTokens ARGS_CLOSING ;
 
 hierarchyRequireConstraintArgs :                    ARGS_OPENING outputName = classifierToken (ARGS_DELIMITER requirements += requireConstraint)* ARGS_CLOSING ;
 
@@ -257,9 +258,15 @@ hierarchyFromNodeArgs :                             ARGS_OPENING outputName = cl
 
 fullHierarchyOfSelfArgs :                           ARGS_OPENING orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING;
 
-basicHierarchyOfReferenceArgs :                     ARGS_OPENING referenceNames = variadicClassifierTokens ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING ;
+// todo lho support for multiple reference names
 
-fullHierarchyOfReferenceArgs :                      ARGS_OPENING referenceNames = variadicClassifierTokens ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING ;
+basicHierarchyOfReferenceArgs :                     ARGS_OPENING referenceName = classifierToken (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING ;
+
+basicHierarchyOfReferenceWithBehaviourArgs :        ARGS_OPENING referenceName = classifierToken ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING ;
+
+fullHierarchyOfReferenceArgs :                      ARGS_OPENING referenceName = classifierToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING ;
+
+fullHierarchyOfReferenceWithBehaviourArgs :         ARGS_OPENING referenceName = classifierToken ARGS_DELIMITER emptyHierarchicalEntityBehaviour = valueToken ARGS_DELIMITER orderBy = orderConstraint (ARGS_DELIMITER requirements += requireConstraint)+ ARGS_CLOSING ;
 
 
 /**

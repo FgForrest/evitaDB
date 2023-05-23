@@ -47,23 +47,16 @@ import java.util.Set;
 public class ContainerKey extends CachableElementKey {
 
 	/**
-	 * Allowed child types in the built container
+	 * Predicate defining allowed constraints in the container.
 	 */
 	@Nonnull
-	private final Set<Class<? extends Constraint<?>>> allowedChildTypes;
-	/**
-	 * Forbidden child types in the built container
-	 */
-	@Nonnull
-	private final Set<Class<? extends Constraint<?>>> forbiddenChildTypes;
+	private final AllowedConstraintPredicate allowedConstraintPredicate;
 
 	public ContainerKey(@Nonnull ConstraintType containerType,
 	                    @Nonnull DataLocator dataLocator,
-	                    @Nonnull Set<Class<? extends Constraint<?>>> allowedChildTypes,
-	                    @Nonnull Set<Class<? extends Constraint<?>>> forbiddenChildTypes) {
+	                    @Nonnull AllowedConstraintPredicate allowedConstraintPredicate) {
 		super(containerType, dataLocator);
-		this.allowedChildTypes = allowedChildTypes;
-		this.forbiddenChildTypes = forbiddenChildTypes;
+		this.allowedConstraintPredicate = allowedConstraintPredicate;
 	}
 
 	@Override
@@ -73,26 +66,24 @@ public class ContainerKey extends CachableElementKey {
 		final long keyHash = hashFunction.hashLongs(new long[] {
 			hashContainerType(hashFunction),
 			hashDataLocator(hashFunction),
-			hashAllowedChildTypes(hashFunction),
-			hashForbiddenChildTypes(hashFunction)
+			hashAllowedConstraintPredicate(hashFunction)
 		});
 		return Long.toHexString(keyHash);
 	}
 
-	private long hashAllowedChildTypes(LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(
-			getAllowedChildTypes()
-				.stream()
-				.map(Class::getSimpleName)
-				.sorted()
-				.mapToLong(hashFunction::hashChars)
-				.toArray()
-		);
+	private long hashAllowedConstraintPredicate(@Nonnull LongHashFunction hashFunction) {
+		return hashFunction.hashLongs(new long[] {
+			hashFunction.hashChars(allowedConstraintPredicate.getBaseConstraintType().getSimpleName()),
+			hashConstraintSet(hashFunction, allowedConstraintPredicate.getLocallyAllowedConstraints()),
+			hashConstraintSet(hashFunction, allowedConstraintPredicate.getGloballyAllowedConstraints()),
+			hashConstraintSet(hashFunction, allowedConstraintPredicate.getForbiddenConstraints())
+		});
 	}
 
-	private long hashForbiddenChildTypes(LongHashFunction hashFunction) {
+	private long hashConstraintSet(@Nonnull LongHashFunction hashFunction,
+	                               @Nonnull Set<Class<? extends Constraint<?>>> constraintSet) {
 		return hashFunction.hashLongs(
-			getForbiddenChildTypes()
+			constraintSet
 				.stream()
 				.map(Class::getSimpleName)
 				.sorted()

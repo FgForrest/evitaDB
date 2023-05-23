@@ -74,8 +74,8 @@ The most straightforward usage is filtering the hierarchical entities themselves
 
 To list all nested categories of *Accessories* category issue this query:
 
-<SourceCodeTabs>
-[Transitive category listing](docs/user/en/query/filtering/examples/hierarchy-within-self-simple.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Transitive category listing](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.evitaql)
 </SourceCodeTabs>
 
 ... and you should get about 21 categories in the response.
@@ -87,7 +87,7 @@ To list all nested categories of *Accessories* category issue this query:
 ##### List of all subcategories of the *Accessories* category
 </NoteTitle>
 
-<MDInclude>[Single root hierarchy example](docs/user/en/query/filtering/examples/hierarchy-within-self-simple.md)</MDInclude>
+<MDInclude>[Single root hierarchy example](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -106,13 +106,13 @@ and passing category primary key.
 
 Yes, it can. Although, it's apparently one of the edge cases, it's possible. This query:
 
-<SourceCodeTabs>
-[Multiple category listing](docs/user/en/query/filtering/examples/hierarchy-within-self-multi.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Multiple category listing](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.evitaql)
 </SourceCodeTabs>
 
 ... will return all subcategories of the *Wireless headphones* and *Wired headphones* and their subcategories:
 
-<MDInclude>[Multi-root hierarchy example](docs/user/en/query/filtering/examples/hierarchy-within-self-multi.md)</MDInclude>
+<MDInclude>[Multi-root hierarchy example](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.evitaql.md)</MDInclude>
 
 ![Accessories category listing](assets/accessories-category-listing-multi.png "Accessories category listing")
 
@@ -158,8 +158,8 @@ The `hierarchyWithin` constraint can also be used for entities that directly ref
 The most common use case from the e-commerce world is a product that is assigned to one or more categories. To list all
 products in the *Accessories* category of our [demo dataset](../../get-started/query-our-dataset), we issue the following query:
 
-<SourceCodeTabs>
-[Product listing from *Accessories* category](docs/user/en/query/filtering/examples/hierarchy-within-reference-simple.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Product listing from *Accessories* category](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-simple.evitaql)
 </SourceCodeTabs>
 
 Products assigned to two or more subcategories of *Accessories* category will only appear once in the response (contrary 
@@ -174,7 +174,7 @@ The query returns the first page of a total of 26 pages of items.
 ##### List of all products in the *Accessories* category or its subcategories
 </NoteTitle>
 
-<MDInclude>[Product listing from *Accessories* category](docs/user/en/query/filtering/examples/hierarchy-within-reference-simple.md)</MDInclude>
+<MDInclude>[Product listing from *Accessories* category](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-simple.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -221,8 +221,8 @@ The `hierarchyWithinRoot`, which targets the `Category` collection itself, retur
 would point to non-existent parent nodes, such hierarchy nodes are called [orphans](../../use/schema.md#orphan-hierarchy-nodes)
 and do not satisfy any hierarchy query.
 
-<SourceCodeTabs>
-[Category listing](docs/user/en/query/filtering/examples/hierarchy-within-root-simple.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Category listing](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-simple.evitaql)
 </SourceCodeTabs>
 
 The query returns the first page of a total of 2 pages of items.
@@ -234,7 +234,7 @@ The query returns the first page of a total of 2 pages of items.
 ##### List of all categories in the hierarchy tree
 </NoteTitle>
 
-<MDInclude>[Category listing](docs/user/en/query/filtering/examples/hierarchy-within-root-simple.md)</MDInclude>
+<MDInclude>[Category listing](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-simple.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -271,8 +271,8 @@ The `hierarchyWithinRoot` constraint can also be used for entities that directly
 The most common use case from the e-commerce world is a product that is assigned to one or more categories. To list all
 products assigned to any category of our [demo dataset](../../get-started/query-our-dataset), we issue the following query:
 
-<SourceCodeTabs>
-[Product listing assigned to a category](docs/user/en/query/filtering/examples/hierarchy-within-root-reference-simple.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Product listing assigned to a category](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-reference-simple.evitaql)
 </SourceCodeTabs>
 
 Products assigned to only one [orphan category](../../use/schema.md#orphan-hierarchy-nodes) will be missing from 
@@ -288,7 +288,7 @@ The query returns the first page of a total of 212 pages of items:
 ##### List of all products assigned to any category in the hierarchy tree
 </NoteTitle>
 
-<MDInclude>[Product listing assigned to a category](docs/user/en/query/filtering/examples/hierarchy-within-root-reference-simple.md)</MDInclude>
+<MDInclude>[Product listing assigned to a category](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-reference-simple.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -311,8 +311,8 @@ If the hierarchy constraint targets the hierarchy entity, the `directRelation` w
 parent node to be returned. In the case of the `hierarchyWithinRoot` constraint, the parent is an invisible "virtual"
 top root - so only the top-level categories are returned.
 
-<SourceCodeTabs>
-[Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-top-categories.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Top categories listing](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -322,14 +322,14 @@ top root - so only the top-level categories are returned.
 ##### List of all root categories of the hierarchy
 </NoteTitle>
 
-<MDInclude>[Top categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-top-categories.md)</MDInclude>
+<MDInclude>[Top categories listing](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.evitaql.md)</MDInclude>
 
 </Note>
 
 In the case of the `hierarchyWithin` the result will contain direct children of the filtered category (or categories).
 
-<SourceCodeTabs>
-[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-direct-categories.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-direct-categories.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -339,7 +339,7 @@ In the case of the `hierarchyWithin` the result will contain direct children of 
 ##### List of all direct subcategories of the *Accessories* category
 </NoteTitle>
 
-<MDInclude>[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy-within-self-direct-categories.md)</MDInclude>
+<MDInclude>[Accessories children categories listing](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-direct-categories.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -354,15 +354,15 @@ to a "virtual" top parent root.
 So we can only list products that are directly related to a certain category - if we try to list products that have 
 *Accessories* category assigned:
 
-<SourceCodeTabs>
-[Products directly assigned to Accessories category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Products directly assigned to Accessories category](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-direct-categories.evitaql)
 </SourceCodeTabs>
 
 ... we get an empty result. There are no products directly assigned to the *Accessories* category, they all refer to 
 some of its subcategories. Let's try the *Smartwatches* subcategory:
 
-<SourceCodeTabs>
-[Products directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories-smart.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Products directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-direct-categories-smart.evitaql)
 </SourceCodeTabs>
 
 ... and we get the list of all products related directly to a *Smartwatches* category.
@@ -374,7 +374,7 @@ some of its subcategories. Let's try the *Smartwatches* subcategory:
 ##### List of all products directly related to the *Smartwatches* category
 </NoteTitle>
 
-<MDInclude>[Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy-within-reference-direct-categories-smart.md)</MDInclude>
+<MDInclude>[Product directly assigned to Smartwatches category](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-direct-categories-smart.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -397,8 +397,8 @@ If the hierarchy constraint targets the hierarchy entity, the `excludingRoot` wi
 the result. In the case of the `hierarchyWithinRoot` constraint, the parent is an invisible "virtual" top root, and this 
 constraint makes no sense.
 
-<SourceCodeTabs>
-[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding-root.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding-root.evitaql)
 </SourceCodeTabs>
 
 As we can see the requested parent category *Accessories* is excluded from the result.
@@ -410,7 +410,7 @@ As we can see the requested parent category *Accessories* is excluded from the r
 ##### List of all subcategories of the *Accessories* category except the *Accessories* category itself
 </NoteTitle>
 
-<MDInclude>[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding-root.md)</MDInclude>
+<MDInclude>[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding-root.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -428,8 +428,8 @@ would not affect the query result. Therefore, we choose *Keyboard* category for 
 in *Keyboard* category using `hierarchyWithin` constraint, we obtain **20 items**. When the `excludingRoot` constraint
 is used:
 
-<SourceCodeTabs>
-[Products in subcategories of Keyboard category](docs/user/en/query/filtering/examples/hierarchy-within-reference-excluding-root.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Products in subcategories of Keyboard category](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-excluding-root.evitaql)
 </SourceCodeTabs>
 
 ... we get only **4 items**, which means that 16 were assigned directly to *Keyboards* category and only 4 of them were
@@ -442,7 +442,7 @@ assigned to *Exotic keyboards*:
 ##### List of all products related to subcategories of the *Keyboard* category except to the *Keyboard* category itself
 </NoteTitle>
 
-<MDInclude>[Products in subcategories of Keyboard category](docs/user/en/query/filtering/examples/hierarchy-within-reference-excluding-root.md)</MDInclude>
+<MDInclude>[Products in subcategories of Keyboard category](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-excluding-root.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -498,8 +498,8 @@ at 01:00 AM on October 1, 2023.
 
 ![Accessories category listing with validity constraint](assets/accessories-category-listing-validity.png "Accessories category listing with validity constraint")
 
-<SourceCodeTabs>
-[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-having.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-having.evitaql)
 </SourceCodeTabs>
 
 Because the category *Christmas electronics* has its validity set to be valid only between December 1st and December 
@@ -513,7 +513,7 @@ validity restrictions).
 ##### List of all valid subcategories of the *Accessories* category
 </NoteTitle>
 
-<MDInclude>[Accessories category listing with validity constraint](docs/user/en/query/filtering/examples/hierarchy-within-self-having.md)</MDInclude>
+<MDInclude>[Accessories category listing with validity constraint](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-having.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -527,8 +527,8 @@ satisfy the `having` inner constraints.
 Let's use again our example with *Christmas electronics* that is valid only between 1st and 24th December. To list all
 products available at 01:00 AM on October 1, 2023, issue a following query:
 
-<SourceCodeTabs>
-[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-reference-having.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having.evitaql)
 </SourceCodeTabs>
 
 You can see that Christmas products like *Retlux Blue christmas lightning*, *Retlux Warm white christmas lightning* or 
@@ -541,14 +541,14 @@ You can see that Christmas products like *Retlux Blue christmas lightning*, *Ret
 ##### List of all *Accessories* products valid in October 2023
 </NoteTitle>
 
-<MDInclude>[Accessories category product listing with validity constraint](docs/user/en/query/filtering/examples/hierarchy-within-reference-having.md)</MDInclude>
+<MDInclude>[Accessories category product listing with validity constraint](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having.evitaql.md)</MDInclude>
 
 </Note>
 
 When you change the date and time in range constraint for *validity* attribute to 2nd December:
 
-<SourceCodeTabs>
-[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-reference-having-december.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having-december.evitaql)
 </SourceCodeTabs>
 
 ... you will see all those products in *Christmas electronics* category.
@@ -560,7 +560,7 @@ When you change the date and time in range constraint for *validity* attribute t
 ##### List of all *Accessories* products valid in December 2023
 </NoteTitle>
 
-<MDInclude>[Accessories category product listing with validity constraint](docs/user/en/query/filtering/examples/hierarchy-within-reference-having-december.md)</MDInclude>
+<MDInclude>[Accessories category product listing with validity constraint](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having-december.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -583,7 +583,7 @@ of the tree.
 
 ## Excluding
 
-The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyHaving.java</SourceClass>
+The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyExcluding.java</SourceClass>
 is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
 makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
 all hierarchy children of the parent node or entities that are transitively or directly related to them, and the parent
@@ -631,8 +631,8 @@ the *Wireless headphones* subcategory.
 
 ![Accessories category listing excluding *Wireless headphones* subcategory](assets/accessories-category-listing-excluding.png "Accessories category listing excluding *Wireless headphones* subcategory")
 
-<SourceCodeTabs>
-[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding.evitaql)
 </SourceCodeTabs>
 
 The category *Wireless Headphones* and all its subcategories will not be shown in the results list.
@@ -644,7 +644,7 @@ The category *Wireless Headphones* and all its subcategories will not be shown i
 ##### List of all subcategories of the *Accessories* category except *Wireless headphones*
 </NoteTitle>
 
-<MDInclude>[Accessories category listing excluding *Wireless headphones*](docs/user/en/query/filtering/examples/hierarchy-within-self-excluding.md)</MDInclude>
+<MDInclude>[Accessories category listing excluding *Wireless headphones*](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -659,8 +659,8 @@ Let's go back to our example query that excludes the *Wireless Headphones* categ
 available in the *Accessories* category except those related to the *Wireless Headphones* category or its subcategories,
 issue the following query:
 
-<SourceCodeTabs>
-[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy-within-reference-except.evitaql)
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Category listing excluding parent](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-except.evitaql)
 </SourceCodeTabs>
 
 You can see that wireless headphone products like *Huawei FreeBuds 4*, *Jabra Elite 3* or *Adidas FWD-02 Sport* are not 
@@ -673,9 +673,9 @@ present in the listing.
 ##### List of all *Accessories* products except *Wireless headphones*
 </NoteTitle>
 
-<MDInclude>[Accessories category product listing except *Wireless headphones*](docs/user/en/query/filtering/examples/hierarchy-within-reference-except.md)</MDInclude>
+<MDInclude>[Accessories category product listing except *Wireless headphones*](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-except.evitaql.md)</MDInclude>
 
 </Note>
 
 When the product is assigned to two categories - one excluded and one part of the visible category tree, the product
-remains in the result. See [example](#what-if-the-product-is-linked-to-two-categories---one-that-meets-the-constraint-and-one-that-does-not).
+remains in the result. See [the example](#what-if-the-product-is-linked-to-two-categories---one-that-meets-the-constraint-and-one-that-does-not).

@@ -172,11 +172,22 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 */
 	@Nonnull
 	public SIMPLE_TYPE build(@Nonnull DataLocator rootDataLocator, @Nonnull ConstraintDescriptor constraintDescriptor) {
-		return buildConstraintValue(
+		return build(
 			new ConstraintBuildContext(rootDataLocator),
-			constraintDescriptor,
-			null
+			constraintDescriptor
 		);
+	}
+
+	/**
+	 * Builds API schema equivalent to constraint tree starting with the specified constraint as root in specified context.
+	 *
+	 * @param buildContext context for the root constraint container, ultimately defining which constraints
+	 *                     will be available from root
+	 * @param constraintDescriptor root constraint to build the tree from
+	 */
+	@Nonnull
+	protected SIMPLE_TYPE build(@Nonnull ConstraintBuildContext buildContext, @Nonnull ConstraintDescriptor constraintDescriptor) {
+		return buildConstraintValue(buildContext, constraintDescriptor, null);
 	}
 
 
@@ -241,8 +252,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		final ContainerKey containerKey = new ContainerKey(
 			getConstraintType(),
 			buildContext.dataLocator(),
-			allowedChildrenPredicate.getAllowedConstraints(),
-			allowedChildrenPredicate.getForbiddenConstraints()
+			allowedChildrenPredicate
 		);
 
 		// reuse already build container with same properties

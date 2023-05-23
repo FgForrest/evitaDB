@@ -27,6 +27,7 @@ import io.evitadb.api.query.require.AssociatedDataContent;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DataInLocales;
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -95,6 +96,9 @@ public class RequireConstraintFromRequestQueryBuilder {
 			contentRequires.add(new ReferenceContent());
 		} else if(isParameterPresent(parameters, FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT)) {
 			contentRequires.add(new ReferenceContent((String[]) parameters.get(FetchEntityEndpointHeaderDescriptor.REFERENCE_CONTENT.name())));
+		}
+		if (isBooleanParameterPresentAndTrue(parameters, FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT)) {
+			contentRequires.add(new HierarchyContent());
 		}
 		if (isParameterPresent(parameters, FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT)) {
 			final PriceContentMode priceContentMode = (PriceContentMode) parameters.get(FetchEntityEndpointHeaderDescriptor.PRICE_CONTENT.name());

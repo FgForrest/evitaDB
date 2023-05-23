@@ -32,8 +32,9 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAssociatedDataDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -389,7 +390,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_UPDATE)
 	@DisplayName("Should update category with hierarchical placement mutations")
-	@Disabled("TODO LHO: will be reimplemented")
 	void shouldUpdateCategoryWithHierarchicalPlacementMutations(Evita evita, RestTester tester) {
 		final SealedEntity entityInTree = evita.queryCatalog(
 			TEST_CATALOG,
@@ -416,13 +416,13 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 							)
 						),
 						require(
-							strip(0, 1),
+							strip(1, 1),
 							entityFetch()
 						)
 					)
-				);
+				).orElseThrow();
 			}
-		).orElseThrow();
+		);
 
 		assertTrue(entityInTree.getParent().isPresent());
 
@@ -432,11 +432,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.TYPE.name(), Entities.CATEGORY)
 			.e(EntityDescriptor.LOCALES.name(), List.of())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			// todo lho reimplement parents
-//			.e(EntityDescriptor.PARENT.name(), map()
-//				.e(ParentDescriptor.PARENT_PRIMARY_KEY.name(), parent + 10)
-//				.build())
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.UNKNOWN.name())
+			.e(RestEntityDescriptor.PARENT.name(), parent + 10)
 			.build();
 
 		tester.test(TEST_CATALOG)
@@ -447,14 +444,13 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     "entityExistence": "MUST_EXIST",
                     "mutations": [
                         {
-                            "setHierarchicalPlacementMutation": {
+                            "setParentMutation": {
                                 "parentPrimaryKey": %d
                             }
                         }
                     ],
 					"require": {
-					    "entityFetch": {
-				        }
+					    "entityFetch": {}
 					  }
 					}
                 }
@@ -463,12 +459,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			)
 			.executeAndThen()
 			.statusCode(200)
-			.body(
-				"",
-				equalTo(
-					expectedBodyWithHierarchicalPlacement
-				)
-			);
+			.body("", equalTo(expectedBodyWithHierarchicalPlacement));
 		assertHierarchicalPlacement(tester, entityInTree.getPrimaryKey(), expectedBodyWithHierarchicalPlacement);
 
 		final Map<String, Object> expectedBodyAfterRemoving = map()
@@ -487,12 +478,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     "entityExistence": "MUST_EXIST",
                     "mutations": [
                         {
-                            "removeHierarchicalPlacementMutation": true
+                            "removeParentMutation": true
                         }
                     ],
 					"require": {
-					    "entityFetch": {
-				        }
+					    "entityFetch": {}
 					  }
 					}
                 }
@@ -810,9 +800,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					"require": {
 						"entityFetch": {
 							"attributeContentAll": true,
-					        "referenceStoreContent": {
-					            "requirements": {}
-					        }
+					        "referenceStoreContent": {}
 				        }
 					}
 				}

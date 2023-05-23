@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
@@ -32,11 +31,11 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintResolver;
-import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -80,24 +79,15 @@ public class RequireConstraintResolver extends GraphQLConstraintResolver<Require
 		return ConstraintType.REQUIRE;
 	}
 
-	@Override
 	@Nonnull
-	protected ConstraintDescriptor getWrapperContainer() {
-		throw new GraphQLInternalError("Wrapper container is not supported for `require` constraints.");
+	@Override
+	protected Optional<ConstraintDescriptor> getWrapperContainer() {
+		return Optional.empty();
 	}
 
 	@Nonnull
 	@Override
 	protected ConstraintDescriptor getDefaultRootConstraintContainerDescriptor() {
 		return ConstraintDescriptorProvider.getConstraint(Require.class);
-	}
-
-	@Override
-	protected boolean isChildrenUnique(@Nonnull ChildParameterDescriptor childParameter) {
-		// We don't want list of wrapper container because in "require" constraints there are no generic conjunction
-		// containers (and also there is currently no need to support that). Essentially, we want require constraints
-		// with children to act as if they were `ChildParameterDescriptor#uniqueChildren` as, although they are
-		// originally not, in case of GraphQL where classifiers are in keys those fields are in fact unique children.
-		return true;
 	}
 }

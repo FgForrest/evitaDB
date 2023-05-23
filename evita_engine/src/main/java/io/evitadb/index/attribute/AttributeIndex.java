@@ -238,7 +238,7 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 		final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
-				final SortIndex newSortIndex = new SortIndex(attributeSchema.getPlainType());
+				final SortIndex newSortIndex = new SortIndex(attributeSchema.getPlainType(), locale);
 				ofNullable(getTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newSortIndex));
 				return newSortIndex;

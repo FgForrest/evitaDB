@@ -49,11 +49,9 @@ public class ObjectDescriptorToGraphQLInterfaceTransformer implements ObjectDesc
 			.name(objectDescriptor.name())
 			.description(objectDescriptor.description());
 
-		if (objectDescriptor.staticFields() != null) {
-			objectDescriptor.staticFields().stream()
-				.map(fieldBuilderTransformer)
-				.forEach(interfaceBuilder::field);
-		}
+		objectDescriptor.staticFields().stream()
+			.map(fieldBuilderTransformer)
+			.forEach(interfaceBuilder::field);
 
 		return interfaceBuilder;
 	}

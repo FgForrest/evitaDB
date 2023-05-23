@@ -24,7 +24,6 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.HierarchyConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
@@ -44,6 +43,8 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This `hierarchyStatistics` require query triggers computing the statistics for referenced hierarchical entities
@@ -124,7 +125,8 @@ import java.util.Optional;
 	name = "ofReference",
 	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response."
 )
-public class HierarchyOfReference extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
+public class HierarchyOfReference extends AbstractRequireConstraintContainer
+	implements RootHierarchyConstraint, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 
 	@Serial private static final long serialVersionUID = 3121491811975308390L;
 
@@ -159,7 +161,7 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 	public HierarchyOfReference(
 		@Nonnull String[] referenceNames,
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
-		@Nonnull HierarchyRequireConstraint... requirement) {
+		@Nonnull HierarchyRequireConstraint... requirements) {
 		super(
 			ArrayUtils.mergeArrays(
 				Arrays.stream(referenceNames)
@@ -167,26 +169,32 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 					.toArray(Serializable[]::new),
 				new Serializable[] {emptyHierarchicalEntityBehaviour}
 			),
-			requirement
+			requirements
 		);
 	}
 
 	@Creator
 	public HierarchyOfReference(
 		@Nonnull @Classifier String referenceName,
-		@Nonnull @Value EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
+		@Nullable @Value EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
-		// todo lho we cannot use uniqueChildren here because we need duplicate constraints, but we dont have any generic joining containers here. What to do?
-		@Nonnull @Child HierarchyRequireConstraint... requirement
+		@Nonnull @Child HierarchyRequireConstraint... requirements
 	) {
-		super(new Serializable[]{referenceName, emptyHierarchicalEntityBehaviour}, requirement, orderBy);
+		super(
+			new Serializable[]{
+				referenceName,
+				ofNullable(emptyHierarchicalEntityBehaviour).orElse(EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY)
+			},
+			requirements,
+			orderBy
+		);
 	}
 
 	public HierarchyOfReference(
 		@Nonnull String[] referenceNames,
 		@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour,
 		@Nonnull OrderBy orderBy,
-		@Nonnull HierarchyRequireConstraint... requirement) {
+		@Nonnull HierarchyRequireConstraint... requirements) {
 		super(
 			ArrayUtils.mergeArrays(
 				Arrays.stream(referenceNames)
@@ -194,7 +202,7 @@ public class HierarchyOfReference extends AbstractRequireConstraintContainer imp
 					.toArray(Serializable[]::new),
 				new Serializable[] {emptyHierarchicalEntityBehaviour}
 			),
-			requirement,
+			requirements,
 			orderBy
 		);
 	}

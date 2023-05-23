@@ -31,6 +31,7 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParamete
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
+import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.AllowedConstraintPredicate;
@@ -38,12 +39,15 @@ import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintB
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ContainerKey;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.WrapperObjectKey;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
+import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter.ConvertedEnum;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -202,19 +206,39 @@ public abstract class GraphQLConstraintSchemaBuilder extends ConstraintSchemaBui
 	@Override
 	protected GraphQLInputType buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                     @Nonnull ChildParameterDescriptor childParameter) {
-		final GraphQLInputType childContainer = obtainContainer(
-			buildContext.switchToChildContext(resolveChildDataLocator(buildContext, childParameter.domain())),
-			childParameter
-		);
+		final DataLocator childDataLocator = resolveChildDataLocator(buildContext, childParameter.domain());
+		final ConstraintBuildContext childBuildContext = buildContext.switchToChildContext(childDataLocator);
+		final GraphQLInputType childType;
 
-		if (childContainer.equals(GraphQLScalars.BOOLEAN)) {
+		final Class<?> childParameterType = childParameter.type();
+		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
+			//noinspection unchecked
+			final ConstraintDescriptor childConstraintDescriptor = ConstraintDescriptorProvider.getConstraint(
+				(Class<? extends Constraint<?>>) childParameterType
+			);
+
+			// we need switch child domain again manually based on property type of the child constraint because there
+			// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
+			final DataLocator childConstraintDataLocator = resolveChildDataLocator(
+				buildContext,
+				ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())
+			);
+			childType = build(
+				childBuildContext.switchToChildContext(childConstraintDataLocator),
+				childConstraintDescriptor
+			);
+		} else {
+			childType = obtainContainer(childBuildContext, childParameter);
+		}
+
+		if (childType.equals(GraphQLScalars.BOOLEAN)) {
 			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
-			return childContainer;
+			return childType;
 		} else {
 			if (childParameter.type().isArray() && !isChildrenUnique(childParameter)) {
-				return list(nonNull(childContainer));
+				return list(nonNull(childType));
 			} else {
-				return childContainer;
+				return childType;
 			}
 		}
 	}

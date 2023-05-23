@@ -46,7 +46,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.hierarchyContent;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -57,6 +60,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for GraphQL catalog unknown entity list query.
@@ -233,6 +237,179 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entity references")
+	void shouldReturnAllDirectCategoryParentEntityReferences(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent()
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has at least 2 parents
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
+				return c;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithSelfParentsDto(category, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					listEntity(code: "Automotive-21") {
+						... on Category {
+							parentPrimaryKey
+							parents {
+								primaryKey
+								parentPrimaryKey
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(ENTITY_LIST_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entities")
+	void shouldReturnAllDirectCategoryParentEntities(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									entityFetch(
+										attributeContent(ATTRIBUTE_CODE)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has at least 2 parents
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
+				return c;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithSelfParentsDto(category, true)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					listEntity(code: "Automotive-21") {
+						... on Category {
+							parentPrimaryKey
+							parents {
+								primaryKey
+								parentPrimaryKey
+								allLocales
+								attributes {
+									code
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(ENTITY_LIST_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return only direct category parent")
+	void shouldReturnOnlyDirectCategoryParent(Evita evita, GraphQLTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<SealedEntity> categories = session.queryList(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(distance(1))
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, categories.size());
+				final SealedEntity c = categories.get(0);
+				// check that it has only one direct parent
+				assertTrue(c.getParentEntity().isPresent());
+				assertTrue(c.getParentEntity().get().getParentEntity().isEmpty());
+				return c;
+			}
+		);
+
+		final List<Map<String, Object>> expectedBody = List.of(
+			createEntityWithSelfParentsDto(category, false)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document("""
+				{
+					listEntity(code: "Automotive-21") {
+						... on Category {
+							parentPrimaryKey
+							parents(
+								stopAt: {
+									distance: 1
+								}
+						    ) {
+								primaryKey
+								parentPrimaryKey
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body(ENTITY_LIST_PATH, equalTo(expectedBody));
 	}
 
 	@Test

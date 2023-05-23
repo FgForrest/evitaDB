@@ -37,6 +37,8 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import java.util.Optional;
+
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -80,7 +82,7 @@ public class OrderConstraintResolver extends GraphQLConstraintResolver<OrderCons
 
 	@Override
 	@Nonnull
-	protected ConstraintDescriptor getWrapperContainer() {
+	protected Optional<ConstraintDescriptor> getWrapperContainer() {
 		throw new GraphQLInternalError("Wrapper container is not supported for `order` constraints.");
 	}
 

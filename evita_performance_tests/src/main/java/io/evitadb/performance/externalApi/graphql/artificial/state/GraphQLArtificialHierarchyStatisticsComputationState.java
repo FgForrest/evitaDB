@@ -61,7 +61,7 @@ public class GraphQLArtificialHierarchyStatisticsComputationState extends Abstra
 				});
 			Assert.isTrue(!referencedHierarchicalEntities.isEmpty(), "No referenced entity is hierarchical!");
 		}
-		this.requestBody = generateRandomParentSummaryQuery(
+		this.requestBody = generateRandomHierarchyQuery(
 			benchmarkState.getRandom(), benchmarkState.getProductSchema(), referencedHierarchicalEntities
 		).toString();
 	}

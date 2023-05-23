@@ -55,6 +55,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Function;
@@ -121,7 +122,7 @@ public class PriceListAndCurrencyPriceRefIndex implements VoidTransactionMemoryP
 		this.indexedPriceIds = new TransactionalBitmap();
 		this.priceIndexKey = priceIndexKey;
 		this.validityIndex = new RangeIndex();
-		this.priceRecords = new TransactionalObjArray<>(new PriceRecordContract[0]);
+		this.priceRecords = new TransactionalObjArray<>(new PriceRecordContract[0], Comparator.naturalOrder());
 		this.superIndexAccessor = superIndexAccessor;
 	}
 
@@ -138,7 +139,7 @@ public class PriceListAndCurrencyPriceRefIndex implements VoidTransactionMemoryP
 		this.indexedPriceIds = new TransactionalBitmap(priceIds);
 		this.memoizedIndexedPriceIds = priceIds;
 		final PriceRecordContract[] priceRecords = superIndexAccessor.apply(priceIndexKey).getPriceRecords(indexedPriceIds);
-		this.priceRecords = new TransactionalObjArray<>(priceRecords);
+		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
 
 		final int[] entityIds = new int[priceRecords.length];
 		for (int i = 0; i < priceRecords.length; i++) {
@@ -162,7 +163,7 @@ public class PriceListAndCurrencyPriceRefIndex implements VoidTransactionMemoryP
 		this.validityIndex = validityIndex;
 		this.superIndexAccessor = superIndexAccessor;
 		final PriceRecordContract[] priceRecords = getPriceSuperIndex().getPriceRecords(this.indexedPriceIds);
-		this.priceRecords = new TransactionalObjArray<>(priceRecords);
+		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
 	}
 
 	/**

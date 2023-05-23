@@ -29,7 +29,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.SectionedAttributesDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
@@ -46,11 +46,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -281,6 +283,430 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.body("", equalTo(expectedBody));
 	}
 
+
+
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entity references")
+	void shouldReturnAllDirectCategoryParentEntityReferences(Evita evita, RestTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity entity = session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent()
+							)
+						)
+					)
+				).orElseThrow();
+
+				// check that it has at least 2 parents
+				assertTrue(entity.getParentEntity().isPresent());
+				assertTrue(entity.getParentEntity().get().getParentEntity().isPresent());
+				return entity;
+			}
+		);
+
+		final var expectedBody = Stream.of(category)
+			.map(entity -> createEntityWithSelfParentsDto(entity, false).build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/category/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyInSet": [16]
+					},
+					"require": {
+						"entityFetch": {
+							"hierarchyContent": {}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body("", equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return direct category parent entities")
+	void shouldReturnAllDirectCategoryParentEntities(Evita evita, RestTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity entity = session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									entityFetch(
+										attributeContent(ATTRIBUTE_CODE)
+									)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				// check that it has at least 2 parents
+				assertTrue(entity.getParentEntity().isPresent());
+				assertTrue(entity.getParentEntity().get().getParentEntity().isPresent());
+				return entity;
+			}
+		);
+
+		final var expectedBody = Stream.of(category)
+			.map(entity -> createEntityWithSelfParentsDto(entity, true).build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/category/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyInSet": [16]
+					},
+					"require": {
+						"entityFetch": {
+							"hierarchyContent": {
+								"entityFetch": {
+									"attributeContent": ["code"]
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body("", equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return only direct category parent")
+	void shouldReturnOnlyDirectCategoryParent(Evita evita, RestTester tester) {
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity entity = session.queryOneSealedEntity(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							entityPrimaryKeyInSet(16)
+						),
+						require(
+							entityFetch(
+								hierarchyContent(
+									stopAt(distance(1))
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				// check that it has only one direct parent
+				assertTrue(entity.getParentEntity().isPresent());
+				assertTrue(entity.getParentEntity().get().getParentEntity().isEmpty());
+				return entity;
+			}
+		);
+
+		final var expectedBody = Stream.of(category)
+			.map(entity -> createEntityWithSelfParentsDto(entity, false).build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/category/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyInSet": [16]
+					},
+					"require": {
+						"entityFetch": {
+							"hierarchyContent": {
+								"stopAt": {
+									"distance": 1
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body("", equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all direct product parent entity references")
+	void shouldReturnAllDirectProductParentEntityReferences(Evita evita, RestTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity entity = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent()
+									)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				// check that it has at least 2 referenced parents
+				assertTrue(entity.getReferences(Entities.CATEGORY)
+					.iterator()
+					.next()
+					.getReferencedEntity()
+					.orElseThrow()
+					.getParentEntity()
+					.get()
+					.getParentEntity()
+					.isPresent());
+				return entity;
+			}
+		);
+
+		final var expectedBody = Stream.of(product)
+			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false).build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/product/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"hierarchyCategoryWithin": {
+							"ofParent": {
+								"entityPrimaryKeyInSet": [16]
+							}
+						}
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": 1
+						},
+						"entityFetch": {
+							"referenceCategoryContent": {
+								"entityFetch": {
+									"hierarchyContent": {}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body("", equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return all direct product parent entities")
+	void shouldReturnAllDirectProductParentEntities(Evita evita, RestTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity entity = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											entityFetch(
+												attributeContent(ATTRIBUTE_CODE)
+											)
+										)
+									)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				// check that it has at least 2 referenced parents
+				assertTrue(entity.getReferences(Entities.CATEGORY)
+					.iterator()
+					.next()
+					.getReferencedEntity()
+					.orElseThrow()
+					.getParentEntity()
+					.get()
+					.getParentEntity()
+					.isPresent());
+				return entity;
+			}
+		);
+
+		final var expectedBody = Stream.of(product)
+			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, true).build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/product/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"hierarchyCategoryWithin": {
+							"ofParent": {
+								"entityPrimaryKeyInSet": [16]
+							}
+						}
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": 1
+						},
+						"entityFetch": {
+							"referenceCategoryContent": {
+								"entityFetch": {
+									"hierarchyContent": {
+										"entityFetch": {
+											"attributeContent": ["code"]
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body("", equalTo(expectedBody));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return only direct product parent")
+	void shouldReturnOnlyDirectProductParent(Evita evita, RestTester tester) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity entity = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(16)
+							)
+						),
+						require(
+							page(1, 1),
+							entityFetch(
+								referenceContent(
+									Entities.CATEGORY,
+									entityFetch(
+										hierarchyContent(
+											stopAt(distance(1))
+										)
+									)
+								)
+							)
+						)
+					)
+				).orElseThrow();
+
+				// check that it has only one referenced parents
+				assertTrue(entity.getReferences(Entities.CATEGORY)
+					.iterator()
+					.next()
+					.getReferencedEntity()
+					.orElseThrow()
+					.getParentEntity()
+					.get()
+					.getParentEntity()
+					.isEmpty());
+				return entity;
+			}
+		);
+
+		final var expectedBody = Stream.of(product)
+			.map(entity -> createEntityWithReferencedParentsDto(entity,  Entities.CATEGORY, false).build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/product/list")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"hierarchyCategoryWithin": {
+							"ofParent": {
+								"entityPrimaryKeyInSet": [16]
+							}
+						}
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": 1
+						},
+						"entityFetch": {
+							"referenceCategoryContent": {
+								"entityFetch": {
+									"hierarchyContent": {
+										"stopAt": {
+											"distance": 1
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				""")
+			.executeAndExpectOkAndThen()
+			.body("", equalTo(expectedBody));
+	}
+
+
+
+
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
@@ -317,7 +743,6 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 			.statusCode(200)
 			.body("priceForSale", equalTo(expectedBody));
 	}
-
 
 	@Test
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
@@ -587,10 +1012,8 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 						"require": {
 						    "entityFetch": {
 						        "referenceBrandContent": {
-						            "requirements": {
-							             "entityFetch": {
-							                "attributeContent": ["marketShare"]
-							            }
+						             "entityFetch": {
+						                "attributeContent": ["marketShare"]
 						            }
 						        }
 					        }

@@ -64,7 +64,7 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 	/**
 	 * Contains the printed form of the input constraint.
 	 */
-	private final StringBuilder result = new StringBuilder();
+	private final StringBuilder result = new StringBuilder(512);
 	/**
 	 * Contains string used for new line indentation.
 	 */

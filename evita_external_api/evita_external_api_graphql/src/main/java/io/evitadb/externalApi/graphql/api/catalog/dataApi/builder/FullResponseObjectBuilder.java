@@ -56,10 +56,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.HierarchyOfDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.HierarchyOfReferenceDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.HierarchyOfSelfDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor.LevelInfoDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyOfDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyOfReferenceDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyOfSelfDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -284,7 +284,7 @@ public class FullResponseObjectBuilder {
 		buildAttributeHistogramsField(entitySchema).ifPresent(extraResultFields::add);
 		buildPriceHistogramField(entitySchema).ifPresent(extraResultFields::add);
 		buildFacetSummaryField(entitySchema).ifPresent(extraResultFields::add);
-		extraResultFields.addAll(buildHierarchyFields(entitySchema));
+		buildHierarchyField(entitySchema).ifPresent(extraResultFields::add);
 		extraResultFields.add(buildQueryTelemetryField());
 
 		if (extraResultFields.isEmpty()) {
@@ -556,7 +556,7 @@ public class FullResponseObjectBuilder {
 	}
 
 	@Nonnull
-	private List<BuiltFieldDescriptor> buildHierarchyFields(@Nonnull EntitySchemaContract entitySchema) {
+	private Optional<BuiltFieldDescriptor> buildHierarchyField(@Nonnull EntitySchemaContract entitySchema) {
 		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
 			.getReferences()
 			.values()
@@ -568,22 +568,18 @@ public class FullResponseObjectBuilder {
 			.toList();
 
 		if (referenceSchemas.isEmpty() && !entitySchema.isWithHierarchy()) {
-			return List.of();
+			return Optional.empty();
 		}
-
-		final List<BuiltFieldDescriptor> hierarchyExtraResultFields = new ArrayList<>(1);
 
 		final GraphQLObjectType hierarchyObject = buildHierarchyObject(entitySchema, referenceSchemas);
 		final GraphQLFieldDefinition hierarchyField = ExtraResultsDescriptor.HIERARCHY
 			.to(fieldBuilderTransformer)
 			.type(hierarchyObject)
 			.build();
-		hierarchyExtraResultFields.add(new BuiltFieldDescriptor(
+		return Optional.of(new BuiltFieldDescriptor(
 			hierarchyField,
 			new HierarchyDataFetcher(entitySchema.getReferences().values())
 		));
-
-		return hierarchyExtraResultFields;
 	}
 
 	@Nonnull

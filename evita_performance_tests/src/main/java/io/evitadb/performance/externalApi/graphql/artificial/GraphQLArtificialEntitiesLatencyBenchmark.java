@@ -105,10 +105,6 @@ public class GraphQLArtificialEntitiesLatencyBenchmark extends GraphQLArtificial
 		super.facetAndHierarchyFilteringAndSummarizingImpact(benchmarkState, state, blackhole);
 	}
 
-	@Override
-	public void parentsComputation(GraphQLArtificialHierarchyBenchmarkState benchmarkState, GraphQLArtificialParentsComputationState state, Blackhole blackhole) {
-		super.parentsComputation(benchmarkState, state, blackhole);
-	}
 
 	@Override
 	public void hierarchyStatisticsComputation(GraphQLArtificialHierarchyBenchmarkState benchmarkState, GraphQLArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
