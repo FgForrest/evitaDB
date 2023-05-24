@@ -66,7 +66,7 @@ class EvitaQLConstraintVisitorTest {
 
     @Test
     void shouldDelegateToRequireConstraintVisitor() {
-        final Constraint<?> constraint = parseConstraint("attributeContent()");
+        final Constraint<?> constraint = parseConstraint("attributeContentAll()");
         assertTrue(RequireConstraint.class.isAssignableFrom(constraint.getClass()));
     }
 

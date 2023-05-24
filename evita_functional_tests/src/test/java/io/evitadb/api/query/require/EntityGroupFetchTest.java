@@ -58,7 +58,7 @@ class EntityGroupFetchTest {
 		assertEquals("entityGroupFetch()", entityGroupFetch.toString());
 
 		final EntityGroupFetch entityGroupFetch2 = entityGroupFetch(attributeContent());
-		assertEquals("entityGroupFetch(attributeContent())", entityGroupFetch2.toString());
+		assertEquals("entityGroupFetch(attributeContentAll())", entityGroupFetch2.toString());
 	}
 
 	@Test

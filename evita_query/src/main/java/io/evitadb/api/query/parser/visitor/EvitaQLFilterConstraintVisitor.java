@@ -407,9 +407,6 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> {
-				if (ctx.args == null) {
-					return new PriceValidIn();
-				}
 				return new PriceValidIn(
 					ctx.args.value
 						.accept(offsetDateTimeValueTokenVisitor)

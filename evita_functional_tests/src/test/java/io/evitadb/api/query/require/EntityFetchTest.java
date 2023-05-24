@@ -58,7 +58,7 @@ class EntityFetchTest {
 		assertEquals("entityFetch()", entityFetch.toString());
 
 		final EntityFetch entityFetch2 = entityFetch(attributeContent());
-		assertEquals("entityFetch(attributeContent())", entityFetch2.toString());
+		assertEquals("entityFetch(attributeContentAll())", entityFetch2.toString());
 	}
 
 	@Test

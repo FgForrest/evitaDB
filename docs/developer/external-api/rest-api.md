@@ -4,24 +4,26 @@ evitaDB's REST API is dynamically built based on evitaDB's internal data schemas
 catalogs can be quite different. This way was chosen to simplify life for end-users as much as possible by providing
 API specific to their domains. This helps with intuitiveness and fewer errors.
 
-todo mve docs (based on graphql-api.md?)
+For general overview of REST API principles, read the [user documentation](../../user/en/use/connectors/rest.md).
+
+todo lho docs (based on graphql-api.md?)
 
 ## Initialization
 
-todo mve docs
+todo lho docs
 
 ## Extending a Open API schema
 
-todo mve docs
+todo lho docs
 
 ### Query constraint schema
 
-todo mve docs
+todo lho docs
 
 ## Data types support
 
-todo mve docs
+todo lho docs
 
 ## Exceptions
 
-todo mve docs
+todo lho docs

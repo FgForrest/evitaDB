@@ -126,7 +126,7 @@ public abstract class ClientPageReadState extends ClientDataFullDatabaseState
 
 			/* 75% only filtered prices */
 			if (random.nextInt(4) != 0) {
-				contentRequirements.add(priceContent());
+				contentRequirements.add(priceContentRespectingFilter());
 			} else {
 				contentRequirements.add(priceContentAll());
 			}
@@ -138,7 +138,7 @@ public abstract class ClientPageReadState extends ClientDataFullDatabaseState
 		if (random.nextInt(4) == 0) {
 			/* 50% times load all references */
 			if (random.nextBoolean()) {
-				contentRequirements.add(referenceContent());
+				contentRequirements.add(referenceContentAll());
 			} else {
 				/* 50% select only some of them */
 				contentRequirements.add(

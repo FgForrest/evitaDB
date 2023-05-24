@@ -4,6 +4,8 @@ evitaDB's GraphQL API is dynamically built based on evitaDB's internal data sche
 catalogs can be quite different. This way was chosen to simplify life for end-users as much as possible by providing 
 API specific to their domains. This helps with intuitiveness and fewer errors.
 
+For general overview of GraphQL API principles, read the [user documentation](../../user/en/use/connectors/graphql.md).
+
 The GraphQL API uses the [GraphQL Java](https://www.graphql-java.com/) library as it is the most used one and provides
 a lot of support for building custom schemas programmatically.
 Each evitaDB catalog has its own instance of GraphQL with its own schema related to the catalog's
@@ -50,7 +52,7 @@ and combines it with the GraphQL library capabilities. All implementations of th
 `io.evitadb.externalApi.graphql.api.catalog.builder.data.constraint` and respective resolvers are placed at 
 `io.evitadb.externalApi.graphql.api.catalog.resolver.data.constraint`. Usually, mild changes to the core support
 shouldn't break the implementations, but bigger structural changes may require reimplementation of API's side of things as
-well.
+well. More details about the core builder and resolver is described [here](constraint-schema-api-subsystem.md).
 
 ## Data types support
 

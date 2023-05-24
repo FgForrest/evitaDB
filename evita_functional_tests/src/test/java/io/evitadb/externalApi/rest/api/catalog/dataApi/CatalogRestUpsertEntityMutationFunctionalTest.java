@@ -42,7 +42,6 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -924,7 +923,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, entity.getPrimaryKey(), referenceContent())
+				session.getEntity(Entities.PRODUCT, entity.getPrimaryKey(), referenceContentAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeReference(REFERENCE_BRAND_WITH_GROUP, 1)
@@ -937,7 +936,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity updatedEntity = session.getEntity(Entities.PRODUCT, primaryKey, referenceContent())
+				final SealedEntity updatedEntity = session.getEntity(Entities.PRODUCT, primaryKey, referenceContentAll())
 					.orElseThrow();
 				assertEquals(
 					groupEntityReference,

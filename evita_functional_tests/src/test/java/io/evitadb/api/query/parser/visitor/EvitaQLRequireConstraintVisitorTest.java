@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.parser.visitor;
 
+import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.parser.ParseContext;
 import io.evitadb.api.query.parser.ParseMode;
@@ -61,10 +62,10 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint1 = parseRequireConstraint("require(entityFetch())");
 		assertEquals(require(entityFetch()), constraint1);
 
-		final RequireConstraint constraint2 = parseRequireConstraint("require(entityFetch(attributeContent()))");
+		final RequireConstraint constraint2 = parseRequireConstraint("require(entityFetch(attributeContentAll()))");
 		assertEquals(require(entityFetch(attributeContent())), constraint2);
 
-		final RequireConstraint constraint3 = parseRequireConstraint("require (  entityFetch(  attributeContent() )  )");
+		final RequireConstraint constraint3 = parseRequireConstraint("require (  entityFetch(  attributeContentAll() )  )");
 		assertEquals(require(entityFetch(attributeContent())), constraint3);
 
 		final RequireConstraint constraint4 = parseRequireConstraint("require()");
@@ -140,10 +141,10 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint2 = parseRequireConstraint("entityFetch (  )");
 		assertEquals(entityFetch(), constraint2);
 
-		final RequireConstraint constraint3 = parseRequireConstraint("entityFetch(attributeContent(),associatedDataContent())");
+		final RequireConstraint constraint3 = parseRequireConstraint("entityFetch(attributeContentAll(),associatedDataContentAll())");
 		assertEquals(entityFetch(attributeContent(), associatedDataContent()), constraint3);
 
-		final RequireConstraint constraint4 = parseRequireConstraint("entityFetch(  attributeContent  (   ) ,   associatedDataContent   ( ) )");
+		final RequireConstraint constraint4 = parseRequireConstraint("entityFetch(  attributeContentAll  (   ) ,   associatedDataContentAll   ( ) )");
 		assertEquals(entityFetch(attributeContent(), associatedDataContent()), constraint4);
 	}
 
@@ -161,10 +162,10 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint2 = parseRequireConstraint("entityGroupFetch (  )");
 		assertEquals(entityGroupFetch(), constraint2);
 
-		final RequireConstraint constraint3 = parseRequireConstraint("entityGroupFetch(attributeContent(),associatedDataContent())");
+		final RequireConstraint constraint3 = parseRequireConstraint("entityGroupFetch(attributeContentAll(),associatedDataContentAll())");
 		assertEquals(entityGroupFetch(attributeContent(), associatedDataContent()), constraint3);
 
-		final RequireConstraint constraint4 = parseRequireConstraint("entityGroupFetch(  attributeContent  (   ) ,   associatedDataContent   ( ) )");
+		final RequireConstraint constraint4 = parseRequireConstraint("entityGroupFetch(  attributeContentAll  (   ) ,   associatedDataContentAll   ( ) )");
 		assertEquals(entityGroupFetch(attributeContent(), associatedDataContent()), constraint4);
 	}
 
@@ -176,10 +177,10 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldParseAttributeContentConstraint() {
-		final RequireConstraint constraint1 = parseRequireConstraint("attributeContent()");
+		final RequireConstraint constraint1 = parseRequireConstraint("attributeContentAll()");
 		assertEquals(attributeContent(), constraint1);
 
-		final RequireConstraint constraint2 = parseRequireConstraint("attributeContent (  )");
+		final RequireConstraint constraint2 = parseRequireConstraint("attributeContentAll (  )");
 		assertEquals(attributeContent(), constraint2);
 
 		final RequireConstraint constraint3 = parseRequireConstraint("attributeContent('a')");
@@ -212,14 +213,15 @@ class EvitaQLRequireConstraintVisitorTest {
 
 	@Test
 	void shouldNotParseAttributeContentConstraint() {
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContent"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContentAll"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContentAll('a',1)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContent('a',1)"));
 	}
 
 	@Test
 	void shouldParsePriceContentConstraint() {
-		final RequireConstraint constraint1 = parseRequireConstraint("priceContent()");
-		assertEquals(priceContent(), constraint1);
+		final RequireConstraint constraint1 = parseRequireConstraint("priceContentAll()");
+		assertEquals(priceContentAll(), constraint1);
 
 		final RequireConstraint constraint2 = parseRequireConstraintUnsafe("priceContent(ALL)");
 		assertEquals(priceContentAll(), constraint2);
@@ -233,26 +235,44 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint6 = parseRequireConstraint("priceContent(@mode)", Map.of("mode", PriceContentMode.ALL));
 		assertEquals(priceContentAll(), constraint6);
 
-		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("priceContent('vip')");
-		assertEquals(priceContent("vip"), constraint7);
+		final RequireConstraint constraint7 = parseRequireConstraint("priceContentRespectingFilter()");
+		assertEquals(priceContentRespectingFilter(), constraint7);
 
-		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("priceContent (  'vip' )");
-		assertEquals(priceContent("vip"), constraint8);
+		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("priceContent(RESPECTING_FILTER)");
+		assertEquals(priceContentRespectingFilter(), constraint8);
 
-		final RequireConstraint constraint9 = parseRequireConstraint("priceContent(?)", "vip");
-		assertEquals(priceContent("vip"), constraint9);
+		final RequireConstraint constraint9 = parseRequireConstraintUnsafe("priceContent (  RESPECTING_FILTER )");
+		assertEquals(priceContentRespectingFilter(), constraint9);
 
-		final RequireConstraint constraint10 = parseRequireConstraint("priceContent(@pl)", Map.of("pl", "vip"));
-		assertEquals(priceContent("vip"), constraint10);
+		final RequireConstraint constraint10 = parseRequireConstraint("priceContent(?)", PriceContentMode.RESPECTING_FILTER);
+		assertEquals(priceContentRespectingFilter(), constraint10);
 
-		final RequireConstraint constraint11 = parseRequireConstraintUnsafe("priceContent(NONE, 'vip')");
-		assertEquals(new PriceContent(PriceContentMode.NONE, "vip"), constraint11);
+		final RequireConstraint constraint11 = parseRequireConstraint("priceContent(@mode)", Map.of("mode", PriceContentMode.RESPECTING_FILTER));
+		assertEquals(priceContentRespectingFilter(), constraint11);
 
-		final RequireConstraint constraint12 = parseRequireConstraint("priceContent(?)", List.of(PriceContentMode.NONE, "vip"));
-		assertEquals(new PriceContent(PriceContentMode.NONE, "vip"), constraint12);
+		final RequireConstraint constraint12 = parseRequireConstraintUnsafe("priceContentRespectingFilter('vip')");
+		assertEquals(priceContentRespectingFilter("vip"), constraint12);
 
-		final RequireConstraint constraint13 = parseRequireConstraint("priceContent(?, ?)", PriceContentMode.NONE, "vip");
-		assertEquals(new PriceContent(PriceContentMode.NONE, "vip"), constraint13);
+		final RequireConstraint constraint13 = parseRequireConstraintUnsafe("priceContent(RESPECTING_FILTER, 'vip')");
+		assertEquals(priceContentRespectingFilter("vip"), constraint13);
+
+		final RequireConstraint constraint14 = parseRequireConstraintUnsafe("priceContentRespectingFilter (  'vip' )");
+		assertEquals(priceContentRespectingFilter("vip"), constraint14);
+
+		final RequireConstraint constraint15 = parseRequireConstraint("priceContentRespectingFilter(?)", "vip");
+		assertEquals(priceContentRespectingFilter("vip"), constraint15);
+
+		final RequireConstraint constraint16 = parseRequireConstraint("priceContentRespectingFilter(@pl)", Map.of("pl", "vip"));
+		assertEquals(priceContentRespectingFilter("vip"), constraint16);
+
+		final RequireConstraint constraint17 = parseRequireConstraintUnsafe("priceContent(NONE, 'vip')");
+		assertEquals(new PriceContent(PriceContentMode.NONE, "vip"), constraint17);
+
+		final RequireConstraint constraint18 = parseRequireConstraint("priceContent(?)", List.of(PriceContentMode.NONE, "vip"));
+		assertEquals(new PriceContent(PriceContentMode.NONE, "vip"), constraint18);
+
+		final RequireConstraint constraint19 = parseRequireConstraint("priceContent(?, ?)", PriceContentMode.NONE, "vip");
+		assertEquals(new PriceContent(PriceContentMode.NONE, "vip"), constraint19);
 	}
 
 	@Test
@@ -311,10 +331,10 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint11 = parseRequireConstraint("associatedDataContent(@ad1,@ad2)", Map.of("ad1", "a", "ad2", "b"));
 		assertEquals(associatedDataContent("a", "b"), constraint11);
 
-		final RequireConstraint constraint12 = parseRequireConstraint("associatedDataContent()");
+		final RequireConstraint constraint12 = parseRequireConstraint("associatedDataContentAll()");
 		assertEquals(associatedDataContent(), constraint12);
 
-		final RequireConstraint constraint13 = parseRequireConstraint("associatedDataContent (  )");
+		final RequireConstraint constraint13 = parseRequireConstraint("associatedDataContentAll (  )");
 		assertEquals(associatedDataContent(), constraint13);
 	}
 
@@ -339,7 +359,7 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint6 = parseRequireConstraint("referenceContent('BRAND', 'CATEGORY','stock')");
 		assertEquals(referenceContent("BRAND", "CATEGORY", "stock"), constraint6);
 
-		final RequireConstraint constraint7 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), entityFetch(attributeContent()))");
+		final RequireConstraint constraint7 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), entityFetch(attributeContentAll()))");
 		assertEquals(
 			referenceContent(
 				"a",
@@ -378,13 +398,13 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint14
 		);
 
-		final RequireConstraint constraint15 = parseRequireConstraint("referenceContent()");
-		assertEquals(referenceContent(), constraint15);
+		final RequireConstraint constraint15 = parseRequireConstraint("referenceContentAll()");
+		assertEquals(referenceContentAll(), constraint15);
 
-		final RequireConstraint constraint16 = parseRequireConstraint("referenceContent (  )");
-		assertEquals(referenceContent(), constraint16);
+		final RequireConstraint constraint16 = parseRequireConstraint("referenceContentAll (  )");
+		assertEquals(referenceContentAll(), constraint16);
 
-		final RequireConstraint constraint17 = parseRequireConstraint("referenceContent('a', entityFetch(attributeContent()))");
+		final RequireConstraint constraint17 = parseRequireConstraint("referenceContent('a', entityFetch(attributeContentAll()))");
 		assertEquals(
 			referenceContent(
 				"a",
@@ -393,7 +413,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint17
 		);
 
-		final RequireConstraint constraint18 = parseRequireConstraint("referenceContent('a', 'b', entityFetch(attributeContent()))");
+		final RequireConstraint constraint18 = parseRequireConstraint("referenceContent('a', 'b', entityFetch(attributeContentAll()))");
 		assertEquals(
 			referenceContent(
 				new String[] {"a", "b"},
@@ -402,7 +422,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint18
 		);
 
-		final RequireConstraint constraint19 = parseRequireConstraint("referenceContent('a', 'b', entityFetch(attributeContent()), entityGroupFetch())");
+		final RequireConstraint constraint19 = parseRequireConstraint("referenceContent('a', 'b', entityFetch(attributeContentAll()), entityGroupFetch())");
 		assertEquals(
 			referenceContent(
 				new String[] {"a", "b"},
@@ -421,7 +441,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint20
 		);
 
-		final RequireConstraint constraint21 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), entityFetch(attributeContent()), entityGroupFetch())");
+		final RequireConstraint constraint21 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), entityFetch(attributeContentAll()), entityGroupFetch())");
 		assertEquals(
 			referenceContent(
 				"a",
@@ -432,7 +452,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint21
 		);
 
-		final RequireConstraint constraint22 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), entityGroupFetch(attributeContent()))");
+		final RequireConstraint constraint22 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), entityGroupFetch(attributeContentAll()))");
 		assertEquals(
 			referenceContent(
 				"a",
@@ -442,27 +462,27 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint22
 		);
 
-		final RequireConstraint constraint23 = parseRequireConstraint("referenceContent(entityFetch(priceContent()), entityGroupFetch(attributeContent()))");
+		final RequireConstraint constraint23 = parseRequireConstraint("referenceContentAll(entityFetch(priceContentRespectingFilter()), entityGroupFetch(attributeContentAll()))");
 		assertEquals(
-			referenceContent(
-				entityFetch(priceContent()),
+			QueryConstraints.referenceContentAll(
+				entityFetch(priceContentRespectingFilter()),
 				entityGroupFetch(attributeContent())
 			),
 			constraint23
 		);
 
-		final RequireConstraint constraint24 = parseRequireConstraint("referenceContent(entityFetch(priceContent()))");
+		final RequireConstraint constraint24 = parseRequireConstraint("referenceContentAll(entityFetch(priceContentRespectingFilter()))");
 		assertEquals(
-			referenceContent(
-				entityFetch(priceContent())
+			QueryConstraints.referenceContentAll(
+				entityFetch(priceContentRespectingFilter())
 			),
 			constraint24
 		);
 
-		final RequireConstraint constraint25 = parseRequireConstraint("referenceContent(entityGroupFetch(priceContent()))");
+		final RequireConstraint constraint25 = parseRequireConstraint("referenceContentAll(entityGroupFetch(priceContentRespectingFilter()))");
 		assertEquals(
-			referenceContent(
-				entityGroupFetch(priceContent())
+			QueryConstraints.referenceContentAll(
+				entityGroupFetch(priceContentRespectingFilter())
 			),
 			constraint25
 		);
@@ -493,7 +513,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint27
 		);
 
-		final RequireConstraint constraint28 = parseRequireConstraint("referenceContent('a', orderBy(attributeNatural('code')), entityFetch(attributeContent()))");
+		final RequireConstraint constraint28 = parseRequireConstraint("referenceContent('a', orderBy(attributeNatural('code')), entityFetch(attributeContentAll()))");
 		assertEquals(
 			referenceContent(
 				"a",
@@ -503,7 +523,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			constraint28
 		);
 
-		final RequireConstraint constraint29 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), entityFetch(attributeContent()))");
+		final RequireConstraint constraint29 = parseRequireConstraint("referenceContent('a', filterBy(attributeEqualsTrue('code')), orderBy(attributeNatural('code')), entityFetch(attributeContentAll()))");
 		assertEquals(
 			referenceContent(
 				"a",
@@ -537,14 +557,14 @@ class EvitaQLRequireConstraintVisitorTest {
 	@Test
 	void shouldNotParseReferenceContentConstraint() {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeContent(),'a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeContentAll(),'a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent('a',filterBy(entityPrimaryKeyInSet(1)),filterBy(entityPrimaryKeyInSet(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeContent(),filterBy(entityPrimaryKeyInSet(1)))"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeContentAll(),filterBy(entityPrimaryKeyInSet(1)))"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(attributeNatural('a',ASC))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent('a', 'b', filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContent()))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContent()))"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent('a', 'b', filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()))"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(filterBy(entityPrimaryKeyInSet(1)), entityFetch(attributeContentAll()))"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(filterBy(entityPrimaryKeyInSet(1)))"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent('a', attributeContent())"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent('a', attributeContentAll())"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(entityFetch(),entityFetch())"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("referenceContent(entityGroupFetch(),entityFetch)"));
 	}
@@ -709,13 +729,13 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint6 = parseRequireConstraint("facetSummary(@mode)", Map.of("mode", COUNTS));
 		assertEquals(facetSummary(COUNTS), constraint6);
 
-		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("facetSummary(IMPACT, entityFetch(  attributeContent() ))");
+		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("facetSummary(IMPACT, entityFetch(  attributeContentAll() ))");
 		assertEquals(facetSummary(IMPACT, entityFetch(attributeContent())), constraint7);
 
-		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("facetSummary(IMPACT, entityFetch(  attributeContent() ), entityGroupFetch  ( associatedDataContent (  ) ) )");
+		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("facetSummary(IMPACT, entityFetch(  attributeContentAll() ), entityGroupFetch  ( associatedDataContentAll (  ) ) )");
 		assertEquals(facetSummary(IMPACT, entityFetch(attributeContent()), entityGroupFetch(associatedDataContent())), constraint8);
 
-		final RequireConstraint constraint9 = parseRequireConstraintUnsafe("facetSummary(IMPACT, entityGroupFetch  ( associatedDataContent (  ) ) )");
+		final RequireConstraint constraint9 = parseRequireConstraintUnsafe("facetSummary(IMPACT, entityGroupFetch  ( associatedDataContentAll (  ) ) )");
 		assertEquals(facetSummary(IMPACT, entityGroupFetch(associatedDataContent())), constraint9);
 	}
 
@@ -752,13 +772,13 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint6 = parseRequireConstraint("facetSummaryOfReference(@ref,@mode)", Map.of("ref", "parameter", "mode", COUNTS));
 		assertEquals(facetSummaryOfReference("parameter", COUNTS), constraint6);
 
-		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', IMPACT, entityFetch(  attributeContent() ))");
+		final RequireConstraint constraint7 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', IMPACT, entityFetch(  attributeContentAll() ))");
 		assertEquals(facetSummaryOfReference("parameter", IMPACT, entityFetch(attributeContent())), constraint7);
 
-		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', IMPACT, entityFetch(  attributeContent() ), entityGroupFetch  ( associatedDataContent (  ) ) )");
+		final RequireConstraint constraint8 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', IMPACT, entityFetch(  attributeContentAll() ), entityGroupFetch  ( associatedDataContentAll (  ) ) )");
 		assertEquals(facetSummaryOfReference("parameter", IMPACT, entityFetch(attributeContent()), entityGroupFetch(associatedDataContent())), constraint8);
 
-		final RequireConstraint constraint9 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', IMPACT,   entityGroupFetch  ( associatedDataContent (  ) ) )");
+		final RequireConstraint constraint9 = parseRequireConstraintUnsafe("facetSummaryOfReference('parameter', IMPACT,   entityGroupFetch  ( associatedDataContentAll (  ) ) )");
 		assertEquals(facetSummaryOfReference("parameter", IMPACT, entityGroupFetch(associatedDataContent())), constraint9);
 	}
 

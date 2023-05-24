@@ -114,7 +114,7 @@ public class EntityByPriceFilteringFunctionalTest {
 				.toList();
 
 			return storedProducts.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), priceContent()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), priceContentRespectingFilter()).orElseThrow())
 				.collect(Collectors.toList());
 		});
 	}
@@ -139,7 +139,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					),
@@ -186,7 +186,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent(PRICE_LIST_REFERENCE)
+								priceContentRespectingFilter(PRICE_LIST_REFERENCE)
 							)
 						)
 					),
@@ -282,7 +282,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					),
@@ -328,7 +328,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					),
@@ -377,7 +377,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					),
@@ -425,7 +425,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							),
 							priceType(QueryPriceMode.WITHOUT_TAX)
 						)
@@ -468,7 +468,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, 10),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						),
 						orderBy(
@@ -515,7 +515,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, 10),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						),
 						orderBy(
@@ -566,7 +566,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, 10),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						),
 						orderBy(
@@ -617,7 +617,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, 10),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							),
 							priceType(QueryPriceMode.WITHOUT_TAX)
 						),
@@ -669,7 +669,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						),
 						orderBy(
@@ -720,7 +720,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							),
 							priceType(QueryPriceMode.WITHOUT_TAX)
 						),
@@ -774,7 +774,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, 10),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						),
 						orderBy(
@@ -827,7 +827,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							),
 							priceType(QueryPriceMode.WITHOUT_TAX)
 						),
@@ -881,7 +881,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, 10),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						),
 						orderBy(
@@ -934,7 +934,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, 10),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							),
 							priceType(QueryPriceMode.WITHOUT_TAX)
 						),
@@ -979,7 +979,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					),
@@ -1017,7 +1017,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					),
@@ -1056,7 +1056,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					),
@@ -1098,7 +1098,7 @@ public class EntityByPriceFilteringFunctionalTest {
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					),
