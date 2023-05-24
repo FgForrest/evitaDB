@@ -398,7 +398,7 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
-	public FilterConstraint visitPriceValidNowConstraint(@Nonnull EvitaQLParser.PriceValidNowConstraintContext ctx) {
+	public FilterConstraint visitPriceValidInNowConstraint(@Nonnull EvitaQLParser.PriceValidInNowConstraintContext ctx) {
 		return parse(ctx, PriceValidIn::new);
 	}
 

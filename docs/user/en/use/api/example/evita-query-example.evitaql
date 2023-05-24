@@ -7,7 +7,7 @@ query(
             attributeEquals('url', '/local-food')
          ),
          entityLocaleEquals('cs-CZ'),
-         priceValidIn(),
+         priceValidInNow(),
          priceInCurrency('CZK'),
          priceInPriceLists('vip', 'loyal-customer', 'regular-prices'),
          userFilter(

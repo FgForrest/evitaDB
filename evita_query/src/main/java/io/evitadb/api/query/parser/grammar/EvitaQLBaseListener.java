@@ -461,13 +461,13 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterPriceValidNowConstraint(EvitaQLParser.PriceValidNowConstraintContext ctx) { }
+	@Override public void enterPriceValidInNowConstraint(EvitaQLParser.PriceValidInNowConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void exitPriceValidNowConstraint(EvitaQLParser.PriceValidNowConstraintContext ctx) { }
+	@Override public void exitPriceValidInNowConstraint(EvitaQLParser.PriceValidInNowConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

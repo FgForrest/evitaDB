@@ -65,7 +65,7 @@ public class ClassifierUtils {
 			"primaryKey", // argument in single entity query in GraphQL/REST API, would collide with attributes
 			"locale", // argument in single entity query in GraphQL/REST API, would collide with attributes
 			"priceValidIn", // argument in single entity query in GraphQL/REST API, would collide with attributes
-			"priceValidNow", // argument in single entity query in GraphQL/REST API, would collide with attributes
+			"priceValidInNow", // argument in single entity query in GraphQL/REST API, would collide with attributes
 			"priceInCurrency", // argument in single entity query in GraphQL/REST API, would collide with attributes
 			"priceInPriceList", // argument in single entity query in GraphQL/REST API, would collide with attributes
 			"entityBodyContent", // argument in single entity query in REST API, would collide with attributes
