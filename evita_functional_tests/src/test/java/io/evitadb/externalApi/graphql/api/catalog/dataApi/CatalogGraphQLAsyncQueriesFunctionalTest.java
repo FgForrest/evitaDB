@@ -23,14 +23,22 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
+import lombok.SneakyThrows;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -38,8 +46,8 @@ import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRA
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for GraphQL catalog collections query.
@@ -48,15 +56,32 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String DATA_PATH = "data";
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+	@SneakyThrows
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should correctly handle multiple parallel queries")
+	@Disabled("Proof-of-concept test, if run in parallel with other tests with other evitaDBs, there is not enough threads available to execute all sub queries in parallel.")
 	void shouldCorrectlyHandleMultipleParallelQueries(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final String singleQueryTemplate = """
-				product%d: getProduct(primaryKey: %d) {
-					primaryKey
+				product%d: queryProduct(
+					filterBy: {
+						entityPrimaryKeyInSet: %d
+					}
+				) {
+					recordPage {
+						data {
+							primaryKey
+							attributes(locale: cs_CZ) {
+								code
+								name
+							}
+						}
+					}
+					extraResults {
+						queryTelemetry
+					}
 				}
 			""";
 
@@ -64,6 +89,7 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 		final var expectedBody = createHashMap(originalProductEntities.size());
 		originalProductEntities
 			.stream()
+			.limit(100)
 			.sorted(Comparator.comparing(EntityContract::getPrimaryKey))
 			.forEach(product -> {
 				queryBuilder
@@ -81,11 +107,32 @@ public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLData
 			});
 		queryBuilder.append("}");
 
-		tester.test(TEST_CATALOG)
+		final String responseBodyJson = tester.test(TEST_CATALOG)
 			.document(queryBuilder.toString())
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(DATA_PATH, equalTo(expectedBody));
+			.extract()
+			.body()
+			.asString();
+		final JsonNode body = OBJECT_MAPPER.readTree(responseBodyJson);
+		final JsonNode data = body.get("data");
+		final List<QueryExecution> queryExecutions = new ArrayList<>(100);
+		data.fieldNames().forEachRemaining(f -> {
+			final JsonNode product = data.get(f);
+			final long start = product.get(ResponseDescriptor.EXTRA_RESULTS.name()).get(ExtraResultsDescriptor.QUERY_TELEMETRY.name()).get(QueryTelemetryDescriptor.START.name()).asLong();
+			final long spentTime = product.get(ResponseDescriptor.EXTRA_RESULTS.name()).get(ExtraResultsDescriptor.QUERY_TELEMETRY.name()).get(QueryTelemetryDescriptor.SPENT_TIME.name()).asLong();
+			final long end = start + spentTime;
+			queryExecutions.add(new QueryExecution(start, end));
+		});
+
+		// verify that queries where executes asynchronously
+		for (int i = 1; i < queryExecutions.size(); i++) {
+			final QueryExecution previousQueryExecution = queryExecutions.get(i - 1);
+			final QueryExecution currentQueryExecution = queryExecutions.get(i);
+			assertTrue(previousQueryExecution.end() > currentQueryExecution.start(), "Execution " + i + " doesn't overlap previous one.");
+		}
 	}
+
+	private record QueryExecution(long start, long end) {}
 }
