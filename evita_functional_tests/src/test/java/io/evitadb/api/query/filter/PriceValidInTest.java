@@ -29,7 +29,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
 import static io.evitadb.api.query.QueryConstraints.priceValidIn;
-import static io.evitadb.api.query.QueryConstraints.priceValidNow;
+import static io.evitadb.api.query.QueryConstraints.priceValidInNow;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -45,8 +45,8 @@ class PriceValidInTest {
 		final PriceValidIn priceValidIn = priceValidIn(now);
 		assertEquals(now, priceValidIn.getTheMoment());
 
-		final PriceValidIn priceValidNow = priceValidNow();
-		assertNull(priceValidNow.getTheMoment());
+		final PriceValidIn priceValidInNow = priceValidInNow();
+		assertNull(priceValidInNow.getTheMoment());
 	}
 
 	@Test

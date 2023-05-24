@@ -192,7 +192,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         final OffsetDateTime desiredPriceValidIn = priceValidInConstraint
             .map(PriceValidIn::getTheMoment)
             .orElse(null);
-        final boolean desiredPriceValidNow = priceValidInConstraint
+        final boolean desiredpriceValidInNow = priceValidInConstraint
             .map(it -> it.getTheMoment() == null)
             .orElse(false);
 
@@ -204,7 +204,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             .desiredLocale(desiredLocale)
             .desiredPriceInCurrency(desiredPriceInCurrency)
             .desiredPriceValidIn(desiredPriceValidIn)
-            .desiredPriceValidNow(desiredPriceValidNow)
+            .desiredpriceValidInNow(desiredpriceValidInNow)
             .desiredPriceInPriceLists(desiredPriceInPriceLists)
             .build();
     }

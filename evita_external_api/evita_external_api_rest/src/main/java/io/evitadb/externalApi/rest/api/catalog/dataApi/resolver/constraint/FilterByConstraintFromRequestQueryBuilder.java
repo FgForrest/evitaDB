@@ -82,7 +82,7 @@ public class FilterByConstraintFromRequestQueryBuilder {
 			filterConstraints.add(QueryConstraints.priceValidIn((OffsetDateTime) parameters.get(GetEntityEndpointHeaderDescriptor.PRICE_VALID_IN.name())));
 		}
 		if (Boolean.TRUE.equals(parameters.get(GetEntityEndpointHeaderDescriptor.PRICE_VALID_NOW.name()))) {
-			filterConstraints.add(QueryConstraints.priceValidNow());
+			filterConstraints.add(QueryConstraints.priceValidInNow());
 		}
 		if (parameters.containsKey(GetEntityEndpointHeaderDescriptor.LOCALE.name())) {
 			filterConstraints.add(QueryConstraints.entityLocaleEquals((Locale) parameters.get(GetEntityEndpointHeaderDescriptor.LOCALE.name())));

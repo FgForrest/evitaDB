@@ -135,7 +135,7 @@ public class EvitaQLParser extends Parser {
 			"'attributeInSet'", "'attributeContains'", "'attributeStartsWith'", "'attributeEndsWith'", 
 			"'attributeEqualsTrue'", "'attributeEqualsFalse'", "'attributeIs'", "'attributeIsNull'", 
 			"'attributeIsNotNull'", "'attributeInRange'", "'entityPrimaryKeyInSet'", 
-			"'entityLocaleEquals'", "'priceInCurrency'", "'priceInPriceLists'", "'priceValidNow'", 
+			"'entityLocaleEquals'", "'priceInCurrency'", "'priceInPriceLists'", "'priceValidInNow'", 
 			"'priceValidIn'", "'priceBetween'", "'facetHaving'", "'referenceHaving'", 
 			"'hierarchyWithin'", "'hierarchyWithinSelf'", "'hierarchyWithinRoot'", 
 			"'hierarchyWithinRootSelf'", "'directRelation'", "'having'", "'excludingRoot'", 
@@ -886,6 +886,25 @@ public class EvitaQLParser extends Parser {
 			else return visitor.visitChildren(this);
 		}
 	}
+	public static class PriceValidInNowConstraintContext extends FilterConstraintContext {
+		public EmptyArgsContext emptyArgs() {
+			return getRuleContext(EmptyArgsContext.class,0);
+		}
+		public PriceValidInNowConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterPriceValidInNowConstraint(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitPriceValidInNowConstraint(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitPriceValidInNowConstraint(this);
+			else return visitor.visitChildren(this);
+		}
+	}
 	public static class AttributeInRangeConstraintContext extends FilterConstraintContext {
 		public ClassifierWithValueArgsContext args;
 		public ClassifierWithValueArgsContext classifierWithValueArgs() {
@@ -1393,25 +1412,6 @@ public class EvitaQLParser extends Parser {
 		@Override
 		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
 			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitEntityHavingConstraint(this);
-			else return visitor.visitChildren(this);
-		}
-	}
-	public static class PriceValidNowConstraintContext extends FilterConstraintContext {
-		public EmptyArgsContext emptyArgs() {
-			return getRuleContext(EmptyArgsContext.class,0);
-		}
-		public PriceValidNowConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
-		@Override
-		public void enterRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).enterPriceValidNowConstraint(this);
-		}
-		@Override
-		public void exitRule(ParseTreeListener listener) {
-			if ( listener instanceof EvitaQLListener ) ((EvitaQLListener)listener).exitPriceValidNowConstraint(this);
-		}
-		@Override
-		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-			if ( visitor instanceof EvitaQLVisitor ) return ((EvitaQLVisitor<? extends T>)visitor).visitPriceValidNowConstraint(this);
 			else return visitor.visitChildren(this);
 		}
 	}
@@ -1933,7 +1933,7 @@ public class EvitaQLParser extends Parser {
 				}
 				break;
 			case T__27:
-				_localctx = new PriceValidNowConstraintContext(_localctx);
+				_localctx = new PriceValidInNowConstraintContext(_localctx);
 				enterOuterAlt(_localctx, 26);
 				{
 				setState(229);

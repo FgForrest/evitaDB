@@ -65,7 +65,7 @@ public class PriceForSaleDataFetcher implements DataFetcher<DataFetcherResult<Pr
             .or(() -> Optional.ofNullable((Boolean) environment.getArgument(PriceForSaleFieldHeaderDescriptor.VALID_NOW.name()))
                 .map(validNow -> validNow ? entity.getAlignedNow() : null))
             .or(() -> Optional.ofNullable(context.getDesiredPriceValidIn()))
-            .or(() -> Optional.of(context.isDesiredPriceValidNow())
+            .or(() -> Optional.of(context.isDesiredpriceValidInNow())
                 .map(validNow -> validNow ? entity.getAlignedNow() : null))
             .orElse(null);
 
