@@ -820,18 +820,18 @@ class EvitaQLFilterConstraintVisitorTest {
     }
 
     @Test
-    void shouldParsePriceValidNowConstraint() {
-        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("priceValidNow()");
-        assertEquals(priceValidNow(), constraint1);
+    void shouldParsepriceValidInNowConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("priceValidInNow()");
+        assertEquals(priceValidInNow(), constraint1);
 
-        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("priceValidNow  (  )");
-        assertEquals(priceValidNow(), constraint2);
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("priceValidInNow  (  )");
+        assertEquals(priceValidInNow(), constraint2);
     }
 
     @Test
-    void shouldNotParsePriceValidNowConstraint() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidNow"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidNow(2021-02-15T11:00:00+01:00)"));
+    void shouldNotParsepriceValidInNowConstraint() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidInNow"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("priceValidInNow(2021-02-15T11:00:00+01:00)"));
     }
 
     @Test
@@ -866,8 +866,8 @@ class EvitaQLFilterConstraintVisitorTest {
             constraint4
         );
 
-        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("priceValidNow()");
-        assertEquals(priceValidNow(), constraint5);
+        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("priceValidInNow()");
+        assertEquals(priceValidInNow(), constraint5);
     }
 
     @Test

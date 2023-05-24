@@ -190,11 +190,10 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Removes the extension from the file name and returns the altered Path to the file without the extension.
 	 */
 	@Nonnull
-	private static Path stripFileNameOfExtension(@Nonnull Path referencedFile) {
+	private static Optional<Path> stripFileNameOfExtension(@Nonnull Path referencedFile) {
 		return ofNullable(referencedFile.getFileName().toString())
 			.filter(f -> f.contains("."))
-			.map(f -> referencedFile.resolveSibling(f.substring(0, f.lastIndexOf('.'))))
-			.orElseThrow(() -> new IllegalArgumentException("File name must contain `.`!"));
+			.map(f -> referencedFile.resolveSibling(f.substring(0, f.lastIndexOf('.'))));
 	}
 
 	/**
@@ -371,16 +370,17 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		while (mdIncludeMatcher.find()) {
 			final String sourceVariable = mdIncludeMatcher.group(2);
 			final Path outputSnippetFile = rootDirectory.resolve(mdIncludeMatcher.group(3));
-			final Path outputSnippetFormatBase = stripFileNameOfExtension(outputSnippetFile);
-			final Path sourceExampleFile = stripFileNameOfExtension(outputSnippetFormatBase);
-			final boolean isSourceExampleFileUsable = hasFileNameExtension(sourceExampleFile);
-			outputSnippetIndex.put(
-				isSourceExampleFileUsable ? sourceExampleFile : outputSnippetFormatBase,
-				new OutputSnippet(
-					isSourceExampleFileUsable ? getFileNameExtension(outputSnippetFormatBase) : "md",
-					outputSnippetFile, sourceVariable
-				)
-			);
+			final Optional<Path> outputSnippetFormatBase = stripFileNameOfExtension(outputSnippetFile);
+			final Optional<Path> sourceExampleFile = outputSnippetFormatBase.flatMap(UserDocumentationTest::stripFileNameOfExtension);
+			final boolean isSourceExampleFileUsable = sourceExampleFile.map(UserDocumentationTest::hasFileNameExtension).orElse(false);
+			outputSnippetFormatBase.ifPresent(
+				base -> outputSnippetIndex.put(
+					isSourceExampleFileUsable ? sourceExampleFile.get() : base,
+					new OutputSnippet(
+						isSourceExampleFileUsable ? getFileNameExtension(base) : "md",
+						outputSnippetFile, sourceVariable
+					)
+				));
 		}
 
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);

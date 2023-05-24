@@ -133,8 +133,10 @@ the builder recursively returns to the beginning to build another inner constrai
 
 If the child parameter type is a concrete constraint and not an array, we can completely omit the intermediate 
 [implicit container](#syntax-of-query-and-constraints) and build the specific constraint as a parameter directly.
-This is mainly for better UX, as otherwise there may be nested properties with the same names (these parameters are usually
-named the same way as the constraint itself) and unnecessary containers. Unfortunately, the shortcut comes with a caveat.
+This is mainly for better developer experience (DX), as otherwise there may be nested properties with the same names 
+(these parameters are usually named the same way as the constraint itself) and unnecessary containers. Unfortunately, 
+the shortcut comes with a caveat.
+
 Because we skipped the [implicit container](#syntax-of-query-and-constraints) construction, there was no subsequent data context
 switch based on the property type of the child constraint. This normally happens automatically inside the container builder
 before building the child constraint, but in this case, we want to build the child constraint immediately, so we 
@@ -188,7 +190,7 @@ JSON property key. The JSON property key must contain all of the data used to de
 mentioned [above](#syntax-of-query-and-constraints).
 
 First the property type is stripped and parsed from the beginning of the key. It also determines a fallback property type from the current data context
-is determined for special cases where the explicit property type is missing for better UX (this is true only in few
+is determined for special cases where the explicit property type is missing for better DX (this is true only in few
 very special cases). Ultimately, the fallback property type is basically determined by parent constraint. 
 
 After stripping the property type from the JSON key, the rest of the key is split into individual words.
