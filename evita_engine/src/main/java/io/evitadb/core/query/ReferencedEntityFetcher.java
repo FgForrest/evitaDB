@@ -79,6 +79,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -970,7 +971,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				globalIndex.traverseHierarchyToRoot(
 					(node, level, distance, traverser) -> {
 						if (scopePredicate.test(node.entityPrimaryKey(), level, distance + 1)) {
-							traverser.run();
+							if (scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
+								selfTraversingPredicate.traverse(node.entityPrimaryKey(), level, distance + 1, traverser);
+							} else {
+								traverser.run();
+							}
 							theParent.set(new EntityReferenceWithParent(entityType, node.entityPrimaryKey(), theParent.get()));
 							if (bodyRequired) {
 								allReferencedParents.add(node.entityPrimaryKey());

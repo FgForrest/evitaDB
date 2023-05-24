@@ -662,13 +662,13 @@ The following query lists products in the category *Audio* and its subcategories
 also returns a computed *parent* data structure that lists single direct parent category of the currently focused 
 *Audio* category.
 
-<SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
+<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `distance` with `parents` requirement](docs/user/en/query/requirements/examples/hierarchy/hierarchy-parent.java)
 </SourceCodeTabs>
 
 That returns simply:
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parents">[Direct parent](docs/user/en/query/requirements/examples/hierarchy/hierarchy-parent.java.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.parent">[Direct parent](docs/user/en/query/requirements/examples/hierarchy/hierarchy-parent.java.json.md)</MDInclude>
 
 </Note>
 
@@ -702,7 +702,7 @@ following figure:
 </NoteTitle>
 
 The following query lists products in *Audio* category and its subcategories. Along with the products returned, it also
-returns a computed *subcategories* data structure that lists top two levels of the entire hierarchy.
+returns a computed *megaMenu* data structure that lists top two levels of the entire hierarchy.
 
 <SourceCodeTabs  requires="docs/user/en/get-started/example/connect-demo-server-and-open-session.java">
 [Example of using `level` with `fromRoot` requirement](docs/user/en/query/requirements/examples/hierarchy/hierarchy-level.java)

@@ -11,6 +11,24 @@
     "children" : [
       {
         "entity" : {
+          "primaryKey" : 66488,
+          "parent" : 66482,
+          "attributes" : {
+            "code" : "wireless-headphones"
+          }
+        }
+      },
+      {
+        "entity" : {
+          "primaryKey" : 66489,
+          "parent" : 66482,
+          "attributes" : {
+            "code" : "wired-heaphones"
+          }
+        }
+      },
+      {
+        "entity" : {
           "primaryKey" : 66490,
           "parent" : 66482,
           "attributes" : {

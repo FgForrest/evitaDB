@@ -35,6 +35,7 @@ import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.index.hierarchy.HierarchyVisitor;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
+import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -162,7 +163,11 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 							)
 						);
 						// traverse subtree - filling up the accumulator on previous row
-						traverser.run();
+						if (scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
+							selfTraversingPredicate.traverse(entityPrimaryKey, level, distance + distanceCompensation, traverser);
+						} else {
+							traverser.run();
+						}
 						// now remove current accumulator from stack
 						final Accumulator finalizedAccumulator = accumulator.pop();
 						// and if its cardinality is greater than zero (contains at least one queried entity)
@@ -183,7 +188,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 							topAccumulator.add(finalizedAccumulator);
 						}
 					}
-				} else if (!statisticsType.isEmpty()) {
+				} else if (!statisticsType.isEmpty() || removeEmptyResults) {
 					// and create element in accumulator that will be filled in
 					final Accumulator theOmmissionAccumulator = new Accumulator(
 						() -> queriedEntityComputer.apply(node.entityPrimaryKey())
@@ -195,11 +200,12 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 					// now remove current accumulator from stack
 					accumulator.pop();
 					// when we exit the omission block we may resolve the children count
-					if (statisticsType.contains(StatisticsType.CHILDREN_COUNT)) {
+					if (statisticsType.contains(StatisticsType.CHILDREN_COUNT) || removeEmptyResults) {
 						if (removeEmptyResults) {
 							// we need to fully compute cardinality of queried entities
 							if (theOmmissionAccumulator.hasQueriedEntity()) {
 								topAccumulator.registerOmittedChild();
+								topAccumulator.registerOmittedCardinality(theOmmissionAccumulator.getQueriedEntitiesFormula());
 							}
 						} else {
 							topAccumulator.registerOmittedChild();
