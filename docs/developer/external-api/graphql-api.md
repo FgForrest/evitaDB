@@ -52,7 +52,7 @@ and combines it with the GraphQL library capabilities. All implementations of th
 `io.evitadb.externalApi.graphql.api.catalog.builder.data.constraint` and respective resolvers are placed at 
 `io.evitadb.externalApi.graphql.api.catalog.resolver.data.constraint`. Usually, mild changes to the core support
 shouldn't break the implementations, but bigger structural changes may require reimplementation of API's side of things as
-well. More details about the core builder and resolver is described [here](constraint-builder.md).
+well. More details about the core builder and resolver is described [here](constraint-schema-api-subsystem.md).
 
 ## Data types support
 
