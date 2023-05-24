@@ -149,8 +149,8 @@ public class GetEntityDataFetcher extends ReadDataFetcher<DataFetcherResult<Enti
         filterConstraints.add(priceInCurrency(arguments.priceInCurrency()));
         if (arguments.priceValidIn() != null) {
             filterConstraints.add(priceValidIn(arguments.priceValidIn()));
-        } else if (arguments.priceValidNow()) {
-            filterConstraints.add(priceValidNow());
+        } else if (arguments.priceValidInNow()) {
+            filterConstraints.add(priceValidInNow());
         }
 
 		return filterBy(
@@ -178,7 +178,7 @@ public class GetEntityDataFetcher extends ReadDataFetcher<DataFetcherResult<Enti
             .desiredLocale(arguments.locale())
             .desiredPriceInCurrency(arguments.priceInCurrency())
             .desiredPriceValidIn(arguments.priceValidIn())
-            .desiredPriceValidNow(arguments.priceValidNow())
+            .desiredpriceValidInNow(arguments.priceValidInNow())
             .desiredPriceInPriceLists(arguments.priceInPriceLists())
             .build();
     }
@@ -191,7 +191,7 @@ public class GetEntityDataFetcher extends ReadDataFetcher<DataFetcherResult<Enti
                              @Nullable Currency priceInCurrency,
                              @Nullable String[] priceInPriceLists,
                              @Nullable OffsetDateTime priceValidIn,
-                             boolean priceValidNow,
+                             boolean priceValidInNow,
                              @Nonnull Map<AttributeSchemaContract, Object> uniqueAttributes) {
 
 		private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull EntitySchemaContract entitySchema) {
@@ -206,7 +206,7 @@ public class GetEntityDataFetcher extends ReadDataFetcher<DataFetcherResult<Enti
             //noinspection unchecked
             final List<String> priceInPriceLists = (List<String>) arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_IN_PRICE_LISTS.name());
             final OffsetDateTime priceValidIn = (OffsetDateTime) arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_VALID_IN.name());
-            final boolean priceValidNow = (boolean) Optional.ofNullable(arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_VALID_NOW.name()))
+            final boolean priceValidInNow = (boolean) Optional.ofNullable(arguments.remove(GetEntityQueryHeaderDescriptor.PRICE_VALID_NOW.name()))
                 .orElse(false);
 
 			// left over arguments are unique attribute filters as defined by schema
@@ -225,7 +225,7 @@ public class GetEntityDataFetcher extends ReadDataFetcher<DataFetcherResult<Enti
                 priceInCurrency,
                 (priceInPriceLists != null ? priceInPriceLists.toArray(String[]::new) : null),
                 priceValidIn,
-                priceValidNow,
+                priceValidInNow,
                 uniqueAttributes
             );
         }

@@ -435,17 +435,17 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitPriceInPriceListsConstraints(EvitaQLParser.PriceInPriceListsConstraintsContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code priceValidNowConstraint}
+	 * Enter a parse tree produced by the {@code priceValidInNowConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void enterPriceValidNowConstraint(EvitaQLParser.PriceValidNowConstraintContext ctx);
+	void enterPriceValidInNowConstraint(EvitaQLParser.PriceValidInNowConstraintContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code priceValidNowConstraint}
+	 * Exit a parse tree produced by the {@code priceValidInNowConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
 	 */
-	void exitPriceValidNowConstraint(EvitaQLParser.PriceValidNowConstraintContext ctx);
+	void exitPriceValidInNowConstraint(EvitaQLParser.PriceValidInNowConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code priceValidInConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.

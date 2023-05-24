@@ -1327,7 +1327,7 @@ public interface QueryConstraints {
 	 * ```
 	 */
 	@Nonnull
-	static PriceValidIn priceValidNow() {
+	static PriceValidIn priceValidInNow() {
 		return new PriceValidIn();
 	}
 

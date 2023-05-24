@@ -54,5 +54,5 @@ public final class EntityQueryContext {
 	private final String[] desiredPriceInPriceLists;
 	@Nullable
 	private final OffsetDateTime desiredPriceValidIn;
-	private final boolean desiredPriceValidNow;
+	private final boolean desiredpriceValidInNow;
 }

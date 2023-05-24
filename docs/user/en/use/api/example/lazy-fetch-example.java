@@ -27,9 +27,9 @@ evita.queryCatalog(
 		//   - reference `brand`
 		final SealedEntity enrichedEntity = session.enrichEntity(
 			entities.getRecordData().get(0),
-			attributeContent(),
-			associatedDataContent(),
-			priceContent("reference"),
+			attributeContentAll(),
+			associatedDataContentAll(),
+			priceContentRespectingFilter("reference"),
 			referenceContent("brand")
 		);
 		return entities;

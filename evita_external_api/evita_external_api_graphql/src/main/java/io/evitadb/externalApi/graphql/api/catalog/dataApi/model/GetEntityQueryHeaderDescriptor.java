@@ -75,10 +75,10 @@ public interface GetEntityQueryHeaderDescriptor {
 		.type(nullable(OffsetDateTime.class))
 		.build();
 	PropertyDescriptor PRICE_VALID_NOW = PropertyDescriptor.builder()
-		.name("priceValidNow")
+		.name("priceValidInNow")
 		.description("""
 			Parameter specifying desired validity of price for sale of queried entity. The date time is resolved to
-			`now` by evitaDB. If both `priceValidNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
+			`now` by evitaDB. If both `priceValidInNow` and `priceValidIn` parameters are specified `priceValidIn` is used.
 			""")
 		.type(nullable(Boolean.class))
 		.build();

@@ -287,7 +287,7 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
-	@Override public T visitPriceValidNowConstraint(EvitaQLParser.PriceValidNowConstraintContext ctx) { return visitChildren(ctx); }
+	@Override public T visitPriceValidInNowConstraint(EvitaQLParser.PriceValidInNowConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *

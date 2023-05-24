@@ -66,7 +66,7 @@ filterConstraint
     | 'entityLocaleEquals'              args = valueArgs                                            # entityLocaleEqualsConstraint
     | 'priceInCurrency'                 args = valueArgs                                            # priceInCurrencyConstraint
     | 'priceInPriceLists'               (emptyArgs | args = classifierListArgs)                     # priceInPriceListsConstraints
-    | 'priceValidNow'                   emptyArgs                                                   # priceValidNowConstraint
+    | 'priceValidInNow'                 emptyArgs                                                   # priceValidInNowConstraint
     | 'priceValidIn'                    args = valueArgs                                            # priceValidInConstraint
     | 'priceBetween'                    args = betweenValuesArgs                                    # priceBetweenConstraint
     | 'facetHaving'                     args = classifierWithFilterConstraintArgs                   # facetHavingConstraint
