@@ -33,9 +33,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Constraint creator definition that marks concrete query's (one that is annotated with {@link ConstraintDefinition})
- * constructor as constructor for creating this query. Multiple constructors may be marked, however each must have
- * unique suffix and the one without suffix is considered default one. Also, combination of query name and suffix
+ * Constraint creator definition that marks concrete constraint's (one that is annotated with {@link ConstraintDefinition})
+ * constructor or factory method as creator for creating this constraint. Multiple constructors and methods may be marked,
+ * however, each must have unique suffix and the one without suffix is considered default one. Also, combination of query name and suffix
  * must be unique across all constraints of same type and property type.
  * <p>
  * Such an annotated constructor must have all of its parameters annotated with {@link Classifier},
@@ -46,7 +46,7 @@ import java.lang.annotation.Target;
  * @see ConstraintDefinition
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@Target(ElementType.CONSTRUCTOR)
+@Target({ElementType.CONSTRUCTOR, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface Creator {
