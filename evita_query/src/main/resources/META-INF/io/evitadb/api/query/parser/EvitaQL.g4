@@ -67,7 +67,7 @@ filterConstraint
     | 'priceInCurrency'                 args = valueArgs                                            # priceInCurrencyConstraint
     | 'priceInPriceLists'               (emptyArgs | args = classifierListArgs)                     # priceInPriceListsConstraints
     | 'priceValidNow'                   emptyArgs                                                   # priceValidNowConstraint
-    | 'priceValidIn'                    (emptyArgs | args = valueArgs)                              # priceValidInConstraint
+    | 'priceValidIn'                    args = valueArgs                                            # priceValidInConstraint
     | 'priceBetween'                    args = betweenValuesArgs                                    # priceBetweenConstraint
     | 'facetHaving'                     args = classifierWithFilterConstraintArgs                   # facetHavingConstraint
     | 'referenceHaving'                 args = classifierWithFilterConstraintArgs                   # referenceHavingConstraint
@@ -97,11 +97,14 @@ requireConstraint
     | 'strip'                           args = stripConstraintArgs                                  # stripConstraint
     | 'entityFetch'                     (emptyArgs | args = requireConstraintListArgs)              # entityFetchConstraint
     | 'entityGroupFetch'                (emptyArgs | args = requireConstraintListArgs)              # entityGroupFetchConstraint
-    | 'attributeContent'                (emptyArgs | args = classifierListArgs)                     # attributeContentConstraint
-    | 'priceContent'                    (emptyArgs | args = valueListArgs)                          # priceContentConstraint
+    | 'attributeContent'                args = classifierListArgs                                   # attributeContentConstraint
+    | 'attributeContentAll'             emptyArgs                                                   # attributeContentConstraint
+    | 'priceContent'                    args = valueListArgs                                        # priceContentConstraint
     | 'priceContentAll'                 emptyArgs                                                   # priceContentAllConstraint
-    | 'associatedDataContent'           (emptyArgs | args = classifierListArgs)                     # associatedDataContentConstraint
-    | 'referenceContent'                (emptyArgs | args = allRefsReferenceContentArgs)            # allRefsReferenceContentConstraint
+    | 'priceContentRespectingFilter'    (emptyArgs | args = valueListArgs)                          # priceContentRespectingFilterConstraint
+    | 'associatedDataContent'           args = classifierListArgs                                   # associatedDataContentConstraint
+    | 'associatedDataContentAll'        emptyArgs                                                   # associatedDataContentConstraint
+    | 'referenceContentAll'             (emptyArgs | args = allRefsReferenceContentArgs)            # allRefsReferenceContentConstraint
     | 'referenceContent'                args = multipleRefsReferenceContentArgs                     # multipleRefsReferenceContentConstraint
     | 'referenceContent'                args = singleRefReferenceContentArgs                        # singleRefReferenceContentConstraint
     | 'referenceContent'                args = singleRefWithFilterReferenceContentArgs              # singleRefWithFilterReferenceContentConstraint

@@ -23,26 +23,32 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Optional;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This `prices` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
  * this requirement is used result contains [entity prices](entity_model.md).
  *
- * This requirement implicitly triggers {@link EntityBodyFetch} requirement because prices cannot be returned without entity.
+ * This requirement implicitly triggers {@link EntityFetch} requirement because prices cannot be returned without entity.
  * When price constraints are used returned prices are filtered according to them by default. This behaviour might be
- * changed however.
+ * changed, however.
  *
  * Accepts single {@link PriceContentMode} parameter. When {@link PriceContentMode#ALL} all prices of the entity are returned
  * regardless of the input query constraints otherwise prices are filtered by those constraints. Default is {@link PriceContentMode#RESPECTING_FILTER}.
@@ -63,30 +69,31 @@ import java.io.Serializable;
 	shortDescription = "The constraint triggers fetching the entity prices into the returned entities.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceContent extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, EntityContentRequire {
+public class PriceContent extends AbstractRequireConstraintLeaf
+	implements PriceConstraint<RequireConstraint>, EntityContentRequire, ConstraintWithSuffix {
 	public static final String[] EMPTY_PRICE_LISTS = new String[0];
 	@Serial private static final long serialVersionUID = -8521118631539528009L;
+	private static final String SUFFIX_ALL = "all";
+	private static final String SUFFIX_FILTERED = "respectingFilter";
 
 	private PriceContent(Serializable... arguments) {
 		super(arguments);
-	}
-
-	public PriceContent() {
-		this(PriceContentMode.RESPECTING_FILTER);
-	}
-
-	public PriceContent(@Nonnull String... priceLists) {
-		this(PriceContentMode.RESPECTING_FILTER, priceLists);
-	}
-
-	public PriceContent(@Nonnull @Value PriceContentMode fetchMode) {
-		super(fetchMode);
 	}
 
 	@Creator
 	public PriceContent(@Nonnull @Value PriceContentMode contentMode,
 	                    @Nonnull @Value String... priceLists) {
 		super(ArrayUtils.mergeArrays(new Serializable[] {contentMode}, priceLists));
+	}
+
+	@Creator(suffix = SUFFIX_ALL)
+	public static PriceContent all() {
+		return new PriceContent(PriceContentMode.ALL);
+	}
+
+	@Creator(suffix = SUFFIX_FILTERED)
+	public static PriceContent respectingFilter(@Nullable @Value String... priceLists) {
+		return new PriceContent(PriceContentMode.RESPECTING_FILTER, priceLists);
 	}
 
 	/**
@@ -113,6 +120,21 @@ public class PriceContent extends AbstractRequireConstraintLeaf implements Price
 	}
 
 	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return switch (getFetchMode()) {
+			case NONE -> empty();
+			case RESPECTING_FILTER -> of(SUFFIX_FILTERED);
+			case ALL -> of(SUFFIX_ALL);
+		};
+	}
+
+	@Override
+	public boolean isArgumentImplicitForSuffix(@Nonnull Serializable argument) {
+		return argument instanceof PriceContentMode && getFetchMode() != PriceContentMode.NONE;
+	}
+
+	@Nonnull
 	@SuppressWarnings("unchecked")
 	@Override
 	public <T extends EntityContentRequire> T combineWith(@Nonnull T anotherRequirement) {
@@ -125,7 +147,7 @@ public class PriceContent extends AbstractRequireConstraintLeaf implements Price
 			} else {
 				return (T) new PriceContent(
 					anotherPriceContent.getFetchMode(),
-					ArrayUtils.mergeArrays(anotherPriceContent.getAdditionalPriceListsToFetch(), additionalPriceListsToFetch)
+					ArrayUtils.mergeArrays(additionalPriceListsToFetch, anotherPriceContent.getAdditionalPriceListsToFetch())
 				);
 			}
 		} else {
@@ -146,4 +168,5 @@ public class PriceContent extends AbstractRequireConstraintLeaf implements Price
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		return new PriceContent(newArguments);
 	}
+
 }

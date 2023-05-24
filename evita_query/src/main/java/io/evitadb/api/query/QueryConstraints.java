@@ -2252,11 +2252,51 @@ public interface QueryConstraints {
 	 * ```
 	 */
 	@Nonnull
+	static AttributeContent attributeContentAll() {
+		return new AttributeContent();
+	}
+
+	/**
+	 * This `attributes` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
+	 * this requirement is used result contains [entity bodies](entity_model.md) except `associated data` that could
+	 * become big. These type of data can be fetched either lazily or by specifying additional requirements in the query.
+	 *
+	 * This requirement implicitly triggers fetching of entity body because attributes cannot be returned without entity.
+	 * [Localized interface](classes/localized_interface.md) attributes are returned according to {@link EntityLocaleEquals}
+	 * query.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * attributes()
+	 * ```
+	 */
+	@Nonnull
 	static AttributeContent attributeContent(@Nullable String... attributeName) {
 		if (attributeName == null) {
 			return new AttributeContent();
 		}
 		return new AttributeContent(attributeName);
+	}
+
+	/**
+	 * This `associatedData` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
+	 * this requirement is used result contains [entity bodies](entity_model.md) along with associated data with names specified in
+	 * one or more arguments of this requirement.
+	 *
+	 * This requirement implicitly triggers fetching of entity body because attributes cannot be returned without entity.
+	 * [Localized interface](classes/localized_interface.md) associated data is returned according to {@link EntityLocaleEquals}
+	 * query. requirement might be combined with {@link AttributeContent} requirement.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * associatedData("description", 'gallery-3d')
+	 * ```
+	 */
+	@Nonnull
+	static AssociatedDataContent associatedDataContentAll() {
+		return new AssociatedDataContent();
 	}
 
 	/**
@@ -2329,7 +2369,7 @@ public interface QueryConstraints {
 	 * ```
 	 */
 	@Nonnull
-	static ReferenceContent referenceContent() {
+	static ReferenceContent referenceContentAll() {
 		return new ReferenceContent();
 	}
 
@@ -2626,19 +2666,19 @@ public interface QueryConstraints {
 
 	// TOBEDONE JNO: add docs after docs revision
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable EntityFetch entityRequirement) {
+	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement) {
 		return referenceContent((String) null, entityRequirement);
 	}
 
 	// TOBEDONE JNO: add docs after docs revision
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement) {
 		return referenceContent((String) null, groupEntityRequirement);
 	}
 
 	// TOBEDONE JNO: add docs after docs revision
 	@Nonnull
-	static ReferenceContent referenceContent(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
 		return new ReferenceContent(entityRequirement, groupEntityRequirement);
 	}
 
@@ -2692,12 +2732,15 @@ public interface QueryConstraints {
 	 * allPrices()
 	 * ```
 	 */
-	@Nonnull
-	static PriceContent priceContent(@Nullable String... priceLists) {
+	@Nullable
+	static PriceContent priceContent(@Nullable PriceContentMode contentMode, @Nullable String... priceLists) {
+		if (contentMode == null) {
+			return null;
+		}
 		if (ArrayUtils.isEmpty(priceLists)) {
-			return new PriceContent(PriceContentMode.RESPECTING_FILTER);
+			return new PriceContent(contentMode);
 		} else {
-			return new PriceContent(PriceContentMode.RESPECTING_FILTER, priceLists);
+			return new PriceContent(contentMode, priceLists);
 		}
 	}
 
@@ -2723,7 +2766,32 @@ public interface QueryConstraints {
 	 */
 	@Nonnull
 	static PriceContent priceContentAll() {
-		return new PriceContent(PriceContentMode.ALL);
+		return PriceContent.all();
+	}
+
+	/**
+	 * This `prices` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
+	 * this requirement is used result contains [entity prices](entity_model.md).
+	 *
+	 * This requirement implicitly triggers fetching of entity body because prices cannot be returned without entity.
+	 * When price constraints are used returned prices are filtered according to them by default. This behaviour might be
+	 * changed however.
+	 *
+	 * Accepts single {@link PriceContentMode} parameter. When {@link PriceContentMode#ALL} all prices of the entity are returned
+	 * regardless of the input query constraints otherwise prices are filtered by those constraints. Default is {@link PriceContentMode#RESPECTING_FILTER}.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * prices() // defaults to respecting filter
+	 * ```
+	 * ```
+	 * allPrices()
+	 * ```
+	 */
+	@Nonnull
+	static PriceContent priceContentRespectingFilter(@Nullable String... priceLists) {
+		return PriceContent.respectingFilter(priceLists);
 	}
 
 	/**
@@ -2982,7 +3050,7 @@ public interface QueryConstraints {
 	@Nonnull
 	static EntityFetch entityFetchAll() {
 		return entityFetch(
-			attributeContent(), hierarchyContent(), associatedDataContent(), priceContentAll(), referenceContent(), dataInLocales()
+			attributeContent(), hierarchyContent(), associatedDataContent(), priceContentAll(), referenceContentAll(), dataInLocales()
 		);
 	}
 
@@ -3011,7 +3079,7 @@ public interface QueryConstraints {
 	@Nonnull
 	static EntityContentRequire[] entityFetchAllContent() {
 		return new EntityContentRequire[]{
-			attributeContent(), associatedDataContent(), priceContentAll(), referenceContent(), dataInLocales()
+			attributeContent(), associatedDataContent(), priceContentAll(), referenceContentAll(), dataInLocales()
 		};
 	}
 

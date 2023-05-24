@@ -194,7 +194,7 @@ class EvitaSessionServiceFunctionalTest {
 			.getPrimaryKey();
 		final String entityType = Entities.PRODUCT;
 
-		final String stringEntityContentRequires = "priceContent()";
+		final String stringEntityContentRequires = "priceContentRespectingFilter()";
 
 		final AtomicReference<GrpcEntityResponse> response = new AtomicReference<>();
 
@@ -493,10 +493,10 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					entityFetch(
-						attributeContent(),
-						priceContent(),
+						attributeContentAll(),
+						priceContentRespectingFilter(),
 						referenceContent(?, ?),
-						associatedDataContent()
+						associatedDataContentAll()
 					)
 				)
 			)
@@ -559,7 +559,7 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					entityFetch(
-						priceContent(),
+						priceContentRespectingFilter(),
 						referenceContent(?, entityFetch(attributeContent(?)), entityGroupFetch())
 					)
 				)
@@ -667,8 +667,8 @@ class EvitaSessionServiceFunctionalTest {
 								)
 							),
 							entityFetch(
-								attributeContent(),
-								associatedDataContent()
+								attributeContentAll(),
+								associatedDataContentAll()
 							)
 						)
 					)
@@ -760,10 +760,10 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(@page, @pageSize),
 					entityFetch(
-						attributeContent(),
-						priceContent(),
+						attributeContentAll(),
+						priceContentRespectingFilter(),
 						referenceContent(?, ?),
-						associatedDataContent()
+						associatedDataContentAll()
 					),
 					facetSummary(?),
 					priceType(?),
@@ -863,11 +863,11 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					entityFetch(
-						attributeContent(),
-						priceContent(),
+						attributeContentAll(),
+						priceContentRespectingFilter(),
 						referenceContent(?, ?)
 					),
-					associatedDataContent(),
+					associatedDataContentAll(),
 					facetSummary(?),
 					priceType(?)
 				)
@@ -957,10 +957,10 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(@page, @pageSize),
 					entityFetch(
-						attributeContent(),
-						priceContent(),
+						attributeContentAll(),
+						priceContentRespectingFilter(),
 						referenceContent(@entitiesCategory, @entitiesStore),
-						associatedDataContent()
+						associatedDataContentAll()
 					),
 					facetSummary(@facetStatisticsDepth),
 					priceType(@queryPriceMode)
@@ -1044,10 +1044,10 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					entityFetch(
-						attributeContent(),
-						priceContent(),
-						referenceContent(),
-						associatedDataContent(),
+						attributeContentAll(),
+						priceContentRespectingFilter(),
+						referenceContentAll(),
+						associatedDataContentAll(),
 						dataInLocales(?, ?)
 					)
 				)
@@ -1133,17 +1133,17 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					entityFetch(
-						attributeContent(),
-						priceContent(),
-						referenceContent(),
-						hierarchyContent(entityFetch(referenceContent())),
-						associatedDataContent(),
+						attributeContentAll(),
+						priceContentRespectingFilter(),
+						referenceContentAll(),
+						hierarchyContent(entityFetch(referenceContentAll())),
+						associatedDataContentAll(),
 						dataInLocales(?, ?)
 					),
 					attributeHistogram(?, ?, ?),
 					priceHistogram(?),
 					facetSummary(?),
-					hierarchyOfReference(?, ?, fromRoot(?, entityFetch(attributeContent())))
+					hierarchyOfReference(?, ?, fromRoot(?, entityFetch(attributeContentAll())))
 				)
 			)
 			""";
@@ -1287,7 +1287,7 @@ class EvitaSessionServiceFunctionalTest {
 				),
 				require(
 					page(?, ?),
-					facetSummary(?,entityFetch(priceContent(), attributeContent(?)),entityGroupFetch())
+					facetSummary(?,entityFetch(priceContentRespectingFilter(), attributeContent(?)),entityGroupFetch())
 				)
 			)
 			""";
@@ -1402,7 +1402,7 @@ class EvitaSessionServiceFunctionalTest {
 					hierarchyOfSelf(
 						fromRoot(
 							'megaMenu',
-							entityFetch(attributeContent())
+							entityFetch(attributeContentAll())
 						)
 					)
 				)
@@ -1710,7 +1710,7 @@ class EvitaSessionServiceFunctionalTest {
 		final GrpcEntityRequest entityRequest = GrpcEntityRequest.newBuilder()
 			.setEntityType(Entities.PRODUCT)
 			.setPrimaryKey(selectedEntity.getPrimaryKey())
-			.setRequire("attributeContent()")
+			.setRequire("attributeContentAll()")
 			.build();
 
 		final GrpcEntityResponse originalEntity = evitaSessionBlockingStub.getEntity(entityRequest);
@@ -1852,7 +1852,7 @@ class EvitaSessionServiceFunctionalTest {
 		final GrpcEntityRequest entityRequest = GrpcEntityRequest.newBuilder()
 			.setEntityType(Entities.PRODUCT)
 			.setPrimaryKey(Objects.requireNonNull(existingEntity.getPrimaryKey()))
-			.setRequire("associatedDataContent(), dataInLocales()")
+			.setRequire("associatedDataContentAll(), dataInLocales()")
 			.build();
 
 		final GrpcEntityResponse originalEntity = evitaSessionBlockingStub.getEntity(entityRequest);
@@ -1946,7 +1946,7 @@ class EvitaSessionServiceFunctionalTest {
 		final GrpcEntityRequest entityRequest = GrpcEntityRequest.newBuilder()
 			.setEntityType(Entities.PRODUCT)
 			.setPrimaryKey(existingEntity.getPrimaryKey())
-			.setRequire("priceContent()")
+			.setRequire("priceContentRespectingFilter()")
 			.build();
 
 		final List<String> existingPriceLists = existingEntity.getPrices().stream().map(PriceContract::getPriceList).toList();
@@ -2235,7 +2235,7 @@ class EvitaSessionServiceFunctionalTest {
 
 		final GrpcEntityRequest newEntityRequest = GrpcEntityRequest.newBuilder()
 			.setEntityType(Entities.PRODUCT)
-			.setRequire("referenceContent(entityFetch(attributeContent()))")
+			.setRequire("referenceContentAll(entityFetch(attributeContentAll()))")
 			.build();
 
 		final long attributeValue = 102L;
@@ -2356,7 +2356,7 @@ class EvitaSessionServiceFunctionalTest {
 		final GrpcEntityRequest existingEntityRequest = GrpcEntityRequest.newBuilder()
 			.setEntityType(Entities.PRODUCT)
 			.setPrimaryKey(existingEntity.getPrimaryKey())
-			.setRequire("referenceContent(entityFetch(attributeContent()))")
+			.setRequire("referenceContentAll(entityFetch(attributeContentAll()))")
 			.build();
 
 		final GrpcEntityResponse originalEntity = evitaSessionBlockingStub.getEntity(existingEntityRequest);
@@ -2556,10 +2556,10 @@ class EvitaSessionServiceFunctionalTest {
 				require(
 					page(?, ?),
 					entityFetch(
-						attributeContent(),
-						priceContent(),
-						referenceContent(),
-						associatedDataContent()
+						attributeContentAll(),
+						priceContentRespectingFilter(),
+						referenceContentAll(),
+						associatedDataContentAll()
 					)
 				)
 			)

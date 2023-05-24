@@ -7,6 +7,6 @@ author: 'Ing. Jan Novotný'
 
 **Work in progress**
 
-This article will contain copy of [research thesis](https://evitadb.io/research/in-memory/thesis#storage-model).
+This article will contain copy of [research thesis](/docs/research/en/in-memory/thesis.md#storage-model).
 It might go into more detail describing the key-value interface and suggesting that the internal storage model
 representation might be changed in the future.

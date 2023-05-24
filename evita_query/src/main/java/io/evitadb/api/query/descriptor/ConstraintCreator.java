@@ -32,7 +32,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -40,21 +42,21 @@ import java.util.Set;
 /**
  * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
  *
- * @param constructor main constructor for reconstructing the original constraint usually from {@link #parameters()}
- * @param parameters descriptors of original parameters of {@link #constructor()} in same order to be able to reconstruct
+ * @param instantiator executable element (constructor or factory method) to instantiate original constraint from {@link #parameters()}
+ * @param parameters descriptors of original parameters of {@link #instantiator()} in same order to be able to reconstruct
  *                   the original constraint
  * @param implicitClassifier fixed implicit classifier, alternative to dynamic classifier parameter
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record ConstraintCreator(@Nonnull Constructor<?> constructor,
+public record ConstraintCreator(@Nonnull Executable instantiator,
                                 @Nonnull List<ParameterDescriptor> parameters,
                                 @Nullable ImplicitClassifier implicitClassifier) {
 
-	public ConstraintCreator(@Nonnull Constructor<?> constructor,
+	public ConstraintCreator(@Nonnull Executable instantiator,
 	                         @Nonnull List<ParameterDescriptor> parameters,
 	                         @Nullable ImplicitClassifier implicitClassifier) {
-		this.constructor = constructor;
+		this.instantiator = instantiator;
 		this.parameters = parameters;
 		this.implicitClassifier = implicitClassifier;
 
@@ -79,15 +81,21 @@ public record ConstraintCreator(@Nonnull Constructor<?> constructor,
 	 */
 	public Constraint<?> instantiateConstraint(@Nonnull Object[] args, @Nonnull String parsedName) {
 		try {
-			constructor().trySetAccessible();
-			return (Constraint<?>) constructor().newInstance(args);
+			instantiator().trySetAccessible();
+			if (instantiator() instanceof Constructor<?> constructor) {
+				return (Constraint<?>) constructor.newInstance(args);
+			} else if (instantiator() instanceof Method method) {
+				return (Constraint<?>) method.invoke(null, args);
+			} else {
+				throw new EvitaInternalError("Unsupported creator.");
+			}
 		} catch (Exception e) {
 			if (e instanceof final InvocationTargetException invocationTargetException &&
 				invocationTargetException.getTargetException() instanceof final EvitaInvalidUsageException invalidUsageException) {
 				throw invalidUsageException;
 			}
 			throw new EvitaInternalError(
-				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + constructor.getDeclaringClass().getName() + "`: " + e.getMessage(),
+				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + instantiator().getDeclaringClass().getName() + "`: " + e.getMessage(),
 				"Could not recreate constraint `" + parsedName + "`.",
 				e
 			);

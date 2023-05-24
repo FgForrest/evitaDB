@@ -117,7 +117,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				.toList();
 
 			final List<SealedEntity> categoriesAvailable = storedCategories.stream()
-				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContent(), dataInLocales()).orElseThrow())
+				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContent(), referenceContentAll(), dataInLocales()).orElseThrow())
 				.collect(Collectors.toList());
 			return new DataCarrier(
 				tuple("originalCategoryEntities", categoriesAvailable),

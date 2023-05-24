@@ -291,7 +291,7 @@ public class EntityFetchRequireResolver {
 					.collect(Collectors.toSet())
 			);
 
-			return Optional.of(priceContent(neededPriceLists.toArray(String[]::new)));
+			return Optional.of(priceContent(PriceContentMode.RESPECTING_FILTER, neededPriceLists.toArray(String[]::new)));
 		}
 	}
 

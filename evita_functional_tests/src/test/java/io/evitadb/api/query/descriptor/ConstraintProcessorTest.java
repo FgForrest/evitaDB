@@ -78,6 +78,26 @@ class ConstraintProcessorTest {
 			),
 			descriptors.stream().sorted(Comparator.comparing(ConstraintDescriptor::fullName)).toList()
 		);
+
+		final List<ConstraintDescriptor> descriptors2 = new ConstraintProcessor().process(Set.of(ConstraintWithConstructorAndFactoryMethod.class))
+			.stream()
+			.sorted(Comparator.comparing(ConstraintDescriptor::fullName))
+			.toList();
+		assertEquals(
+			List.of(
+				createConstraintWithConstructorAndFactoryMethodDescriptor1(),
+				createConstraintWithConstructorAndFactoryMethodDescriptor2()
+			),
+			descriptors2
+		);
+		assertEquals(
+			new ConstraintWithConstructorAndFactoryMethod(1L),
+			descriptors2.get(0).creator().instantiateConstraint(new Object[]{1L}, "")
+		);
+		assertEquals(
+			ConstraintWithConstructorAndFactoryMethod.def(),
+			descriptors2.get(1).creator().instantiateConstraint(new Object[]{}, "")
+		);
 	}
 
 	@Test
@@ -118,6 +138,51 @@ class ConstraintProcessorTest {
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(SimilarConstraintA.class, SimilarConstraintB.class)));
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(SimilarConstraintWithSuffixedCreatorsA.class, SimilarConstraintWithSuffixedCreatorsB.class)));
 		assertThrows(EvitaInternalError.class, () -> new ConstraintProcessor().process(Set.of(ConstraintWithMultipleSameAdditionalChildren.class)));
+	}
+
+	@Nonnull
+	@SneakyThrows
+	private static ConstraintDescriptor createConstraintWithConstructorAndFactoryMethodDescriptor1() {
+		return new ConstraintDescriptor(
+			ConstraintWithConstructorAndFactoryMethod.class,
+			ConstraintType.FILTER,
+			ConstraintPropertyType.ATTRIBUTE,
+			"something",
+			"This is a constraint.",
+			Set.of(ConstraintDomain.GENERIC),
+			null,
+			new ConstraintCreator(
+				ConstraintWithConstructorAndFactoryMethod.class.getConstructor(Long.class),
+				List.of(
+					new ValueParameterDescriptor(
+						"value",
+						Long.class,
+						true,
+						false
+					)
+				),
+				null
+			)
+		);
+	}
+
+	@Nonnull
+	@SneakyThrows
+	private static ConstraintDescriptor createConstraintWithConstructorAndFactoryMethodDescriptor2() {
+		return new ConstraintDescriptor(
+			ConstraintWithConstructorAndFactoryMethod.class,
+			ConstraintType.FILTER,
+			ConstraintPropertyType.ATTRIBUTE,
+			"somethingDefault",
+			"This is a constraint.",
+			Set.of(ConstraintDomain.GENERIC),
+			null,
+			new ConstraintCreator(
+				ConstraintWithConstructorAndFactoryMethod.class.getMethod("def"),
+				List.of(),
+				null
+			)
+		);
 	}
 
 	@Nonnull
@@ -378,6 +443,29 @@ class ConstraintProcessorTest {
 		@Creator
 		public ConstraintWithUnannotatedParameters(@Nonnull Long value) {
 			super(value);
+		}
+
+		@Nonnull
+		@Override
+		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			return null;
+		}
+	}
+
+	@ConstraintDefinition(
+		name = "something",
+		shortDescription = "This is a constraint."
+	)
+	private static class ConstraintWithConstructorAndFactoryMethod extends AbstractAttributeFilterConstraintLeaf {
+
+		@Creator
+		public ConstraintWithConstructorAndFactoryMethod(@Nonnull @Value Long value) {
+			super(value);
+		}
+
+		@Creator(suffix = "default")
+		public static ConstraintWithConstructorAndFactoryMethod def() {
+			return new ConstraintWithConstructorAndFactoryMethod(0L);
 		}
 
 		@Nonnull

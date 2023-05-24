@@ -24,11 +24,12 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.AssociatedDataConstraint;
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.utils.ArrayUtils;
@@ -38,7 +39,11 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.stream.Stream;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This `associatedData` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
@@ -63,14 +68,16 @@ import java.util.stream.Stream;
 	supportedIn = ConstraintDomain.ENTITY,
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
-public class AssociatedDataContent extends AbstractRequireConstraintLeaf implements AssociatedDataConstraint<RequireConstraint>, EntityContentRequire {
+public class AssociatedDataContent extends AbstractRequireConstraintLeaf
+	implements AssociatedDataConstraint<RequireConstraint>, EntityContentRequire, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = 4863284278176575291L;
+	private static final String SUFFIX = "all";
 
 	private AssociatedDataContent(Serializable... arguments) {
 		super(arguments);
 	}
 
-	@Creator(suffix = "all")
+	@Creator(suffix = SUFFIX)
 	public AssociatedDataContent() {
 		super();
 	}
@@ -95,6 +102,12 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf impleme
 	 */
 	public boolean isAllRequested() {
 		return ArrayUtils.isEmpty(getArguments());
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return isAllRequested() ? of(SUFFIX) : empty();
 	}
 
 	@Nonnull

@@ -42,13 +42,13 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(of = {"name", "arguments"})
-abstract class BaseConstraint<T extends Constraint<T>> implements Constraint<T> {
+public abstract class BaseConstraint<T extends Constraint<T>> implements Constraint<T> {
 	@Serial private static final long serialVersionUID = 2216675116416057520L;
 	private final String name;
 	private final Serializable[] arguments;
 
 	@Nonnull
-	static String convertToString(@Nullable Serializable value) {
+	public static String convertToString(@Nullable Serializable value) {
 		if (value == null) {
 			return "<NULL>";
 		}
@@ -113,6 +113,7 @@ abstract class BaseConstraint<T extends Constraint<T>> implements Constraint<T> 
 		return getName() +
 			ARG_OPENING +
 			Arrays.stream(arguments)
+				.filter(it -> !(this instanceof ConstraintWithSuffix cws) || !cws.isArgumentImplicitForSuffix(it))
 				.map(BaseConstraint::convertToString)
 				.collect(Collectors.joining(",")) +
 			ARG_CLOSING;

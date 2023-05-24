@@ -7,5 +7,5 @@ author: 'Ing. Jan Novotný'
 
 **Work in progress**
 
-This article will contain copy of [research assignment](https://evitadb.io/research/assignment/index#entity-indexing).
+This article will contain copy of [research assignment](/docs/research/en/assignment/index.md#entity-indexing).
 It should go into more implementation detail.

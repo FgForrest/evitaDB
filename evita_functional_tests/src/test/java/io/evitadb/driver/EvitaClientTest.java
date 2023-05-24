@@ -547,18 +547,18 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 							referencesOnly ?
 								entityFetch(
 									hierarchyContent(),
-									attributeContent(),
-									associatedDataContent(),
+									attributeContentAll(),
+									associatedDataContentAll(),
 									priceContentAll(),
-									referenceContent(),
+									referenceContentAll(),
 									dataInLocales()
 								) :
 								entityFetch(
 									hierarchyContent(entityFetchAll()),
-									attributeContent(),
-									associatedDataContent(),
+									attributeContentAll(),
+									associatedDataContentAll(),
 									priceContentAll(),
-									referenceContent(entityFetchAll()),
+									referenceContentAll(entityFetchAll()),
 									dataInLocales()
 								)
 						)

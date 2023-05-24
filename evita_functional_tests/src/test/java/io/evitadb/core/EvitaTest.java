@@ -961,7 +961,7 @@ class EvitaTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, 1, referenceContent(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocales())
 					.orElseThrow()
 					.openForWrite()
 					.setReference(Entities.BRAND, 1, thatIs -> thatIs
@@ -993,7 +993,7 @@ class EvitaTest implements EvitaTestSupport {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, 1, referenceContent(), dataInLocales())
+				session.getEntity(Entities.PRODUCT, 1, referenceContentAll(), dataInLocales())
 					.orElseThrow()
 					.openForWrite()
 					.removeReference(Entities.BRAND, 3)
@@ -1118,7 +1118,7 @@ class EvitaTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContent())
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
 					.orElseThrow();
 
 				assertEquals("01", product.getAttribute(ATTRIBUTE_EAN));
@@ -1235,7 +1235,7 @@ class EvitaTest implements EvitaTestSupport {
 				TEST_CATALOG,
 				session -> {
 					session
-						.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContent())
+						.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
 						.orElseThrow()
 						.openForWrite()
 						.removeAttribute(ATTRIBUTE_EAN)
@@ -1402,7 +1402,7 @@ class EvitaTest implements EvitaTestSupport {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					session.getEntity(Entities.PRODUCT, 1, referenceContent())
+					session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
 						.orElseThrow()
 						.openForWrite()
 						.setReference(Entities.BRAND, 2)
@@ -1468,7 +1468,7 @@ class EvitaTest implements EvitaTestSupport {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					session.getEntity(Entities.PRODUCT, 1, referenceContent())
+					session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
 						.orElseThrow()
 						.openForWrite()
 						.removeReference(Entities.BRAND, 1)
@@ -1534,7 +1534,7 @@ class EvitaTest implements EvitaTestSupport {
 			evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
-					session.getEntity(Entities.PRODUCT, 1, referenceContent())
+					session.getEntity(Entities.PRODUCT, 1, referenceContentAll())
 						.orElseThrow()
 						.openForWrite()
 						.removeReference(Entities.BRAND, 1)
