@@ -1,7 +1,11 @@
 evita.updateCatalog(
 	"testCatalog",
 	session -> {
-		session.getEntity("Product", 1, attributeContent(), priceContent())
+		session.getEntity(
+			"Product", 1,
+			attributeContentAll(),
+			priceContentRespectingFilter()
+		)
 			.orElseThrow()
 			.openForWrite()
 			.setAttribute("stockQuantity", 12)
