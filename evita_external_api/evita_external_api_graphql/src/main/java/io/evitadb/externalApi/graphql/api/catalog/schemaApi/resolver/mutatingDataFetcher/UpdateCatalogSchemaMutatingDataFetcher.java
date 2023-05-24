@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
@@ -47,7 +46,7 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<DataFetcherResult<CatalogSchemaContract>> {
+public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<CatalogSchemaContract> {
 
 	@Nonnull
 	private final LocalCatalogSchemaMutationAggregateConverter mutationAggregateResolver = new LocalCatalogSchemaMutationAggregateConverter(
@@ -57,7 +56,7 @@ public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<DataF
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<CatalogSchemaContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public CatalogSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
 
 		final LocalCatalogSchemaMutation[] schemaMutations = arguments.mutations()
@@ -66,11 +65,7 @@ public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<DataF
 			.toArray(LocalCatalogSchemaMutation[]::new);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		final CatalogSchemaContract updatedCatalogSchema = evitaSession.updateAndFetchCatalogSchema(schemaMutations);
-
-		return DataFetcherResult.<CatalogSchemaContract>newResult()
-			.data(updatedCatalogSchema)
-			.build();
+		return evitaSession.updateAndFetchCatalogSchema(schemaMutations);
 	}
 
 	/**

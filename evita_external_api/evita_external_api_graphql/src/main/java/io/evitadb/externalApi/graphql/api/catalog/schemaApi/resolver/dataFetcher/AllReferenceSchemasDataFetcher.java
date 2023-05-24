@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -37,14 +36,12 @@ import java.util.Collection;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class AllReferenceSchemasDataFetcher implements DataFetcher<DataFetcherResult<Collection<ReferenceSchemaContract>>> {
+public class AllReferenceSchemasDataFetcher implements DataFetcher<Collection<ReferenceSchemaContract>> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<Collection<ReferenceSchemaContract>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public Collection<ReferenceSchemaContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EntitySchemaContract entitySchema = environment.getSource();
-		return DataFetcherResult.<Collection<ReferenceSchemaContract>>newResult()
-			.data(entitySchema.getReferences().values())
-			.build();
+		return entitySchema.getReferences().values();
 	}
 }

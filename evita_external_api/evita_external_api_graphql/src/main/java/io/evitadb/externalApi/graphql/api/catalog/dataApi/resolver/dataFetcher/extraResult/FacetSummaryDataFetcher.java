@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -37,15 +36,12 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class FacetSummaryDataFetcher implements DataFetcher<DataFetcherResult<FacetSummary>> {
+public class FacetSummaryDataFetcher implements DataFetcher<FacetSummary> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<FacetSummary> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public FacetSummary get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = environment.getSource();
-		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
-		return DataFetcherResult.<FacetSummary>newResult()
-			.data(facetSummary)
-			.build();
+		return response.getExtraResult(FacetSummary.class);
 	}
 }

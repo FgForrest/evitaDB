@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.utils.NamingConvention;
@@ -38,17 +37,15 @@ import java.util.Map;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class NameVariantDataFetcher implements DataFetcher<DataFetcherResult<String>> {
+public class NameVariantDataFetcher implements DataFetcher<String> {
 
 	@Nonnull
 	private final NamingConvention variantName;
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<String> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public String get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final Map<NamingConvention, String> variants = environment.getSource();
-		return DataFetcherResult.<String>newResult()
-			.data(variants.get(variantName))
-			.build();
+		return variants.get(variantName);
 	}
 }

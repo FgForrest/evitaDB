@@ -27,7 +27,6 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import io.evitadb.utils.Assert;
@@ -35,8 +34,6 @@ import lombok.Data;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
-
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.TYPE_NAME_NAMING_CONVENTION;
 
 /**
  * Collection context object for building entity collection-specific GraphQL schema.

@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
@@ -41,19 +40,17 @@ import java.util.function.Function;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class ReferenceSchemaEntityTypeNameVariantsDataFetcher implements DataFetcher<DataFetcherResult<Map<NamingConvention, String>>> {
+public class ReferenceSchemaEntityTypeNameVariantsDataFetcher implements DataFetcher<Map<NamingConvention, String>> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<Map<NamingConvention, String>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public Map<NamingConvention, String> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final ReferenceSchemaContract referenceSchema = environment.getSource();
 		final Map<NamingConvention, String> nameVariants = referenceSchema.getEntityTypeNameVariants(entityType -> {
 			final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 			return evitaSession.getEntitySchemaOrThrow(entityType);
 		});
 
-		return DataFetcherResult.<Map<NamingConvention, String>>newResult()
-			.data(nameVariants)
-			.build();
+		return nameVariants;
 	}
 }

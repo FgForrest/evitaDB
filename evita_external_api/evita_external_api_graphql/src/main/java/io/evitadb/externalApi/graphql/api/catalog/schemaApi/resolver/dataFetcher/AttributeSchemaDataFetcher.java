@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -39,22 +38,17 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class AttributeSchemaDataFetcher implements DataFetcher<DataFetcherResult<AttributeSchemaContract>> {
+public class AttributeSchemaDataFetcher implements DataFetcher<AttributeSchemaContract> {
 
 	@Nonnull
 	private final String name;
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<AttributeSchemaContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public AttributeSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final AttributeSchemaProvider<AttributeSchemaContract> attributeSchemaProvider = environment.getSource();
-
-		final AttributeSchemaContract attributeSchema = attributeSchemaProvider
+		return attributeSchemaProvider
 			.getAttribute(name)
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find attribute schema for name `" + name + "`."));
-
-		return DataFetcherResult.<AttributeSchemaContract>newResult()
-			.data(attributeSchema)
-			.build();
 	}
 }

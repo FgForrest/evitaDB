@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.query.require.HierarchyOfReference;
@@ -35,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.List;
@@ -51,7 +51,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class HierarchyDataFetcher implements DataFetcher<DataFetcherResult<Map<String,Map<String, List<LevelInfo>>>>> {
+public class HierarchyDataFetcher implements DataFetcher<Map<String,Map<String, List<LevelInfo>>>> {
 
 	@Nonnull
 	private final Map<String, String> referenceNameToFieldName;
@@ -62,13 +62,13 @@ public class HierarchyDataFetcher implements DataFetcher<DataFetcherResult<Map<S
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	public DataFetcherResult<Map<String, Map<String, List<LevelInfo>>>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public Map<String, Map<String, List<LevelInfo>>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = environment.getSource();
 		final Hierarchy hierarchy = response.getExtraResult(Hierarchy.class);
 		if (hierarchy == null) {
-			return DataFetcherResult.<Map<String, Map<String, List<LevelInfo>>>>newResult().build();
+			return null;
 		}
 
 		final Map<String, Map<String, List<LevelInfo>>> hierarchyDto = createHashMap(hierarchy.getReferenceHierarchies().size() + 1);
@@ -81,9 +81,7 @@ public class HierarchyDataFetcher implements DataFetcher<DataFetcherResult<Map<S
 			value
 		));
 
-		return DataFetcherResult.<Map<String, Map<String, List<LevelInfo>>>>newResult()
-			.data(hierarchyDto)
-			.build();
+		return hierarchyDto;
 	}
 
 }

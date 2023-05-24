@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
@@ -33,6 +32,7 @@ import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -41,22 +41,20 @@ import java.util.function.Function;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class ReferenceSchemaGroupTypeNameVariantsDataFetcher implements DataFetcher<DataFetcherResult<Map<NamingConvention, String>>> {
+public class ReferenceSchemaGroupTypeNameVariantsDataFetcher implements DataFetcher<Map<NamingConvention, String>> {
 
-	@Nonnull
+	@Nullable
 	@Override
-	public DataFetcherResult<Map<NamingConvention, String>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public Map<NamingConvention, String> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final ReferenceSchemaContract referenceSchema = environment.getSource();
 		if (referenceSchema.getReferencedGroupType() == null) {
-			return DataFetcherResult.<Map<NamingConvention, String>>newResult().build();
+			return null;
 		}
 
 		final Map<NamingConvention, String> nameVariants = referenceSchema.getGroupTypeNameVariants(entityType -> {
 			final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 			return evitaSession.getEntitySchemaOrThrow(entityType);
 		});
-		return DataFetcherResult.<Map<NamingConvention, String>>newResult()
-			.data(nameVariants)
-			.build();
+		return nameVariants;
 	}
 }

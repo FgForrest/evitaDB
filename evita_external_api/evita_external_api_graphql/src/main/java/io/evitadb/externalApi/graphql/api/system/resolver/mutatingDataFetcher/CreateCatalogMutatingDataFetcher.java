@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
@@ -39,13 +38,13 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class CreateCatalogMutatingDataFetcher implements DataFetcher<DataFetcherResult<CatalogContract>> {
+public class CreateCatalogMutatingDataFetcher implements DataFetcher<CatalogContract> {
 
     private final Evita evita;
 
     @Nonnull
     @Override
-    public DataFetcherResult<CatalogContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public CatalogContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final String catalogName = environment.getArgument(CreateCatalogMutationHeaderDescriptor.NAME.name());
 
         evita.defineCatalog(catalogName);
@@ -53,8 +52,6 @@ public class CreateCatalogMutatingDataFetcher implements DataFetcher<DataFetcher
         // we don't have a way to use benefits of warming up state in GQL
         newCatalog.goLive();
 
-        return DataFetcherResult.<CatalogContract>newResult()
-            .data(newCatalog)
-            .build();
+        return newCatalog;
     }
 }

@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
@@ -49,7 +48,7 @@ import java.util.Map;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<DataFetcherResult<EntitySchemaContract>> {
+public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<EntitySchemaContract> {
 
 	@Nonnull
 	private final EntitySchemaContract entitySchema;
@@ -62,7 +61,7 @@ public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<DataFe
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<EntitySchemaContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public EntitySchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
 
 		final EntitySchemaMutation[] schemaMutations = arguments.mutations()
@@ -72,11 +71,7 @@ public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<DataFe
 		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(entitySchema.getName(), schemaMutations);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		final EntitySchemaContract updatedEntitySchema = evitaSession.updateAndFetchEntitySchema(entitySchemaMutation);
-
-		return DataFetcherResult.<EntitySchemaContract>newResult()
-			.data(updatedEntitySchema)
-			.build();
+		return evitaSession.updateAndFetchEntitySchema(entitySchemaMutation);
 	}
 
 	/**

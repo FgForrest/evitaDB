@@ -36,7 +36,6 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
 import java.util.Optional;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;

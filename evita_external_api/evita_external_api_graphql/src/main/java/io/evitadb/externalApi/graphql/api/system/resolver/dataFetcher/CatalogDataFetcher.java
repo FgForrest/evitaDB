@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
@@ -39,16 +38,14 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class CatalogDataFetcher implements DataFetcher<DataFetcherResult<CatalogContract>> {
+public class CatalogDataFetcher implements DataFetcher<CatalogContract> {
 
     private final Evita evita;
 
     @Nonnull
     @Override
-    public DataFetcherResult<CatalogContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public CatalogContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final String catalogName = environment.getArgument(CatalogQueryHeaderDescriptor.NAME.name());
-        return DataFetcherResult.<CatalogContract>newResult()
-            .data(evita.getCatalogInstanceOrThrowException(catalogName))
-            .build();
+        return evita.getCatalogInstanceOrThrowException(catalogName);
     }
 }

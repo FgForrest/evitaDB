@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
@@ -39,21 +38,17 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class AllEntitySchemasDataFetcher implements DataFetcher<DataFetcherResult<List<EntitySchemaContract>>> {
+public class AllEntitySchemasDataFetcher implements DataFetcher<List<EntitySchemaContract>> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<List<EntitySchemaContract>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public List<EntitySchemaContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-		final List<EntitySchemaContract> entitySchemas = evitaSession.getAllEntityTypes()
+		return evitaSession.getAllEntityTypes()
 			.stream()
 			.map(entityType -> evitaSession.getEntitySchema(entityType)
 				.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing entity schema for type `" + entityType + "`.")))
 			.map(it -> (EntitySchemaContract)it)
 			.toList();
-
-		return DataFetcherResult.<List<EntitySchemaContract>>newResult()
-			.data(entitySchemas)
-			.build();
 	}
 }
