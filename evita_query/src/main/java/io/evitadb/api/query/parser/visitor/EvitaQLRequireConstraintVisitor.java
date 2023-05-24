@@ -34,6 +34,7 @@ import io.evitadb.api.query.require.*;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Deque;
@@ -170,9 +171,6 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> {
-				if (ctx.args == null) {
-					return new PriceContent();
-				}
 				PriceContentMode contentMode = null;
 				List<String> priceLists = new LinkedList<>();
 				final Serializable[] values = ctx.args.values
@@ -195,20 +193,47 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					);
 					priceLists.add((String) value);
 				}
-				if (contentMode == null) {
-					return new PriceContent(priceLists.toArray(String[]::new));
-				} else {
-					return new PriceContent(contentMode, priceLists.toArray(String[]::new));
-				}
+				Assert.notNull(
+					contentMode,
+					() -> new EvitaQLInvalidQueryError(
+						ctx, "Constraint `priceContent` constraint must have `contentMode` (NONE, ALL, RESPECTING_FILTER) as a first argument."
+					)
+				);
+				return new PriceContent(contentMode, priceLists.toArray(String[]::new));
 			}
 		);
 	}
 
+	@Nullable
 	@Override
 	public RequireConstraint visitPriceContentAllConstraint(@Nonnull PriceContentAllConstraintContext ctx) {
 		return parse(
 			ctx,
 			() -> new PriceContent(PriceContentMode.ALL)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitPriceContentRespectingFilterConstraint(@Nonnull PriceContentRespectingFilterConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				if (ctx.args == null) {
+					return new PriceContent(PriceContentMode.RESPECTING_FILTER);
+				}
+				final List<String> priceLists = new LinkedList<>();
+				final Serializable[] values = ctx.args.values
+					.accept(priceContentArgValueTokenVisitor)
+					.asSerializableArray();
+				for (final Serializable value : values) {
+					Assert.isTrue(
+						value instanceof String,
+						() -> new EvitaQLInvalidQueryError(ctx, "Values of `priceContentRespectingFilter` constraint must be of type string.")
+					);
+					priceLists.add((String) value);
+				}
+				return new PriceContent(PriceContentMode.RESPECTING_FILTER, priceLists.toArray(String[]::new));
+			}
 		);
 	}
 

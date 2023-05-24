@@ -108,8 +108,8 @@ care about concrete [collection](/docs/user/en/use/data-model.md#collection) dat
 GraphQL version has the same constraints but customized based on [collection](/docs/user/en/use/data-model.md#collection) data structure
 to provide concrete available constraint for defined data structure.
 
-This custom version of the query language is possible because in our GraphQL API, the query language is dynamically generated
-based on [internal collection schemas](/docs/user/en/use/schema.md#entity) to display only constraints that 
+This custom version of the query language is possible because in our GraphQL API, the query language schema is dynamically generated
+based on [internal collection schemas](/docs/user/en/use/schema#entity) to display only constraints that 
 can actually be used to query data (which also changes based on context of nested constraints). This also provides constraint arguments with data types that match 
 the internal data. This helps with the self-documentation because you don't necessarily need to know about 
 the domain model, since most of GraphQL IDEs will auto-complete the available constraints from the GraphQL API schema.

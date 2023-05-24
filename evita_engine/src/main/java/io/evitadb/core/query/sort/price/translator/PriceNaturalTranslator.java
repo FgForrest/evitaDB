@@ -48,7 +48,7 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 	@Override
 	public Sorter createSorter(@Nonnull PriceNatural priceNatural, @Nonnull OrderByVisitor orderByVisitor) {
 		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(new PriceContent());
+		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
 		// are filtered prices used in the filtering?
 		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
 			orderByVisitor.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW

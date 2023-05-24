@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.priceContent;
 import static io.evitadb.api.query.QueryConstraints.priceContentAll;
+import static io.evitadb.api.query.QueryConstraints.priceContentRespectingFilter;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -41,36 +42,49 @@ class PriceContentTest {
 
 	@Test
 	void shouldCreateViaFactoryClassWorkAsExpected() {
-		assertEquals(PriceContentMode.RESPECTING_FILTER, priceContent().getFetchMode());
+		assertEquals(PriceContentMode.RESPECTING_FILTER, priceContentRespectingFilter().getFetchMode());
 		assertEquals(PriceContentMode.ALL, priceContentAll().getFetchMode());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertTrue(priceContent().isApplicable());
+		assertTrue(priceContent(PriceContentMode.NONE).isApplicable());
+		assertTrue(priceContentRespectingFilter().isApplicable());
 		assertTrue(priceContentAll().isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
-		assertEquals("priceContent(RESPECTING_FILTER)", priceContent().toString());
-		assertEquals("priceContent(ALL)", priceContentAll().toString());
+		assertEquals("priceContent(NONE)", priceContent(PriceContentMode.NONE).toString());
+		assertEquals("priceContentRespectingFilter()", priceContentRespectingFilter().toString());
+		assertEquals("priceContentRespectingFilter('a','b')", priceContentRespectingFilter("a", "b").toString());
+		assertEquals("priceContentAll()", priceContentAll().toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(priceContent(), priceContent());
-		assertEquals(priceContent(), priceContent());
-		assertNotEquals(priceContent(), priceContentAll());
-		assertEquals(priceContent().hashCode(), priceContent().hashCode());
-		assertNotEquals(priceContent().hashCode(), priceContentAll().hashCode());
+		assertNotSame(priceContent(PriceContentMode.NONE), priceContent(PriceContentMode.NONE));
+		assertEquals(priceContent(PriceContentMode.NONE), priceContent(PriceContentMode.NONE));
+		assertEquals(priceContentRespectingFilter("A"), priceContentRespectingFilter("A"));
+		assertNotEquals(priceContentRespectingFilter(), priceContentAll());
+		assertNotEquals(priceContent(PriceContentMode.NONE), priceContentAll());
+		assertNotEquals(priceContent(PriceContentMode.NONE), priceContentRespectingFilter());
+		assertNotEquals(priceContentRespectingFilter(), priceContentRespectingFilter("a"));
+		assertEquals(priceContent(PriceContentMode.NONE).hashCode(), priceContent(PriceContentMode.NONE).hashCode());
+		assertEquals(priceContentRespectingFilter("a").hashCode(), priceContentRespectingFilter("a").hashCode());
+		assertNotEquals(priceContent(PriceContentMode.NONE).hashCode(), priceContentAll().hashCode());
+		assertNotEquals(priceContent(PriceContentMode.NONE).hashCode(), priceContentRespectingFilter().hashCode());
+		assertNotEquals(priceContentRespectingFilter().hashCode(), priceContentRespectingFilter("a").hashCode());
+		assertNotEquals(priceContentAll().hashCode(), priceContentRespectingFilter().hashCode());
 	}
 
 	@Test
 	void shouldCombineWithAnotherConstraint() {
-		assertEquals(priceContent(), priceContent().combineWith(priceContent()));
-		assertEquals(priceContentAll(), priceContent().combineWith(priceContentAll()));
-		assertEquals(priceContentAll(), priceContentAll().combineWith(priceContent()));
+		assertEquals(priceContent(PriceContentMode.NONE), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.NONE)));
+		assertEquals(priceContent(PriceContentMode.RESPECTING_FILTER), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.RESPECTING_FILTER)));
+		assertEquals(priceContent(PriceContentMode.ALL), priceContent(PriceContentMode.RESPECTING_FILTER).combineWith(priceContent(PriceContentMode.ALL)));
+		assertEquals(priceContent(PriceContentMode.ALL), priceContent(PriceContentMode.NONE).combineWith(priceContent(PriceContentMode.ALL)));
+		assertEquals(priceContentRespectingFilter("a", "b"), priceContentRespectingFilter("a").combineWith(priceContentRespectingFilter("b")));
 	}
 
 }

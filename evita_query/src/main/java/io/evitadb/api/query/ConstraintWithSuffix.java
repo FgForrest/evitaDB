@@ -26,6 +26,7 @@ package io.evitadb.api.query;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Optional;
 
 /**
@@ -47,5 +48,16 @@ public interface ConstraintWithSuffix {
 	 */
 	@Nonnull
 	Optional<String> getSuffixIfApplied();
+
+	/**
+	 * This method is used in {@link BaseConstraint#toString()} implementation to exclude the argument that is used
+	 * implicitly when this suffix is applied to this constraint.
+	 *
+	 * @param argument to check
+	 * @return true, if this argument should be ommitted in {@link BaseConstraint#toString()}
+	 */
+	default boolean isArgumentImplicitForSuffix(@Nonnull Serializable argument) {
+		return false;
+	}
 
 }

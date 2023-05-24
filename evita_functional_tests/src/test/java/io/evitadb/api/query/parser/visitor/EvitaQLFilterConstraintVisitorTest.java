@@ -866,7 +866,7 @@ class EvitaQLFilterConstraintVisitorTest {
             constraint4
         );
 
-        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("priceValidIn()");
+        final FilterConstraint constraint5 = parseFilterConstraintUnsafe("priceValidNow()");
         assertEquals(priceValidNow(), constraint5);
     }
 

@@ -63,8 +63,8 @@ class HierarchyContentTest {
 	void shouldRecognizeApplicability() {
 		assertTrue(hierarchyContent().isApplicable());
 		assertTrue(hierarchyContent(stopAt(distance(1))).isApplicable());
-		assertTrue(hierarchyContent(entityFetch(attributeContent())).isApplicable());
-		assertTrue(hierarchyContent(stopAt(distance(1)), entityFetch(attributeContent())).isApplicable());
+		assertTrue(hierarchyContent(entityFetch(attributeContentAll())).isApplicable());
+		assertTrue(hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll())).isApplicable());
 	}
 
 	@Test
@@ -75,11 +75,11 @@ class HierarchyContentTest {
 		final HierarchyContent hierarchyContent2 = hierarchyContent(stopAt(distance(1)));
 		assertEquals("hierarchyContent(stopAt(distance(1)))", hierarchyContent2.toString());
 
-		final HierarchyContent hierarchyContent3 = hierarchyContent(entityFetch(attributeContent()));
-		assertEquals("hierarchyContent(entityFetch(attributeContent()))", hierarchyContent3.toString());
+		final HierarchyContent hierarchyContent3 = hierarchyContent(entityFetch(attributeContentAll()));
+		assertEquals("hierarchyContent(entityFetch(attributeContentAll()))", hierarchyContent3.toString());
 
-		final HierarchyContent hierarchyContent4 = hierarchyContent(stopAt(distance(1)), entityFetch(attributeContent()));
-		assertEquals("hierarchyContent(stopAt(distance(1)),entityFetch(attributeContent()))", hierarchyContent4.toString());
+		final HierarchyContent hierarchyContent4 = hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll()));
+		assertEquals("hierarchyContent(stopAt(distance(1)),entityFetch(attributeContentAll()))", hierarchyContent4.toString());
 	}
 
 	@Test
@@ -87,19 +87,19 @@ class HierarchyContentTest {
 		assertNotSame(hierarchyContent(), hierarchyContent());
 		assertEquals(hierarchyContent(), hierarchyContent());
 		assertEquals(hierarchyContent(stopAt(distance(1))), hierarchyContent(stopAt(distance(1))));
-		assertEquals(hierarchyContent(entityFetch(attributeContent())), hierarchyContent(entityFetch(attributeContent())));
-		assertEquals(hierarchyContent(stopAt(distance(1)), entityFetch(attributeContent())), hierarchyContent(stopAt(distance(1)), entityFetch(attributeContent())));
+		assertEquals(hierarchyContent(entityFetch(attributeContentAll())), hierarchyContent(entityFetch(attributeContentAll())));
+		assertEquals(hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll())), hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll())));
 		assertNotEquals(hierarchyContent(), hierarchyContent(stopAt(distance(1))));
-		assertNotEquals(hierarchyContent(), hierarchyContent(entityFetch(attributeContent())));
-		assertNotEquals(hierarchyContent(stopAt(distance(1))), hierarchyContent(entityFetch(attributeContent())));
+		assertNotEquals(hierarchyContent(), hierarchyContent(entityFetch(attributeContentAll())));
+		assertNotEquals(hierarchyContent(stopAt(distance(1))), hierarchyContent(entityFetch(attributeContentAll())));
 		assertNotEquals(hierarchyContent(stopAt(distance(1))), hierarchyContent(stopAt(distance(2))));
 		assertEquals(hierarchyContent().hashCode(), hierarchyContent().hashCode());
 		assertEquals(hierarchyContent(stopAt(distance(1))).hashCode(), hierarchyContent(stopAt(distance(1))).hashCode());
-		assertEquals(hierarchyContent(entityFetch(attributeContent())).hashCode(), hierarchyContent(entityFetch(attributeContent())).hashCode());
-		assertEquals(hierarchyContent(stopAt(distance(1)), entityFetch(attributeContent())).hashCode(), hierarchyContent(stopAt(distance(1)), entityFetch(attributeContent())).hashCode());
+		assertEquals(hierarchyContent(entityFetch(attributeContentAll())).hashCode(), hierarchyContent(entityFetch(attributeContentAll())).hashCode());
+		assertEquals(hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll())).hashCode(), hierarchyContent(stopAt(distance(1)), entityFetch(attributeContentAll())).hashCode());
 		assertNotEquals(hierarchyContent().hashCode(), hierarchyContent(stopAt(distance(1))).hashCode());
-		assertNotEquals(hierarchyContent().hashCode(), hierarchyContent(entityFetch(attributeContent())).hashCode());
-		assertNotEquals(hierarchyContent(stopAt(distance(1))).hashCode(), hierarchyContent(entityFetch(attributeContent())).hashCode());
+		assertNotEquals(hierarchyContent().hashCode(), hierarchyContent(entityFetch(attributeContentAll())).hashCode());
+		assertNotEquals(hierarchyContent(stopAt(distance(1))).hashCode(), hierarchyContent(entityFetch(attributeContentAll())).hashCode());
 		assertNotEquals(hierarchyContent(stopAt(distance(1))).hashCode(), hierarchyContent(stopAt(distance(2))).hashCode());
 	}
 

@@ -69,7 +69,7 @@ class FilterByQueryConstraintsBuilderTest {
 	@Test
 	void shouldBuildFilterByPrimaryKey() {
 		final FilterBy filterBy = FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(Collections.singletonMap(GetEntityEndpointHeaderDescriptor.PRICE_VALID_NOW.name(), Boolean.TRUE), entitySchema);
-		assertEquals("filterBy(and(priceValidIn()))", filterBy.toString());
+		assertEquals("filterBy(and(priceValidInNow()))", filterBy.toString());
 	}
 
 	@Test

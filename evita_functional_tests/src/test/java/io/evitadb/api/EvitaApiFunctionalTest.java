@@ -363,7 +363,7 @@ class EvitaApiFunctionalTest {
 				final EntityBuilder updatedProduct = product.openForWrite()
 					.setPrice(2, "basic", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, createDateRange(2055, 2072), true);
 				// store entity back to the database
-				final SealedEntity updatedEntity = session.upsertAndFetchEntity(updatedProduct, priceContent());
+				final SealedEntity updatedEntity = session.upsertAndFetchEntity(updatedProduct, priceContentRespectingFilter());
 				assertNotNull(updatedEntity);
 
 				assertFalse(updatedEntity.getPrices().isEmpty());
