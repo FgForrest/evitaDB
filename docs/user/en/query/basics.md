@@ -338,6 +338,10 @@ calculations:
 Order constraints allow you to define a rule that controls the order of entities in the response. It's similar to the 
 "order by" clause in SQL. Currently, these ordering constraints are available for use:
 
+- [entityPrimaryKeyInFilter](ordering/constant.md#exact-entity-primary-key-order-used-in-filter)
+- [entityPrimaryKeyExact](ordering/constant.md#exact-entity-primary-key-order)
+- [attributeSetInFilter](ordering/constant.md#exact-entity-attribute-value-order-used-in-filter)
+- [attributeSetExact](ordering/constant.md#exact-entity-attribute-value-order)
 - [attribute natural](ordering/natural.md#attribute-natural)
 - [price natural](ordering/price.md#price-natural)
 - [reference property](ordering/reference.md#reference-property)

@@ -25,14 +25,7 @@ package io.evitadb.api.query;
 
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
-import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.api.query.order.EntityProperty;
-import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.order.OrderGroupBy;
-import io.evitadb.api.query.order.PriceNatural;
-import io.evitadb.api.query.order.Random;
-import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
 import io.evitadb.utils.ArrayUtils;
 
@@ -1449,6 +1442,51 @@ public interface QueryConstraints {
 			return null;
 		}
 		return new OrderGroupBy(constraints);
+	}
+
+	/**
+	 * TOBEDONE JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	static EntityPrimaryKeyInFilter entityPrimaryKeyInFilter() {
+		return new EntityPrimaryKeyInFilter();
+	}
+
+	/**
+	 * TOBEDONE JNO - document me
+	 * @return
+	 */
+	@Nullable
+	static EntityPrimaryKeyExact entityPrimaryKeyExact(@Nullable Integer... primaryKey) {
+		if (ArrayUtils.isEmpty(primaryKey)) {
+			return null;
+		}
+		return new EntityPrimaryKeyExact(primaryKey);
+	}
+
+	/**
+	 * TOBEDONE JNO - document me
+	 * @return
+	 */
+	@Nullable
+	static AttributeSetInFilter attributeSetInFilter(@Nullable String attributeName) {
+		if (attributeName == null || attributeName.isBlank()) {
+			return null;
+		}
+		return new AttributeSetInFilter(attributeName);
+	}
+
+	/**
+	 * TOBEDONE JNO - document me
+	 * @return
+	 */
+	@Nullable
+	static AttributeSetExact attributeSetExact(@Nullable String attributeName, @Nullable Serializable... attributeValues) {
+		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmpty(attributeValues)) {
+			return null;
+		}
+		return new AttributeSetExact(attributeName, attributeValues);
 	}
 
 	/**
