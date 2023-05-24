@@ -9,7 +9,7 @@ The [GraphQL](https://graphql.org/) API has been developed to allow users to eas
 evitaDB with a high degree of customisation of the queries and the self-documentation that GraphQL APIs provide.
 
 The main idea behind our GraphQL API implementation is that the API schema is dynamically generated based on
-evitaDB's [internal schemas](https://evitadb.io/documentation/use/schema). This means that users only see the data they
+evitaDB's [internal schemas](/docs/user/en/use/schema.md). This means that users only see the data they
 can actually retrieve. They do not see some generic strings of names. For example, if you have defined in evitaDB an
 entity called `product` with attributes `code` and `name`, the GraphQL API allows you to query only these two attributes
 like this:
@@ -47,7 +47,7 @@ ones.
    </dl>
 </UsedTerms>
 
-There isn't a single GraphQL API instance for the whole evitaDB instance. Instead, each evitaDB [catalog](https://evitadb.io/documentation/use/data-model#catalog)
+There isn't a single GraphQL API instance for the whole evitaDB instance. Instead, each evitaDB [catalog](/docs/user/en/use/data-model.md#catalog)
 has its own GraphQL API (actually each catalog has two GraphQL 
 API instances, but more on that later) on its own URL with data only from that particular catalog. 
 In addition, there is one another GraphQL API instance that is reserved for evitaDB administration
@@ -83,8 +83,8 @@ with its own relevant GraphQL schema:
 ### Structure of catalog data APIs
 
 A single <Term>catalog data API</Term> for a single catalog contains only a few types of queries and mutations, but most of them are "duplicated" for 
-each [collection](https://evitadb.io/documentation/use/data-model#collection) within that catalog.
-Each query or mutation then takes arguments and returns data specific to a given collection and [its schema](https://evitadb.io/documentation/use/schema#entity).
+each [collection](/docs/user/en/use/data-model.md#collection) within that catalog.
+Each query or mutation then takes arguments and returns data specific to a given collection and [its schema](/docs/user/en/use/schema.md#entity).
 
 In addition to user-defined collections, there is a "virtual" simplified collection for each catalog in the GraphQL API called `entity`
 that allows users to retrieve entities by global attributes without knowing the target collection. However, the `entity` "collection",
@@ -93,7 +93,7 @@ has only limited set of queries available.
 ### Structure of catalog schema APIs
 
 A single <Term>catalog schema API</Term> for a single catalog contains only basic queries and mutations for each
-[collection](https://evitadb.io/documentation/use/data-model#collection) and parent [catalog](https://evitadb.io/documentation/use/data-model#catalog)
+[collection](/docs/user/en/use/data-model.md#collection) and parent [catalog](/docs/user/en/use/data-model.md#catalog)
 to retrieve or change its schema.
 
 ### Structure of system API
@@ -102,14 +102,14 @@ There is nothing special about the <Term>system API</Term>, just a set of basic 
 
 ## Query language
 
-evitaDB is shipped with its own [query language](https://evitadb.io/documentation/query/basics), for which our GraphQL API has its own facade.
+evitaDB is shipped with its own [query language](/docs/user/en/query/basics.md), for which our GraphQL API has its own facade.
 The main difference between these two is that the evitaDB's original language has generic set of constraints and doesn't 
-care about concrete [collection](https://evitadb.io/documentation/use/data-model#collection) data structure, where the 
-GraphQL version has the same constraints but customized based on [collection](https://evitadb.io/documentation/use/data-model#collection) data structure
+care about concrete [collection](/docs/user/en/use/data-model.md#collection) data structure, where the 
+GraphQL version has the same constraints but customized based on [collection](/docs/user/en/use/data-model.md#collection) data structure
 to provide concrete available constraint for defined data structure.
 
 This custom version of the query language is possible because in our GraphQL API, the query language is dynamically generated
-based on [internal collection schemas](https://evitadb.io/documentation/use/schema#entity) to display only constraints that 
+based on [internal collection schemas](/docs/user/en/use/schema.md#entity) to display only constraints that 
 can actually be used to query data (which also changes based on context of nested constraints). This also provides constraint arguments with data types that match 
 the internal data. This helps with the self-documentation because you don't necessarily need to know about 
 the domain model, since most of GraphQL IDEs will auto-complete the available constraints from the GraphQL API schema.
