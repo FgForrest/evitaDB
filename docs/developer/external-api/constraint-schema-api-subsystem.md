@@ -12,7 +12,7 @@ and its terminology. Without it, we would have to build the constraint schema ma
 
 ## Syntax of query and constraints
 
-<MDInclude><a href="docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md">Syntax of query and constraints</a></MDInclude>
+<MDInclude>[Syntax of query and constraints](docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md)</MDInclude>
 
 ## Data context objects overview
 
