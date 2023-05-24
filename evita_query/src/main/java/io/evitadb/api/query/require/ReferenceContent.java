@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.ReferenceConstraint;
@@ -45,7 +46,11 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
+
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * This `references` requirement changes default behaviour of the query engine returning only entity primary keys in the result.
@@ -68,8 +73,10 @@ import java.util.stream.Stream;
 	shortDescription = "The constraint triggers fetching referenced entity bodies into returned main entities.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class ReferenceContent extends AbstractRequireConstraintContainer implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {
+public class ReferenceContent extends AbstractRequireConstraintContainer
+	implements ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire, ConstraintWithSuffix {
 	@Serial private static final long serialVersionUID = 3374240925555151814L;
+	private static final String SUFFIX = "all";
 	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent();
 
 	private ReferenceContent(@Nonnull String[] referencedEntityType,
@@ -78,7 +85,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 		super(referencedEntityType, requirements, additionalChildren);
 	}
 
-	@Creator(suffix = "all")
+	@Creator(suffix = SUFFIX)
 	public ReferenceContent() {
 		super();
 	}
@@ -276,16 +283,22 @@ public class ReferenceContent extends AbstractRequireConstraintContainer impleme
 		return getAdditionalChild(OrderBy.class).orElse(null);
 	}
 
-	@Override
-	public boolean isApplicable() {
-		return true;
-	}
-
 	/**
 	 * Returns TRUE if all available references were requested to load.
 	 */
 	public boolean isAllRequested() {
 		return ArrayUtils.isEmpty(getArguments());
+	}
+
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return isAllRequested() ? of(SUFFIX) : empty();
+	}
+
+	@Override
+	public boolean isApplicable() {
+		return true;
 	}
 
 	@Nonnull
