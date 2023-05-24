@@ -116,7 +116,7 @@ the domain model, since most of GraphQL IDEs will auto-complete the available co
 
 ### Syntax of query and constraints
 
-<MDInclude>[Syntax of query and constraints](docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md)</MDInclude>
+<MDInclude>[Syntax of query and constraints](/docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md)</MDInclude>
 
 ## Recommended usage
 

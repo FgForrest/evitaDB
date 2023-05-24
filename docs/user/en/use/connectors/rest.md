@@ -96,7 +96,7 @@ the domain model, since the [OpenAPI](https://swagger.io/specification/v3/) sche
 
 ### Syntax of query and constraints
 
-<MDInclude><a href="docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md">Syntax of query and constraints</a></MDInclude>
+<MDInclude>[Syntax of query and constraints](/docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md)</MDInclude>
 
 ## Recommended usage
 
