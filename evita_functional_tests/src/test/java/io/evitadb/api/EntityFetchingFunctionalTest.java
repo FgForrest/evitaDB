@@ -1111,7 +1111,7 @@ public class EntityFetchingFunctionalTest {
 						),
 						require(
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					)
@@ -1164,7 +1164,7 @@ public class EntityFetchingFunctionalTest {
 						),
 						require(
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							)
 						)
 					)
@@ -1206,7 +1206,7 @@ public class EntityFetchingFunctionalTest {
 						),
 						require(
 							entityFetch(
-								priceContent()
+								priceContentRespectingFilter()
 							),
 							page(1, 100)
 						)
@@ -1248,7 +1248,7 @@ public class EntityFetchingFunctionalTest {
 						),
 						require(
 							entityFetch(
-								referenceContent()
+								referenceContentAll()
 							),
 							page(1, 4)
 						)
@@ -1679,7 +1679,7 @@ public class EntityFetchingFunctionalTest {
 				final SealedEntity product = productByPk.getRecordData().get(0);
 				assertTrue(product.getPrices().isEmpty());
 
-				final SealedEntity enrichedProduct = session.enrichEntity(product, priceContent());
+				final SealedEntity enrichedProduct = session.enrichEntity(product, priceContentRespectingFilter());
 				assertHasPriceInCurrency(enrichedProduct, CURRENCY_USD);
 				assertHasPriceInPriceList(enrichedProduct, PRICE_LIST_VIP);
 				return null;
@@ -1728,7 +1728,7 @@ public class EntityFetchingFunctionalTest {
 					.findFirst()
 					.orElseThrow(() -> new IllegalStateException("Should never happen!"));
 
-				final SealedEntity enrichedProduct = session.enrichEntity(product, referenceContent());
+				final SealedEntity enrichedProduct = session.enrichEntity(product, referenceContentAll());
 				assertHasReferencesTo(enrichedProduct, Entities.CATEGORY, REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.CATEGORY));
 				assertHasReferencesTo(enrichedProduct, Entities.BRAND, REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.BRAND));
 				assertHasReferencesTo(enrichedProduct, Entities.STORE, REFERENCED_ID_EXTRACTOR.apply(theEntity, Entities.STORE));
@@ -1825,7 +1825,7 @@ public class EntityFetchingFunctionalTest {
 				assertTrue(limitedToBody.getAttributeValues().isEmpty());
 				assertTrue(limitedToBody.getAssociatedDataValues().isEmpty());
 
-				final SealedEntity limitedToBodyAndPrices = session.enrichOrLimitEntity(product, priceContent());
+				final SealedEntity limitedToBodyAndPrices = session.enrichOrLimitEntity(product, priceContentRespectingFilter());
 				assertTrue(limitedToBodyAndPrices.getPrices().size() > 0);
 				assertTrue(limitedToBodyAndPrices.getPrices().size() < product.getPrices().size());
 				assertTrue(limitedToBodyAndPrices.getAttributeValues().isEmpty());

@@ -76,7 +76,7 @@ class EvitaQLQueryVisitorTest {
                 collection("a"),
                 require(attributeContent())
             ),
-            parseQuery("query(collection('a'),require(attributeContent()))")
+            parseQuery("query(collection('a'),require(attributeContentAll()))")
         );
 
         assertEquals(
@@ -87,7 +87,7 @@ class EvitaQLQueryVisitorTest {
                 require(attributeContent())
             ),
             parseQuery(
-                "query(require(attributeContent()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',?)))",
+                "query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',?)))",
                 1L
             )
         );
@@ -100,7 +100,7 @@ class EvitaQLQueryVisitorTest {
                 require(attributeContent())
             ),
             parseQuery(
-                "query(require(attributeContent()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',@value)))",
+                "query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',@value)))",
                 Map.of(
                     "value", 1L
                 )
@@ -138,7 +138,7 @@ class EvitaQLQueryVisitorTest {
                         collection("a"),
                         require(attributeContent())
                 ),
-                parseQueryUnsafe("query(collection('a'),require(attributeContent()))")
+                parseQueryUnsafe("query(collection('a'),require(attributeContentAll()))")
         );
 
         assertEquals(
@@ -148,7 +148,7 @@ class EvitaQLQueryVisitorTest {
                         orderBy(attributeNatural("c")),
                         require(attributeContent())
                 ),
-                parseQueryUnsafe("query(require(attributeContent()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',1)))")
+                parseQueryUnsafe("query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',1)))")
         );
 
         assertEquals(
@@ -181,7 +181,7 @@ class EvitaQLQueryVisitorTest {
                                 priceNatural()
                             ),
                             require(
-                                attributeContent()
+                                attributeContentAll()
                             )
                         )
                         """
@@ -191,16 +191,16 @@ class EvitaQLQueryVisitorTest {
 
     @Test
     void shouldNotParseQuery() {
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQuery("query(require(attributeContent()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',1)))"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQuery("query(require(attributeContentAll()),collection('a'),orderBy(attributeNatural('c')),filterBy(attributeEquals('a',1)))"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(filterBy(attributeEquals('a',1)))"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),attributeEquals('b',1))"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),attributeContent('b'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),attributeContent())"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),attributeContentAll())"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),filterBy(attributeEquals('b',1)),attributeEquals('c',1))"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),orderBy(attributeContent('c')),attributeContent('b'))"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),require(entityFetch()),attributeContent())"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseQueryUnsafe("query(collection('a'),require(entityFetch()),attributeContentAll())"));
     }
 
 

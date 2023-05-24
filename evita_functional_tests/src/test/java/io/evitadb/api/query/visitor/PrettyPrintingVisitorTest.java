@@ -272,7 +272,7 @@ class PrettyPrintingVisitorTest {
 							fromRoot(
 								?,
 								entityFetch(
-									attributeContent()
+									attributeContentAll()
 								),
 								statistics(?)
 							)

@@ -917,7 +917,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.getEntity(Entities.PRODUCT, entity.getPrimaryKey(), referenceContent())
+				session.getEntity(Entities.PRODUCT, entity.getPrimaryKey(), referenceContentAll())
 					.orElseThrow()
 					.openForWrite()
 					.removeReference(REFERENCE_BRAND_WITH_GROUP, 1)
@@ -930,7 +930,7 @@ public class CatalogGraphQLUpsertEntityMutationFunctionalTest extends CatalogGra
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity updatedEntity = session.getEntity(Entities.PRODUCT, primaryKey, referenceContent())
+				final SealedEntity updatedEntity = session.getEntity(Entities.PRODUCT, primaryKey, referenceContentAll())
 					.orElseThrow();
 				assertEquals(
 					groupEntityReference,

@@ -97,7 +97,7 @@ public class GrpcArtificialPageReadState extends AbstractGrpcArtificialState {
 
 			/* 75% only filtered prices */
 			if (benchmarkState.getRandom().nextInt(4) != 0) {
-				contentRequirements.add(priceContent());
+				contentRequirements.add(priceContentRespectingFilter());
 			} else {
 				contentRequirements.add(priceContentAll());
 			}
@@ -109,7 +109,7 @@ public class GrpcArtificialPageReadState extends AbstractGrpcArtificialState {
 		if (benchmarkState.getRandom().nextInt(4) == 0) {
 			/* 50% times load all references */
 			if (benchmarkState.getRandom().nextBoolean()) {
-				contentRequirements.add(referenceContent());
+				contentRequirements.add(referenceContentAll());
 			} else {
 				/* 50% select only some of them */
 				contentRequirements.add(
