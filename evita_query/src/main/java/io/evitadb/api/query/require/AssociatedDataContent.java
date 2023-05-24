@@ -131,11 +131,6 @@ public class AssociatedDataContent extends AbstractRequireConstraintLeaf
 		}
 	}
 
-	@Override
-	public boolean isApplicable() {
-		return true;
-	}
-
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {

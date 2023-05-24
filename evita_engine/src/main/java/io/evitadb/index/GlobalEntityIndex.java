@@ -34,12 +34,9 @@ import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceSuperIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
@@ -48,7 +45,6 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -116,28 +112,6 @@ public class GlobalEntityIndex extends EntityIndex implements VoidTransactionMem
 	public void resetDirty() {
 		super.resetDirty();
 		this.priceIndex.resetDirty();
-	}
-
-	/**
-	 * Method creates container that is possible to serialize and store into persistent storage.
-	 */
-	@Override
-	protected StoragePart createStoragePart(
-		boolean hierarchyIndexEmpty,
-		@Nullable Integer internalPriceIdSequence,
-		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
-		@Nonnull Set<PriceIndexKey> priceIndexKeys,
-		@Nonnull Set<String> facetIndexReferencedEntities
-	) {
-		return new EntityIndexStoragePart(
-			primaryKey, version, indexKey,
-			entityIds, entityIdsByLanguage,
-			attributeIndexStorageKeys,
-			internalPriceIdSequence,
-			priceIndexKeys,
-			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities
-		);
 	}
 
 	/*
