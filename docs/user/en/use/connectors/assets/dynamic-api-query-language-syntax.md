@@ -1,5 +1,3 @@
-### Syntax of query and constraints
-
 <UsedTerms>
     <h4>Used terms</h4>
    <dl>

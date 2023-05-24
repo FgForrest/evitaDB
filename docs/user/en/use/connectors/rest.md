@@ -94,6 +94,8 @@ can actually be used to query data (which also changes based on context of neste
 the internal data. This helps with the self-documentation because you don't necessarily need to know about
 the domain model, since the [OpenAPI](https://swagger.io/specification/v3/) schema can be used to auto-complete the available constraints.
 
+### Syntax of query and constraints
+
 <MDInclude><a href="docs/user/en/use/connectors/assets/dynamic-api-query-language-syntax.md">Syntax of query and constraints</a></MDInclude>
 
 ## Recommended usage
