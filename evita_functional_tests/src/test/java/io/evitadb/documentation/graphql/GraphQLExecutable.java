@@ -222,7 +222,8 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 			.addRow((Object[]) headers);
 
 		// add rows
-		final ArrayNode entities = (ArrayNode) response.get(ResponseDescriptor.RECORD_PAGE.name()).get(DataChunkDescriptor.DATA.name());
+		final JsonNode page = response.get(ResponseDescriptor.RECORD_PAGE.name());
+		final ArrayNode entities = (ArrayNode) page.get(DataChunkDescriptor.DATA.name());
 		for (JsonNode entity : entities) {
 			tableBuilder.addRow(
 				(Object[]) Arrays.stream(headers)
@@ -268,7 +269,7 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 		}
 
 		// generate MarkDown
-		return tableBuilder.build().serialize() + "\n\n###### **Total number of results:** " + entities.size();
+		return tableBuilder.build().serialize() + "\n\n###### **Total number of results:** " + page.get(DataChunkDescriptor.TOTAL_RECORD_COUNT.name());
 	}
 
 	/**
