@@ -91,7 +91,7 @@ cp -f ../$RESULT_JSON $RESULT_JSON
 git config user.email "novotny@fg.cz"
 git config user.name "Novoj"
 git commit -a -m "Updated results from $now"
-git push "https://$PERFORMANCE_GIST_TOKEN:x-oauth-basic@gist.github.com/evita-db/$SHARED_GIST"
+git push "https://$GITHUB_TOKEN:x-oauth-basic@gist.github.com/evita-db/$SHARED_GIST"
 
 set +x
 CHILL_OUT_SEC=90
