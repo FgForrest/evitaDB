@@ -31,11 +31,11 @@ import graphql.schema.GraphQLInputType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.EvitaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -103,7 +103,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nonnull private final FullResponseObjectBuilder fullResponseObjectBuilder;
 	@Nonnull private final LocalMutationAggregateObjectBuilder localMutationAggregateObjectBuilder;
 
-	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull EvitaContract evita, @Nonnull CatalogContract catalog) {
+	public CatalogDataApiGraphQLSchemaBuilder(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
 		super(new CatalogGraphQLSchemaBuildingContext(evita, catalog));
 		this.constraintContext = new GraphQLConstraintSchemaBuildingContext(buildingContext);
 
@@ -256,7 +256,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildCollectionsField() {
 		return new BuiltFieldDescriptor(
 			CatalogDataApiRootDescriptor.COLLECTIONS.to(staticEndpointBuilderTransformer).build(),
-			new CollectionsDataFetcher()
+			new CollectionsDataFetcher(buildingContext.getEvitaExecutor())
 		);
 	}
 
@@ -290,7 +290,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownSingleEntityFieldBuilder.build(),
-			new GetUnknownEntityDataFetcher(buildingContext.getSchema(), buildingContext.getEntitySchemas())
+			new GetUnknownEntityDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), buildingContext.getEntitySchemas())
 		);
 	}
 
@@ -325,7 +325,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			unknownEntityListFieldBuilder.build(),
-			new ListUnknownEntitiesDataFetcher(buildingContext.getSchema(), buildingContext.getEntitySchemas())
+			new ListUnknownEntitiesDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), buildingContext.getEntitySchemas())
 		);
 	}
 
@@ -375,7 +375,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			singleEntityFieldBuilder.build(),
-			new GetEntityDataFetcher(buildingContext.getSchema(), entitySchema)
+			new GetEntityDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), entitySchema)
 		);
 	}
 
@@ -398,7 +398,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityListFieldBuilder.build(),
-			new ListEntitiesDataFetcher(buildingContext.getSchema(), entitySchema)
+			new ListEntitiesDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), entitySchema)
 		);
 	}
 
@@ -429,7 +429,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityQueryFieldBuilder.build(),
-			new QueryEntitiesDataFetcher(buildingContext.getSchema(), entitySchema)
+			new QueryEntitiesDataFetcher(buildingContext.getEvitaExecutor(), buildingContext.getSchema(), entitySchema)
 		);
 	}
 
@@ -440,7 +440,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			CatalogDataApiRootDescriptor.COUNT_COLLECTION
 				.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 				.build(),
-			new CollectionSizeDataFetcher(entitySchema)
+			new CollectionSizeDataFetcher(buildingContext.getEvitaExecutor(), entitySchema)
 		);
 	}
 

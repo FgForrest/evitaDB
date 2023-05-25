@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
@@ -37,14 +36,12 @@ import java.util.Collection;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class AllAttributeSchemasDataFetcher implements DataFetcher<DataFetcherResult<Collection<AttributeSchema>>> {
+public class AllAttributeSchemasDataFetcher implements DataFetcher<Collection<AttributeSchema>> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<Collection<AttributeSchema>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public Collection<AttributeSchema> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final AttributeSchemaProvider<AttributeSchema> attributeSchemaProvider = environment.getSource();
-		return DataFetcherResult.<Collection<AttributeSchema>>newResult()
-			.data(attributeSchemaProvider.getAttributes().values())
-			.build();
+		return attributeSchemaProvider.getAttributes().values();
 	}
 }

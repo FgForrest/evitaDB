@@ -23,12 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import lombok.RequiredArgsConstructor;
 
@@ -40,22 +38,15 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ReferencedGroupDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
+public class ReferencedGroupDataFetcher implements DataFetcher<EntityClassifier> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EntityQueryContext context = environment.getLocalContext();
-
+	public EntityClassifier get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final ReferenceContract reference = environment.getSource();
-		final EntityClassifier referencedEntity = reference.getGroupEntity()
+		return reference.getGroupEntity()
 			.map(it -> (EntityClassifier) it)
 			.orElse(reference.getGroup()
 				.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing group reference.")));
-
-		return DataFetcherResult.<EntityClassifier>newResult()
-			.data(referencedEntity)
-			.localContext(context)
-			.build();
 	}
 }

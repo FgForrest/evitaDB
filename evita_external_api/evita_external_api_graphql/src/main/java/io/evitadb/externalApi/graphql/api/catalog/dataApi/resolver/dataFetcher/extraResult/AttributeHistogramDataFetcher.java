@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -31,6 +30,7 @@ import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
@@ -39,20 +39,21 @@ import java.util.Map;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class AttributeHistogramDataFetcher implements DataFetcher<DataFetcherResult<Map<String, HistogramContract>>> {
+public class AttributeHistogramDataFetcher implements DataFetcher<Map<String, HistogramContract>> {
 
 	/**
 	 * How many histogram buckets should be in response.
 	 */
 	public static final String REQUESTED_BUCKET_COUNT = "requestedCount";
 
-	@Nonnull
+	@Nullable
 	@Override
-	public DataFetcherResult<Map<String, HistogramContract>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public Map<String, HistogramContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = environment.getSource();
 		final AttributeHistogram attributeHistogram = response.getExtraResult(AttributeHistogram.class);
-		return DataFetcherResult.<Map<String, HistogramContract>>newResult()
-			.data(attributeHistogram != null ? attributeHistogram.getHistograms() : null)
-			.build();
+		if (attributeHistogram == null) {
+			return null;
+		}
+		return attributeHistogram.getHistograms();
 	}
 }

@@ -36,6 +36,7 @@ import java.util.List;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public record QueryTelemetryDto(@Nonnull String operation,
+								long start,
                                 @Nonnull List<QueryTelemetryDto> steps,
                                 @Nonnull List<String> arguments,
                                 @Nonnull String spentTime) {
@@ -43,6 +44,7 @@ public record QueryTelemetryDto(@Nonnull String operation,
 	public static QueryTelemetryDto from(@Nonnull QueryTelemetry queryTelemetry, boolean formatted) {
 		return new QueryTelemetryDto(
 			queryTelemetry.getOperation().toString(),
+			queryTelemetry.getStart(),
 			queryTelemetry.getSteps().stream().map(it -> QueryTelemetryDto.from(it, formatted)).toList(),
 			Arrays.stream(queryTelemetry.getArguments()).map(Object::toString).toList(),
 			formatted ? StringUtils.formatNano(queryTelemetry.getSpentTime()) : String.valueOf(queryTelemetry.getSpentTime())

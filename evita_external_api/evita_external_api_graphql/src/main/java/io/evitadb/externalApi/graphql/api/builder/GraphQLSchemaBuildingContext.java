@@ -25,7 +25,7 @@ package io.evitadb.externalApi.graphql.api.builder;
 
 import graphql.schema.*;
 import graphql.schema.GraphQLSchema.Builder;
-import io.evitadb.api.EvitaContract;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static graphql.schema.FieldCoordinates.coordinates;
 import static graphql.schema.GraphQLObjectType.newObject;
@@ -53,7 +54,7 @@ public class GraphQLSchemaBuildingContext {
 
     @Getter
     @Nonnull
-    private final EvitaContract evita;
+    private final Evita evita;
 
     @Nonnull
     private final List<GraphQLFieldDefinition> queryFields = new LinkedList<>();
@@ -68,6 +69,11 @@ public class GraphQLSchemaBuildingContext {
      */
     @Nonnull
     private final Set<String> registeredCustomEnums = createHashSet(32);
+
+    @Nonnull
+    public Executor getEvitaExecutor() {
+        return evita.getExecutor();
+    }
 
     /**
      * Registers new custom enum if there is not enum with same name.

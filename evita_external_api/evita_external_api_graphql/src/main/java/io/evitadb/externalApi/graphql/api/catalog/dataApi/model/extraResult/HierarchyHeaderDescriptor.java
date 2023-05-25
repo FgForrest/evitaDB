@@ -23,15 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 
-import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
-import io.evitadb.api.query.require.HierarchyChildren;
-import io.evitadb.api.query.require.HierarchyFromNode;
-import io.evitadb.api.query.require.HierarchyFromRoot;
-import io.evitadb.api.query.require.HierarchyParents;
-import io.evitadb.api.query.require.HierarchySiblings;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
  * Descriptor for header arguments of fields representing both {@link io.evitadb.api.query.require.HierarchyOfSelf}

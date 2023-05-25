@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -40,20 +39,17 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class RecordStripDataFetcher implements DataFetcher<DataFetcherResult<StripList<? extends EntityClassifier>>> {
+public class RecordStripDataFetcher implements DataFetcher<StripList<? extends EntityClassifier>> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<StripList<? extends EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public StripList<? extends EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<? extends EntityClassifier> response = environment.getSource();
 		final DataChunk<? extends EntityClassifier> records = response.getRecordPage();
 		Assert.isPremiseValid(
 			records instanceof StripList,
 			() -> new GraphQLQueryResolvingInternalError("Expected strip list but was `" + records.getClass() + "`.")
 		);
-		//noinspection unchecked
-		return DataFetcherResult.<StripList<? extends EntityClassifier>>newResult()
-			.data((StripList<? extends EntityClassifier>) records)
-			.build();
+		return (StripList<? extends EntityClassifier>) records;
 	}
 }

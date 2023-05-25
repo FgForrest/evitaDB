@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -39,21 +38,16 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ReferenceSchemaDataFetcher implements DataFetcher<DataFetcherResult<ReferenceSchemaContract>> {
+public class ReferenceSchemaDataFetcher implements DataFetcher<ReferenceSchemaContract> {
 
 	@Nonnull
 	private final String name;
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<ReferenceSchemaContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public ReferenceSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EntitySchemaContract entitySchema = environment.getSource();
-
-		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(name)
+		return entitySchema.getReference(name)
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference schema for name `" + name + "`."));
-
-		return DataFetcherResult.<ReferenceSchemaContract>newResult()
-			.data(referenceSchema)
-			.build();
 	}
 }

@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -45,7 +44,7 @@ import java.util.Collection;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ReferenceDataFetcher implements DataFetcher<DataFetcherResult<ReferenceContract>> {
+public class ReferenceDataFetcher implements DataFetcher<ReferenceContract> {
 
     /**
      * Schema of reference to which this fetcher is mapped to.
@@ -55,7 +54,7 @@ public class ReferenceDataFetcher implements DataFetcher<DataFetcherResult<Refer
 
     @Nonnull
     @Override
-    public DataFetcherResult<ReferenceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public ReferenceContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = environment.getSource();
         Assert.isPremiseValid(
             referenceSchema.getCardinality() == Cardinality.ZERO_OR_ONE || referenceSchema.getCardinality() == Cardinality.EXACTLY_ONE,
@@ -79,8 +78,6 @@ public class ReferenceDataFetcher implements DataFetcher<DataFetcherResult<Refer
             );
         }
 
-        return DataFetcherResult.<ReferenceContract>newResult()
-            .data(reference)
-            .build();
+        return reference;
     }
 }

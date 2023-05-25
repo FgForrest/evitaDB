@@ -23,12 +23,10 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -39,19 +37,12 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ReferencedEntityDataFetcher implements DataFetcher<DataFetcherResult<SealedEntity>> {
+public class ReferencedEntityDataFetcher implements DataFetcher<SealedEntity> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<SealedEntity> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final EntityQueryContext context = environment.getLocalContext();
-
+	public SealedEntity get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final ReferenceContract reference = environment.getSource();
-		final SealedEntity referencedEntity = reference.getReferencedEntity().orElse(null);
-
-		return DataFetcherResult.<SealedEntity>newResult()
-			.data(referencedEntity)
-			.localContext(context)
-			.build();
+		return reference.getReferencedEntity().orElse(null);
 	}
 }

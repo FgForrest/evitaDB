@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -43,7 +42,7 @@ import java.util.Collection;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class ReferencesDataFetcher implements DataFetcher<DataFetcherResult<Collection<ReferenceContract>>> {
+public class ReferencesDataFetcher implements DataFetcher<Collection<ReferenceContract>> {
 
     /**
      * Schema of reference to which this fetcher is mapped to.
@@ -53,7 +52,7 @@ public class ReferencesDataFetcher implements DataFetcher<DataFetcherResult<Coll
 
     @Nonnull
     @Override
-    public DataFetcherResult<Collection<ReferenceContract>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public Collection<ReferenceContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final EntityDecorator entity = environment.getSource();
         Assert.isPremiseValid(
             referenceSchema.getCardinality() == Cardinality.ZERO_OR_MORE || referenceSchema.getCardinality() == Cardinality.ONE_OR_MORE,
@@ -61,9 +60,6 @@ public class ReferencesDataFetcher implements DataFetcher<DataFetcherResult<Coll
                 "Reference `" + referenceSchema.getName() + "` doesn't have cardinality of more references but more references were requested."
             )
         );
-        final Collection<ReferenceContract> references = entity.getReferences(referenceSchema.getName());
-        return DataFetcherResult.<Collection<ReferenceContract>>newResult()
-            .data(references)
-            .build();
+        return entity.getReferences(referenceSchema.getName());
     }
 }

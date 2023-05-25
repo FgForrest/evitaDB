@@ -21,32 +21,38 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
+package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * Finds entity types of available entity collections.
+ * Async data fetcher which hides the async implementation of data fetcher. Should be used only for reading data fetchers
+ * as mutating data fetcher shouldn't be run in parallel anyway.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CollectionsDataFetcher extends ReadDataFetcher<Set<String>> {
+@RequiredArgsConstructor
+public abstract class ReadDataFetcher<T> implements DataFetcher<CompletableFuture<T>> {
 
-    public CollectionsDataFetcher(@Nonnull Executor executor) {
-        super(executor);
-    }
+	/**
+	 * Executor responsible for executing data fetcher asynchronously.
+	 */
+	@Nonnull private final Executor executor;
 
-    @Nonnull
-    @Override
-    public Set<String> doGet(@Nonnull DataFetchingEnvironment environment) {
-        final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-        return evitaSession.getAllEntityTypes();
-    }
+	@Override
+	public CompletableFuture<T> get(DataFetchingEnvironment environment) throws Exception {
+		return CompletableFuture.supplyAsync(() -> doGet(environment), executor);
+	}
+
+	/**
+	 * Actual data fetching logic.
+	 */
+	@Nonnull
+	protected abstract T doGet(@Nonnull DataFetchingEnvironment environment);
 }

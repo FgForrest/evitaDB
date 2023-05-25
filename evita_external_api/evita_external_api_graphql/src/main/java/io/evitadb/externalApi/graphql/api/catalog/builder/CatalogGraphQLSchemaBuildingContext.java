@@ -25,9 +25,9 @@ package io.evitadb.externalApi.graphql.api.catalog.builder;
 
 import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.EvitaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
 import lombok.Getter;
@@ -56,7 +56,7 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	@Nonnull
 	private final Map<String, GraphQLObjectType> entityTypeToEntityObject = createHashMap(50);
 
-	public CatalogGraphQLSchemaBuildingContext(@Nonnull EvitaContract evita,
+	public CatalogGraphQLSchemaBuildingContext(@Nonnull Evita evita,
 	                                           @Nonnull CatalogContract catalog) {
 		super(evita);
 		this.catalog = catalog;

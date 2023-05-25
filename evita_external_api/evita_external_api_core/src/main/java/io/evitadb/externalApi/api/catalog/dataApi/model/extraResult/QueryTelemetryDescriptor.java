@@ -48,6 +48,13 @@ public interface QueryTelemetryDescriptor {
 			""")
 		.type(nonNull(QueryPhase.class))
 		.build();
+	PropertyDescriptor START = PropertyDescriptor.builder()
+		.name("start")
+		.description("""
+            Date and time of the start of this step in nanoseconds.
+			""")
+		.type(nonNull(Long.class))
+		.build();
 	PropertyDescriptor STEPS = PropertyDescriptor.builder()
 		.name("steps")
 		.description("""
@@ -75,6 +82,6 @@ public interface QueryTelemetryDescriptor {
 		.description("""
 			This DTO contains detailed information about query processing time and its decomposition to single operations.
 			""")
-		.staticFields(List.of(OPERATION, STEPS, ARGUMENTS, SPENT_TIME))
+		.staticFields(List.of(OPERATION, START, STEPS, ARGUMENTS, SPENT_TIME))
 		.build();
 }
