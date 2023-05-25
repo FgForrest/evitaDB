@@ -79,7 +79,6 @@ java \
         -jvmArgs "$EXTRA_JAVA_OPTS $BENCHMARK_JAVA_OPTS -DdataFolder=/data -DevitaData=/evita-data/data"
 
 ## public gist
-echo "$PERFORMANCE_GIST_TOKEN" | gh auth login --with-token
 gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG)" --public $RESULT_JSON
 
 ## shared gist
