@@ -25,6 +25,8 @@ package io.evitadb.documentation;
 
 import io.evitadb.documentation.evitaql.EvitaQLExecutable;
 import io.evitadb.documentation.evitaql.EvitaTestContextFactory;
+import io.evitadb.documentation.graphql.GraphQLExecutable;
+import io.evitadb.documentation.graphql.GraphQLTestContextFactory;
 import io.evitadb.documentation.java.JavaExecutable;
 import io.evitadb.documentation.java.JavaTestContextFactory;
 import io.evitadb.test.EvitaTestSupport;
@@ -108,7 +110,6 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		NOT_TESTED_LANGUAGES.add("Gradle");
 		NOT_TESTED_LANGUAGES.add("shell");
 		NOT_TESTED_LANGUAGES.add("json");
-		NOT_TESTED_LANGUAGES.add("graphql");
 		NOT_TESTED_LANGUAGES.add("rest");
 		NOT_TESTED_LANGUAGES.add("yaml");
 		NOT_TESTED_LANGUAGES.add("plain");
@@ -232,6 +233,15 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					resource,
 					outputSnippet,
 					createSnippets
+				);
+			}
+			case "graphql" -> {
+				return new GraphQLExecutable(
+					contextAccessor.get(GraphQLTestContextFactory.class),
+					sourceContent,
+					rootPath,
+					resource,
+					outputSnippet
 				);
 			}
 			default -> {

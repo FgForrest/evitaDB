@@ -21,71 +21,60 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.evitaql;
+package io.evitadb.documentation.graphql;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import io.evitadb.api.EvitaContract;
-import io.evitadb.api.query.Query;
-import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.parser.DefaultQueryParser;
-import io.evitadb.api.query.require.AttributeContent;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
-import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.data.ReflectionCachingBehaviour;
-import io.evitadb.documentation.JavaPrettyPrintingVisitor;
+import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
 import io.evitadb.documentation.UserDocumentationTest.OutputSnippet;
+import io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker;
+import io.evitadb.documentation.evitaql.EntityDocumentationJsonSerializer;
 import io.evitadb.driver.EvitaClient;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
 import net.steppschuh.markdowngenerator.table.Table;
 import net.steppschuh.markdowngenerator.text.code.CodeBlock;
-import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.math.BigDecimal;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
 import static io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker.allow;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -101,7 +90,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class EvitaQLExecutable implements Executable, EvitaTestSupport {
+public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	/**
 	 * Mandatory header column with entity primary key.
 	 */
@@ -114,18 +103,9 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 * Pretty printer used to format JSON output.
 	 */
 	private final static DefaultPrettyPrinter DEFAULT_PRETTY_PRINTER;
-	/**
-	 * Contents of the Java code template that is used to generate Java examples from EvitaQL queries.
-	 */
-	private final static List<String> JAVA_CODE_TEMPLATE;
-	/**
-	 * Regex pattern for replacing a placeholder in the Java template.
-	 */
-	private static final Pattern THE_QUERY_REPLACEMENT = Pattern.compile("^(\\s*)#QUERY#.*$", Pattern.DOTALL);
-	/**
-	 * Object used for reflection access when `sourceVariable` is evaluated.
-	 */
-	private static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
+
+	private static final Pattern LONG_NUMBER = Pattern.compile("\\d+");
+	private static final Pattern BIG_DECIMAL_NUMBER = Pattern.compile("\\d+\\.\\d+");
 
 	/*
 	  Initializes the Java code template to be used when {@link CreateSnippets#JAVA} is requested.
@@ -153,18 +133,12 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		DEFAULT_PRETTY_PRINTER = new DefaultPrettyPrinter();
 		DEFAULT_PRETTY_PRINTER.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
 		DEFAULT_PRETTY_PRINTER.indentObjectsWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-
-		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.java");) {
-			JAVA_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		}
 	}
 
 	/**
-	 * Provides access to the {@link EvitaTestContext} instance.
+	 * Provides access to the {@link GraphQLTestContext} instance.
 	 */
-	private final @Nonnull Supplier<EvitaTestContext> testContextAccessor;
+	private final @Nonnull Supplier<GraphQLTestContext> testContextAccessor;
 	/**
 	 * Contains the tested EvitaQL code.
 	 */
@@ -182,66 +156,14 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 * Contains reference to the output snippet bound to this executable.
 	 */
 	private final @Nullable OutputSnippet outputSnippet;
-	/**
-	 * Contains requests for generating alternative language code snippets.
-	 */
-	private final @Nonnull CreateSnippets[] createSnippets;
-
-	/**
-	 * Method writes new content to the file with same name as original file but a different extension.
-	 *
-	 * @param originalFile original file name to copy name and location from
-	 * @param extension    new extension of the file
-	 * @param fileContent  new content of the file
-	 */
-	private static void writeFile(@Nonnull Path originalFile, @Nonnull String extension, @Nonnull String fileContent) {
-		final Path writeFileName = resolveSiblingWithDifferentExtension(originalFile, extension);
-		writeFile(writeFileName, fileContent);
-	}
-
-	/**
-	 * Method writes new content to the file.
-	 *
-	 * @param targetFile  original file name to copy name and location from
-	 * @param fileContent new content of the file
-	 */
-	private static void writeFile(@Nonnull Path targetFile, @Nonnull String fileContent) {
-		try {
-			Files.writeString(
-				targetFile, fileContent,
-				StandardCharsets.UTF_8,
-				StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE, StandardOpenOption.WRITE
-			);
-		} catch (IOException e) {
-			fail(e);
-		}
-	}
-
-	/**
-	 * Generates the Java code snippet for the given query.
-	 */
-	@Nonnull
-	private static String generateJavaSnippet(@Nonnull Query theQuery) {
-		return JAVA_CODE_TEMPLATE
-			.stream()
-			.map(theLine -> {
-				final Matcher replacementMatcher = THE_QUERY_REPLACEMENT.matcher(theLine);
-				if (replacementMatcher.matches()) {
-					return JavaPrettyPrintingVisitor.toString(theQuery, "\t", replacementMatcher.group(1));
-				} else {
-					return theLine;
-				}
-			})
-			.collect(Collectors.joining("\n"));
-	}
 
 	/**
 	 * Generates the MarkDown output with the results of the given query.
 	 */
 	@Nonnull
 	private static String generateMarkdownSnippet(
-		@Nonnull Query query,
-		@Nonnull EvitaResponse<SealedEntity> response,
+		@Nonnull String query,
+		@Nonnull JsonNode response,
 		@Nullable OutputSnippet outputSnippet
 	) {
 		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
@@ -253,7 +175,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 				sourceVariable != null && !sourceVariable.isEmpty(),
 				"Cannot generate `" + outputSnippet.path() + "`. The attribute `sourceVariable` is missing!"
 			);
-			return generateMarkDownJsonBlock(query, response, sourceVariable);
+			return generateMarkDownJsonBlock(response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);
 		}
@@ -264,25 +186,34 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	private static String generateMarkDownAttributeTable(
-		@Nonnull Query query,
-		@Nonnull EvitaResponse<SealedEntity> response
+		@Nonnull String query,
+		@Nonnull JsonNode response
 	) {
-		final EntityFetch entityFetch = QueryUtils.findConstraint(
-			query.getRequire(), EntityFetch.class, SeparateEntityContentRequireContainer.class
-		);
+		final List<String> queryLines = query.lines().toList();
+
+		// parse requested attributes
+		int attributesHeaderLineIndex = -1;
+		for (int i = 0; i < queryLines.size(); i++) {
+			final String line = queryLines.get(i);
+			if (line.contains(EntityDescriptor.ATTRIBUTES.name() + " {")) {
+				attributesHeaderLineIndex = i;
+				break;
+			}
+		}
+		final Set<String> requestedAttributes = createHashSet(5);
+		for (int i = attributesHeaderLineIndex + 1; i < queryLines.size(); i++) {
+			final String line = queryLines.get(i);
+			if (line.contains("}")) {
+				break;
+			}
+			requestedAttributes.add(line.strip());
+		}
+
 
 		// collect headers for the MarkDown table
 		final String[] headers = Stream.concat(
 			Stream.of(ENTITY_PRIMARY_KEY),
-			ofNullable(entityFetch)
-				.map(it -> QueryUtils.findConstraints(
-						it, AttributeContent.class, SeparateEntityContentRequireContainer.class
-					)
-					.stream()
-					.map(AttributeContent::getAttributeNames)
-					.flatMap(Arrays::stream)
-					.distinct())
-				.orElse(Stream.empty())
+			requestedAttributes.stream()
 		).toArray(String[]::new);
 
 		// define the table with header line
@@ -291,24 +222,53 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			.addRow((Object[]) headers);
 
 		// add rows
-		for (SealedEntity sealedEntity : response.getRecordData()) {
+		final ArrayNode entities = (ArrayNode) response.get(ResponseDescriptor.RECORD_PAGE.name()).get(DataChunkDescriptor.DATA.name());
+		for (JsonNode entity : entities) {
 			tableBuilder.addRow(
-				(Object[]) Stream.concat(
-						Stream.of(String.valueOf(sealedEntity.getPrimaryKey())),
-						Arrays.stream(headers)
-							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it))
-							.map(sealedEntity::getAttributeValue)
-							.filter(Optional::isPresent)
-							.map(Optional::get)
-							.map(AttributeValue::getValue)
-							.map(EvitaDataTypes::formatValue)
-					)
+				(Object[]) Arrays.stream(headers)
+					.map(it -> {
+						if (it.equals(ENTITY_PRIMARY_KEY)) {
+							return entity.get(EntityDescriptor.PRIMARY_KEY.name());
+						}
+						return entity.get(EntityDescriptor.ATTRIBUTES.name()).get(it);
+					})
+					.map(jsonNode -> {
+						if (jsonNode.isBoolean()) {
+							return jsonNode.booleanValue();
+						} else if (jsonNode.isShort()) {
+							return jsonNode.shortValue();
+						} else if (jsonNode.isInt()) {
+							return jsonNode.intValue();
+						} else if (jsonNode.isLong()) {
+							return jsonNode.longValue();
+						} else if (jsonNode.isBigDecimal()) {
+							return new BigDecimal(jsonNode.textValue());
+						} else if (jsonNode.isTextual()) {
+							return jsonNode.textValue();
+						} else if (jsonNode.isValueNode()) {
+							final String value = jsonNode.asText();
+							try {
+								if (LONG_NUMBER.matcher(value).matches()) {
+									return new DataItemValue(Long.valueOf(value));
+								} else if (BIG_DECIMAL_NUMBER.matcher(value).matches()) {
+									return new DataItemValue(new BigDecimal(value));
+								} else {
+									return new DataItemValue(value);
+								}
+							} catch (NumberFormatException ex) {
+								return new DataItemValue(value);
+							}
+						} else {
+							throw new EvitaInvalidUsageException("Unexpected input JSON format.");
+						}
+					})
+					.map(EvitaDataTypes::formatValue)
 					.toArray(String[]::new)
 			);
 		}
 
 		// generate MarkDown
-		return tableBuilder.build().serialize() + "\n\n###### **Total number of results:** " + response.getTotalRecordCount();
+		return tableBuilder.build().serialize() + "\n\n###### **Total number of results:** " + entities.size();
 	}
 
 	/**
@@ -316,12 +276,11 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	private static String generateMarkDownJsonBlock(
-		@Nonnull Query query,
-		@Nonnull EvitaResponse<SealedEntity> response,
+		@Nonnull JsonNode response,
 		@Nonnull String sourceVariable
 	) {
 		final String[] sourceVariableParts = sourceVariable.split("\\.");
-		final Object theValue = extractValueFrom(response, sourceVariableParts);
+		final JsonNode theValue = extractValueFrom(response, sourceVariableParts);
 		final String json = ofNullable(theValue)
 			.map(it -> {
 				try {
@@ -345,96 +304,36 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 * Method heuristically traverses `theObjects` and extracts its internals by applying `sourceVariableParts`.
 	 */
 	@Nullable
-	private static Object extractValueFrom(@Nonnull Object theObject, @Nonnull String[] sourceVariableParts) {
-		if (theObject instanceof Map<?, ?> map) {
-			for (Entry<?, ?> entry : map.entrySet()) {
-				final Object key = entry.getKey();
-				final String keyAsString;
-				if (key instanceof Class<?> klass) {
-					keyAsString = klass.getSimpleName();
-				} else {
-					keyAsString = String.valueOf(key);
-				}
-				if (sourceVariableParts[0].equals(keyAsString)) {
-					if (sourceVariableParts.length > 1) {
-						return extractValueFrom(
-							entry.getValue(),
-							Arrays.copyOfRange(sourceVariableParts, 1, sourceVariableParts.length)
-						);
-					} else {
-						return entry.getValue();
-					}
-				}
-			}
-			return null;
-		} else {
-			final Method getter = REFLECTION_LOOKUP.findGetter(theObject.getClass(), sourceVariableParts[0]);
-			assertNotNull(getter, "Cannot find getter for " + sourceVariableParts[0] + " on `" + theObject.getClass() + "`");
-			try {
-				final Object theValue = getter.invoke(theObject);
-				if (theValue == null) {
-					return null;
-				} else if (sourceVariableParts.length > 1) {
-					return extractValueFrom(
-						theValue,
-						Arrays.copyOfRange(sourceVariableParts, 1, sourceVariableParts.length)
-					);
-				} else {
-					return theValue;
-				}
-			} catch (Exception e) {
-				fail(e);
-				return null;
+	private static JsonNode extractValueFrom(@Nonnull JsonNode theObject, @Nonnull String[] sourceVariableParts) {
+		if (theObject instanceof ObjectNode objectNode) {
+			final JsonNode node = objectNode.get(sourceVariableParts[0]);
+			if (sourceVariableParts.length > 1) {
+				return extractValueFrom(
+					node,
+					Arrays.copyOfRange(sourceVariableParts, 1, sourceVariableParts.length)
+				);
+			} else {
+				return node;
 			}
 		}
+		return null;
 	}
 
 	@Override
 	public void execute() throws Throwable {
-		final Query theQuery;
+		final String theQuery = sourceContent;
+		final GraphQLClient graphQLClient = testContextAccessor.get().getGraphQLClient();
+		final JsonNode theResult;
 		try {
-			theQuery = DefaultQueryParser.getInstance().parseQueryUnsafe(sourceContent);
+			theResult = graphQLClient.call(theQuery);
 		} catch (Exception ex) {
-			fail(
-				"Failed to parse query " +
-					ofNullable(resource).map(it -> "from resource " + it).orElse("") + ": \n" +
-					sourceContent,
-				ex
-			);
+			fail("The query " + theQuery + " failed: " + ex.getMessage(), ex);
 			return;
 		}
 
-		final EvitaContract evitaContract = testContextAccessor.get().getEvitaContract();
-		final EvitaResponse<SealedEntity> theResult = evitaContract.queryCatalog(
-			"evita",
-			session -> {
-				try {
-					final EvitaResponse<SealedEntity> result = session.querySealedEntity(theQuery);
-					assertNotNull(result, "Result for query " + theQuery + " must not be null!");
-					return result;
-				} catch (Exception ex) {
-					fail("The query " + theQuery + " failed: " + ex.getMessage(), ex);
-					return null;
-				}
-			}
-		);
-
 		if (resource != null) {
 			final String markdownSnippet = generateMarkdownSnippet(theQuery, theResult, outputSnippet);
-
-			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.JAVA)) {
-				final String javaSnippet = generateJavaSnippet(theQuery);
-				writeFile(resource, "java", javaSnippet);
-			}
-			// generate Markdown snippet from the result if required
 			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
-			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
-				if (outputSnippet == null) {
-					writeFile(resource, outputFormat, markdownSnippet);
-				} else {
-					writeFile(outputSnippet.path(), markdownSnippet);
-				}
-			}
 
 			// assert MarkDown file contents
 			final Optional<String> markDownFile = outputSnippet == null ?
