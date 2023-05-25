@@ -41,12 +41,10 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-/* TODO LHO - review */
 @ConstraintDefinition(
 	name = "inFilter",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified `entityPrimaryKeysInSet` in filter.",
-	supportedIn = { ConstraintDomain.ENTITY },
-	supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
+	supportedIn = { ConstraintDomain.ENTITY }
 )
 public class EntityPrimaryKeyInFilter extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = 118454118196750296L;

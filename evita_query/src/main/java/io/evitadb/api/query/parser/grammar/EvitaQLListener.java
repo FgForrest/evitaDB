@@ -604,6 +604,30 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitAttributeNaturalConstraint(EvitaQLParser.AttributeNaturalConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code attributeSetExactConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAttributeSetExactConstraint(EvitaQLParser.AttributeSetExactConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code attributeSetExactConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAttributeSetExactConstraint(EvitaQLParser.AttributeSetExactConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code attributeSetInFilterConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterAttributeSetInFilterConstraint(EvitaQLParser.AttributeSetInFilterConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code attributeSetInFilterConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitAttributeSetInFilterConstraint(EvitaQLParser.AttributeSetInFilterConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code priceNaturalConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -639,6 +663,30 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code entityPrimaryKeyExactConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterEntityPrimaryKeyExactConstraint(EvitaQLParser.EntityPrimaryKeyExactConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code entityPrimaryKeyExactConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitEntityPrimaryKeyExactConstraint(EvitaQLParser.EntityPrimaryKeyExactConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code entityPrimaryKeyInFilterConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterEntityPrimaryKeyInFilterConstraint(EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code entityPrimaryKeyInFilterConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitEntityPrimaryKeyInFilterConstraint(EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code entityPropertyConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
@@ -1495,6 +1543,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitHierarchyWithinRootSelfConstraintArgs(EvitaQLParser.HierarchyWithinRootSelfConstraintArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#attributeSetExactArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterAttributeSetExactArgs(EvitaQLParser.AttributeSetExactArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#attributeSetExactArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitAttributeSetExactArgs(EvitaQLParser.AttributeSetExactArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#pageConstraintArgs}.
 	 * @param ctx the parse tree

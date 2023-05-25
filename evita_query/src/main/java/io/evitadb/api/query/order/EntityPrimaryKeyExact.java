@@ -41,12 +41,10 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-/* TODO LHO - review */
 @ConstraintDefinition(
 	name = "exact",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified in arguments.",
-	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
-	supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
+	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class EntityPrimaryKeyExact extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -8627803791652731430L;

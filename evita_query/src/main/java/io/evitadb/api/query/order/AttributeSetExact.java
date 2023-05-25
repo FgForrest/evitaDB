@@ -23,9 +23,10 @@
 
 package io.evitadb.api.query.order;
 
-import io.evitadb.api.query.EntityConstraint;
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -42,14 +43,13 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-/* TODO LHO - review */
 @ConstraintDefinition(
 	name = "setExact",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified in arguments matching the entity attribute of specified name.",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )
-public class AttributeSetExact extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {
+public class AttributeSetExact extends AbstractOrderConstraintLeaf implements AttributeConstraint<OrderConstraint> {
 	@Serial private static final long serialVersionUID = -8627803791652731430L;
 
 	private AttributeSetExact(Serializable... arguments) {
@@ -58,7 +58,7 @@ public class AttributeSetExact extends AbstractOrderConstraintLeaf implements En
 
 	@Creator()
 	public AttributeSetExact(
-		@Nonnull @Value String attributeName,
+		@Nonnull @Classifier String attributeName,
 		@Nonnull @Value Serializable... attributeValues
 	) {
 		super(

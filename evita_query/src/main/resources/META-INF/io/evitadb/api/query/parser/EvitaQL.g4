@@ -85,9 +85,13 @@ filterConstraint
 orderConstraint
     : 'orderBy'                         (emptyArgs | args = orderConstraintListArgs)                # orderByConstraint
     | 'attributeNatural'                args = classifierWithOptionalValueArgs                      # attributeNaturalConstraint
+    | 'attributeSetExact'               args = attributeSetExactArgs                                # attributeSetExactConstraint
+    | 'attributeSetInFilter'            args = classifierArgs                                       # attributeSetInFilterConstraint
     | 'priceNatural'                    (emptyArgs | args = valueArgs)                              # priceNaturalConstraint
     | 'random'                          emptyArgs                                                   # randomConstraint
     | 'referenceProperty'               args = classifierWithOrderConstraintListArgs                # referencePropertyConstraint
+    | 'entityPrimaryKeyExact'           args = valueListArgs                                        # entityPrimaryKeyExactConstraint
+    | 'entityPrimaryKeyInFilter'        emptyArgs                                                   # entityPrimaryKeyInFilterConstraint
     | 'entityProperty'                  args = orderConstraintListArgs                              # entityPropertyConstraint
     ;
 
@@ -201,6 +205,8 @@ hierarchyWithinSelfConstraintArgs :                 ARGS_OPENING ofParent = filt
 hierarchyWithinRootConstraintArgs :                 ARGS_OPENING (classifier = classifierToken | (classifier = classifierToken (ARGS_DELIMITER constrains += filterConstraint)*)) ARGS_CLOSING ;
 
 hierarchyWithinRootSelfConstraintArgs :             ARGS_OPENING constrains += filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* ARGS_CLOSING ;
+
+attributeSetExactArgs :                             ARGS_OPENING attributeName = classifierToken ARGS_DELIMITER attributeValues = variadicValueTokens ARGS_CLOSING ;
 
 pageConstraintArgs :                                ARGS_OPENING pageNumber = valueToken ARGS_DELIMITER pageSize = valueToken ARGS_CLOSING ;
 
