@@ -65,11 +65,11 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		Integer.class,
 		Long.class
 	);
+	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor localeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Locale.class);
 	protected final EvitaQLValueTokenVisitor emptyHierarchicalEntityBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(EmptyHierarchicalEntityBehaviour.class);
 	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
-
-	protected final EvitaQLValueTokenVisitor priceContentArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class, Enum.class, PriceContentMode.class);
+	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
 
 	protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();
 	protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
@@ -170,47 +170,19 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitPriceContentConstraint(@Nonnull PriceContentConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> {
-				PriceContentMode contentMode = null;
-				List<String> priceLists = new LinkedList<>();
-				final Serializable[] values = ctx.args.values
-					.accept(priceContentArgValueTokenVisitor)
-					.asSerializableArray();
-				for (int i = 0; i < values.length; i++) {
-					final Serializable value = values[i];
-					if (i == 0) {
-						if (value instanceof PriceContentMode mode) {
-							contentMode = mode;
-							continue;
-						} else if (value instanceof EnumWrapper enumWrapper) {
-							contentMode = enumWrapper.toEnum(PriceContentMode.class);
-							continue;
-						}
-					}
-					Assert.isTrue(
-						value instanceof String,
-						() -> new EvitaQLInvalidQueryError(ctx, "Values of `priceContent` constraint must be of type string.")
-					);
-					priceLists.add((String) value);
-				}
-				Assert.notNull(
-					contentMode,
-					() -> new EvitaQLInvalidQueryError(
-						ctx, "Constraint `priceContent` constraint must have `contentMode` (NONE, ALL, RESPECTING_FILTER) as a first argument."
-					)
-				);
-				return new PriceContent(contentMode, priceLists.toArray(String[]::new));
-			}
+			() -> new PriceContent(
+				ctx.args.contentMode.accept(priceContentModeValueTokenVisitor).asEnum(PriceContentMode.class),
+				ctx.args.priceLists != null
+					? ctx.args.priceLists.accept(stringValueTokenVisitor).asStringArray()
+					: new String[0]
+			)
 		);
 	}
 
 	@Nullable
 	@Override
 	public RequireConstraint visitPriceContentAllConstraint(@Nonnull PriceContentAllConstraintContext ctx) {
-		return parse(
-			ctx,
-			() -> new PriceContent(PriceContentMode.ALL)
-		);
+		return parse(ctx, () -> new PriceContent(PriceContentMode.ALL));
 	}
 
 	@Override
@@ -221,18 +193,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				if (ctx.args == null) {
 					return new PriceContent(PriceContentMode.RESPECTING_FILTER);
 				}
-				final List<String> priceLists = new LinkedList<>();
-				final Serializable[] values = ctx.args.values
-					.accept(priceContentArgValueTokenVisitor)
-					.asSerializableArray();
-				for (final Serializable value : values) {
-					Assert.isTrue(
-						value instanceof String,
-						() -> new EvitaQLInvalidQueryError(ctx, "Values of `priceContentRespectingFilter` constraint must be of type string.")
-					);
-					priceLists.add((String) value);
-				}
-				return new PriceContent(PriceContentMode.RESPECTING_FILTER, priceLists.toArray(String[]::new));
+				return new PriceContent(
+					PriceContentMode.RESPECTING_FILTER,
+					ctx.args.values != null
+						? ctx.args.values.accept(stringValueTokenVisitor).asStringArray()
+						: new String[0]
+				);
 			}
 		);
 	}

@@ -99,7 +99,7 @@ requireConstraint
     | 'entityGroupFetch'                (emptyArgs | args = requireConstraintListArgs)              # entityGroupFetchConstraint
     | 'attributeContent'                args = classifierListArgs                                   # attributeContentConstraint
     | 'attributeContentAll'             emptyArgs                                                   # attributeContentConstraint
-    | 'priceContent'                    args = valueListArgs                                        # priceContentConstraint
+    | 'priceContent'                    args = priceContentArgs                                     # priceContentConstraint
     | 'priceContentAll'                 emptyArgs                                                   # priceContentAllConstraint
     | 'priceContentRespectingFilter'    (emptyArgs | args = valueListArgs)                          # priceContentRespectingFilterConstraint
     | 'associatedDataContent'           args = classifierListArgs                                   # associatedDataContentConstraint
@@ -205,6 +205,8 @@ hierarchyWithinRootSelfConstraintArgs :             ARGS_OPENING constrains += f
 pageConstraintArgs :                                ARGS_OPENING pageNumber = valueToken ARGS_DELIMITER pageSize = valueToken ARGS_CLOSING ;
 
 stripConstraintArgs :                               ARGS_OPENING offset = valueToken ARGS_DELIMITER limit = valueToken ARGS_CLOSING ;
+
+priceContentArgs :                                  ARGS_OPENING contentMode = valueToken (ARGS_DELIMITER priceLists = variadicValueTokens)? ARGS_CLOSING ;
 
 singleRefReferenceContentArgs :                     ARGS_OPENING (
                                                         (classifier = classifierToken (ARGS_DELIMITER requirement = requireConstraint)?) |
