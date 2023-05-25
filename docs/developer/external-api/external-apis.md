@@ -46,8 +46,6 @@ managing multiple HTTP/HTTPS listeners for APIs, because each API may
 need separate port or host or both (or end-user can define so). Each such listener has its own router 
 (`io.undertow.server.handlers.PathHandler`) into which APIs own routers are automatically registered.
 
-todo tpo ssl support
-
 ### API model
 
 Because evitaDB has a rich data model which we need to somehow represent in the APIs, a relatively simple "descriptor" framework
@@ -82,27 +80,13 @@ easier to find original classes (same goes for actual API modules).
 
 ### Query constraint schema
 
-Because query language and its constraints are quite complex (because of its tree structure) and we want to simplify
-querying for end-users by showing only those constraints in specific contexts which make sense as much as possible without losing functionality,
-the [annotation framework has been developed](../query/query_constraint_description_framework.md) which has similar purpose
-as the model description framework above. But because building API-specific schema for whole query langauge by hand
-would be unrealistic, automated generic builder has been built. This `io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder`
-is responsible for going through existing constraints and their rules and constructing them together into tree schema.
-The builder is constructed in such way that it doesn't care about API's serialization form, this is responsibility of 
-an API implementation of the builder.
+In order to provide better DX when constructing input queries by providing them with documentation and code completion,
+entire subsystem has been developed to accommodate for it. In the most basic form, there is
+a builder responsible for generating API schema for all possible query constraint combinations, and then there is 
+a resolver that can parse and convert the input query into the original Java query that the evitaDB engine can process.
+Not all APIs use this subsystem, but currently all APIs using JSON documents use this subsystem.
 
-Important parts to mention are `io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.CachableElementKey` for
-caching and reusing built objects by the builder, `io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuildingContext` 
-that mainly holds shared data across multiple builder implementations and instances to share cached objects.
-For correctly changing context of domains while building the constraint tree, `io.evitadb.externalApi.api.catalog.constraint.DataLocator`
-classes can hold locator of different evitaDB data schemas to locate data (attributes, references, ...) while building
-API-specific schemas.
-
-For parsing query inputs conforming to the constraint schema, the `io.evitadb.externalApi.api.catalog.resolver.data.constraint.ConstraintResolver`
-has been developed. This resolver uses same constraint schema rules as the above-mentioned builder, and thus if there
-are any changes to those rules, both the builder and the resolver must be correctly updated.
-The resolver is generic one (same as with the builder) and APIs have to implement it to provide their own serialization
-rules (same as in the builder).
+More details about the subsystem are described [here](/docs/developer/external-api/constraint-schema-api-subsystem.md).
 
 ## Creating new API
 

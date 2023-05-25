@@ -36,8 +36,8 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
-/** *
- * TOBEDONE JNO: docs
+/**
+ * TOBEDONE JNO - write javadoc
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

@@ -26,7 +26,7 @@ To be able to describe quite complex constraints, some terms have been defined:
 - *full name*
     - extends *base name* with suffix for supporting multiple variants of the same constraint
 - *creator* (represented by `io.evitadb.api.query.descriptor.ConstraintCreator`)
-    - describes constructor which defines suffix (and ultimately *full name*) and instantiation parameters
+    - describes constructor or factory method which defines suffix (and ultimately *full name*) and instantiation parameters
     - is used to instantiate the representing constraint
 - *classifier*
     - is special *creator* parameter that is used by Evita to find target data (entity type, attribute name, ...)
@@ -109,10 +109,10 @@ Constraint definition may look like this:
 public class AttributeEquals extends /* ... */ {
 ```
 
-### Constructor definition
+### Creator definition
 
-Then, at least one constructor must be annotated with
-the `io.evitadb.api.query.descriptor.annotation.Creator` to mark it as a *creator*. A *creator* constructor
+Then, at least one constructor or factory method must be annotated with
+the `io.evitadb.api.query.descriptor.annotation.Creator` to mark it as a *creator*. A *creator*
 may define a custom suffix (to form *full name*) and an implicit classifier and all of its parameters (if there are any)
 must be annotated with the  `io.evitadb.api.query.descriptor.annotation.Classifier`, 
 `io.evitadb.api.query.descriptor.annotation.Value`, `io.evitadb.api.query.descriptor.annotation.Child`, or
@@ -123,6 +123,14 @@ Basic *creator* may look like this:
 @Creator
 public AttributeIs(@Nonnull @Classifier String attributeName,
                    @Nonnull @Value AttributeSpecialValue specialValue) {
+    /* ... */
+}
+```
+or in case of factory method:
+```java
+@Creator
+public static AttributeIs attributeIs(@Nonnull @Classifier String attributeName,
+                                      @Nonnull @Value AttributeSpecialValue specialValue) {
     /* ... */
 }
 ```
@@ -170,7 +178,7 @@ Additional child parameters must be annotated with the `io.evitadb.api.query.des
 and cannot be of same constraint type as the parent container. However, there are some limitations in place to simplify
 processing logic of these annotations and to produce reasonable JSON objects (which are also quite limited for our use cases).
 The type of parameter must be some concrete generic constraint container of desired constraint type, so that it generates
-enclosing JSON object automatically. Also, the container must have *creator* constructor with only one parameter which 
+enclosing JSON object automatically. Also, the container must have *creator* with only one parameter which 
 must be the `io.evitadb.api.query.descriptor.annotation.Child`.
 Lastly, the additional child parameter cannot be an array, because the referenced container can have its own array child parameter,
 which would clash.

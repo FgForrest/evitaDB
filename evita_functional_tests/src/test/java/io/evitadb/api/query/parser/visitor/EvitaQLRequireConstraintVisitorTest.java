@@ -216,6 +216,7 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContentAll"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContentAll('a',1)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContent('a',1)"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeContent()"));
 	}
 
 	@Test
@@ -341,6 +342,7 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("associatedDataContent"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("associatedDataContent(1)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("associatedDataContent('a',1)"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("associatedDataContent()"));
 	}
 
 	@Test

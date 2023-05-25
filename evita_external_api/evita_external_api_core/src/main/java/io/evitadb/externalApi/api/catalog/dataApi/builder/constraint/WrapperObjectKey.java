@@ -55,7 +55,7 @@ import java.util.Objects;
  */
 @Getter
 @ToString(callSuper = true)
-public class WrapperObjectKey extends CachableElementKey {
+public class WrapperObjectKey extends CacheableElementKey {
 
 	private static final SecureRandom SRND = new SecureRandom();
 

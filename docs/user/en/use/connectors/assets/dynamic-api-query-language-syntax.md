@@ -59,6 +59,10 @@ The **property type** defines where the query processor will look for data to co
 - `hierarchy` - can operate on an entity’s [hierarchical data](/docs/user/en/use/data-model.md#hierarchical-placement) (the hierarchical data may be even referenced from other entities)
 - `facet` - can operate on referenced [facets](/docs/user/en/use/data-model.md#references) to an entity
 
+In some special case, the property type can be omitted and represent other property type than `generic`. This is usually
+when we have child constraints that are valid only in specific parent with same domain and so on. This is only to provide
+better DX.
+
 The **classifier** specifies exactly which data of the specified property type the constraint will operate on, if supported by the
 property type. This is used e.g.
 for attributes, where simply defining the property type doesn't tell us which attribute we want to compare. But without the property type
