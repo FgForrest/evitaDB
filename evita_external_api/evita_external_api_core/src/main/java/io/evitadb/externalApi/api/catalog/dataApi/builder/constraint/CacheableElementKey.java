@@ -33,12 +33,12 @@ import javax.annotation.Nonnull;
 import java.util.Optional;
 
 /**
- * Ancestor for keys representing cachable elements in a constraint tree.
+ * Ancestor for keys representing cacheable elements in a constraint tree.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Data
-public abstract class CachableElementKey {
+public abstract class CacheableElementKey {
 
 	/**
 	 * Defines for which constraint this object is relevant.
