@@ -81,10 +81,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 @RequiredArgsConstructor
 public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	/**
-	 * Mandatory header column with entity primary key.
-	 */
-	private static final String ENTITY_PRIMARY_KEY = "entityPrimaryKey";
-	/**
 	 * Object mapper used to serialize unknown objects to JSON output.
 	 */
 	private final static ObjectMapper OBJECT_MAPPER;
@@ -92,9 +88,6 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	 * Pretty printer used to format JSON output.
 	 */
 	private final static DefaultPrettyPrinter DEFAULT_PRETTY_PRINTER;
-
-	private static final Pattern LONG_NUMBER = Pattern.compile("\\d+");
-	private static final Pattern BIG_DECIMAL_NUMBER = Pattern.compile("\\d+\\.\\d+");
 
 	/*
 	  Initializes the Java code template to be used when {@link CreateSnippets#JAVA} is requested.
@@ -188,15 +181,9 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 		@Nonnull JsonNode response,
 		@Nullable OutputSnippet outputSnippet
 	) {
-		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
-		if (outputFormat.equals("md")) {
-			return generateMarkDownJsonBlock(response, "");
-		} else if (outputFormat.equals("json")) {
+		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("json");
+		if (outputFormat.equals("json")) {
 			final String sourceVariable = outputSnippet.sourceVariable();
-//			assertTrue(
-//				sourceVariable != null && !sourceVariable.isEmpty(),
-//				"Cannot generate `" + outputSnippet.path() + "`. The attribute `sourceVariable` is missing!"
-//			);
 			return generateMarkDownJsonBlock(response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);
@@ -243,9 +230,6 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	@Nullable
 	private static JsonNode extractValueFrom(@Nonnull JsonNode theObject, @Nonnull String[] sourceVariableParts) {
 		if (theObject instanceof ObjectNode objectNode) {
-			if (sourceVariableParts.length == 0) {
-				return objectNode;
-			}
 			final JsonNode node = objectNode.get(sourceVariableParts[0]);
 			if (sourceVariableParts.length > 1) {
 				return extractValueFrom(

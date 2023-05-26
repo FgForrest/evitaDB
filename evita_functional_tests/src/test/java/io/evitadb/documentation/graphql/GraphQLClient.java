@@ -82,11 +82,6 @@ public class GraphQLClient {
 			"Call to GraphQL server ended with empty data."
 		);
 
-		// parse query name
-		final List<String> queryLines = document.lines().toList();
-		final String queryHeader = queryLines.get(1);
-		final String queryName = queryHeader.substring(0, queryHeader.indexOf('(')).strip();
-
-		return data.get(queryName);
+		return responseBody;
 	}
 }

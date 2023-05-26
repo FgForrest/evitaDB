@@ -282,11 +282,7 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			return generateMarkDownAttributeTable(query, response);
 		} else if (outputFormat.equals("json")) {
 			final String sourceVariable = outputSnippet.sourceVariable();
-//			assertTrue(
-//				sourceVariable != null && !sourceVariable.isEmpty(),
-//				"Cannot generate `" + outputSnippet.path() + "`. The attribute `sourceVariable` is missing!"
-//			);
-			return generateMarkDownJsonBlock(query, response, sourceVariable);
+			return generateMarkDownJsonBlock(response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);
 		}
@@ -350,7 +346,6 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 */
 	@Nonnull
 	private static String generateMarkDownJsonBlock(
-		@Nonnull Query query,
 		@Nonnull EvitaResponse<SealedEntity> response,
 		@Nullable String sourceVariable
 	) {

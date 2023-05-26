@@ -95,8 +95,6 @@ To list all nested categories of *Accessories* category issue this query:
 
 <LanguageSpecific to="graphql">
 
-TODO JNO this will not get generated for the hierarchy-within-self-simple.graphql
-
 <MDInclude>[Single root hierarchy example](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
