@@ -27,13 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.head.Collection;
-import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.api.query.order.EntityProperty;
-import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.order.OrderGroupBy;
-import io.evitadb.api.query.order.PriceNatural;
-import io.evitadb.api.query.order.Random;
-import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.*;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -113,9 +107,13 @@ class RegisteredConstraintProvider {
 		OrderGroupBy.class,
 		Random.class,
 		// entity
+		EntityPrimaryKeyExact.class,
+		EntityPrimaryKeyInFilter.class,
 		EntityProperty.class,
 		// attribute
 		AttributeNatural.class,
+		AttributeSetExact.class,
+		AttributeSetInFilter.class,
 		// price
 		PriceNatural.class,
 		// reference

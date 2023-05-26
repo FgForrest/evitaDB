@@ -204,7 +204,7 @@ public class SortIndexChanges implements Serializable {
 	 * Method prepares value index if it hasn't exist yet. It needs to be called before anything in {@link SortIndex}
 	 * is changed.
 	 */
-	public void prepareForRemoval() {
+	public void prepare() {
 		// force computation of the value index
 		getValueIndex(sortIndex.sortedRecordsValues, sortIndex.valueCardinalities);
 	}
@@ -251,17 +251,13 @@ public class SortIndexChanges implements Serializable {
 		}
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	/**
 	 * Computes value index if it hasn't exist yet. Result of this method is memoized. Method computes startung index
 	 * (position) of the record ids block that belongs to specific value from {@link SortIndex#sortedRecordsValues} and
 	 * {@link SortIndex#valueCardinalities} information.
 	 */
 	@Nonnull
-	private ValueStartIndex[] getValueIndex(
+	ValueStartIndex[] getValueIndex(
 		@Nonnull TransactionalObjArray<? extends Comparable<?>> sortedRecordsValues,
 		@Nonnull TransactionalMap<? extends Comparable<?>, Integer> valueCardinalities
 	) {
@@ -280,6 +276,10 @@ public class SortIndexChanges implements Serializable {
 		}
 		return this.valueLocationIndex;
 	}
+
+	/*
+		PRIVATE METHODS
+	 */
 
 	/**
 	 * Computes start position for value at specified position in value index. The position is computed from previous
@@ -307,7 +307,7 @@ public class SortIndexChanges implements Serializable {
 	 * Class that maintains information about record id block for certain value.
 	 */
 	@AllArgsConstructor
-	private static class ValueStartIndex implements Comparable<ValueStartIndex>, Serializable {
+	static class ValueStartIndex implements Comparable<ValueStartIndex>, Serializable {
 		@Serial private static final long serialVersionUID = -4953895484396265436L;
 
 		/**

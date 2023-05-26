@@ -26,9 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
@@ -86,7 +86,7 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 	/**
 	 * Returns set of {@link Serializable} values that attribute value must be part of.
 	 */
-	public Serializable[] getSet() {
+	public Serializable[] getAttributeValues() {
 		return Arrays.stream(getArguments())
 			.skip(1)
 			.toArray(Serializable[]::new);

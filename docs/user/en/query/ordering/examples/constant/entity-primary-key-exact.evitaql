@@ -1,0 +1,12 @@
+query(
+    collection('Product'),
+    filterBy(
+        attributeStartsWith('code', 'lenovo')
+    ),
+    orderBy(
+        entityPrimaryKeyExact(104732, 104718, 105929)
+    ),
+    require(
+        attributeContent('code')
+    )
+)

@@ -25,6 +25,7 @@ package io.evitadb.api.query.descriptor;
 
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.order.AttributeNatural;
+import io.evitadb.api.query.order.AttributeSetExact;
 import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.exception.EvitaInternalError;
@@ -47,7 +48,7 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldHaveProcessedConstraints() {
-		assertEquals(81, ConstraintDescriptorProvider.getAllConstraints().size());
+		assertEquals(85, ConstraintDescriptorProvider.getAllConstraints().size());
 	}
 
 	@Test
@@ -118,7 +119,7 @@ class ConstraintDescriptorProviderTest {
 	@Test
 	void shouldFindAllConstraintsForSpecificType() {
 		assertEquals(36, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
-		assertEquals(7, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
+		assertEquals(11, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
 	}
 
 	@Test
@@ -181,7 +182,8 @@ class ConstraintDescriptorProviderTest {
 		);
 		assertEquals(
 			List.of(
-				AttributeNatural.class
+				AttributeNatural.class,
+				AttributeSetExact.class
 			),
 			constraintsWithoutArraySupportRequired.stream()
 				.map(ConstraintDescriptor::constraintClass)

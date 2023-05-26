@@ -24,14 +24,12 @@
 package io.evitadb.api.query.parser.visitor;
 
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.api.query.order.EntityProperty;
-import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.query.order.PriceNatural;
-import io.evitadb.api.query.order.Random;
-import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetExactConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetInFilterConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPropertyConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
@@ -48,6 +46,13 @@ import javax.annotation.Nonnull;
 public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<OrderConstraint> {
 
 	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
+	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
+	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		Byte.class,
+		Short.class,
+		Integer.class,
+		Long.class
+	);
 	protected final EvitaQLValueTokenVisitor orderDirectionValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(OrderDirection.class);
 
 
@@ -90,6 +95,27 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	}
 
 	@Override
+	public OrderConstraint visitAttributeSetExactConstraint(AttributeSetExactConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new AttributeSetExact(
+				ctx.args.attributeName.accept(classifierTokenVisitor).asSingleClassifier(),
+				ctx.args.attributeValues.accept(comparableValueTokenVisitor).asSerializableArray()
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitAttributeSetInFilterConstraint(AttributeSetInFilterConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new AttributeSetInFilter(
+				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier()
+			)
+		);
+	}
+
+	@Override
 	public OrderConstraint visitPriceNaturalConstraint(@Nonnull EvitaQLParser.PriceNaturalConstraintContext ctx) {
 		return parse(
 			ctx,
@@ -124,6 +150,21 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 					.toArray(OrderConstraint[]::new)
 			)
 		);
+	}
+
+	@Override
+	public OrderConstraint visitEntityPrimaryKeyExactConstraint(EntityPrimaryKeyExactConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyExact(
+				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+			)
+		);
+	}
+
+	@Override
+	public OrderConstraint visitEntityPrimaryKeyInFilterConstraint(EntityPrimaryKeyInFilterConstraintContext ctx) {
+		return parse(ctx, EntityPrimaryKeyInFilter::new);
 	}
 
 	@Override

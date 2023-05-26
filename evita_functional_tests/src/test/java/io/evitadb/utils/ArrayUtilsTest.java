@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
 import java.util.function.IntBinaryOperator;
+import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -274,9 +275,13 @@ class ArrayUtilsTest {
 	@Test
 	void shouldSortArray() {
 		final int[] sortedArray = new int[] {8, 5, 6, 2, 9, 7, 1, 3};
-		assertArrayEquals(new int[] {5, 1, 3}, ArrayUtils.sortAlong(sortedArray, new int[] {1, 3, 5}));
-		assertArrayEquals(new int[] {8, 5, 2, 1, 3}, ArrayUtils.sortAlong(sortedArray, new int[] {1, 2, 3, 5, 8}));
-		assertArrayEquals(new int[] {8, 5, 2, 4, 10}, ArrayUtils.sortAlong(sortedArray, new int[] {2, 4, 5, 8, 10}));
+		final UnaryOperator<int[]> converter = (in) -> {
+			ArrayUtils.sortAlong(sortedArray, in);
+			return in;
+		};
+		assertArrayEquals(new int[] {5, 1, 3}, converter.apply(new int[] {1, 3, 5}));
+		assertArrayEquals(new int[] {8, 5, 2, 1, 3}, converter.apply(new int[] {1, 2, 3, 5, 8}));
+		assertArrayEquals(new int[] {8, 5, 2, 4, 10}, converter.apply(new int[] {2, 4, 5, 8, 10}));
 	}
 
 

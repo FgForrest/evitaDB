@@ -86,6 +86,7 @@ the first version to the general public.
    9. [Hierarchy](query/filtering/hierarchy.md)
    10. [Facet](query/filtering/special.md)
 3. **Ordering**
+   1. [Constant](query/ordering/constant.md)
    1. [Natural](query/ordering/natural.md)
    2. [Price](query/ordering/price.md)
    3. [Reference](query/ordering/reference.md)

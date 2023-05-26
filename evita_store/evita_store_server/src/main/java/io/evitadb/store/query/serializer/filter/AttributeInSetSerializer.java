@@ -45,7 +45,7 @@ public class AttributeInSetSerializer<T extends Serializable> extends Serializer
 	@Override
 	public void write(Kryo kryo, Output output, AttributeInSet object) {
 		output.writeString(object.getAttributeName());
-		final Object[] set = object.getSet();
+		final Object[] set = object.getAttributeValues();
 		kryo.writeClass(output, set[0].getClass());
 		output.writeVarInt(set.length, true);
 		for (Object comparableValue : set) {

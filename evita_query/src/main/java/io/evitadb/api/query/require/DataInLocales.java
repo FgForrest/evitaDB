@@ -26,8 +26,8 @@ package io.evitadb.api.query.require;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.utils.ArrayUtils;
@@ -118,11 +118,6 @@ public class DataInLocales extends AbstractRequireConstraintLeaf implements Gene
 	 */
 	public boolean isAllRequested() {
 		return ArrayUtils.isEmpty(getArguments());
-	}
-
-	@Override
-	public boolean isApplicable() {
-		return true;
 	}
 
 	@Nonnull
