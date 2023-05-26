@@ -267,14 +267,19 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		@Nonnull Query query,
 		@Nonnull EvitaResponse<SealedEntity> response
 	) {
-		final EntityFetch entityFetch = QueryUtils.findConstraint(
-			query.getRequire(), EntityFetch.class, SeparateEntityContentRequireContainer.class
-		);
+		final Optional<EntityFetch> entityFetch = ofNullable(query.getRequire())
+			.flatMap(
+				it -> QueryUtils.findConstraints(
+						it, EntityFetch.class, SeparateEntityContentRequireContainer.class
+					)
+					.stream()
+					.findFirst()
+			);
 
 		// collect headers for the MarkDown table
 		final String[] headers = Stream.concat(
 			Stream.of(ENTITY_PRIMARY_KEY),
-			ofNullable(entityFetch)
+			entityFetch
 				.map(it -> QueryUtils.findConstraints(
 						it, AttributeContent.class, SeparateEntityContentRequireContainer.class
 					)
