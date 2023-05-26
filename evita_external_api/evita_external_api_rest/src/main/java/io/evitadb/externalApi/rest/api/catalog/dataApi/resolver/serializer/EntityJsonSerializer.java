@@ -101,6 +101,7 @@ public class EntityJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeSingleEntity(@Nonnull EntityClassifier entityClassifier) {
 		final ObjectNode rootNode = serializeEntityClassifier(entityClassifier);
+//		rootNode.
 		if (entityClassifier instanceof EntityContract entity) {
 			serializeEntityBody(rootNode, entity);
 			serializeEntityAttributes(rootNode, entity);
