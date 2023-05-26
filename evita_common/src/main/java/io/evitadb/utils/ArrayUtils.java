@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.function.IntBinaryOperator;
 import java.util.function.ToIntBiFunction;
@@ -541,9 +542,23 @@ public class ArrayUtils {
 	/**
 	 * Method computes index of an integer in the unordered array.
 	 */
-	public static int indexOf(int recId, int[] recordIds) {
+	public static int indexOf(int recId, @Nonnull int[] recordIds) {
 		for (int i = 0; i < recordIds.length; i++) {
 			if (recId == recordIds[i]) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	/**
+	 * Method computes index of a value in the unordered array.
+	 *
+	 * @return -1 if the value was not found or is null
+	 */
+	public static <T> int indexOf(@Nullable T value, @Nonnull T[] values) {
+		for (int i = 0; i < values.length; i++) {
+			if (Objects.equals(value, values[i])) {
 				return i;
 			}
 		}
@@ -838,10 +853,10 @@ public class ArrayUtils {
 	/**
 	 * Method sorts `arrayToSort` along the position of the same number in the `sortedArray`. The `arrayToSort` is
 	 * expected to be as subset of the `sortedArray`, but it may contain unknown numbers which will be placed at
-	 * the end of the list.
+	 * the end of the list. Method modifies contents of the `arrayToSort` and returns index of last "sorted" item
+	 * in that array.
 	 */
-	@Nonnull
-	public static int[] sortAlong(@Nonnull int[] sortedArray, @Nonnull int[] arrayToSort) {
+	public static int sortAlong(@Nonnull int[] sortedArray, @Nonnull int[] arrayToSort) {
 		final int lastIndex = arrayToSort.length - 1;
 		final int[] positions = new int[arrayToSort.length];
 		Arrays.fill(positions, -1);
@@ -855,22 +870,22 @@ public class ArrayUtils {
 				}
 			}
 		}
-		final int[] result = new int[arrayToSort.length];
+		final int[] copyOfSource = Arrays.copyOf(arrayToSort, arrayToSort.length);
 		int unknownNumbers = 0;
-		for (int i = 0; i < arrayToSort.length; i++) {
+		for (int i = 0; i < copyOfSource.length; i++) {
 			if (positions[i] >= 0) {
-				result[positions[i]] = arrayToSort[i];
+				arrayToSort[positions[i]] = copyOfSource[i];
 			} else {
-				result[itemsLocalized + unknownNumbers++] = arrayToSort[i];
+				arrayToSort[itemsLocalized + unknownNumbers++] = copyOfSource[i];
 			}
 		}
-		return result;
+		return arrayToSort.length - unknownNumbers;
 	}
 
 	/**
 	 * Method sorts `arrayToSort` along the position of the same number in the `sortedArray`. The `arrayToSort` is
 	 * expected to be as subset of the `sortedArray`, but it may contain unknown numbers which will be placed at
-	 * the end of the list.
+	 * the end of the list. No input argument content is modified, method returns a new array on as its result.
 	 *
 	 * The method is a copy of {@link  #sortAlong(int[], int[])} method allowing to sort complex object which
 	 * can produce the numbers using `extractor` function.

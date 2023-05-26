@@ -11,8 +11,8 @@ query(
     require(
         entityFetch(
             attributeContent('name'),
-            associatedDataContent(),
-            priceContent(),
+            associatedDataContentAll(),
+            priceContentRespectingFilter(),
             referenceContent('brand')
         )
     )

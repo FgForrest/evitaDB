@@ -1,26 +1,3 @@
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2023
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
@@ -399,6 +376,20 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
+	@Override public T visitAttributeSetExactConstraint(EvitaQLParser.AttributeSetExactConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitAttributeSetInFilterConstraint(EvitaQLParser.AttributeSetInFilterConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
 	@Override public T visitPriceNaturalConstraint(EvitaQLParser.PriceNaturalConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
@@ -414,6 +405,20 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitEntityPrimaryKeyExactConstraint(EvitaQLParser.EntityPrimaryKeyExactConstraintContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitEntityPrimaryKeyInFilterConstraint(EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -952,6 +957,13 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * <p>The default implementation returns the result of calling
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
+	@Override public T visitAttributeSetExactArgs(EvitaQLParser.AttributeSetExactArgsContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
 	@Override public T visitPageConstraintArgs(EvitaQLParser.PageConstraintArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
@@ -960,6 +972,13 @@ public class EvitaQLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitStripConstraintArgs(EvitaQLParser.StripConstraintArgsContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitPriceContentArgs(EvitaQLParser.PriceContentArgsContext ctx) { return visitChildren(ctx); }
 	/**
 	 * {@inheritDoc}
 	 *

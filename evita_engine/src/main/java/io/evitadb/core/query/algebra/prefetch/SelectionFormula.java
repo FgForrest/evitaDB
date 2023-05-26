@@ -40,6 +40,7 @@ import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.function.ToLongDoubleIntBiFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -58,6 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Selection formula is an optimization opportunity that can compute its results in two different ways, and it chooses
@@ -86,6 +88,25 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
 	private final EntityToBitmapFilter alternative;
+	/**
+	 * Default formula for computing the prefetch costs. Can be overridden in tests so that we can make sure multiple
+	 * paths of the calculation are tested (i.e. with or without prefetch).
+	 */
+	private static ToLongDoubleIntBiFunction PREFETCH_COST_ESTIMATOR =
+		(prefetchedEntityCount, requirementCount) -> prefetchedEntityCount * requirementCount * 148L;
+
+	/**
+	 * Method allows to run given {@link Runnable} with custom prefetch cost estimator.
+	 */
+	public static <T> T doWithCustomPrefetchCostEstimator(@Nonnull Supplier<T> supplier, @Nonnull ToLongDoubleIntBiFunction costEstimator) {
+		final ToLongDoubleIntBiFunction old = PREFETCH_COST_ESTIMATOR;
+		try {
+			PREFETCH_COST_ESTIMATOR = costEstimator;
+			return supplier.get();
+		} finally {
+			PREFETCH_COST_ESTIMATOR = old;
+		}
+	}
 
 	/**
 	 * We've performed benchmark of reading data from disk - using Linux file cache the reading performance was:
@@ -99,8 +120,8 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	 *
 	 * Recomputed on 1. mil operations ({@link io.evitadb.spike.FormulaCostMeasurement}) it's cost of 148.
 	 */
-	private static long estimatePrefetchCost(int prefetchedEntityCount, EntityFetchRequire requirements) {
-		return prefetchedEntityCount * requirements.getRequirements().length * 148L;
+	private static long estimatePrefetchCost(int prefetchedEntityCount, @Nonnull EntityFetchRequire requirements) {
+		return PREFETCH_COST_ESTIMATOR.apply(prefetchedEntityCount, requirements.getRequirements().length);
 	}
 
 	public SelectionFormula(@Nonnull FilterByVisitor filterByVisitor, @Nonnull Formula delegate, @Nonnull EntityToBitmapFilter alternative) {

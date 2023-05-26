@@ -1,26 +1,3 @@
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2023
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
@@ -653,6 +630,30 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterAttributeSetExactConstraint(EvitaQLParser.AttributeSetExactConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAttributeSetExactConstraint(EvitaQLParser.AttributeSetExactConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterAttributeSetInFilterConstraint(EvitaQLParser.AttributeSetInFilterConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAttributeSetInFilterConstraint(EvitaQLParser.AttributeSetInFilterConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterPriceNaturalConstraint(EvitaQLParser.PriceNaturalConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -684,6 +685,30 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterEntityPrimaryKeyExactConstraint(EvitaQLParser.EntityPrimaryKeyExactConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitEntityPrimaryKeyExactConstraint(EvitaQLParser.EntityPrimaryKeyExactConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterEntityPrimaryKeyInFilterConstraint(EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitEntityPrimaryKeyInFilterConstraint(EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1601,6 +1626,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterAttributeSetExactArgs(EvitaQLParser.AttributeSetExactArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitAttributeSetExactArgs(EvitaQLParser.AttributeSetExactArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterPageConstraintArgs(EvitaQLParser.PageConstraintArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -1620,6 +1657,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitStripConstraintArgs(EvitaQLParser.StripConstraintArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterPriceContentArgs(EvitaQLParser.PriceContentArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitPriceContentArgs(EvitaQLParser.PriceContentArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

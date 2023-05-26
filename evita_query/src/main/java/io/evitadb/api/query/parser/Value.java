@@ -221,6 +221,18 @@ public class Value {
     }
 
     @Nonnull
+    public String[] asStringArray() {
+        try {
+            return asArray(
+                v -> variadicValueItemAsSpecificType(v, String.class),
+                String.class
+            );
+        } catch (ClassCastException e) {
+            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
+        }
+    }
+
+    @Nonnull
     public Serializable[] asSerializableArray() {
         try {
             return asArray(v -> (Serializable) v, Serializable.class);

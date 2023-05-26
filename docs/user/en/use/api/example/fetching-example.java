@@ -15,8 +15,8 @@ final EvitaResponse<SealedEntity> response = evita.queryCatalog(
 				require(
 					entityFetch(
 						attributeContent("name"),
-						associatedDataContent(),
-						priceContent(),
+						associatedDataContentAll(),
+						priceContentRespectingFilter(),
 						referenceContent("brand")
 					)
 				)

@@ -85,9 +85,13 @@ filterConstraint
 orderConstraint
     : 'orderBy'                         (emptyArgs | args = orderConstraintListArgs)                # orderByConstraint
     | 'attributeNatural'                args = classifierWithOptionalValueArgs                      # attributeNaturalConstraint
+    | 'attributeSetExact'               args = attributeSetExactArgs                                # attributeSetExactConstraint
+    | 'attributeSetInFilter'            args = classifierArgs                                       # attributeSetInFilterConstraint
     | 'priceNatural'                    (emptyArgs | args = valueArgs)                              # priceNaturalConstraint
     | 'random'                          emptyArgs                                                   # randomConstraint
     | 'referenceProperty'               args = classifierWithOrderConstraintListArgs                # referencePropertyConstraint
+    | 'entityPrimaryKeyExact'           args = valueListArgs                                        # entityPrimaryKeyExactConstraint
+    | 'entityPrimaryKeyInFilter'        emptyArgs                                                   # entityPrimaryKeyInFilterConstraint
     | 'entityProperty'                  args = orderConstraintListArgs                              # entityPropertyConstraint
     ;
 
@@ -99,7 +103,7 @@ requireConstraint
     | 'entityGroupFetch'                (emptyArgs | args = requireConstraintListArgs)              # entityGroupFetchConstraint
     | 'attributeContent'                args = classifierListArgs                                   # attributeContentConstraint
     | 'attributeContentAll'             emptyArgs                                                   # attributeContentConstraint
-    | 'priceContent'                    args = valueListArgs                                        # priceContentConstraint
+    | 'priceContent'                    args = priceContentArgs                                     # priceContentConstraint
     | 'priceContentAll'                 emptyArgs                                                   # priceContentAllConstraint
     | 'priceContentRespectingFilter'    (emptyArgs | args = valueListArgs)                          # priceContentRespectingFilterConstraint
     | 'associatedDataContent'           args = classifierListArgs                                   # associatedDataContentConstraint
@@ -202,9 +206,13 @@ hierarchyWithinRootConstraintArgs :                 ARGS_OPENING (classifier = c
 
 hierarchyWithinRootSelfConstraintArgs :             ARGS_OPENING constrains += filterConstraint (ARGS_DELIMITER constrains += filterConstraint)* ARGS_CLOSING ;
 
+attributeSetExactArgs :                             ARGS_OPENING attributeName = classifierToken ARGS_DELIMITER attributeValues = variadicValueTokens ARGS_CLOSING ;
+
 pageConstraintArgs :                                ARGS_OPENING pageNumber = valueToken ARGS_DELIMITER pageSize = valueToken ARGS_CLOSING ;
 
 stripConstraintArgs :                               ARGS_OPENING offset = valueToken ARGS_DELIMITER limit = valueToken ARGS_CLOSING ;
+
+priceContentArgs :                                  ARGS_OPENING contentMode = valueToken (ARGS_DELIMITER priceLists = variadicValueTokens)? ARGS_CLOSING ;
 
 singleRefReferenceContentArgs :                     ARGS_OPENING (
                                                         (classifier = classifierToken (ARGS_DELIMITER requirement = requireConstraint)?) |

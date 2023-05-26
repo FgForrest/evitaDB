@@ -18,8 +18,8 @@ final EvitaResponse<SealedEntity> response = evita.queryCatalog(
 				require(
 					page(2, 24),
 					entityFetch(
-						attributeContent(),
-						priceContent()
+						attributeContentAll(),
+						priceContentRespectingFilter()
 					),
 					facetSummary()
 				)

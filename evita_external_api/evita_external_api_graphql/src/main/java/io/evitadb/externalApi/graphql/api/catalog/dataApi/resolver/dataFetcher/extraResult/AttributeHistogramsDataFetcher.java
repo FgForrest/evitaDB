@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -46,21 +45,21 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class AttributeHistogramsDataFetcher implements DataFetcher<DataFetcherResult<List<Map<String, Object>>>> {
+public class AttributeHistogramsDataFetcher implements DataFetcher<List<Map<String, Object>>> {
 
 	private final EntitySchemaContract entitySchema;
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<List<Map<String, Object>>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public List<Map<String, Object>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = environment.getSource();
 		final AttributeHistogram attributeHistogram = response.getExtraResult(AttributeHistogram.class);
 		if (attributeHistogram == null) {
-			return DataFetcherResult.<List<Map<String, Object>>>newResult().data(List.of()).build();
+			return List.of();
 		}
 		//noinspection unchecked
 		final List<String> attributes = (List<String>) environment.getArguments().get("attributes");
-		final List<Map<String, Object>> namedHistograms = attributeHistogram.getHistograms()
+		return attributeHistogram.getHistograms()
 			.entrySet()
 			.stream()
 			.filter(h -> {
@@ -78,8 +77,5 @@ public class AttributeHistogramsDataFetcher implements DataFetcher<DataFetcherRe
 				"buckets", (Object) h.getValue().getBuckets()
 			))
 			.toList();
-		return DataFetcherResult.<List<Map<String, Object>>>newResult()
-			.data(namedHistograms)
-			.build();
 	}
 }

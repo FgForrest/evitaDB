@@ -23,26 +23,29 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
-import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  * Finds entity types of available entity collections.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public class CollectionsDataFetcher implements DataFetcher<Set<String>> {
+public class CollectionsDataFetcher extends ReadDataFetcher<Set<String>> {
+
+    public CollectionsDataFetcher(@Nonnull Executor executor) {
+        super(executor);
+    }
 
     @Nonnull
     @Override
-    public Set<String> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public Set<String> doGet(@Nonnull DataFetchingEnvironment environment) {
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
         return evitaSession.getAllEntityTypes();
     }

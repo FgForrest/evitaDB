@@ -1,0 +1,311 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config
+  namespace: monitoring
+data:
+  scrape.yml: |
+    global:
+      scrape_interval: 30s
+      external_labels:
+        cluster: __CLUSTER__NAME__
+
+    scrape_configs:
+      # Scrape config for node (i.e. kubelet) /metrics (e.g. 'kubelet_'). Explore metrics from a node by scraping kubelet (127.0.0.1:10250/metrics).
+      ## contains Volume usage - data, inodes
+      - job_name: 'kubelet'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true # Kubelet certs don't have any fixed IP SANs
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+        relabel_configs:
+          #- action: labelmap
+          #  regex: __meta_kubernetes_node_label_(.+)
+
+        metric_relabel_configs:
+          - source_labels: [ __name__ ]
+            regex: 'kubelet_container_log_filesystem.*|kubelet_volume_stats_.*|volume_manager_total_volumes.*'
+            action: keep
+
+      # Scrape config for Kubelet cAdvisor. Explore metrics from a node by scraping kubelet (127.0.0.1:10250/metrics/cadvisor).
+      - job_name: 'cadvisor'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          insecure_skip_verify: true # Kubelet certs don't have any fixed IP SANs
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        metrics_path: /metrics/cadvisor
+
+        metric_relabel_configs:
+          - source_labels: [ container ]
+            regex: 'POD'
+            action: drop
+
+      # Scrape service containers in our namespace
+      - job_name: 'scrape'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [ __meta_kubernetes_service_annotation_fg_prometheus_scrape ]
+            action: keep
+            regex: true
+
+          - source_labels: [ __meta_kubernetes_service_name ]
+            ## default exporter - Service name
+            action: replace
+            target_label: exporter
+          - source_labels: [ __meta_kubernetes_service_annotation_fg_prometheus_exporter ]
+            ## override exporter - annotation
+            regex: '(.+)'
+            action: replace
+            target_label: exporter
+
+          - source_labels: [ __meta_kubernetes_namespace ]
+            action: replace
+            target_label: namespace
+          - action: replace
+            source_labels: [ __meta_kubernetes_pod_node_name ]
+            target_label: host
+          - action: replace
+            source_labels: [ __meta_kubernetes_pod_name ]
+            target_label: pod
+          - action: replace
+            source_labels: [ __meta_kubernetes_pod_container_name ]
+            target_label: container
+          - action: replace
+            source_labels: [ __meta_kubernetes_pod_container_port_name ]
+            target_label: port
+          - action: replace
+            source_labels: [ __meta_kubernetes_endpoint_port_name ]
+            regex: '(.+)'
+            target_label: port
+          - action: replace
+            source_labels: [ pod, container, port ]
+            separator: "/"
+            target_label: job
+
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: vmagent
+  namespace: monitoring
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: monitoring-vmagent
+rules:
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - ''
+    resources:
+      - nodes
+      - nodes/proxy
+      - nodes/metrics
+      - services
+      - endpoints
+      - pods
+      - ingresses
+      - configmaps
+  - verbs:
+      - get
+    nonResourceURLs:
+      - /metrics
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: monitoring-vmagent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: monitoring-vmagent
+subjects:
+  - kind: ServiceAccount
+    name: vmagent
+    namespace: monitoring
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmagent
+  namespace: monitoring
+spec:
+  type: ClusterIP
+  ports:
+    - name: prometheus
+      port: 80
+      targetPort: prometheus
+  selector:
+    name: vmagent
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: vmagent
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: vmagent
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        name: vmagent
+    spec:
+      serviceAccountName: vmagent
+      volumes:
+        - name: config
+          configMap:
+            name: config
+        - name: vmagent-data
+          emptyDir: { }
+        - name: prometheus-data
+          emptyDir: { }
+      containers:
+        - name: shell
+          image: nginx:latest
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
+            limits:
+              cpu: 20m
+              memory: 50Mi
+        - name: prometheus
+          ## for easy scrape debugging
+          image: prom/prometheus
+          resources:
+            requests:
+              cpu: 50m
+              memory: 20Mi
+            limits:
+              cpu: 200m
+              memory: 150Mi
+          volumeMounts:
+            - name: config
+              subPath: scrape.yml
+              mountPath: /scrape.yml
+            #- name: rules
+            #  mountPath: /etc/prometheus/rules
+            - name: prometheus-data
+              mountPath: /var/lib/prometheus
+          ports:
+            - name: prometheus
+              containerPort: 9090
+          args:
+            - '--web.listen-address=0.0.0.0:9090'
+            #- '--web.route-prefix=/prom'
+            - '--config.file=/scrape.yml'
+            - '--storage.tsdb.path=/var/lib/prometheus'
+            - '--storage.tsdb.retention.time=1d'
+            - '--storage.tsdb.retention.size=1GB'
+            - '--storage.tsdb.min-block-duration=2h'
+            - '--storage.tsdb.max-block-duration=2h'
+        - name: vmagent
+          image: victoriametrics/vmagent
+          resources:
+            requests:
+              cpu: 50m
+              memory: 30Mi
+            limits:
+              cpu: 200m
+              memory: 150Mi
+          volumeMounts:
+            - name: config
+              subPath: scrape.yml
+              mountPath: /scrape.yml
+            - name: vmagent-data
+              mountPath: /vmagent-data
+          args:
+            - -httpListenAddr=:8400
+            - -remoteWrite.url=__GRAFANA_URL__
+            - -remoteWrite.basicAuth.username=__GRAFANA_USER__
+            - -remoteWrite.basicAuth.password=__GRAFANA_PASSWD__
+            - -promscrape.config=/scrape.yml
+            - -remoteWrite.tmpDataPath=/vmagent-data"
+            - -remoteWrite.maxDiskUsagePerURL=600000000
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  annotations:
+    fg.prometheus/scrape: 'true'
+    #fg.prometheus/job: 'custom-job-name'
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: metrics
+  selector:
+    name: node-exporter
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: node-exporter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      name: node-exporter
+  template:
+    metadata:
+      labels:
+        name: node-exporter
+    spec:
+      volumes:
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: root
+          hostPath:
+            path: /
+      containers:
+        - name: node-exporter
+          image: prom/node-exporter
+          volumeMounts:
+            - name: proc
+              readOnly: true
+              mountPath: /host/proc
+            - name: sys
+              readOnly: true
+              mountPath: /host/sys
+            - name: root
+              readOnly: true
+              mountPath: /host/root
+          ports:
+            - name: metrics
+              containerPort: 9100
+          args:
+            - --web.listen-address=:9100
+            - --path.procfs=/host/proc
+            - --path.sysfs=/host/sys
+            - --path.rootfs=/host/root
+            - '--collector.filesystem.ignored-mount-points=^/(dev|proc|sys|var/lib/docker|var/lib/containers/.+)($|/)'
+            - '--collector.filesystem.ignored-fs-types=^(autofs|binfmt_misc|cgroup|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|sysfs|tracefs)$'

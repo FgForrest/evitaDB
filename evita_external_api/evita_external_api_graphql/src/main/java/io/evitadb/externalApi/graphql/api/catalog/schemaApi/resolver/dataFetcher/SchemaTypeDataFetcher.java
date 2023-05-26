@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import graphql.schema.GraphQLList;
@@ -40,17 +39,14 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public abstract class SchemaTypeDataFetcher implements DataFetcher<DataFetcherResult<String>> {
+public abstract class SchemaTypeDataFetcher implements DataFetcher<String> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<String> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public String get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final Class<?> javaType = getJavaType(environment);
 		final GraphQLType graphQLType = DataTypesConverter.getGraphQLScalarType(javaType);
-		final String graphQLTypeName = resolveGraphQLTypeName(graphQLType);
-		return DataFetcherResult.<String>newResult()
-			.data(graphQLTypeName)
-			.build();
+		return resolveGraphQLTypeName(graphQLType);
 	}
 
 

@@ -25,7 +25,6 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -35,6 +34,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ResponseHeaderDe
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Extract {@link io.evitadb.api.requestResponse.extraResult.QueryTelemetry} DTO from response's extra results and
@@ -43,24 +43,22 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @RequiredArgsConstructor
-public class QueryTelemetryDataFetcher implements DataFetcher<DataFetcherResult<JsonNode>> {
+public class QueryTelemetryDataFetcher implements DataFetcher<JsonNode> {
 
 	@Nonnull
 	private final ObjectMapper objectMapper;
 
-	@Nonnull
+	@Nullable
 	@Override
-	public DataFetcherResult<JsonNode> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public JsonNode get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = environment.getSource();
 		final QueryTelemetry queryTelemetry = response.getExtraResult(QueryTelemetry.class);
 		if (queryTelemetry == null) {
-			return DataFetcherResult.<JsonNode>newResult().build();
+			return null;
 		}
 
 		final boolean formatted = environment.getArgumentOrDefault(QueryTelemetryFieldHeaderDescriptor.FORMATTED.name(), false);
-		return DataFetcherResult.<JsonNode>newResult()
-			.data(objectMapper.valueToTree(QueryTelemetryDto.from(queryTelemetry, formatted)))
-			.build();
+		return objectMapper.valueToTree(QueryTelemetryDto.from(queryTelemetry, formatted));
 	}
 
 }

@@ -32,6 +32,8 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
+import io.evitadb.index.attribute.SortIndexChanges.ValueStartIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
@@ -40,6 +42,7 @@ import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.SortIndexStoragePart;
+import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -78,6 +81,7 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLayerProducer<SortIndexChanges, SortIndex>, IndexDataStructure, Serializable {
 	@Serial private static final long serialVersionUID = 5862170244589598450L;
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains record ids sorted by assigned values. The array is divided in so called record ids block that respects
 	 * order in {@link #sortedRecordsValues}. Record ids within the same block are sorted naturally by their integer id.
@@ -92,7 +96,6 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * with low cardinality so this should save a lot of memory.
 	 */
 	final TransactionalMap<Comparable<?>, Integer> valueCardinalities;
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains type of the attribute.
 	 */
@@ -213,7 +216,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		final SortIndexChanges sortIndexChanges = getOrCreateSortIndexChanges();
 
 		// prepare internal datastructures
-		sortIndexChanges.prepareForRemoval();
+		sortIndexChanges.prepare();
 
 		// add record id on the computed position
 		final int previousRecordId = sortIndexChanges.computePreviousRecord((Comparable<?>) normalizedValue, recordId, comparator);
@@ -259,9 +262,9 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			"Value `" + value + "` is not present in the sort index!"
 		);
 		// prepare internal datastructures
-		sortIndexChanges.prepareForRemoval();
+		sortIndexChanges.prepare();
 
-		// add record id from the array
+		// remove record id from the array
 		this.sortedRecords.remove(recordId);
 		// had the value cardinality >= 2?
 		final Integer cardinality = theValueCardinalities.get(normalizedValue);
@@ -303,6 +306,45 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	@Nonnull
 	public Comparable<?>[] getSortedRecordValues() {
 		return this.sortedRecordsValues.getArray();
+	}
+
+	/**
+	 * Returns bitmap of all record ids connected with the value in the argument
+	 */
+	@Nonnull
+	public <T extends Comparable<T>> Bitmap getRecordsEqualTo(@Nonnull T value) {
+		final Object normalizedValue = normalizer.apply(value);
+		@SuppressWarnings("unchecked")
+		final TransactionalObjArray<T> theSortedRecordsValues = (TransactionalObjArray<T>) this.sortedRecordsValues;
+		@SuppressWarnings("unchecked")
+		final int index = theSortedRecordsValues.indexOf((T) normalizedValue);
+		isTrue(
+			index >= 0,
+			"Value `" + value + "` is not present in the sort index!"
+		);
+
+		// add record id from the array
+		final ValueStartIndex[] valueIndex = getOrCreateSortIndexChanges()
+			.getValueIndex(this.sortedRecordsValues, this.valueCardinalities);
+
+		@SuppressWarnings({"rawtypes", "unchecked"})
+		final int theValueIndex = ArrayUtils.binarySearch(
+			valueIndex, normalizedValue,
+			(valueStartIndex, theValue) -> ((Comparable) valueStartIndex.getValue()).compareTo(theValue)
+		);
+
+		// had the value cardinality >= 2?
+		final Integer cardinality = this.valueCardinalities.get(normalizedValue);
+		final int recordIdIndex = valueIndex[theValueIndex].getIndex();
+		if (cardinality != null) {
+			return new BaseBitmap(
+				this.sortedRecords.getSubArray(recordIdIndex, recordIdIndex + cardinality)
+			);
+		} else {
+			return new BaseBitmap(
+				this.sortedRecords.get(recordIdIndex)
+			);
+		}
 	}
 
 	/**

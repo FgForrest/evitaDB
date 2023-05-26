@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -40,20 +39,17 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class RecordPageDataFetcher implements DataFetcher<DataFetcherResult<PaginatedList<? extends EntityClassifier>>> {
+public class RecordPageDataFetcher implements DataFetcher<PaginatedList<? extends EntityClassifier>> {
 
 	@Nonnull
 	@Override
-	public DataFetcherResult<PaginatedList<? extends EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+	public PaginatedList<? extends EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<? extends EntityClassifier> response = environment.getSource();
 		final DataChunk<? extends EntityClassifier> records = response.getRecordPage();
 		Assert.isPremiseValid(
 			records instanceof PaginatedList,
 			() -> new GraphQLQueryResolvingInternalError("Expected paginated list but was `" + records.getClass() + "`.")
 		);
-		//noinspection unchecked
-		return DataFetcherResult.<PaginatedList<? extends EntityClassifier>>newResult()
-			.data((PaginatedList<? extends EntityClassifier>) records)
-			.build();
+		return (PaginatedList<? extends EntityClassifier>) records;
 	}
 }

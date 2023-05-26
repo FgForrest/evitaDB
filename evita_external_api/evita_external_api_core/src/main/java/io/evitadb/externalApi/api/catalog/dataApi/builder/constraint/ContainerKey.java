@@ -44,7 +44,7 @@ import java.util.Set;
 @Getter
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
-public class ContainerKey extends CachableElementKey {
+public class ContainerKey extends CacheableElementKey {
 
 	/**
 	 * Predicate defining allowed constraints in the container.

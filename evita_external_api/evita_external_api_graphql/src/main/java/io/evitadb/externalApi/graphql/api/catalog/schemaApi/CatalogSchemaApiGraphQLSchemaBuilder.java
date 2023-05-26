@@ -25,8 +25,8 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.EvitaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
@@ -45,7 +45,7 @@ import javax.annotation.Nonnull;
  */
 public class CatalogSchemaApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<CatalogGraphQLSchemaBuildingContext> {
 
-	public CatalogSchemaApiGraphQLSchemaBuilder(@Nonnull EvitaContract evita, @Nonnull CatalogContract catalog) {
+	public CatalogSchemaApiGraphQLSchemaBuilder(@Nonnull Evita evita, @Nonnull CatalogContract catalog) {
 		super(new CatalogGraphQLSchemaBuildingContext(evita, catalog));
 	}
 

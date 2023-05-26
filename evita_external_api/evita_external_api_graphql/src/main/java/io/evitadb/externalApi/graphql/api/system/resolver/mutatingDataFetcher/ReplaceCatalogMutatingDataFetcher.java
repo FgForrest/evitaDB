@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher;
 
-import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.CatalogContract;
@@ -39,21 +38,17 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class ReplaceCatalogMutatingDataFetcher implements DataFetcher<DataFetcherResult<CatalogContract>> {
+public class ReplaceCatalogMutatingDataFetcher implements DataFetcher<CatalogContract> {
 
     private final Evita evita;
 
     @Nonnull
     @Override
-    public DataFetcherResult<CatalogContract> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
+    public CatalogContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
         final String catalogNameToBeReplaced = environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED.name());
         final String catalogNameToBeReplacedWith = environment.getArgument(ReplaceCatalogMutationHeaderDescriptor.NAME_TO_BE_REPLACED_WITH.name());
 
         evita.replaceCatalog(catalogNameToBeReplacedWith, catalogNameToBeReplaced);
-        final CatalogContract replacedCatalog = evita.getCatalogInstanceOrThrowException(catalogNameToBeReplaced);
-
-        return DataFetcherResult.<CatalogContract>newResult()
-            .data(replacedCatalog)
-            .build();
+        return evita.getCatalogInstanceOrThrowException(catalogNameToBeReplaced);
     }
 }

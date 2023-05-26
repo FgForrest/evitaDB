@@ -1,0 +1,57 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: benchmark
+spec:
+  template:
+    metadata:
+      labels:
+        name: benchmark
+    spec:
+      containers:
+        - name: benchmark
+          image: evitadb/evitadb:benchmark
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: benchmark
+            - secretRef:
+                name: benchmark
+          args:
+            - '__ARG_EXTRA_JAVA_OPTS__'
+          resources:
+            requests:
+              cpu: '__BENCHMARK_REQ_CPU__'
+              memory: '__BENCHMARK_REQ_MEM__'
+            limits:
+              cpu: '__BENCHMARK_LIM_CPU__'
+              memory: '__BENCHMARK_LIM_MEM__'
+          ports:
+            - name: jmx-main
+              containerPort: 8014
+            - name: jmx-fork
+              containerPort: 8015
+      restartPolicy: Never
+  backoffLimit: 0
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-jmx-benchmark
+  annotations:
+    fg.prometheus/scrape: 'true'
+    fg.prometheus/exporter: 'jmx'
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    name: benchmark
+  ports:
+    - name: main
+      port: 9114
+      targetPort: jmx-main
+    - name: fork
+      port: 9115
+      targetPort: jmx-fork

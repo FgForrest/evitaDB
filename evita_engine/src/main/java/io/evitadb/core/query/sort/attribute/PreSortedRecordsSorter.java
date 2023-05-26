@@ -27,12 +27,9 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.utils.SortUtils;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import lombok.RequiredArgsConstructor;
@@ -44,7 +41,6 @@ import org.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,7 +59,7 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
-public class PreSortedRecordsSorter implements Sorter {
+public class PreSortedRecordsSorter extends AbstractRecordsSorter {
 	private static final int[] EMPTY_RESULT = new int[0];
 	/**
 	 * This instance will be used by this sorter to access pre sorted arrays of entities.
@@ -115,7 +111,9 @@ public class PreSortedRecordsSorter implements Sorter {
 					sortedRecordsProvider, selectedRecordIds.size(), positions.mask(), startIndex, endIndex
 				);
 				return returnResultAppendingUnknown(
-					queryContext, sortPartialResult, positions.notFoundRecords(), startIndex, endIndex
+					queryContext, sortPartialResult,
+					positions.notFoundRecords(), unknownRecordIdsSorter,
+					startIndex, endIndex
 				);
 			} else {
 				final OfInt it = selectedRecordIds.iterator();
@@ -147,7 +145,7 @@ public class PreSortedRecordsSorter implements Sorter {
 				return returnResultAppendingUnknown(
 					queryContext,
 					new SortResult(result, index.get()),
-					notFoundRecords,
+					notFoundRecords, unknownRecordIdsSorter,
 					startIndex, endIndex
 				);
 			}
@@ -158,7 +156,7 @@ public class PreSortedRecordsSorter implements Sorter {
 	 * Maps positions to the record ids in presorted set respecting start and end index.
 	 */
 	@Nonnull
-	private SortResult fetchSlice(@Nonnull SortedRecordsProvider sortedRecordsProvider, int recordsFound, @Nonnull RoaringBitmap positions, int startIndex, int endIndex) {
+	private static SortResult fetchSlice(@Nonnull SortedRecordsProvider sortedRecordsProvider, int recordsFound, @Nonnull RoaringBitmap positions, int startIndex, int endIndex) {
 		final int[] buffer = new int[512];
 
 		final RoaringBatchIterator batchIterator = positions.getBatchIterator();
@@ -246,47 +244,10 @@ public class PreSortedRecordsSorter implements Sorter {
 	}
 
 	/**
-	 * Completes the result by cutting the result smaller than requested count but appending all not found record ids
-	 * before the cut.
-	 */
-	@Nonnull
-	private int[] returnResultAppendingUnknown(@Nonnull QueryContext queryContext, @Nonnull SortResult sortPartialResult, @Nonnull RoaringBitmap notFoundRecords, int startIndex, int endIndex) {
-		final int[] sortedResult = sortPartialResult.result();
-		final int sortedResultPeak = sortPartialResult.peak();
-		final int finalResultPeak;
-		if (sortedResultPeak < sortedResult.length && !notFoundRecords.isEmpty()) {
-			final int recomputedStartIndex = Math.max(0, startIndex - sortedResultPeak);
-			final int recomputedEndIndex = Math.max(0, endIndex - sortedResultPeak);
-			if (unknownRecordIdsSorter == null) {
-				finalResultPeak = SortUtils.appendNotFoundResult(
-					sortedResult, sortedResultPeak, recomputedStartIndex, recomputedEndIndex, notFoundRecords
-				);
-			} else {
-				final int[] rest = unknownRecordIdsSorter.sortAndSlice(
-					queryContext, new ConstantFormula(new BaseBitmap(notFoundRecords)),
-					recomputedStartIndex, recomputedEndIndex
-				);
-				System.arraycopy(rest, 0, sortedResult, sortedResultPeak, rest.length);
-				finalResultPeak = sortedResultPeak + rest.length;
-			}
-		} else {
-			finalResultPeak = sortedResultPeak;
-		}
-		return finalResultPeak < sortedResult.length ? Arrays.copyOf(sortedResult, finalResultPeak) : sortedResult;
-	}
-
-	/**
 	 * @param mask            IntegerBitmap of positions of record ids in presorted set.
 	 * @param notFoundRecords IntegerBitmap of record ids not found in presorted set at all.
 	 */
 	private record MaskResult(@Nonnull RoaringBitmap mask, @Nonnull RoaringBitmap notFoundRecords) {
-	}
-
-	/**
-	 * @param result Sorted result of record ids (may contain padding - see {@link #peak})
-	 * @param peak   Peak index position in the result (delimits real record ids and empty space)
-	 */
-	private record SortResult(int[] result, int peak) {
 	}
 
 }
