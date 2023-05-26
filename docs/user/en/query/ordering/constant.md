@@ -161,6 +161,6 @@ the rest of the query result.
 ##### List of products sorted by the exact order of entity attribute `code`
 </NoteTitle>
 
-<MDInclude>[Entities sorted by the specified order of the attribute `code` values](docs/user/en/query/ordering/examples/constant/attribute-in-set-exact.evitaql.md)</MDInclude>
+<MDInclude>[Entities sorted by the specified order of the attribute `code` values](docs/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql.md)</MDInclude>
 
 </Note>
