@@ -7,6 +7,8 @@ query(
         entityPrimaryKeyInFilter()
     ),
     require(
-        attributeContent('code')
+       entityFetch(
+           attributeContent('code')
+       )
     )
 )
