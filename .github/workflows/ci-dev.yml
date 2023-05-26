@@ -2,9 +2,6 @@
 
 name: CI Dev branch
 
-permissions:
-  checks: write
-
 on:
   push:
     branches: [ "dev" ]            # trap each push to dev branch
