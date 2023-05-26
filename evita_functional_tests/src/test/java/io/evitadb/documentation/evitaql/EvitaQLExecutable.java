@@ -352,10 +352,15 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	private static String generateMarkDownJsonBlock(
 		@Nonnull Query query,
 		@Nonnull EvitaResponse<SealedEntity> response,
-		@Nonnull String sourceVariable
+		@Nullable String sourceVariable
 	) {
-		final String[] sourceVariableParts = sourceVariable.split("\\.");
-		final Object theValue = extractValueFrom(response, sourceVariableParts);
+		final Object theValue;
+		if (sourceVariable == null || sourceVariable.isBlank()) {
+			theValue = response;
+		} else {
+			final String[] sourceVariableParts = sourceVariable.split("\\.");
+			theValue = extractValueFrom(response, sourceVariableParts);
+		}
 		final String json = ofNullable(theValue)
 			.map(it -> {
 				try {

@@ -430,7 +430,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									requiredScripts,
 									contextAccessor,
 									codeSnippetIndex,
-									outputSnippet,
+									outputSnippetIndex.get(relatedFile),
 									createSnippets
 								)
 							);

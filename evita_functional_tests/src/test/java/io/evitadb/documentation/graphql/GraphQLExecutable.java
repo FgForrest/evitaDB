@@ -209,10 +209,15 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	@Nonnull
 	private static String generateMarkDownJsonBlock(
 		@Nonnull JsonNode response,
-		@Nonnull String sourceVariable
+		@Nullable String sourceVariable
 	) {
-		final String[] sourceVariableParts = sourceVariable.split("\\.");
-		final JsonNode theValue = extractValueFrom(response, sourceVariableParts);
+		final JsonNode theValue;
+		if (sourceVariable == null || sourceVariable.isBlank()) {
+			theValue = response;
+		} else {
+			final String[] sourceVariableParts = sourceVariable.split("\\.");
+			theValue = extractValueFrom(response, sourceVariableParts);
+		}
 		final String json = ofNullable(theValue)
 			.map(it -> {
 				try {
