@@ -379,9 +379,9 @@ It allows configuring these settings:
   <dt>generateAndUseSelfSigned</dt>
   <dd>
     <p>**Default:** `true`</p>
-    <p>When set to `true`, a self-signed <Term location="docs/user/en/operate/tls.md">certificate authority</Term> 
-    <Term location="docs/user/en/operate/tls.md">certificate</Term> and its 
-    <Term location="docs/user/en/operate/tls.md">private key</Term> are automatically generated on server startup 
+    <p>When set to `true`, a self-signed <Term location="/docs/user/en/operate/tls.md">certificate authority</Term> 
+    <Term location="/docs/user/en/operate/tls.md">certificate</Term> and its 
+    <Term location="/docs/user/en/operate/tls.md">private key</Term> are automatically generated on server startup 
     and used to communicate with clients.</p>
   </dd>
   <dt>folderPath</dt>
@@ -392,7 +392,7 @@ It allows configuring these settings:
   </dd>
   <dt>custom</dt>
   <dd>
-    <p>This section allows you to configure an externally supplied <Term location="docs/user/en/operate/tls.md">certificate</Term>. 
+    <p>This section allows you to configure an externally supplied <Term location="/docs/user/en/operate/tls.md">certificate</Term>. 
     It is only used if the `generateAndUseSelfSigned` is set to `false`.</p>
     <p>The section requires these nested settings:</p>
       - **`certificate`**: path to the public part of the certificate file (*.crt)
@@ -417,8 +417,8 @@ It allows configuring these settings:
     </NoteTitle>
 
     Yes there is. You can use standardized way importing the 
-    <Term location="docs/user/en/operate/tls.md">certificate authority</Term> 
-    <Term location="docs/user/en/operate/tls.md">certificate</Term> to the Java trust store. This procedure is
+    <Term location="/docs/user/en/operate/tls.md">certificate authority</Term> 
+    <Term location="/docs/user/en/operate/tls.md">certificate</Term> to the Java trust store. This procedure is
     described in great detail in [this article](https://medium.com/expedia-group-tech/how-to-import-public-certificates-into-javas-truststore-from-a-browser-a35e49a806dc).
 
     </Note>
@@ -501,7 +501,7 @@ provide an unsecured connection for security reasons.
     <dt>allowedClientCertificatePaths</dt>
     <dd>
         <p>**Default:** `null`</p>
-        <p>It allows you to define zero or more file paths pointing to public <Term location="docs/user/en/operate/tls.md" name="certificate">client certificates</Term>.
+        <p>It allows you to define zero or more file paths pointing to public <Term location="/docs/user/en/operate/tls.md" name="certificate">client certificates</Term>.
         Only clients that present the correct certificate will be allowed to communicate with the gRPC web API.</p>
     </dd>
 </dl>
@@ -527,8 +527,8 @@ more information.
         <p>**Default:** `localhost:5557`</p>
         <p>It specifies the host and port on which the system API should listen. The value must be different from all 
         other APIs because the system API needs to run on the insecure HTTP protocol while the other APIs use the secure one.</p>
-        <p>The system endpoint allows anyone to view public <Term location="docs/user/en/operate/tls.md">certificate authority</Term> 
-        <Term location="docs/user/en/operate/tls.md">certificate</Term> and it also provides information for 
+        <p>The system endpoint allows anyone to view public <Term location="/docs/user/en/operate/tls.md">certificate authority</Term> 
+        <Term location="/docs/user/en/operate/tls.md">certificate</Term> and it also provides information for 
         [default `mTLS` implementation](tls.md#default-mtls-behaviour-not-secure).</p>
     </dd>
     <dt>allowedOrigins</dt>

@@ -24,7 +24,7 @@ constraint in the filter part of the query. It uses the specified array of entit
 returned by the query.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](docs/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql)
+[Transitive category listing](/docs/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql)
 </SourceCodeTabs>
 
 The sample query returns exactly 4 products, which maintain the order of the filtered primary keys in the query that 
@@ -37,7 +37,7 @@ was issued.
 ##### List of products sorted by order of entity primary keys in filter
 </NoteTitle>
 
-<MDInclude>[Entities sorted by order of the filtered primary keys](docs/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql.md)</MDInclude>
+<MDInclude>[Entities sorted by order of the filtered primary keys](/docs/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -60,7 +60,7 @@ The constraint allows output entities to be sorted by entity primary keys in the
 Nth arguments of this constraint.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](docs/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql)
+[Transitive category listing](/docs/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql)
 </SourceCodeTabs>
 
 The sample query returns all products whose code starts with the string *lenovo*, but uses the order of the first three
@@ -76,7 +76,7 @@ the rest of the query result.
 ##### List of products sorted by the exact order of entity primary keys
 </NoteTitle>
 
-<MDInclude>[Entities sorted by the specified order of the primary keys](docs/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql.md)</MDInclude>
+<MDInclude>[Entities sorted by the specified order of the primary keys](/docs/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -102,7 +102,7 @@ in the filter part of the query, referring to the attribute with the same name a
 constraint. It uses the specified array of attribute values to sort the result returned by the query.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](docs/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql)
+[Transitive category listing](/docs/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql)
 </SourceCodeTabs>
 
 The sample query returns exactly 3 products, preserving the order of the entity's `code` attribute used in the filter 
@@ -115,7 +115,7 @@ constraint of the query that was issued.
 ##### List of products sorted by order of attribute `code` in filter
 </NoteTitle>
 
-<MDInclude>[Entities sorted by order `code` attribute of the filtered entities](docs/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql.md)</MDInclude>
+<MDInclude>[Entities sorted by order `code` attribute of the filtered entities](/docs/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -145,7 +145,7 @@ The constraint allows output entities to be sorted by attribute values in the ex
 Nth arguments of this constraint.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](docs/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql)
+[Transitive category listing](/docs/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql)
 </SourceCodeTabs>
 
 The sample query returns all products whose code starts with the string *lenovo*, but uses the order of the first three
@@ -161,6 +161,6 @@ the rest of the query result.
 ##### List of products sorted by the exact order of entity attribute `code`
 </NoteTitle>
 
-<MDInclude>[Entities sorted by the specified order of the attribute `code` values](docs/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql.md)</MDInclude>
+<MDInclude>[Entities sorted by the specified order of the attribute `code` values](/docs/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql.md)</MDInclude>
 
 </Note>
