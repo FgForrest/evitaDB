@@ -304,7 +304,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/requirements/hierarchy.md")
+			getRootDirectory().resolve("docs/user/en/get-started/run-evitadb.md")
 		).stream();
 	}
 
@@ -392,7 +392,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					.map(
 						requires -> Arrays.stream(requires.split(","))
 							.filter(it -> !it.isBlank())
-							.map(it -> rootDirectory.resolve(it).toAbsolutePath())
+							.map(it -> createPathRelativeToRootDirectory(rootDirectory, it).normalize())
 							.toArray(Path[]::new)
 					)
 					.orElse(null);
@@ -400,7 +400,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				final CodeSnippet codeSnippet = new CodeSnippet(
 					"Example `" + referencedFile.getFileName() + "`",
 					referencedFileExtension,
-					referencedFile.toAbsolutePath(),
+					referencedFile.normalize(),
 					findRelatedFiles(referencedFile)
 						.stream()
 						.map(relatedFile -> {
@@ -408,7 +408,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							return new CodeSnippet(
 								"Example `" + relatedFile.getFileName() + "`",
 								relatedFileExtension,
-								relatedFile.toAbsolutePath(),
+								relatedFile.normalize(),
 								null,
 								convertToRunnable(
 									relatedFileExtension,
