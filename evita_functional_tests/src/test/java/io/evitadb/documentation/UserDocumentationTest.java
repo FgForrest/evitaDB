@@ -329,6 +329,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Tag(DOCUMENTATION_TEST)
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
+		// todo jno this should generate the json output snippet for gql
 		return this.createTests(
 			getRootDirectory().resolve("docs/user/en/query/filtering/hierarchy.md"),
 			CreateSnippets.MARKDOWN
