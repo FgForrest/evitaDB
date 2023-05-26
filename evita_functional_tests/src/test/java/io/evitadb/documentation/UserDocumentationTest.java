@@ -241,7 +241,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					sourceContent,
 					rootPath,
 					resource,
-					outputSnippet
+					outputSnippet,
+					createSnippets
 				);
 			}
 			default -> {
@@ -329,7 +330,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/requirements/hierarchy.md"),
+			getRootDirectory().resolve("docs/user/en/query/filtering/hierarchy.md"),
 			CreateSnippets.MARKDOWN
 		).stream();
 	}
@@ -488,7 +489,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	public enum CreateSnippets {
 
-		JAVA, MARKDOWN
+		JAVA, MARKDOWN, GRAPHQL
 
 	}
 

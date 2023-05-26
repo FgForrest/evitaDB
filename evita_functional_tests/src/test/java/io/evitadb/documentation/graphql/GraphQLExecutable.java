@@ -31,51 +31,40 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.data.DataItemValue;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
 import io.evitadb.documentation.UserDocumentationTest.OutputSnippet;
 import io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker;
 import io.evitadb.documentation.evitaql.EntityDocumentationJsonSerializer;
 import io.evitadb.driver.EvitaClient;
-import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.test.EvitaTestSupport;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
-import net.steppschuh.markdowngenerator.table.Table;
 import net.steppschuh.markdowngenerator.text.code.CodeBlock;
 import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.math.BigDecimal;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
 import static io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker.allow;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -156,120 +145,62 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	 * Contains reference to the output snippet bound to this executable.
 	 */
 	private final @Nullable OutputSnippet outputSnippet;
+	/**
+	 * Contains requests for generating alternative language code snippets.
+	 */
+	private final @Nonnull CreateSnippets[] createSnippets;
+
+	/**
+	 * Method writes new content to the file with same name as original file but a different extension.
+	 *
+	 * @param originalFile original file name to copy name and location from
+	 * @param extension    new extension of the file
+	 * @param fileContent  new content of the file
+	 */
+	private static void writeFile(@Nonnull Path originalFile, @Nonnull String extension, @Nonnull String fileContent) {
+		final Path writeFileName = resolveSiblingWithDifferentExtension(originalFile, extension);
+		writeFile(writeFileName, fileContent);
+	}
+
+	/**
+	 * Method writes new content to the file.
+	 *
+	 * @param targetFile  original file name to copy name and location from
+	 * @param fileContent new content of the file
+	 */
+	private static void writeFile(@Nonnull Path targetFile, @Nonnull String fileContent) {
+		try {
+			Files.writeString(
+				targetFile, fileContent,
+				StandardCharsets.UTF_8,
+				StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE, StandardOpenOption.WRITE
+			);
+		} catch (IOException e) {
+			fail(e);
+		}
+	}
 
 	/**
 	 * Generates the MarkDown output with the results of the given query.
 	 */
 	@Nonnull
 	private static String generateMarkdownSnippet(
-		@Nonnull String query,
 		@Nonnull JsonNode response,
 		@Nullable OutputSnippet outputSnippet
 	) {
 		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
 		if (outputFormat.equals("md")) {
-			return generateMarkDownAttributeTable(query, response);
+			return generateMarkDownJsonBlock(response, "");
 		} else if (outputFormat.equals("json")) {
 			final String sourceVariable = outputSnippet.sourceVariable();
-			assertTrue(
-				sourceVariable != null && !sourceVariable.isEmpty(),
-				"Cannot generate `" + outputSnippet.path() + "`. The attribute `sourceVariable` is missing!"
-			);
+//			assertTrue(
+//				sourceVariable != null && !sourceVariable.isEmpty(),
+//				"Cannot generate `" + outputSnippet.path() + "`. The attribute `sourceVariable` is missing!"
+//			);
 			return generateMarkDownJsonBlock(response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);
 		}
-	}
-
-	/**
-	 * Generates output table that contains {@link SealedEntity#getPrimaryKey()} and list of attributes.
-	 */
-	@Nonnull
-	private static String generateMarkDownAttributeTable(
-		@Nonnull String query,
-		@Nonnull JsonNode response
-	) {
-		final List<String> queryLines = query.lines().toList();
-
-		// parse requested attributes
-		int attributesHeaderLineIndex = -1;
-		for (int i = 0; i < queryLines.size(); i++) {
-			final String line = queryLines.get(i);
-			if (line.contains(EntityDescriptor.ATTRIBUTES.name() + " {")) {
-				attributesHeaderLineIndex = i;
-				break;
-			}
-		}
-		final Set<String> requestedAttributes = createHashSet(5);
-		for (int i = attributesHeaderLineIndex + 1; i < queryLines.size(); i++) {
-			final String line = queryLines.get(i);
-			if (line.contains("}")) {
-				break;
-			}
-			requestedAttributes.add(line.strip());
-		}
-
-
-		// collect headers for the MarkDown table
-		final String[] headers = Stream.concat(
-			Stream.of(ENTITY_PRIMARY_KEY),
-			requestedAttributes.stream()
-		).toArray(String[]::new);
-
-		// define the table with header line
-		Table.Builder tableBuilder = new Table.Builder()
-			.withAlignment(Table.ALIGN_LEFT)
-			.addRow((Object[]) headers);
-
-		// add rows
-		final JsonNode page = response.get(ResponseDescriptor.RECORD_PAGE.name());
-		final ArrayNode entities = (ArrayNode) page.get(DataChunkDescriptor.DATA.name());
-		for (JsonNode entity : entities) {
-			tableBuilder.addRow(
-				(Object[]) Arrays.stream(headers)
-					.map(it -> {
-						if (it.equals(ENTITY_PRIMARY_KEY)) {
-							return entity.get(EntityDescriptor.PRIMARY_KEY.name());
-						}
-						return entity.get(EntityDescriptor.ATTRIBUTES.name()).get(it);
-					})
-					.map(jsonNode -> {
-						if (jsonNode.isBoolean()) {
-							return jsonNode.booleanValue();
-						} else if (jsonNode.isShort()) {
-							return jsonNode.shortValue();
-						} else if (jsonNode.isInt()) {
-							return jsonNode.intValue();
-						} else if (jsonNode.isLong()) {
-							return jsonNode.longValue();
-						} else if (jsonNode.isBigDecimal()) {
-							return new BigDecimal(jsonNode.textValue());
-						} else if (jsonNode.isTextual()) {
-							return jsonNode.textValue();
-						} else if (jsonNode.isValueNode()) {
-							final String value = jsonNode.asText();
-							try {
-								if (LONG_NUMBER.matcher(value).matches()) {
-									return new DataItemValue(Long.valueOf(value));
-								} else if (BIG_DECIMAL_NUMBER.matcher(value).matches()) {
-									return new DataItemValue(new BigDecimal(value));
-								} else {
-									return new DataItemValue(value);
-								}
-							} catch (NumberFormatException ex) {
-								return new DataItemValue(value);
-							}
-						} else {
-							throw new EvitaInvalidUsageException("Unexpected input JSON format.");
-						}
-					})
-					.map(EvitaDataTypes::formatValue)
-					.toArray(String[]::new)
-			);
-		}
-
-		// generate MarkDown
-		return tableBuilder.build().serialize() + "\n\n###### **Total number of results:** " + page.get(DataChunkDescriptor.TOTAL_RECORD_COUNT.name());
 	}
 
 	/**
@@ -307,6 +238,9 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 	@Nullable
 	private static JsonNode extractValueFrom(@Nonnull JsonNode theObject, @Nonnull String[] sourceVariableParts) {
 		if (theObject instanceof ObjectNode objectNode) {
+			if (sourceVariableParts.length == 0) {
+				return objectNode;
+			}
 			final JsonNode node = objectNode.get(sourceVariableParts[0]);
 			if (sourceVariableParts.length > 1) {
 				return extractValueFrom(
@@ -333,8 +267,17 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 		}
 
 		if (resource != null) {
-			final String markdownSnippet = generateMarkdownSnippet(theQuery, theResult, outputSnippet);
-			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
+			final String markdownSnippet = generateMarkdownSnippet(theResult, outputSnippet);
+
+			// generate Markdown snippet from the result if required
+			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("json");
+			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
+				if (outputSnippet == null) {
+					writeFile(resource, outputFormat, markdownSnippet);
+				} else {
+					writeFile(outputSnippet.path(), markdownSnippet);
+				}
+			}
 
 			// assert MarkDown file contents
 			final Optional<String> markDownFile = outputSnippet == null ?

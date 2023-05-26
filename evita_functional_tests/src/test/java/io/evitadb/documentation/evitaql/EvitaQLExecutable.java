@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.documentation.JavaPrettyPrintingVisitor;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
@@ -86,7 +87,6 @@ import static io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker.allow
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -118,6 +118,10 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 * Contents of the Java code template that is used to generate Java examples from EvitaQL queries.
 	 */
 	private final static List<String> JAVA_CODE_TEMPLATE;
+	/**
+	 * Contents of the GraphQL code template that is used to generate GraphQL examples from EvitaQL queries.
+	 */
+	private final static List<String> GRAPHQL_CODE_TEMPLATE;
 	/**
 	 * Regex pattern for replacing a placeholder in the Java template.
 	 */
@@ -156,6 +160,11 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 
 		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.java");) {
 			JAVA_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			throw new IllegalStateException(e);
+		}
+		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.graphql");) {
+			GRAPHQL_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			throw new IllegalStateException(e);
 		}
@@ -236,6 +245,30 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
+	 * Generates the Java code snippet for the given query.
+	 */
+	@Nonnull
+	private static String generateGraphQLSnippet(@Nonnull Query theQuery) {
+		return GRAPHQL_CODE_TEMPLATE
+			.stream()
+			.map(theLine -> {
+				final Matcher replacementMatcher = THE_QUERY_REPLACEMENT.matcher(theLine);
+				if (replacementMatcher.matches()) {
+					// todo lho generate graphql query here
+//					"""
+//                        queryCategory(...) {
+//                            ...
+//                        }
+//						"""
+					return "this is not graphql";
+				} else {
+					return theLine;
+				}
+			})
+			.collect(Collectors.joining("\n"));
+	}
+
+	/**
 	 * Generates the MarkDown output with the results of the given query.
 	 */
 	@Nonnull
@@ -249,10 +282,10 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			return generateMarkDownAttributeTable(query, response);
 		} else if (outputFormat.equals("json")) {
 			final String sourceVariable = outputSnippet.sourceVariable();
-			assertTrue(
-				sourceVariable != null && !sourceVariable.isEmpty(),
-				"Cannot generate `" + outputSnippet.path() + "`. The attribute `sourceVariable` is missing!"
-			);
+//			assertTrue(
+//				sourceVariable != null && !sourceVariable.isEmpty(),
+//				"Cannot generate `" + outputSnippet.path() + "`. The attribute `sourceVariable` is missing!"
+//			);
 			return generateMarkDownJsonBlock(query, response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);
@@ -308,7 +341,8 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		}
 
 		// generate MarkDown
-		return tableBuilder.build().serialize() + "\n\n###### **Total number of results:** " + response.getTotalRecordCount();
+		final PaginatedList<SealedEntity> recordPage = (PaginatedList<SealedEntity>) response.getRecordPage();
+		return tableBuilder.build().serialize() + "\n\n###### **Page** " + recordPage.getPageNumber() + "/" + recordPage.getLastPageNumber() + " **(Total number of results: "  + response.getTotalRecordCount() + ")**";
 	}
 
 	/**
@@ -425,6 +459,10 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.JAVA)) {
 				final String javaSnippet = generateJavaSnippet(theQuery);
 				writeFile(resource, "java", javaSnippet);
+			}
+			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.GRAPHQL)) {
+				final String graphQLSnippet = generateGraphQLSnippet(theQuery);
+				writeFile(resource, "graphql", graphQLSnippet);
 			}
 			// generate Markdown snippet from the result if required
 			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");

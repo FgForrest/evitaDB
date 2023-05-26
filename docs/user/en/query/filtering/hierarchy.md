@@ -87,7 +87,17 @@ To list all nested categories of *Accessories* category issue this query:
 ##### List of all subcategories of the *Accessories* category
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Single root hierarchy example](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="">[Single root hierarchy example](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
