@@ -1,0 +1,25 @@
+name: Kubernetes-benchmark-cleanup
+
+on:
+  workflow_dispatch: # allows manual triggering
+  schedule:
+    - cron: '0 0 * * *'
+    
+jobs:
+  do-clean-benchmark:
+    runs-on: ubuntu-latest
+
+    steps: 
+      - uses: actions/checkout@v3    # checkout sources
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}  
+
+      - name: Run clean-benchmark
+        env:
+          LIMIT_HOURS : 24
+        run: |
+          export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
+          ./evita_performance_tests/src/do_k8s_automation/deploy/101-safety_kill.sh
