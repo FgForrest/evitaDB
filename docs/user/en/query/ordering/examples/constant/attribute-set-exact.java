@@ -8,7 +8,12 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					attributeStartsWith("code", "lenovo")
 				),
 				orderBy(
-					attributeSetExact("code", "lenovo-tab-m8-3rd-generation", "lenovo-yoga-tab-13", "lenovo-tab-m10-fhd-plus-3rd-generation-1")
+					attributeSetExact(
+						"code", 
+						"lenovo-tab-m8-3rd-generation", 
+						"lenovo-yoga-tab-13", 
+						"lenovo-tab-m10-fhd-plus-3rd-generation-1"
+					)
 				),
 				require(
 					entityFetch(

@@ -5,7 +5,12 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 			query(
 				collection("Product"),
 				filterBy(
-					attributeInSet("code", "msi-gs66-10sf-stealth-1", "apple-iphone-14-plus", "lenovo-thinkpad-p14s-5")
+					attributeInSet(
+						"code", 
+						"msi-gs66-10sf-stealth-1", 
+						"apple-iphone-14-plus", 
+						"lenovo-thinkpad-p14s-5"
+					)
 				),
 				orderBy(
 					attributeSetInFilter("code")

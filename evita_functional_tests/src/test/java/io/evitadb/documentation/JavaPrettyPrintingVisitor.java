@@ -313,14 +313,31 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 
 	private void printLeaf(Constraint<?> constraint) {
 		final Serializable[] arguments = constraint.getArguments();
+		final StringBuilder argumentString = new StringBuilder();
 		for (int i = 0; i < arguments.length; i++) {
 			final Serializable argument = arguments[i];
-			result.append(formatValue(argument));
+			argumentString.append(formatValue(argument));
 			if (i + 1 < arguments.length) {
-				result.append(", ");
+				argumentString.append(", ");
 			}
 		}
-		result.append(ARG_CLOSING);
+		if (indent == null || argumentString.length() < ofNullable(fixedIndent).map(String::length).orElse(0) + indent.length() * level + 60) {
+			result.append(argumentString);
+			result.append(ARG_CLOSING);
+		} else {
+			for (int i = 0; i < arguments.length; i++) {
+				final Serializable argument = arguments[i];
+				result.append(newLine());
+				indent(indent, level + 1);
+				result.append(formatValue(argument));
+				if (i + 1 < arguments.length) {
+					result.append(", ");
+				}
+			}
+			result.append(newLine());
+			indent(indent, level);
+			result.append(ARG_CLOSING);
+		}
 	}
 
 	private String formatValue(Object value) {
