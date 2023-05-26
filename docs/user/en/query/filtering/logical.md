@@ -153,7 +153,7 @@ The following query:
 [Logical negation example](/docs/user/en/query/filtering/examples/logical/not.evitaql)
 </SourceCodeTabs>
 
-... returns thousands of results excluding the entities with primary keys menntioned in `entityPrimaryKeyInSet` constraint.
+... returns thousands of results excluding the entities with primary keys mentioned in `entityPrimaryKeyInSet` constraint.
 
 <Note type="info">
 

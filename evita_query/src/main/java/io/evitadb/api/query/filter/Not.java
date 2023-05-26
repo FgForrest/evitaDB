@@ -36,16 +36,57 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `not` is container query that contains single inner query which output is negated. Behaves as
- * <a href="https://en.wikipedia.org/wiki/Negation">logical NOT</a>.
+ * The `not` container represents a <a href="https://en.wikipedia.org/wiki/Negation">logical negation</a>, that is
+ * demonstrated on following table:
  *
- * Example:
+ * <table>
+ *     <thead>
+ *         <tr>
+ *             <th align="center">A</th>
+ *             <th align="center">¬ A</th>
+ *         </tr>
+ *     </thead>
+ *     <tbody>
+ *         <tr>
+ *             <td align="center">True</td>
+ *             <td align="center">False</td>
+ *         </tr>
+ *         <tr>
+ *             <td align="center">False</td>
+ *             <td align="center">True</td>
+ *         </tr>
+ *     </tbody>
+ * </table>
  *
- * ```
- * not(
- *     primaryKey(1,2,3)
+ * The following query:
+ *
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         not(
+ *             entityPrimaryKeyInSet(110066, 106742, 110513)
+ *         )
+ *     )
  * )
- * ```
+ * </pre>
+ *
+ * ... returns thousands of results excluding the entities with primary keys mentioned in `entityPrimaryKeyInSet`
+ * constraint. Because this situation is hard to visualize - let's narrow our super set to only a few entities:
+ *
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         entityPrimaryKeyInSet(110513, 66567, 106742, 66574, 66556, 110066),
+ *         not(
+ *             entityPrimaryKeyInSet(110066, 106742, 110513)
+ *         )
+ *     )
+ * )
+ * </pre>
+ *
+ * ... which returns only three products that were not excluded by the following `not` constraint.
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
