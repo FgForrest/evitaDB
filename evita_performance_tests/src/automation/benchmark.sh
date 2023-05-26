@@ -41,7 +41,7 @@ EXTRA_JAVA_OPTS=""
 BENCHMARK_SELECTOR="${2:-io.evitadb.performance.artificial.ArtificialEntitiesThroughputBenchmark.singleEntityRead}"
 SHARED_GIST='abc12461f21d1cc66a541417edcb6ba7'
 RESULT_JSON=latest-performance-results.json
-DO_CLUSTER_NODE_SLUG="mock"
+# DO_CLUSTER_NODE_SLUG="mock"
 
 ## https://gitlab.fg.cz/hv/evita/-/issues/32#note_233553
 [ -n "$JMH_ARGS" ] || JMH_ARGS="-i 2 -wi 1 -f 1"
