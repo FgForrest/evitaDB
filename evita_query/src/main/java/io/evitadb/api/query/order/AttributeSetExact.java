@@ -39,8 +39,8 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * The constraint allows to sort output entities by attribute values in the exact order that was used for filtering
- * them.
+ * The constraint allows output entities to be sorted by attribute values in the exact order specified in the 2nd through
+ * Nth arguments of this constraint.
  *
  * Example usage:
  *

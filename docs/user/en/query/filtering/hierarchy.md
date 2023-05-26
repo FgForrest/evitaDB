@@ -42,8 +42,6 @@ focus on the category *Accessories* in our [demo dataset](../../get-started/quer
 
 ### Self
 
-setParent
-
 ```evitaql-syntax
 hierarchyWithin(
     filterConstraint:any!,
@@ -78,7 +76,7 @@ To list all nested categories of *Accessories* category issue this query:
 [Transitive category listing](docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.evitaql)
 </SourceCodeTabs>
 
-... and you should get about 21 categories in the response.
+... and you should get slightly more than one page of categories in the response.
 
 <Note type="info">
 

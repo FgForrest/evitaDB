@@ -36,8 +36,8 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * The constraint allows to sort output entities by primary key values in the exact order that was used for filtering
- * them.
+ * The constraint allows to sort output entities by primary key values in the exact order that is specified in
+ * the arguments of this constraint.
  *
  * Example usage:
  *
