@@ -27,7 +27,6 @@ import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
-import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 
@@ -37,7 +36,26 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * TODO JNO - document me
+ * The constraint allows to sort output entities by primary key values in the exact order that was used for filtering
+ * them.
+ *
+ * Example usage:
+ *
+ * <pre>
+ * query(
+ *    filterBy(
+ *       attributeEqualsTrue("shortcut")
+ *    ),
+ *    orderBy(
+ *       entityPrimaryKeyExact(5, 1, 8)
+ *    )
+ * )
+ * </pre>
+ *
+ * The example will return the selected entities (if present) in the exact order that is stated in the argument of
+ * this ordering constraint. If there are entities, whose primary keys are not present in the argument, then they
+ * will be present at the end of the output in ascending order of their primary keys (or they will be sorted by
+ * additional ordering constraint in the chain).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

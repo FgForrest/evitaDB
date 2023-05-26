@@ -21,33 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort.translator;
+package io.evitadb.function;
 
-import io.evitadb.api.query.order.Random;
-import io.evitadb.core.query.sort.OrderByVisitor;
-import io.evitadb.core.query.sort.RandomSorter;
-import io.evitadb.core.query.sort.Sorter;
-
-import javax.annotation.Nonnull;
+import java.util.function.Function;
 
 /**
- * This implementation of {@link OrderingConstraintTranslator} converts {@link Random} to {@link Sorter}.
+ * Represents a function that accepts two arguments and produces a result.
+ * This is the two-arity specialization of {@link Function}.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * <p>This is a <a href="package-summary.html">functional interface</a>
+ * whose functional method is {@link #apply(int, int)}.
+ *
+ * @see Function
+ * @since 1.8
  */
-public class RandomTranslator implements OrderingConstraintTranslator<Random> {
+@FunctionalInterface
+public interface ToLongDoubleIntBiFunction {
 
-	@Nonnull
-	@Override
-	public Sorter createSorter(@Nonnull Random random, @Nonnull OrderByVisitor orderByVisitor) {
-		final Sorter lastUsedSorter = orderByVisitor.getLastUsedSorter();
-		if (lastUsedSorter == null) {
-			return new RandomSorter();
-		} else {
-			return lastUsedSorter.andThen(
-				new RandomSorter()
-			);
-		}
-	}
+	/**
+	 * Applies this function to the given arguments.
+	 *
+	 * @param t the first function argument
+	 * @param u the second function argument
+	 * @return the function result
+	 */
+	long apply(int t, int u);
 
 }

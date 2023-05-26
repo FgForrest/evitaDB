@@ -27,8 +27,8 @@ import io.evitadb.api.query.EntityConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
-import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -37,7 +37,26 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * TODO JNO - document me
+ * The constraint allows to sort output entities by primary key values in the exact order that was used for filtering
+ * them. The constraint requires presence of exactly one {@link EntityPrimaryKeyInSet} constraint in filter part of
+ * the query. It uses {@link EntityPrimaryKeyInSet#getPrimaryKeys()} array for sorting the output of the query.
+ *
+ * Example usage:
+ *
+ * <pre>
+ * query(
+ *    filterBy(
+ *       entityPrimaryKeyInSet(5, 1, 8)
+ *    ),
+ *    orderBy(
+ *       entityPrimaryKeyInFilter()
+ *    )
+ * )
+ * </pre>
+ *
+ * The example will return the selected entities (if present) in the exact order that was used for array filtering them.
+ * The ordering constraint is particularly useful when you have sorted set of entity primary keys from an external
+ * system which needs to be maintained (for example, it represents a relevancy of those entities).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

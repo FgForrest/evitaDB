@@ -29,6 +29,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.filter.AttributeInSet;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -36,7 +37,27 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * TODO JNO - document me
+ * The constraint allows to sort output entities by attribute values in the exact order that was used for filtering
+ * them. The constraint requires presence of exactly one {@link AttributeInSet} constraint in filter part of the query
+ * that relates to the attribute with the same name as is used in the first argument of this constraint.
+ * It uses {@link AttributeInSet#getAttributeValues()} array for sorting the output of the query.
+ *
+ * Example usage:
+ *
+ * <pre>
+ * query(
+ *    filterBy(
+ *       attributeInSet('code', 't-shirt', 'sweater', 'pants')
+ *    ),
+ *    orderBy(
+ *       attributeSetInFilter()
+ *    )
+ * )
+ * </pre>
+ *
+ * The example will return the selected entities (if present) in the exact order of their attribute `code` that was used
+ * for array filtering them. The ordering constraint is particularly useful when you have sorted set of attribute values
+ * from an external system which needs to be maintained (for example, it represents a relevancy of those entities).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

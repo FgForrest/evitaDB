@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
-import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +31,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
 import java.util.Objects;
+
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
 
 /**
  * This implementation of {@link AttributeExtractor} extracts the attribute values from specific
@@ -68,7 +69,7 @@ public final class EntityReferenceAttributeExtractor implements AttributeExtract
 	@Nonnull
 	@Override
 	public EntityContentRequire getRequirements() {
-		return QueryConstraints.referenceContent(referencedEntity);
+		return referenceContent(referencedEntity);
 	}
 
 }

@@ -39,7 +39,26 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * TODO JNO - document me
+ * The constraint allows to sort output entities by attribute values in the exact order that was used for filtering
+ * them.
+ *
+ * Example usage:
+ *
+ * <pre>
+ * query(
+ *    filterBy(
+ *       attributeEqualsTrue("shortcut")
+ *    ),
+ *    orderBy(
+ *       attributeSetExact('code', 't-shirt', 'sweater', 'pants')
+ *    )
+ * )
+ * </pre>
+ *
+ * The example will return the selected entities (if present) in the exact order of their `code` attributes that is
+ * stated in the second to Nth argument of this ordering constraint. If there are entities, that have not the attribute
+ * `code` , then they will be present at the end of the output in ascending order of their primary keys (or they will be
+ * sorted by additional ordering constraint in the chain).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

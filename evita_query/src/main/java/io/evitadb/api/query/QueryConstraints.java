@@ -1677,18 +1677,54 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO - document me
-	 * @return
-	 */
+	 * The constraint allows to sort output entities by primary key values in the exact order that was used for filtering
+	 * them. The constraint requires presence of exactly one {@link EntityPrimaryKeyInSet} constraint in filter part of
+	 * the query. It uses {@link EntityPrimaryKeyInSet#getPrimaryKeys()} array for sorting the output of the query.
+	 * 
+	 * Example usage:
+	 * 
+	 * <pre>
+	 * query(
+	 *    filterBy(
+	 *       entityPrimaryKeyInSet(5, 1, 8)
+	 *    ),
+	 *    orderBy(
+	 *       entityPrimaryKeyInFilter()
+	 *    )
+	 * )
+	 * </pre>
+	 * 
+	 * The example will return the selected entities (if present) in the exact order that was used for array filtering them.
+	 * The ordering constraint is particularly useful when you have sorted set of entity primary keys from an external
+	 * system which needs to be maintained (for example, it represents a relevancy of those entities).
+	*/
 	@Nonnull
 	static EntityPrimaryKeyInFilter entityPrimaryKeyInFilter() {
 		return new EntityPrimaryKeyInFilter();
 	}
 
 	/**
-	 * TOBEDONE JNO - document me
-	 * @return
-	 */
+	 * The constraint allows to sort output entities by primary key values in the exact order that was used for filtering
+	 * them.
+	 * 
+	 * Example usage:
+	 * 
+	 * <pre>
+	 * query(
+	 *    filterBy(
+	 *       attributeEqualsTrue("shortcut")
+	 *    ),
+	 *    orderBy(
+	 *       entityPrimaryKeyExact(5, 1, 8)
+	 *    )
+	 * )
+	 * </pre>
+	 * 
+	 * The example will return the selected entities (if present) in the exact order that is stated in the argument of
+	 * this ordering constraint. If there are entities, whose primary keys are not present in the argument, then they
+	 * will be present at the end of the output in ascending order of their primary keys (or they will be sorted by
+	 * additional ordering constraint in the chain).
+	*/
 	@Nullable
 	static EntityPrimaryKeyExact entityPrimaryKeyExact(@Nullable Integer... primaryKey) {
 		if (ArrayUtils.isEmpty(primaryKey)) {
@@ -1698,9 +1734,28 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO - document me
-	 * @return
-	 */
+	 * The constraint allows to sort output entities by attribute values in the exact order that was used for filtering
+	 * them. The constraint requires presence of exactly one {@link AttributeInSet} constraint in filter part of the query
+	 * that relates to the attribute with the same name as is used in the first argument of this constraint.
+	 * It uses {@link AttributeInSet#getAttributeValues()} array for sorting the output of the query.
+	 * 
+	 * Example usage:
+	 * 
+	 * <pre>
+	 * query(
+	 *    filterBy(
+	 *       attributeInSet('code', 't-shirt', 'sweater', 'pants')
+	 *    ),
+	 *    orderBy(
+	 *       attributeSetInFilter()
+	 *    )
+	 * )
+	 * </pre>
+	 * 
+	 * The example will return the selected entities (if present) in the exact order of their attribute `code` that was used
+	 * for array filtering them. The ordering constraint is particularly useful when you have sorted set of attribute values
+	 * from an external system which needs to be maintained (for example, it represents a relevancy of those entities).
+	*/
 	@Nullable
 	static AttributeSetInFilter attributeSetInFilter(@Nullable String attributeName) {
 		if (attributeName == null || attributeName.isBlank()) {
@@ -1710,9 +1765,27 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * TOBEDONE JNO - document me
-	 * @return
-	 */
+	 * The constraint allows to sort output entities by attribute values in the exact order that was used for filtering
+	 * them.
+	 * 
+	 * Example usage:
+	 * 
+	 * <pre>
+	 * query(
+	 *    filterBy(
+	 *       attributeEqualsTrue("shortcut")
+	 *    ),
+	 *    orderBy(
+	 *       attributeSetExact('code', 't-shirt', 'sweater', 'pants')
+	 *    )
+	 * )
+	 * </pre>
+	 * 
+	 * The example will return the selected entities (if present) in the exact order of their `code` attributes that is
+	 * stated in the second to Nth argument of this ordering constraint. If there are entities, that have not the attribute
+	 * `code` , then they will be present at the end of the output in ascending order of their primary keys (or they will be
+	 * sorted by additional ordering constraint in the chain).
+	*/
 	@Nullable
 	static AttributeSetExact attributeSetExact(@Nullable String attributeName, @Nullable Serializable... attributeValues) {
 		if (attributeName == null || attributeName.isBlank() || ArrayUtils.isEmpty(attributeValues)) {

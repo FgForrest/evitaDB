@@ -24,6 +24,7 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -68,9 +69,21 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		assertNull(sortIndex.valueCardinalities.get("Z"));
 		assertNull(sortIndex.valueCardinalities.get("A"));
 		assertEquals(2, sortIndex.valueCardinalities.get("B"));
-		assertEquals(3, sortIndex.valueCardinalities.get("C"));
-		assertArrayEquals(new String[]{"A", "B", "C"}, sortIndex.sortedRecordsValues.getArray());
-		assertArrayEquals(new int[]{6, 4, 5, 1, 2, 3}, sortIndex.sortedRecords.getArray());
+		assertEquals(4, sortIndex.valueCardinalities.get("C"));
+		assertArrayEquals(new String[]{"A", "B", "C", "E"}, sortIndex.sortedRecordsValues.getArray());
+		assertArrayEquals(new int[]{6, 4, 5, 1, 2, 3, 7, 9}, sortIndex.sortedRecords.getArray());
+	}
+
+	@Test
+	void shouldReturnCorrectBitmapForCardinalityOne() {
+		final SortIndex sortIndex = createIndexWithBaseCardinalities();
+		assertEquals(new BaseBitmap(9), sortIndex.getRecordsEqualTo("E"));
+	}
+
+	@Test
+	void shouldReturnCorrectBitmapForCardinalityMoreThanOne() {
+		final SortIndex sortIndex = createIndexWithBaseCardinalities();
+		assertEquals(new BaseBitmap(1, 2, 3, 7), sortIndex.getRecordsEqualTo("C"));
 	}
 
 	@Test
@@ -82,9 +95,9 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		assertNull(sortIndex.valueCardinalities.get("Z"));
 		assertNull(sortIndex.valueCardinalities.get("A"));
 		assertNull(sortIndex.valueCardinalities.get("B"));
-		assertEquals(2, sortIndex.valueCardinalities.get("C"));
-		assertArrayEquals(new String[]{"B", "C"}, sortIndex.sortedRecordsValues.getArray());
-		assertArrayEquals(new int[]{5, 2, 3}, sortIndex.sortedRecords.getArray());
+		assertEquals(3, sortIndex.valueCardinalities.get("C"));
+		assertArrayEquals(new String[]{"B", "C", "E"}, sortIndex.sortedRecordsValues.getArray());
+		assertArrayEquals(new int[]{5, 2, 3, 7, 9}, sortIndex.sortedRecords.getArray());
 	}
 
 	@Test
@@ -265,6 +278,8 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		sortIndex.addRecord("C", 2);
 		sortIndex.addRecord("B", 4);
 		sortIndex.addRecord("C", 1);
+		sortIndex.addRecord("E", 9);
+		sortIndex.addRecord("C", 7);
 		return sortIndex;
 	}
 

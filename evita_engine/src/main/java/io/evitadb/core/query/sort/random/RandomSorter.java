@@ -21,10 +21,11 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.sort;
+package io.evitadb.core.query.sort.random;
 
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;

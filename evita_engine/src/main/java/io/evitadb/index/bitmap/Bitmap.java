@@ -26,6 +26,10 @@ package io.evitadb.index.bitmap;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 /**
  * Bitmap represents simple sorted "array" or plain integers that represents record ids.
@@ -133,5 +137,17 @@ public interface Bitmap extends Iterable<Integer>, Serializable {
 	 */
 	@Nonnull
 	OfInt iterator();
+
+	/**
+	 * Serves bitmap as stream of its values.
+	 */
+	@Nonnull
+	default IntStream stream() {
+		return StreamSupport.intStream(
+			() -> Spliterators.spliterator(iterator(), size(),Spliterator.ORDERED | Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.SORTED),
+			Spliterator.ORDERED | Spliterator.DISTINCT | Spliterator.IMMUTABLE | Spliterator.SORTED,
+			false
+		);
+	}
 
 }
