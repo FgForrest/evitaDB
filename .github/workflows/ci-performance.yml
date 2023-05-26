@@ -1,0 +1,61 @@
+# Performance test pipeline, operates on `performance` branch
+
+name: CI Performance branch
+
+on:
+  push:
+    branches: [ "performance" ]    # trap each push to performance branch
+
+concurrency:
+  group: ${{ github.head_ref || github.ref_name }}  # for the same branch (dev or PR)
+  cancel-in-progress: true        # run only one workflow at a time (cancel the previous)
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3    # checkout sources
+
+    - name: Setup Java JDK
+      uses: actions/setup-java@v3  # setup JDK 17 for building
+      with:
+         distribution: 'temurin'
+         java-version: '17'
+         cache: 'maven'
+
+    - name: Install coreutils
+      run: sudo apt-get update && sudo apt-get install -y coreutils
+
+    - name: Install wget
+      run: sudo apt-get update && sudo apt-get install -y wget
+
+    - name: Install curl
+      run: sudo apt-get update && sudo apt-get install -y curl
+
+    - name: Build with Maven       # run Maven without tests
+      run:  mvn -T 1C -B package -V -Dmaven.test.skip=true --file pom.xml
+
+    - name: Build the Docker performance test image    # now build the Docker image, login to DockerHub and push it, then clean everything
+      env:
+        BUILD_ROOT: evita_performance_tests/src/automation
+        CI_REGISTRY: ${{vars.CI_REGISTRY}}
+        CI_REGISTRY_IMAGE: ${{vars.CI_REGISTRY_IMAGE}}
+        RELEASE_IMAGE: "evitadb:benchmark"
+        CI_REGISTRY_USER: ${{vars.CI_REGISTRY_USER}}
+        CI_REGISTRY_PASSWORD: ${{secrets.CI_REGISTRY_PASSWORD}}
+        PERFORMANCE_GIST_TOKEN: ${{secrets.PERFORMANCE_GIST_TOKEN}}
+        EVITA_JAR_NAME: evita_performance_tests/target/benchmarks.jar
+      run: |
+        echo "Evita JAR name: $EVITA_JAR_NAME"
+        echo "Build root: $BUILD_ROOT"
+        ls -la evita_performance_tests/target/
+        mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/"    
+        ls -la $BUILD_ROOT        
+        $BUILD_ROOT/build.sh        
+        echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+        echo "Pushing image: $CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"        
+        docker push "$CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"      
+        docker logout "$CI_REGISTRY"
+        echo "Cleaning"      
+        docker rmi "$CI_REGISTRY_USER/$RELEASE_IMAGE"

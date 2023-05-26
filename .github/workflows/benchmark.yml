@@ -1,0 +1,78 @@
+name: Kubernetes-benchmark
+
+on:
+  workflow_run:
+    workflows: ['CI Performance branch']                     # runs after CI workflow
+    types:
+      - completed
+
+env:
+  KUBECONFIG: ${{ github.workspace }}/evita_performance_tests/src/do_k8s_automation/deploy/kube.cfg
+
+  DO_CLUSTER_REGION: fra1
+  DO_CLUSTER_NAME: evita-bench01
+  DO_REGISTRY_NAME: evita-reg01
+
+  DO_REGISTRY_URL: registry.digitalocean.com
+  K8S_JOB_NAME: benchmark
+
+  DO_CLUSTER_NODE_SLUG: "g-4vcpu-16gb"
+
+  DBG_CLUSTER_KEEP: "false"
+
+  KUBECTL_VER: "v1.26.3"
+  IMAGES: "evitadb/evitadb:benchmark"
+  
+  BENCHMARK_SELECTOR: ""
+  JMH_ARGS: ""
+  
+  BENCHMARK_K8S_LIMIT_CPU: "4"
+  BENCHMARK_JAVA_OPTS: "-Xmx9g"
+
+
+jobs:
+  do-benchmark:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps: 
+      - uses: actions/checkout@v3    # checkout sources
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: ${{ env.KUBECTL_VER }} 
+
+
+      - name: create Kubernetes cluster in DO
+        run: |
+          export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
+          doctl k8s cluster get "${DO_CLUSTER_BENCHMARK_NAME}" || doctl k8s cluster create "${DO_CLUSTER_BENCHMARK_NAME}" --count 1 --region "${DO_CLUSTER_REGION}" --size "${DO_CLUSTER_NODE_SLUG}" --update-kubeconfig=false
+          doctl k8s cluster kubeconfig show "${DO_CLUSTER_BENCHMARK_NAME}" > ${KUBECONFIG}
+
+      - name: setup Kubernetes infrastructure
+        env:
+          GRAFANA_URL: ${{ secrets.GRAFANA_URL }}
+          GRAFANA_USER: ${{ secrets.GRAFANA_USER }}
+          GRAFANA_PASSWD: ${{ secrets.GRAFANA_PASSWD }}
+        run: |
+          export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
+          ./evita_performance_tests/src/do_k8s_automation/deploy/02-setup.sh
+
+      - name: Run benchmark
+        env:
+          PERFORMANCE_GIST_TOKEN: ${{ secrets.PERFORMANCE_GIST_TOKEN }}
+        run: |
+          export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
+          ./evita_performance_tests/src/do_k8s_automation/deploy/03-benchmark.sh
+
+      - name: delete Kubernetes cluster in DO
+        run: |
+          export DO_CLUSTER_BENCHMARK_NAME="${DO_CLUSTER_NAME}-memory"
+          doctl k8s cluster delete "${DO_CLUSTER_BENCHMARK_NAME}" --force --dangerous
+        if: ${{ always () }}
