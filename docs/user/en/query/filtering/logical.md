@@ -3,7 +3,7 @@ title: Logical filtering
 perex: |
   Logical expressions are the cornerstone of any query language and evitaDB is no different. They allow you to combine 
   multiple filter expressions into one unambiguous expression.
-date: '17.1.2023'
+date: '26.5.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---

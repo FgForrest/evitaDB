@@ -1136,6 +1136,83 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldAcceptNullForNonNullableLocalizedAttributeWhenEntityLocaleIsMissing() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized())
+					.withAttribute(ATTRIBUTE_DESCRIPTION, String.class, whichIs -> whichIs.localized())
+					.updateVia(session);
+
+				session
+					.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+					.setAttribute(ATTRIBUTE_DESCRIPTION, Locale.ENGLISH, "A")
+					.setAttribute(ATTRIBUTE_NAME, Locale.FRENCH, "B")
+					.setAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH, "B")
+					.upsertVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+					.orElseThrow();
+
+				assertEquals("A", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				assertEquals("A", product.getAttribute(ATTRIBUTE_DESCRIPTION, Locale.ENGLISH));
+				assertEquals("B", product.getAttribute(ATTRIBUTE_NAME, Locale.FRENCH));
+				assertEquals("B", product.getAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH));
+				assertEquals(2, product.getAllLocales().size());
+			}
+		);
+
+		assertThrows(
+			MandatoryAttributesNotProvidedException.class,
+			() -> {
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+							.orElseThrow()
+							.openForWrite()
+							.removeAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH)
+							.upsertVia(session);
+					}
+				);
+			}
+		);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+					.orElseThrow()
+					.openForWrite()
+					.removeAttribute(ATTRIBUTE_NAME, Locale.FRENCH)
+					.removeAttribute(ATTRIBUTE_DESCRIPTION, Locale.FRENCH)
+					.upsertVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocales(), referenceContentAll())
+					.orElseThrow();
+
+				assertEquals("A", product.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+				assertEquals("A", product.getAttribute(ATTRIBUTE_DESCRIPTION, Locale.ENGLISH));
+				assertEquals(1, product.getAllLocales().size());
+				assertEquals(Locale.ENGLISH, product.getAllLocales().iterator().next());
+			}
+		);
+	}
+
+	@Test
 	void shouldFailToSetNonNullableAttributeToNull() {
 		try {
 			evita.updateCatalog(

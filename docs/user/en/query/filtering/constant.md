@@ -4,7 +4,7 @@ perex: |
   If you need to retrieve entities by their entity primary keys, or verify that entities with particular primary keys 
   exist in the database, the constant filter constraint is the place to go. Filtering entities by their primary keys is 
   the fastest way to access entities in evitaDB. 
-date: '17.1.2023'
+date: '26.5.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
