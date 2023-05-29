@@ -69,7 +69,7 @@ arrays and non-array types in a single *attribute* / *associated data* schema. O
 data* schema specifies that it accepts an array of integers, it cannot store a single integer value, and vice versa.
 integer attribute/associated data will never accept an array of integers.
 
-<Note type="warn">
+<Note type="warning">
 Since evitaDB keeps all data in indexes in main memory, we strongly recommend using the shortest/smallest data types 
 that can accommodate your data. We do our best to minimize the memory footprint of the database, but the crucial 
 decisions are on your side, so think carefully which data type you choose and whether you make it filterable/sortable 
