@@ -73,6 +73,10 @@ import static java.util.Optional.ofNullable;
 public class GlobalUniqueIndex implements TransactionalLayerProducer<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>>, GlobalUniqueIndex>, IndexDataStructure {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
+	 * Constant representing the attribute has no locale assigned.
+	 */
+	private static final int NO_LOCALE = -1;
+	/**
 	 * Contains name of the attribute.
 	 */
 	@Getter private final AttributeKey attributeKey;
@@ -187,8 +191,9 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 	 * Returns record id by its unique value.
 	 */
 	@Nullable
-	public EntityReferenceWithLocale getEntityReferenceByUniqueValue(@Nonnull Serializable value) {
+	public EntityReferenceWithLocale getEntityReferenceByUniqueValue(@Nonnull Serializable value, @Nullable Locale locale) {
 		return ofNullable(this.uniqueValueToEntityTuple.get(value))
+			.filter(it -> locale == null || it.locale() == NO_LOCALE || fromLocale(locale) == it.locale())
 			.map(it -> new EntityReferenceWithLocale(toClassifier(it.entityType()), it.entityPrimaryKey(), toLocale(it.locale())))
 			.orElse(null);
 	}
@@ -377,11 +382,11 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 
 	@Nullable
 	private Locale toLocale(int locale) {
-		return locale == -1 ? null : Objects.requireNonNull(this.idToLocaleIndex.get(locale));
+		return locale == NO_LOCALE ? null : Objects.requireNonNull(this.idToLocaleIndex.get(locale));
 	}
 
 	private int fromLocale(@Nullable Locale locale) {
-		return locale == null ? -1 : this.localeToIdIndex.computeIfAbsent(
+		return locale == null ? NO_LOCALE : this.localeToIdIndex.computeIfAbsent(
 			locale,
 			theLocale -> {
 				final int assignedId = localePkSequence.incrementAndGet();

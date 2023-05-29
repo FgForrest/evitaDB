@@ -14,8 +14,8 @@ proofreading: 'needed'
 
 A schema can be programmatically defined this way:
 
-<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java,docs/user/en/get-started/example/define-test-catalog.java">
-[Imperative schema definition via Java API](docs/user/en/use/api/example/imperative-schema-definition.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java">
+[Imperative schema definition via Java API](/docs/user/en/use/api/example/imperative-schema-definition.java)
 </SourceCodeTabs>
 
 ## Declarative schema definition
@@ -25,8 +25,8 @@ annotations that describe the entity structure you want to work with in your pro
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> to define an entity schema
 for you:
 
-<SourceCodeTabs requires="docs/user/en/use/api/example/declarative-model-example.java,docs/user/en/get-started/example/define-test-catalog.java">
-[Declarative schema definition via Java API](docs/user/en/use/api/example/declarative-schema-definition.java)
+<SourceCodeTabs requires="/docs/user/en/use/api/example/declarative-model-example.java,/docs/user/en/get-started/example/define-test-catalog.java">
+[Declarative schema definition via Java API](/docs/user/en/use/api/example/declarative-schema-definition.java)
 </SourceCodeTabs>
 
 The model template can be:
@@ -113,8 +113,8 @@ that is annotated with following annotations:
 
 For a better idea, let's demonstrate a sample of the interface design of the product entity.
 
-<SourceCodeTabs requires="docs/user/en/get-started/example/complete-startup.java">
-[Example of the model interface](docs/user/en/use/api/example/declarative-model-example.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/complete-startup.java">
+[Example of the model interface](/docs/user/en/use/api/example/declarative-model-example.java)
 </SourceCodeTabs>
 
 <Note type="info">

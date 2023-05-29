@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeInSet;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -76,7 +77,7 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 				attributeDefinition,
 				index -> {
 					final EntityReferenceContract[] filteredEntityMaskedIds = valueStream.stream()
-						.map(index::getEntityReferenceByUniqueValue)
+						.map(it -> index.getEntityReferenceByUniqueValue(it, filterByVisitor.getLocale()))
 						.filter(Objects::nonNull)
 						.toArray(EntityReferenceContract[]::new);
 
@@ -92,7 +93,8 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 		} else if (attributeDefinition.isUnique()) {
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			return new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyStreamOnUniqueIndexes(
 					attributeDefinition,
 					index -> valueStream.stream().map(it ->
@@ -105,7 +107,8 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 		} else {
 			// use histogram lookup
 			return new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyStreamOnFilterIndexes(
 					attributeDefinition,
 					index -> valueStream.stream().map(it -> index.getRecordsEqualToFormula((Comparable) it))

@@ -98,12 +98,12 @@
 		"title": "Filtering",
 		"children": [
 		  {
-			"title": "Logical",
-			"path": "/query/filtering/logical.md"
-		  },
-		  {
 			"title": "Constant",
 			"path": "/query/filtering/constant.md"
+		  },
+		  {
+			"title": "Logical",
+			"path": "/query/filtering/logical.md"
 		  },
 		  {
 			"title": "Comparable",

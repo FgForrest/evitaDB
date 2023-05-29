@@ -58,7 +58,8 @@ import java.util.Arrays;
 		"The constraint is equivalent to one or more `equals` constraints combined with logical OR.",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
-public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf implements EntityConstraint<FilterConstraint>, IndexUsingConstraint {
+public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf
+	implements EntityConstraint<FilterConstraint>, IndexUsingConstraint {
 	@Serial private static final long serialVersionUID = -6950287451642746676L;
 
 	private EntityPrimaryKeyInSet(Serializable... arguments) {

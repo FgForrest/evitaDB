@@ -140,7 +140,14 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	 *
 	 * @throws UniqueValueViolationException when value is not unique
 	 */
-	public void insertUniqueAttribute(@Nonnull EntitySchemaContract entitySchema, @Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
+	public void insertUniqueAttribute(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value,
+		int recordId
+	) {
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
@@ -181,7 +188,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	}
 
 	/**
-	 * Returns {@link GlobalUniqueIndex} for passed `attributeName` if it's present.
+	 * Returns {@link GlobalUniqueIndex} for passed `attributeName`, if it's present.
 	 */
 	@Nullable
 	public GlobalUniqueIndex getGlobalUniqueIndex(@Nonnull String attributeName) {

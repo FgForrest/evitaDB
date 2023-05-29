@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeEquals;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -67,7 +68,9 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 			// when entity type is not known and attribute is unique globally - access catalog index instead
 			return filterByVisitor.applyOnGlobalUniqueIndex(
 				attributeDefinition, index -> {
-					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue((Serializable) comparableValue);
+					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
+						(Serializable) comparableValue, filterByVisitor.getLocale()
+					);
 					return entityReference == null ?
 						EmptyFormula.INSTANCE :
 						new MultipleEntityFormula(
@@ -78,7 +81,8 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 		} else if (attributeDefinition.isUnique()) {
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			return new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnUniqueIndexes(
 					attributeDefinition, index -> {
 						final Integer recordId = index.getRecordIdByUniqueValue((Serializable) comparableValue);
@@ -89,7 +93,8 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 		} else {
 			// use histogram lookup
 			return new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnFilterIndexes(
 					attributeDefinition, index -> index.getRecordsEqualToFormula(comparableValue)
 				)

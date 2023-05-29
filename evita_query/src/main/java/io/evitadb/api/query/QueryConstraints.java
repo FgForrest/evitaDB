@@ -107,17 +107,58 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `and` is container query that contains two or more inner constraints which output is combined by
-	 * <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical AND</a>.
+	 * The `and` container represents a <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical conjunction</a>,
+	 * that is demonstrated on following table:
 	 * 
-	 * Example:
+	 * <table>
+	 *     <thead>
+	 *         <tr>
+	 *             <th align="center">A</th>
+	 *             <th align="center">B</th>
+	 *             <th align="center">A ∧ B</th>
+	 *         </tr>
+	 *     </thead>
+	 *     <tbody>
+	 *         <tr>
+	 *             <td align="center">True</td>
+	 *             <td align="center">True</td>
+	 *             <td align="center">True</td>
+	 *         </tr>
+	 *         <tr>
+	 *             <td align="center">True</td>
+	 *             <td align="center">False</td>
+	 *             <td align="center">False</td>
+	 *         </tr>
+	 *         <tr>
+	 *             <td align="center">False</td>
+	 *             <td align="center">True</td>
+	 *             <td align="center">False</td>
+	 *         </tr>
+	 *         <tr>
+	 *             <td align="center">False</td>
+	 *             <td align="center">False</td>
+	 *             <td align="center">False</td>
+	 *         </tr>
+	 *     </tbody>
+	 * </table>
 	 * 
-	 * ```
-	 * and(
-	 *     isTrue('visible'),
-	 *     validInTime(2020-07-30T07:28:13+00:00)
+	 * The following query:
+	 * 
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         and(
+	 *             entityPrimaryKeyInSet(110066, 106742, 110513),
+	 *             entityPrimaryKeyInSet(110066, 106742),
+	 *             entityPrimaryKeyInSet(107546, 106742,  107546)
+	 *         )
+	 *     )
 	 * )
-	 * ```
+	 * </pre>
+	 * 
+	 * ... returns a single result - product with entity primary key 106742, which is the only one that all three
+	 * `entityPrimaryKeyInSet` constraints have in common.
 	*/
 	@Nullable
 	static And and(@Nullable FilterConstraint... constraints) {
@@ -128,17 +169,58 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `or` is container query that contains two or more inner constraints which output is combined by
-	 * <a href="https://en.wikipedia.org/wiki/Logical_disjunction">logical OR</a>.
+	 * The `and` container represents a <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical conjunction</a>,
+	 * that is demonstrated on following table:
 	 * 
-	 * Example:
+	 * <table>
+	 *     <thead>
+	 *         <tr>
+	 *             <th align="center">A</th>
+	 *             <th align="center">B</th>
+	 *             <th align="center">A ∨ B</th>
+	 *         </tr>
+	 *     </thead>
+	 *     <tbody>
+	 *         <tr>
+	 *             <td align="center">True</td>
+	 *             <td align="center">True</td>
+	 *             <td align="center">True</td>
+	 *         </tr>
+	 *         <tr>
+	 *             <td align="center">True</td>
+	 *             <td align="center">False</td>
+	 *             <td align="center">True</td>
+	 *         </tr>
+	 *         <tr>
+	 *             <td align="center">False</td>
+	 *             <td align="center">True</td>
+	 *             <td align="center">True</td>
+	 *         </tr>
+	 *         <tr>
+	 *             <td align="center">False</td>
+	 *             <td align="center">False</td>
+	 *             <td align="center">False</td>
+	 *         </tr>
+	 *     </tbody>
+	 * </table>
 	 * 
-	 * ```
-	 * or(
-	 *     isTrue('visible'),
-	 *     greaterThan('price', 20)
+	 * The following query:
+	 * 
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         and(
+	 *             entityPrimaryKeyInSet(110066, 106742, 110513),
+	 *             entityPrimaryKeyInSet(110066, 106742),
+	 *             entityPrimaryKeyInSet(107546, 106742,  107546)
+	 *         )
+	 *     )
 	 * )
-	 * ```
+	 * </pre>
+	 * 
+	 * ... returns four results representing a combination of all primary keys used in the `entityPrimaryKeyInSet`
+	 * constraints.
 	*/
 	@Nullable
 	static Or or(@Nullable FilterConstraint... constraints) {
@@ -149,16 +231,57 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `not` is container query that contains single inner query which output is negated. Behaves as
-	 * <a href="https://en.wikipedia.org/wiki/Negation">logical NOT</a>.
+	 * The `not` container represents a <a href="https://en.wikipedia.org/wiki/Negation">logical negation</a>, that is
+	 * demonstrated on following table:
 	 * 
-	 * Example:
+	 * <table>
+	 *     <thead>
+	 *         <tr>
+	 *             <th align="center">A</th>
+	 *             <th align="center">¬ A</th>
+	 *         </tr>
+	 *     </thead>
+	 *     <tbody>
+	 *         <tr>
+	 *             <td align="center">True</td>
+	 *             <td align="center">False</td>
+	 *         </tr>
+	 *         <tr>
+	 *             <td align="center">False</td>
+	 *             <td align="center">True</td>
+	 *         </tr>
+	 *     </tbody>
+	 * </table>
 	 * 
-	 * ```
-	 * not(
-	 *     primaryKey(1,2,3)
+	 * The following query:
+	 * 
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         not(
+	 *             entityPrimaryKeyInSet(110066, 106742, 110513)
+	 *         )
+	 *     )
 	 * )
-	 * ```
+	 * </pre>
+	 * 
+	 * ... returns thousands of results excluding the entities with primary keys mentioned in `entityPrimaryKeyInSet`
+	 * constraint. Because this situation is hard to visualize - let's narrow our super set to only a few entities:
+	 * 
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         entityPrimaryKeyInSet(110513, 66567, 106742, 66574, 66556, 110066),
+	 *         not(
+	 *             entityPrimaryKeyInSet(110066, 106742, 110513)
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 * 
+	 * ... which returns only three products that were not excluded by the following `not` constraint.
 	*/
 	@Nullable
 	static Not not(@Nullable FilterConstraint constraint) {

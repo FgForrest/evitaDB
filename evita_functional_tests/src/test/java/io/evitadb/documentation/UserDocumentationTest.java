@@ -304,7 +304,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/requirements/hierarchy.md")
+			getRootDirectory().resolve("docs/user/en/get-started/run-evitadb.md")
 		).stream();
 	}
 
@@ -319,8 +319,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("docs/user/en/query/requirements/hierarchy.md"),
-			CreateSnippets.MARKDOWN
+			getRootDirectory().resolve("docs/user/en/query/filtering/logical.md"),
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA
 		).stream();
 	}
 
@@ -369,7 +369,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		final Matcher mdIncludeMatcher = MD_INCLUDE_PATTERN.matcher(fileContent);
 		while (mdIncludeMatcher.find()) {
 			final String sourceVariable = mdIncludeMatcher.group(2);
-			final Path outputSnippetFile = rootDirectory.resolve(mdIncludeMatcher.group(3));
+			final Path outputSnippetFile = createPathRelativeToRootDirectory(rootDirectory, mdIncludeMatcher.group(3));
 			final Optional<Path> outputSnippetFormatBase = stripFileNameOfExtension(outputSnippetFile);
 			final Optional<Path> sourceExampleFile = outputSnippetFormatBase.flatMap(UserDocumentationTest::stripFileNameOfExtension);
 			final boolean isSourceExampleFileUsable = sourceExampleFile.map(UserDocumentationTest::hasFileNameExtension).orElse(false);
@@ -385,14 +385,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
 		while (sourceCodeTabsMatcher.find()) {
-			final Path referencedFile = rootDirectory.resolve(sourceCodeTabsMatcher.group(3));
+			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(3));
 			final String referencedFileExtension = getFileNameExtension(referencedFile);
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))
 					.map(
 						requires -> Arrays.stream(requires.split(","))
 							.filter(it -> !it.isBlank())
-							.map(it -> rootDirectory.resolve(it).toAbsolutePath())
+							.map(it -> createPathRelativeToRootDirectory(rootDirectory, it).normalize())
 							.toArray(Path[]::new)
 					)
 					.orElse(null);
@@ -400,7 +400,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				final CodeSnippet codeSnippet = new CodeSnippet(
 					"Example `" + referencedFile.getFileName() + "`",
 					referencedFileExtension,
-					referencedFile.toAbsolutePath(),
+					referencedFile.normalize(),
 					findRelatedFiles(referencedFile)
 						.stream()
 						.map(relatedFile -> {
@@ -408,7 +408,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							return new CodeSnippet(
 								"Example `" + relatedFile.getFileName() + "`",
 								relatedFileExtension,
-								relatedFile.toAbsolutePath(),
+								relatedFile.normalize(),
 								null,
 								convertToRunnable(
 									relatedFileExtension,
@@ -471,6 +471,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				)
 				.flatMap(Function.identity())
 				.toList();
+	}
+
+	/**
+	 * Creates path relative to the root directory.
+	 */
+	@Nonnull
+	private Path createPathRelativeToRootDirectory(@Nonnull Path rootDirectory, @Nonnull String path) {
+		return rootDirectory.resolve(!path.isEmpty() && path.charAt(0) == '/' ? path.substring(1) : path);
 	}
 
 	/**

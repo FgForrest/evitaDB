@@ -28,25 +28,66 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `and` is container query that contains two or more inner constraints which output is combined by
- * <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical AND</a>.
+ * The `and` container represents a <a href="https://en.wikipedia.org/wiki/Logical_conjunction">logical conjunction</a>,
+ * that is demonstrated on following table:
  *
- * Example:
+ * <table>
+ *     <thead>
+ *         <tr>
+ *             <th align="center">A</th>
+ *             <th align="center">B</th>
+ *             <th align="center">A ∧ B</th>
+ *         </tr>
+ *     </thead>
+ *     <tbody>
+ *         <tr>
+ *             <td align="center">True</td>
+ *             <td align="center">True</td>
+ *             <td align="center">True</td>
+ *         </tr>
+ *         <tr>
+ *             <td align="center">True</td>
+ *             <td align="center">False</td>
+ *             <td align="center">False</td>
+ *         </tr>
+ *         <tr>
+ *             <td align="center">False</td>
+ *             <td align="center">True</td>
+ *             <td align="center">False</td>
+ *         </tr>
+ *         <tr>
+ *             <td align="center">False</td>
+ *             <td align="center">False</td>
+ *             <td align="center">False</td>
+ *         </tr>
+ *     </tbody>
+ * </table>
  *
- * ```
- * and(
- *     isTrue('visible'),
- *     validInTime(2020-07-30T07:28:13+00:00)
+ * The following query:
+ *
+ * <pre>
+ * query(
+ *     collection('Product'),
+ *     filterBy(
+ *         and(
+ *             entityPrimaryKeyInSet(110066, 106742, 110513),
+ *             entityPrimaryKeyInSet(110066, 106742),
+ *             entityPrimaryKeyInSet(107546, 106742,  107546)
+ *         )
+ *     )
  * )
- * ```
+ * </pre>
+ *
+ * ... returns a single result - product with entity primary key 106742, which is the only one that all three
+ * `entityPrimaryKeyInSet` constraints have in common.
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

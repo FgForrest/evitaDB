@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeLessThanEquals;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -62,7 +63,8 @@ public class AttributeLessThanEqualsTranslator implements FilteringConstraintTra
 			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 			final Comparable comparableValue = (Comparable) EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getPlainType());
 			final AttributeFormula filteringFormula = new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnFilterIndexes(
 					attributeDefinition, index -> index.getRecordsLesserThanEqFormula(comparableValue)
 				)

@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeBetween;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -95,7 +96,8 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 					throw new EvitaInternalError("Unexpected Range type!");
 				}
 				filteringFormula = new AttributeFormula(
-					attributeName,
+					attributeDefinition.isLocalized() ?
+						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 					filterByVisitor.applyOnFilterIndexes(
 						attributeDefinition, index -> index.getRecordsOverlappingFormula(comparableFrom, comparableTo)
 					)
@@ -104,7 +106,8 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 				final Comparable comparableFrom = (Comparable) EvitaDataTypes.toTargetType(from, attributeType);
 				final Comparable comparableTo = (Comparable) EvitaDataTypes.toTargetType(to, attributeType);
 				filteringFormula = new AttributeFormula(
-					attributeName,
+					attributeDefinition.isLocalized() ?
+						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 					filterByVisitor.applyOnFilterIndexes(
 						attributeDefinition,
 						index -> {
