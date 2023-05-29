@@ -76,4 +76,42 @@ While it's technically possible to implement support for these tasks in evitaDB,
 were more important scenarios to handle.
 </Note>
 
-To select the products that 
+To test the locale specific query, we need to focus on the *Vouchers for shareholders* category in our 
+[demo dataset](/documentation/get-started/query-our-dataset). We know that there are products that have only English 
+(*en_US*) localization. To select the products with English localization, we can issue this query:
+
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Listing product with English locale](/docs/user/en/query/filtering/examples/locale/locale.evitaql)
+</SourceCodeTabs>
+
+... and we will get a list with the number of them.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all products with English localization in category
+</NoteTitle>
+
+<MDInclude>[List of all products with English localization](/docs/user/en/query/filtering/examples/local/local.evitaql.md)</MDInclude>
+
+</Note>
+
+But when we request products in Czech locale:
+
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Listing product with English locale](/docs/user/en/query/filtering/examples/locale/locale_missing.evitaql)
+</SourceCodeTabs>
+
+... the query returns none of them, even though we know there are products in this category.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all products with Czech localization in category
+</NoteTitle>
+
+<MDInclude>[List of all products with Czech localization](/docs/user/en/query/filtering/examples/local/locale_missing.evitaql.md)</MDInclude>
+
+</Note>
