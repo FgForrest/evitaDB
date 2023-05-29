@@ -95,6 +95,12 @@ To test the locale specific query, we need to focus on the *Vouchers for shareho
 
 <MDInclude>[List of all products with English localization](/docs/user/en/query/filtering/examples/locale/locale.evitaql.md)</MDInclude>
 
+You will notice that the output contains two columns: *code* and *name*. The *code* is not a localized attribute, while 
+the *name* is. If you use `entityLocaleEquals` in your filter, all returned localized data (both 
+[attributes](../../use/data-model.md#localized-attributes) and [associated data](../../use/data-model.md#localized-associated-data)) 
+will respect the filtered locale. If you need data for locales other than the one used in the filter constraint, 
+you can use the require constraint [`data-in-locale`](../requirements/fetching.md#data-in-locale).
+
 </Note>
 
 But when we request products in Czech locale:
@@ -115,5 +121,3 @@ But when we request products in Czech locale:
 <MDInclude>[List of all products with Czech localization](/docs/user/en/query/filtering/examples/locale/locale_missing.evitaql.md)</MDInclude>
 
 </Note>
-
-TODO JNO - dodat poznámku o implicitním locale pro fetch
