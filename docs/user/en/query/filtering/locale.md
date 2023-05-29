@@ -93,7 +93,7 @@ To test the locale specific query, we need to focus on the *Vouchers for shareho
 ##### List of all products with English localization in category
 </NoteTitle>
 
-<MDInclude>[List of all products with English localization](/docs/user/en/query/filtering/examples/local/local.evitaql.md)</MDInclude>
+<MDInclude>[List of all products with English localization](/docs/user/en/query/filtering/examples/locale/locale.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -112,6 +112,8 @@ But when we request products in Czech locale:
 ##### List of all products with Czech localization in category
 </NoteTitle>
 
-<MDInclude>[List of all products with Czech localization](/docs/user/en/query/filtering/examples/local/locale_missing.evitaql.md)</MDInclude>
+<MDInclude>[List of all products with Czech localization](/docs/user/en/query/filtering/examples/locale/locale_missing.evitaql.md)</MDInclude>
 
 </Note>
+
+TODO JNO - dodat poznámku o implicitním locale pro fetch
