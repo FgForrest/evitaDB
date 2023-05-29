@@ -21,34 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.query.filter;
+package io.evitadb.core.query.algebra.locale;
 
-import io.evitadb.api.query.AttributeConstraint;
-import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.filter.translator.entity.EntityLocaleEqualsTranslator;
+import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
-import java.io.Serial;
-import java.io.Serializable;
 
 /**
- * Represents base query leaf accepting only filtering constraints and having first argument attribute name.
+ * Formula that is identical to {@link ConstantFormula} but allows excluding in {@link EntityLocaleEqualsTranslator}
+ * when localized {@link AttributeFormula} is found in conjunctive scope of the entire formula and thus optimizing
+ * the calculation.
  *
- * @author Jan Novotný, FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-abstract class AbstractAttributeFilterConstraintLeaf extends AbstractFilterConstraintLeaf
-	implements AttributeConstraint<FilterConstraint>, IndexUsingConstraint {
-	@Serial private static final long serialVersionUID = 3153809771456358624L;
+public class LocaleFormula extends ConstantFormula {
+	private static final long CLASS_ID = 6877689619565475680L;
 
-	protected AbstractAttributeFilterConstraintLeaf(Serializable... arguments) {
-		super(arguments);
+	public LocaleFormula(@Nonnull Bitmap delegate) {
+		super(delegate);
 	}
 
-	/**
-	 * Returns attribute name that needs to be examined.
-	 */
-	@Nonnull
-	public String getAttributeName() {
-		return (String) getArguments()[0];
+	@Override
+	protected long getClassId() {
+		return CLASS_ID;
 	}
 
 }

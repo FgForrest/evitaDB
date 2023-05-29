@@ -50,7 +50,9 @@ import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
+import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
@@ -118,7 +120,14 @@ import static java.util.Optional.ofNullable;
  */
 public class FilterByVisitor implements ConstraintVisitor {
 	private static final Formula[] EMPTY_INTEGER_FORMULA = new Formula[0];
+	/**
+	 * Contains index of all {@link FilterConstraint} to {@link Formula} translators.
+	 */
 	private static final Map<Class<? extends FilterConstraint>, FilteringConstraintTranslator<? extends FilterConstraint>> TRANSLATORS;
+	/**
+	 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
+	 */
+	private static final Set<Class<? extends Formula>> CONJUNCTIVE_FORMULAS;
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
@@ -151,6 +160,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(HierarchyWithinRoot.class, new HierarchyWithinRootTranslator());
 		TRANSLATORS.put(FacetHaving.class, new FacetHavingTranslator());
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
+
+		CONJUNCTIVE_FORMULAS = new HashSet<>();
+		CONJUNCTIVE_FORMULAS.add(AndFormula.class);
+		CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
 	}
 
 	/**
@@ -198,6 +211,13 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Contains the translated formula from the filtering query source tree.
 	 */
 	private Formula computedFormula;
+
+	/**
+	 * Method returns true for all {@link FilterConstraint} types that are conjunctive.
+	 */
+	public static boolean isConjunctiveFormula(@Nonnull Class<? extends Formula> clazz) {
+		return CONJUNCTIVE_FORMULAS.contains(clazz);
+	}
 
 	/**
 	 * Method creates a new formula that looks for entity primary keys in global index of `entityType` collection that
@@ -775,7 +795,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyOnUniqueIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<UniqueIndex, Formula> formulaFunction) {
 		return applyOnIndexes(entityIndex -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition.getName(), getLocale());
+			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(
+				attributeDefinition.getName(),
+				attributeDefinition.isLocalized() ? getLocale() : null
+			);
 			if (uniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -789,7 +812,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyStreamOnUniqueIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<UniqueIndex, Stream<Formula>> formulaFunction) {
 		return applyStreamOnIndexes(entityIndex -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition.getName(), getLocale());
+			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(
+				attributeDefinition.getName(),
+				attributeDefinition.isLocalized() ? getLocale() : null
+			);
 			if (uniqueIndex == null) {
 				return Stream.empty();
 			}
@@ -803,7 +829,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyOnFilterIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<FilterIndex, Formula> formulaFunction) {
 		return applyOnIndexes(entityIndex -> {
-			final FilterIndex filterIndex = entityIndex.getFilterIndex(attributeDefinition.getName(), getLocale());
+			final FilterIndex filterIndex = entityIndex.getFilterIndex(
+				attributeDefinition.getName(),
+				attributeDefinition.isLocalized() ? getLocale() : null
+			);
 			if (filterIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -817,7 +846,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyStreamOnFilterIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<FilterIndex, Stream<Formula>> formulaFunction) {
 		return applyStreamOnIndexes(entityIndex -> {
-			final FilterIndex filterIndex = entityIndex.getFilterIndex(attributeDefinition.getName(), getLocale());
+			final FilterIndex filterIndex = entityIndex.getFilterIndex(
+				attributeDefinition.getName(),
+				attributeDefinition.isLocalized() ? getLocale() : null
+			);
 			if (filterIndex == null) {
 				return Stream.empty();
 			}

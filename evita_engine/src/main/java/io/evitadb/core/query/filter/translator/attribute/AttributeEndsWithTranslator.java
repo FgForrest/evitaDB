@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeEndsWith;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -80,7 +81,8 @@ public class AttributeEndsWithTranslator implements FilteringConstraintTranslato
 				return new SelectionFormula(
 					filterByVisitor,
 					new AttributeFormula(
-						attributeName,
+						attributeDefinition.isLocalized() ?
+							new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 						filteringFormula
 					),
 					createAlternativeBitmapFilter(filterByVisitor, attributeName, textToSearch)

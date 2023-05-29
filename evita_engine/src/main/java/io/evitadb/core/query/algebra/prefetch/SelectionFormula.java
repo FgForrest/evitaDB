@@ -33,9 +33,7 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.FormulaVisitor;
-import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
@@ -52,13 +50,11 @@ import org.roaringbitmap.RoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -250,10 +246,6 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 	 */
 	public static class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProcessor {
 		/**
-		 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
-		 */
-		private static final Set<Class<? extends Formula>> CONJUNCTIVE_FORMULAS;
-		/**
 		 * Threshold where we avoid prefetching entities whatsoever.
 		 */
 		private static final int BITMAP_SIZE_THRESHOLD = 1000;
@@ -275,12 +267,6 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		 * Contains aggregated costs that is estimated to be paid with regular execution of the {@link SelectionFormula}.
 		 */
 		private long expectedComputationalCosts = 0L;
-
-		static {
-			CONJUNCTIVE_FORMULAS = new HashSet<>();
-			CONJUNCTIVE_FORMULAS.add(AndFormula.class);
-			CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
-		}
 
 		/**
 		 * Contains set of requirements collected from all {@link SelectionFormula} in the tree.
@@ -442,7 +428,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		protected void traverse(@Nonnull Formula formula) {
 			final boolean formerConjunctiveScope = this.conjunctiveScope;
 			try {
-				if (!CONJUNCTIVE_FORMULAS.contains(formula.getClass())) {
+				if (!FilterByVisitor.isConjunctiveFormula(formula.getClass())) {
 					this.conjunctiveScope = false;
 				}
 				for (Formula innerFormula : formula.getInnerFormulas()) {

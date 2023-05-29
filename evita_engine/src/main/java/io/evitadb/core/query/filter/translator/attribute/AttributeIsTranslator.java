@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeIs;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
@@ -86,7 +87,10 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 						if (formulas.length == 0) {
 							return EmptyFormula.INSTANCE;
 						} else {
-							return new AttributeFormula(attributeName, FormulaFactory.or(formulas));
+							return new AttributeFormula(
+								attributeDefinition.isLocalized() ?
+									new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
+								FormulaFactory.or(formulas));
 						}
 					}
 				);
@@ -106,7 +110,11 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 						if (formulas.length == 0) {
 							return EmptyFormula.INSTANCE;
 						} else {
-							return new AttributeFormula(attributeName, FormulaFactory.or(formulas));
+							return new AttributeFormula(
+								attributeDefinition.isLocalized() ?
+									new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
+								FormulaFactory.or(formulas)
+							);
 						}
 					}
 				);
@@ -127,14 +135,16 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 			// if attribute is unique prefer O(1) hash map lookup over histogram
 			if (attributeDefinition.isUnique()) {
 				return new AttributeFormula(
-					attributeName,
+					attributeDefinition.isLocalized() ?
+						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 					filterByVisitor.applyOnUniqueIndexes(
 						attributeDefinition, index -> new ConstantFormula(index.getRecordIds())
 					)
 				);
 			} else {
 				final AttributeFormula filteringFormula = new AttributeFormula(
-					attributeName,
+					attributeDefinition.isLocalized() ?
+						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 					filterByVisitor.applyOnFilterIndexes(
 						attributeDefinition, FilterIndex::getAllRecordsFormula
 					)

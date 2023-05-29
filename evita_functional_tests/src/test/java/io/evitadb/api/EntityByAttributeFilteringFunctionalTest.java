@@ -2569,6 +2569,44 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should not return entities by equals to global localized attribute when locale doesn't match (String)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldNotReturnEntitiesByGlobalLocalizedAttributeEqualToStringWhenLocaleDoesNotMatch(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Random rnd = new Random(SEED);
+		final SealedEntity selectedEntity = originalProductEntities.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null && it.getLocales().contains(Locale.ENGLISH) && it.getLocales().contains(CZECH_LOCALE))
+			.filter(it -> rnd.nextInt(100) > 85)
+			.findFirst()
+			.get();
+		final String urlAttribute = selectedEntity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						filterBy(
+							attributeEquals(ATTRIBUTE_URL, urlAttribute),
+							entityLocaleEquals(CZECH_LOCALE)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL),
+								dataInLocales(CZECH_LOCALE)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+				assertEquals(0, result.getRecordData().size());
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by having attribute set on two referenced entities (AND)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test

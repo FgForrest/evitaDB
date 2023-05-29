@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeInRange;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -68,7 +69,8 @@ public class AttributeInRangeTranslator implements FilteringConstraintTranslator
 			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 			final long comparableValue = getComparableValue(attributeInRange, filterByVisitor, attributeDefinition);
 			final AttributeFormula filteringFormula = new AttributeFormula(
-				attributeName,
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnFilterIndexes(
 					attributeDefinition, index -> index.getRecordsValidInFormula(comparableValue)
 				)

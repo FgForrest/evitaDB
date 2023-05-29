@@ -50,6 +50,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.StreamSupport;
 
+import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.core.query.filter.FilterByVisitor.createFormulaForTheFilter;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -90,7 +92,9 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 
 				final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
 				final Formula hierarchyParentFormula = createFormulaForTheFilter(
-					queryContext, new FilterBy(parentFilter), targetEntitySchema.getName(),
+					queryContext,
+					createFilter(queryContext, parentFilter),
+					targetEntitySchema.getName(),
 					() -> "Finding hierarchy parent node: " + parentFilter
 				);
 				queryContext.setRootHierarchyNodesFormula(hierarchyParentFormula);
@@ -122,6 +126,13 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 					.orElse(EmptyFormula.INSTANCE);
 			}
 		);
+	}
+
+	@Nonnull
+	private static FilterBy createFilter(QueryContext queryContext, FilterConstraint parentFilter) {
+		return ofNullable(queryContext.getLocale())
+			.map(locale -> filterBy(parentFilter, entityLocaleEquals(locale)))
+			.orElseGet(() -> filterBy(parentFilter));
 	}
 
 	private static Formula createFormulaFromHierarchyIndex(
