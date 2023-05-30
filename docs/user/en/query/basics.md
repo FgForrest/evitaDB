@@ -308,10 +308,7 @@ the resulting output to only include values that satisfy the constraint.
 - [attribute less than, equals](filtering/comparable.md#attribute-less-than-equals)
 - [attribute between](filtering/comparable.md#attribute-between)
 - [attribute in set](filtering/comparable.md#attribute-in-set)
-- [attribute is true](filtering/comparable.md#attribute-is-true)
-- [attribute is false](filtering/comparable.md#attribute-is-false)
-- [attribute is null](filtering/comparable.md#attribute-is-null)
-- [attribute is not null](filtering/comparable.md#attribute-is-not-null)
+- [attribute is](filtering/comparable.md#attribute-is)
 
 ### String constraints
 

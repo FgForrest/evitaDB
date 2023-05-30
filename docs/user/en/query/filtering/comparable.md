@@ -31,7 +31,7 @@ a numeric value, where the *true* is 1, and *false* is 0.
 
 ```evitaql-syntax
 attributeEquals(
-    argument:string!
+    argument:string!,
     argument:comparable!
 )
 ```
@@ -48,7 +48,7 @@ attributeEquals(
     </dd>
 </dl>
 
-The `attributeEquals` will compare filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
+The `attributeEquals` compares filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 for strict equality with the passed value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
@@ -72,7 +72,7 @@ Returns exactly one product with *code* equal to *apple-iphone-13-pro-3*.
 
 ```evitaql-syntax
 attributeGreaterThan(
-    argument:string!
+    argument:string!,
     argument:comparable!
 )
 ```
@@ -114,7 +114,7 @@ Returns exactly several products with *battery-life* greater than *40* hours.
 
 ```evitaql-syntax
 attributeGreaterThanEquals(
-    argument:string!
+    argument:string!,
     argument:comparable!
 )
 ```
@@ -157,7 +157,7 @@ Returns exactly several products with *battery-life* greater than or equal to *4
 
 ```evitaql-syntax
 attributeLessThan(
-    argument:string!
+    argument:string!,
     argument:comparable!
 )
 ```
@@ -199,7 +199,7 @@ Returns exactly several products with *battery-capacity* less than *125* mWH.
 
 ```evitaql-syntax
 attributeLessThanEquals(
-    argument:string!
+    argument:string!,
     argument:comparable!
 )
 ```
@@ -238,8 +238,148 @@ Returns exactly several products with *battery-capacity* less than or equal to *
 </Note>
 
 ## Attribute between
+
+```evitaql-syntax
+attributeBetween(
+    argument:string!,
+    argument:comparable!,
+    argument:comparable!
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        the name of the [entity attribute](../../use/schema.md#attributes) whose value will be compared to the value
+        in the second argument
+    </dd>
+    <dt>argument:comparable!</dt>
+    <dd>
+        the arbitrary value that will be compared to [entity attribute](../../use/schema.md#attributes) to be greater
+        than or equal to the attribute of the examined entity
+    </dd>
+    <dt>argument:comparable!</dt>
+    <dd>
+        the arbitrary value that will be compared to [entity attribute](../../use/schema.md#attributes) to be less
+        than or equal to the attribute of the examined entity
+    </dd>
+</dl>
+
+The `attributeBetween` compares the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
+and is satisfied only if the entity attribute is less than or equal to the first argument and at the same time greater
+than or equal to the second argument of the constraint.
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-between.evitaql)
+</SourceCodeTabs>
+
+Returns exactly several products with *battery-capacity* between *125* and *160* mWH.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Products with `battery-capacity` attribute is between 125 mWH and 160 mWH
+</NoteTitle>
+
+<MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-between.evitaql.md)</MDInclude>
+
+</Note>
+
 ## Attribute in set
-## Attribute is false
-## Attribute is true
-## Attribute is null
-## Attribute is not null
+
+```evitaql-syntax
+attributeInSet(
+    argument:string!,
+    argument:comparable+
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        the name of the [entity attribute](../../use/schema.md#attributes) whose value will be compared to the value
+        in the second argument
+    </dd>
+    <dt>argument:comparable+</dt>
+    <dd>
+        one or more values that will be compared to [entity attribute](../../use/schema.md#attributes) for equality
+    </dd>
+</dl>
+
+The `attributeInSet` compares filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
+for strict equality with any of the passed values.
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-in-set.evitaql)
+</SourceCodeTabs>
+
+Returns exactly three product with *code* matching one of the arguments. Last of the products was not found 
+in the database and is missing in the result.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Product found by a `code` attribute in given set
+</NoteTitle>
+
+<MDInclude>[Product found by a `code` attribute in given set](/docs/user/en/query/filtering/examples/comparable/attribute-in-set.evitaql.md)</MDInclude>
+
+</Note>
+
+## Attribute is
+
+```evitaql-syntax
+attributeIs(
+    argument:string!
+    argument:enum(NULL|NOT_NULL)
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        the name of the [entity attribute](../../use/schema.md#attributes) whose value will be checked for (non) existence
+    </dd>
+
+</dl>
+
+The `attributeIs` can be used to test for the existence of an entity 
+[attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) of a given name.
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-is-not-null.evitaql)
+</SourceCodeTabs>
+
+Returns hundreds of products with the *catalogNumber* attribute set.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Products with `catalogNumber` present
+</NoteTitle>
+
+<MDInclude>[Product with `catalogNumber` attribute present](/docs/user/en/query/filtering/examples/comparable/attribute-is-not-null.evitaql.md)</MDInclude>
+
+</Note>
+
+When you try to list products without such attribute:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-is-null.evitaql)
+</SourceCodeTabs>
+
+... you will get a single one:
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Products with `catalog-number` missing
+</NoteTitle>
+
+<MDInclude>[Product with `catalog-number` attribute missing](/docs/user/en/query/filtering/examples/comparable/attribute-is-null.evitaql.md)</MDInclude>
+
+</Note>
