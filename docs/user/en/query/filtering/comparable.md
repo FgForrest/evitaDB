@@ -19,11 +19,12 @@ When you compare two **[String](https://docs.oracle.com/en/java/javase/17/docs/a
 data types, the strings are compared alphabetically from the beginning of the string. For example, *Walther* is greater 
 than *Adam*, but *Jasmine* is not greater than *Joanna*.
 
-When you compare two [Range](../../use/data-types.md#numberrange) data types, the larger one is the one whose left
+When you compare two **[Range](../../use/data-types.md#numberrange)** data types, the larger one is the one whose left
 boundary is greater than the left boundary of the other value. If both left boundaries are equal, the greater is the
 one with the greater right boundary.
 
-The boolean data type is compared as a numeric value, where the *true* is 1, and *false* is 0.
+The **[boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)** data type is compared as 
+a numeric value, where the *true* is 1, and *false* is 0.
 </Note>
 
 ## Attribute equals
@@ -153,7 +154,89 @@ Returns exactly several products with *battery-life* greater than or equal to *4
 </Note>
 
 ## Attribute less than
+
+```evitaql-syntax
+attributeLessThan(
+    argument:string!
+    argument:comparable!
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        the name of the [entity attribute](../../use/schema.md#attributes) whose value will be compared to the value
+        in the second argument
+    </dd>
+    <dt>argument:comparable!</dt>
+    <dd>
+        the arbitrary value that will be compared to [entity attribute](../../use/schema.md#attributes) to be less
+        than the attribute of the examined entity
+    </dd>
+</dl>
+
+The `attributeLessThan` compares the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
+with the value in the second argument and is satisfied only if the entity attribute is less than the value.
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-less-than.evitaql)
+</SourceCodeTabs>
+
+Returns exactly several products with *battery-capacity* less than *125* mWH.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Products with `battery-capacity` attribute less than 125 mWH
+</NoteTitle>
+
+<MDInclude>[Products with `battery-life` attribute less than 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than.evitaql.md)</MDInclude>
+
+</Note>
+
 ## Attribute less than, equals
+
+```evitaql-syntax
+attributeLessThanEquals(
+    argument:string!
+    argument:comparable!
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        the name of the [entity attribute](../../use/schema.md#attributes) whose value will be compared to the value
+        in the second argument
+    </dd>
+    <dt>argument:comparable!</dt>
+    <dd>
+        the arbitrary value that will be compared to [entity attribute](../../use/schema.md#attributes) to be less
+        than or equal to the attribute of the examined entity
+    </dd>
+</dl>
+
+The `attributeLessThanEquals` compares the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
+with the value in the second argument and is satisfied only if the entity attribute is less than or equal to the value.
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-less-than-equals.evitaql)
+</SourceCodeTabs>
+
+Returns exactly several products with *battery-capacity* less than or equal to *125* mWH.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Products with `battery-capacity` attribute less than or equal to 125 mWH
+</NoteTitle>
+
+<MDInclude>[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than-equals.evitaql.md)</MDInclude>
+
+</Note>
+
 ## Attribute between
 ## Attribute in set
 ## Attribute is false
