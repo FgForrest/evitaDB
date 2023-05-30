@@ -1,0 +1,11 @@
+query(
+    collection('Product'),
+    filterBy(
+        attributeLessThan('battery-capacity', 125)
+    ),
+    require(
+       entityFetch(
+           attributeContent('code', 'battery-capacity')
+       )
+    )
+)
