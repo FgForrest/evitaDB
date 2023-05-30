@@ -102,13 +102,6 @@ public class GraphQLArtificialFullDatabaseBenchmarkState extends GraphQLArtifici
 	}
 
 	/**
-	 * Returns name of the test catalog.
-	 */
-	protected String getCatalogName() {
-		return TEST_CATALOG;
-	}
-
-	/**
 	 * Descendants may store reference to the schema if they want.
 	 */
 	protected SealedEntitySchema processSchema(SealedEntitySchema schema) {

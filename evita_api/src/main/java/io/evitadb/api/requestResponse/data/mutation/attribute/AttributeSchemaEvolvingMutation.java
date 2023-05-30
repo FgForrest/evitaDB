@@ -68,20 +68,22 @@ public abstract class AttributeSchemaEvolvingMutation extends AttributeMutation 
 				}
 				if (csb.getAttribute(attributeKey.getAttributeName()).isEmpty()) {
 					final Class<? extends Serializable> attributeType = getAttributeValue().getClass();
-					esb
-						.withAttribute(
-							attributeKey.getAttributeName(),
-							attributeType,
-							whichIs -> {
-								whichIs
-									.localized(attributeKey::isLocalized)
-									.filterable()
-									.nullable();
-								if (!attributeType.isArray()) {
-									whichIs.sortable();
+					if (esb.getAttribute(attributeKey.getAttributeName()).isEmpty()) {
+						esb
+							.withAttribute(
+								attributeKey.getAttributeName(),
+								attributeType,
+								whichIs -> {
+									whichIs
+										.localized(attributeKey::isLocalized)
+										.filterable()
+										.nullable();
+									if (!attributeType.isArray()) {
+										whichIs.sortable();
+									}
 								}
-							}
-						);
+							);
+					}
 				} else {
 					esb
 						.withGlobalAttribute(

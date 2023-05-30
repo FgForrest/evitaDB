@@ -101,9 +101,11 @@ public class FinderVisitor implements ConstraintVisitor {
 	 * `stopper`.
 	 */
 	@Nullable
-	public static <T extends Constraint<?>> T findConstraint(@Nonnull Constraint<?> constraint,
-															 @Nonnull Predicate<Constraint<?>> matcher,
-															 Predicate<Constraint<?>> stopper) {
+	public static <T extends Constraint<?>> T findConstraint(
+		@Nonnull Constraint<?> constraint,
+		@Nonnull Predicate<Constraint<?>> matcher,
+		@Nonnull Predicate<Constraint<?>> stopper
+	) {
 		final FinderVisitor visitor = new FinderVisitor(matcher, stopper);
 		constraint.accept(visitor);
 		//noinspection unchecked

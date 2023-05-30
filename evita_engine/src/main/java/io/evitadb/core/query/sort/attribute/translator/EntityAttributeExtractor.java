@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
-import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import lombok.AccessLevel;
@@ -32,6 +31,8 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
+
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 
 /**
  * This implementation of {@link AttributeExtractor} extracts the attribute values directly from the entity.
@@ -57,6 +58,6 @@ public final class EntityAttributeExtractor implements AttributeExtractor {
 	@Nonnull
 	@Override
 	public EntityContentRequire getRequirements() {
-		return QueryConstraints.attributeContent();
+		return attributeContentAll();
 	}
 }

@@ -31,6 +31,7 @@ import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.order.AttributeNatural;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.AttributeHistogram;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -98,7 +99,9 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 
 	/**
 	 * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
-	 * non-null checks upon upserting of the entity.
+	 * non-null checks upon upserting of the entity. When the attribute is also {@link #isLocalized() localized},
+	 * the presence is enforced only when the entity is {@link EntityContract#getAllLocales() localized} to particular
+	 * language (it means it has at least one attribute or associated data of particular locale).
 	 */
 	boolean isNullable();
 

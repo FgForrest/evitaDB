@@ -60,7 +60,7 @@ evitaDB data types are limited to following list:
 - [ByteNumberRange](#numberrange), 
     formatted as `[5,9]`
 - [Locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html), 
-    formatted as `` `cs_CZ` `` (enclosed in backticks)
+    formatted as language tag `` `cs-CZ` `` (enclosed in backticks)
 - [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html), 
     formatted as `` `CZK` `` (enclosed in backticks)
 
@@ -68,6 +68,13 @@ An array of a simple type is still a simple data type. All simple types can be w
 arrays and non-array types in a single *attribute* / *associated data* schema. Once an *attribute* or *associated
 data* schema specifies that it accepts an array of integers, it cannot store a single integer value, and vice versa.
 integer attribute/associated data will never accept an array of integers.
+
+<Note type="warning">
+Since evitaDB keeps all data in indexes in main memory, we strongly recommend using the shortest/smallest data types 
+that can accommodate your data. We do our best to minimize the memory footprint of the database, but the crucial 
+decisions are on your side, so think carefully which data type you choose and whether you make it filterable/sortable 
+so that it requires a memory index.
+</Note>
 
 <LanguageSpecific to="java">
 
@@ -79,11 +86,26 @@ class.
 
 </LanguageSpecific>
 
+### String
+
+The string type is internally encoded with the character set [UTF-8](https://en.wikipedia.org/wiki/UTF-8). evitaDB
+query language and other I/O methods of evitaDB implicitly use this encoding.
+
+### Dates and times
+
+Although evitaDB supports *local* variants of the date time like 
+[LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html), it's always 
+converted to [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) 
+using the system default timezone. You can control the default Java timezone in 
+[several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work 
+directly with the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) 
+on the client side and be explicit about the offset from the first day.
+
 <Note type="question">
 
 <NoteTitle toggles="true">
 
-##### Why do we use OffsetDateTime for time information?
+##### Why do we internally use OffsetDateTime for time information?
 </NoteTitle>
 
 Offset/time zone handling varies from database to database. We wanted to avoid setting the timezone in session or 
@@ -190,20 +212,20 @@ have both an accessor, a mutator method (i.e. `get` and `set` methods for the pr
 annotation, are serialized into a complex type. See the following example:
 
 <SourceCodeTabs>
-[Associated data POJO](docs/user/en/use/examples/dto.java)
+[Associated data POJO](/docs/user/en/use/examples/dto.java)
 </SourceCodeTabs>
 
 Storing a complex type to entity is executed as follows:
 
-<SourceCodeTabs requires="docs/user/en/use/examples/dto.java,docs/user/en/get-started/example/complete-startup.java,docs/user/en/get-started/example/define-test-catalog.java,docs/user/en/get-started/example/define-catalog-with-schema.java,docs/user/en/use/api/example/open-session-manually.java">
-[Storing associated data to an entity](docs/user/en/use/examples/storing.java)
+<SourceCodeTabs requires="/docs/user/en/use/examples/dto.java,/docs/user/en/get-started/example/complete-startup.java,/docs/user/en/get-started/example/define-test-catalog.java,/docs/user/en/get-started/example/define-catalog-with-schema.java,/docs/user/en/use/api/example/open-session-manually.java">
+[Storing associated data to an entity](/docs/user/en/use/examples/storing.java)
 </SourceCodeTabs>
 
 As you can see, annotations can be placed either on methods or property fields, so that if you use
 [Lombok support](https://projectlombok.org/), you can still easily define the class as:
 
 <SourceCodeTabs>
-[Associated data Lombok POJO](docs/user/en/use/examples/dto-lombok.java)
+[Associated data Lombok POJO](/docs/user/en/use/examples/dto-lombok.java)
 </SourceCodeTabs>
 
 If the serialization process encounters any property that cannot be serialized, the
@@ -216,7 +238,7 @@ You can use collections in complex types, but the specific collection types must
 generics in deserialization time. Look at the following example:
 
 <SourceCodeTabs>
-[Associated data POJO with collections](docs/user/en/use/examples/dto-collection.java)
+[Associated data POJO with collections](/docs/user/en/use/examples/dto-collection.java)
 </SourceCodeTabs>
 
 This class will (de)serialize just fine.
@@ -255,8 +277,8 @@ void verifyProductStockAvailabilityIsProperlySerialized() {
 
 Retrieving a complex type from an entity is executed as follows:
 
-<SourceCodeTabs requires="docs/user/en/use/examples/storing.java">
-[Loading associated data from an entity](docs/user/en/use/examples/loading.java)
+<SourceCodeTabs requires="/docs/user/en/use/examples/storing.java">
+[Loading associated data from an entity](/docs/user/en/use/examples/loading.java)
 </SourceCodeTabs>
 
 Complex types are internally converted to a 

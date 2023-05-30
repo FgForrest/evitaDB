@@ -29,6 +29,10 @@ import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.AttributeNatural;
+import io.evitadb.api.query.order.AttributeSetExact;
+import io.evitadb.api.query.order.AttributeSetInFilter;
+import io.evitadb.api.query.order.EntityPrimaryKeyExact;
+import io.evitadb.api.query.order.EntityPrimaryKeyInFilter;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.order.Random;
@@ -43,12 +47,16 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
+import io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator;
+import io.evitadb.core.query.sort.attribute.translator.AttributeSetInFilterTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityAttributeExtractor;
 import io.evitadb.core.query.sort.attribute.translator.ReferencePropertyTranslator;
 import io.evitadb.core.query.sort.price.translator.PriceNaturalTranslator;
+import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
+import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyInFilterTranslator;
+import io.evitadb.core.query.sort.random.translator.RandomTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
-import io.evitadb.core.query.sort.translator.RandomTranslator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -84,6 +92,10 @@ public class OrderByVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(ReferenceProperty.class, new ReferencePropertyTranslator());
 		TRANSLATORS.put(Random.class, new RandomTranslator());
 		TRANSLATORS.put(PriceNatural.class, new PriceNaturalTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyInFilter.class, new EntityPrimaryKeyInFilterTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactTranslator());
+		TRANSLATORS.put(AttributeSetInFilter.class, new AttributeSetInFilterTranslator());
+		TRANSLATORS.put(AttributeSetExact.class, new AttributeSetExactTranslator());
 	}
 
 	/**

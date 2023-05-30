@@ -26,9 +26,9 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
-import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
+import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -154,11 +154,6 @@ public class AttributeInRange extends AbstractAttributeFilterConstraintLeaf impl
 		} else {
 			return null;
 		}
-	}
-
-	@Override
-	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 0;
 	}
 
 	@Nonnull

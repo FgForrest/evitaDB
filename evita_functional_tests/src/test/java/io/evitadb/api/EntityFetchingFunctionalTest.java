@@ -3511,6 +3511,72 @@ public class EntityFetchingFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return products sorted by exact order in the filter constraint")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderInFilter(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Integer[] exactOrder = {12, 1, 18, 23, 5};
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(exactOrder)
+						),
+						orderBy(
+							entityPrimaryKeyInFilter()
+						)
+					)
+				);
+				assertEquals(5, products.getRecordData().size());
+				assertEquals(5, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					exactOrder,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order")
+	@UseDataSet(FIFTY_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrder(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Integer[] exactOrder = {12, 1, 18, 23, 5};
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(Arrays.stream(exactOrder).sorted().toArray(Integer[]::new))
+						),
+						orderBy(
+							entityPrimaryKeyExact(exactOrder)
+						)
+					)
+				);
+				assertEquals(5, products.getRecordData().size());
+				assertEquals(5, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					exactOrder,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
 	private void assertProductHasAttributesInLocale(SealedEntity product, Locale locale, String... attributes) {
 		for (String attribute : attributes) {
 			assertNotNull(

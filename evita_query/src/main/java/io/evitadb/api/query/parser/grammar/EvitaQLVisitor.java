@@ -361,6 +361,20 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitAttributeNaturalConstraint(EvitaQLParser.AttributeNaturalConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code attributeSetExactConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAttributeSetExactConstraint(EvitaQLParser.AttributeSetExactConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code attributeSetInFilterConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAttributeSetInFilterConstraint(EvitaQLParser.AttributeSetInFilterConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code priceNaturalConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -381,6 +395,20 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code entityPrimaryKeyExactConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitEntityPrimaryKeyExactConstraint(EvitaQLParser.EntityPrimaryKeyExactConstraintContext ctx);
+	/**
+	 * Visit a parse tree produced by the {@code entityPrimaryKeyInFilterConstraint}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitEntityPrimaryKeyInFilterConstraint(EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext ctx);
 	/**
 	 * Visit a parse tree produced by the {@code entityPropertyConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
@@ -885,6 +913,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitHierarchyWithinRootSelfConstraintArgs(EvitaQLParser.HierarchyWithinRootSelfConstraintArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#attributeSetExactArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAttributeSetExactArgs(EvitaQLParser.AttributeSetExactArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#pageConstraintArgs}.
 	 * @param ctx the parse tree

@@ -56,12 +56,6 @@ public class MockPriceIdsFormula extends PriceIdContainerFormula {
 
 	@Nonnull
 	@Override
-	public Formula getDelegate() {
-		return innerFormulas[0];
-	}
-
-	@Nonnull
-	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		throw new UnsupportedOperationException();
 	}

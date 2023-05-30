@@ -10,6 +10,8 @@ on:
 jobs:
   report:
     runs-on: ubuntu-latest
+    permissions:
+      checks: write
     steps:
       - name: Download a test results # download `evita-server.jar` artifact if the workflow we react to was successful
         uses: dawidd6/action-download-artifact@v2

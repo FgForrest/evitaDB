@@ -51,12 +51,12 @@ import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.documentation.JavaPrettyPrintingVisitor;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
 import io.evitadb.documentation.UserDocumentationTest.OutputSnippet;
+import io.evitadb.documentation.markdown.Table;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
-import net.steppschuh.markdowngenerator.table.Table;
 import net.steppschuh.markdowngenerator.text.code.CodeBlock;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.function.Executable;
@@ -296,14 +296,19 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 		@Nonnull Query query,
 		@Nonnull EvitaResponse<SealedEntity> response
 	) {
-		final EntityFetch entityFetch = QueryUtils.findConstraint(
-			query.getRequire(), EntityFetch.class, SeparateEntityContentRequireContainer.class
-		);
+		final Optional<EntityFetch> entityFetch = ofNullable(query.getRequire())
+			.flatMap(
+				it -> QueryUtils.findConstraints(
+						it, EntityFetch.class, SeparateEntityContentRequireContainer.class
+					)
+					.stream()
+					.findFirst()
+			);
 
 		// collect headers for the MarkDown table
 		final String[] headers = Stream.concat(
 			Stream.of(ENTITY_PRIMARY_KEY),
-			ofNullable(entityFetch)
+			entityFetch
 				.map(it -> QueryUtils.findConstraints(
 						it, AttributeContent.class, SeparateEntityContentRequireContainer.class
 					)

@@ -76,16 +76,6 @@ public class DeleteEntitiesByQueryHandler extends ListEntitiesHandler {
 	}
 
 	@Override
-	public boolean acceptsRequestBodies() {
-		return true;
-	}
-
-	@Override
-	public boolean returnsResponseBodies() {
-		return true;
-	}
-
-	@Override
 	@Nonnull
 	public Optional<Object> doHandleRequest(@Nonnull HttpServerExchange exchange) {
 		final Query query = resolveQuery(exchange);

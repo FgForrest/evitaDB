@@ -65,7 +65,9 @@ import java.util.Locale;
 	shortDescription = "The constraint if at least one of entity locales (derived from entity attributes or associated data) equals to the passed one.",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class EntityLocaleEquals extends AbstractFilterConstraintLeaf implements EntityConstraint<FilterConstraint>, IndexUsingConstraint, FilterConstraint {
+public class EntityLocaleEquals extends AbstractFilterConstraintLeaf
+	implements EntityConstraint<FilterConstraint>, IndexUsingConstraint, FilterConstraint {
+
 	@Serial private static final long serialVersionUID = 4716406488516855299L;
 
 	private EntityLocaleEquals(Serializable... arguments) {

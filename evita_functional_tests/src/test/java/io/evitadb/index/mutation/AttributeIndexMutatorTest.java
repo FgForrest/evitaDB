@@ -109,7 +109,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertNotNull(globalUniqueIndex);
 		assertEquals(
 			new EntityReference(productSchema.getName(), 1),
-			globalUniqueIndex.getEntityReferenceByUniqueValue("GA")
+			globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null)
 		);
 
 		final Collection<StoragePart> modifiedProductIndexStorageParts = productIndex.getModifiedStorageParts();
@@ -197,10 +197,10 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertArrayEquals(new int[]{1}, filterIndex.getRecordsEqualTo("EAN-002").getArray());
 
 		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(ATTRIBUTE_GLOBAL_CODE);
-		assertNull(globalUniqueIndex.getEntityReferenceByUniqueValue("GA"));
+		assertNull(globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null));
 		assertEquals(
 			new EntityReference(productSchema.getName(), 1),
-			globalUniqueIndex.getEntityReferenceByUniqueValue("GB")
+			globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null)
 		);
 
 		final Collection<StoragePart> modifiedStorageParts = productIndex.getModifiedStorageParts();
@@ -374,8 +374,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertEquals(1, uniqueIndex.getRecordIdByUniqueValue("B"));
 
 		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(ATTRIBUTE_GLOBAL_CODE);
-		assertEquals(new EntityReference(productSchema.getName(), 2), globalUniqueIndex.getEntityReferenceByUniqueValue("GA"));
-		assertEquals(new EntityReference(productSchema.getName(), 1), globalUniqueIndex.getEntityReferenceByUniqueValue("GB"));
+		assertEquals(new EntityReference(productSchema.getName(), 2), globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null));
+		assertEquals(new EntityReference(productSchema.getName(), 1), globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null));
 
 		final Collection<StoragePart> modifiedStorageParts = productIndex.getModifiedStorageParts();
 		assertEquals(5, modifiedStorageParts.size());

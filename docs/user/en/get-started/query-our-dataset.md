@@ -123,14 +123,14 @@ Open your Java IDE and create an <SourceClass>evita_external_api/evita_external_
 instance:
 
 <SourceCodeTabs>
-[Connect the demo server](docs/user/en/get-started/example/connect-demo-server.java)
+[Connect the demo server](/docs/user/en/get-started/example/connect-demo-server.java)
 </SourceCodeTabs>
 
 After that you can create a new session and try any of the evitaQL queries described in 
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="docs/user/en/get-started/example/connect-demo-server.java">
-[Query the demo server](docs/user/en/get-started/example/query-demo-server.java)
+<SourceCodeTabs requires="/docs/user/en/get-started/example/connect-demo-server.java">
+[Query the demo server](/docs/user/en/get-started/example/query-demo-server.java)
 </SourceCodeTabs>
 
 <Note type="info">

@@ -30,6 +30,7 @@ import io.evitadb.core.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.locale.LocaleFormula;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.AttributeIndexContract;
 import io.evitadb.index.bitmap.Bitmap;
@@ -325,12 +326,12 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 
 	/**
 	 * Returns formula that computes all record ids in this index that has at least one localized attribute / associated
-	 * data in passed `language`.
+	 * data in passed `locale`.
 	 */
 	@Nonnull
-	public Formula getRecordsWithLanguageFormula(@Nonnull Locale language) {
-		return ofNullable(this.entityIdsByLanguage.get(language))
-			.map(it -> (Formula) new ConstantFormula(it))
+	public Formula getRecordsWithLanguageFormula(@Nonnull Locale locale) {
+		return ofNullable(this.entityIdsByLanguage.get(locale))
+			.map(it -> (Formula) new LocaleFormula(it))
 			.orElse(EmptyFormula.INSTANCE);
 	}
 
