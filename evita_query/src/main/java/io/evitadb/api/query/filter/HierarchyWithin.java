@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -207,6 +208,7 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer
 	/**
 	 * Returns filtering constraints that return entities whose trees should be included in hierarchy query.
 	 */
+	@AliasForParameter("ofParent")
 	@Nonnull
 	public FilterConstraint getParentFilter() {
 		return Arrays.stream(getChildren())
@@ -247,6 +249,18 @@ public class HierarchyWithin extends AbstractFilterConstraintContainer
 	public boolean isExcludingRoot() {
 		return Arrays.stream(getChildren())
 			.anyMatch(HierarchyExcludingRoot.class::isInstance);
+	}
+
+	/**
+	 * Returns all specification constraints passed in `with` parameter.
+	 */
+	@AliasForParameter("with")
+	@Nonnull
+	public HierarchySpecificationFilterConstraint[] getHierarchySpecificationConstraints() {
+		return Arrays.stream(getChildren())
+			.filter(HierarchySpecificationFilterConstraint.class::isInstance)
+			.map(it -> (HierarchySpecificationFilterConstraint) it)
+			.toArray(HierarchySpecificationFilterConstraint[]::new);
 	}
 
 	@Override

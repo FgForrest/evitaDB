@@ -56,8 +56,8 @@ public class EntityHaving extends AbstractFilterConstraintContainer implements E
 	private EntityHaving() {}
 
 	@Creator
-	public EntityHaving(@Nonnull @Child FilterConstraint children) {
-		super(children);
+	public EntityHaving(@Nonnull @Child FilterConstraint child) {
+		super(child);
 	}
 
 	@Nullable

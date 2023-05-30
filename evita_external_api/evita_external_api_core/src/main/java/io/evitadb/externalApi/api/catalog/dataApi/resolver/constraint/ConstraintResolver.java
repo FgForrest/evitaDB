@@ -723,11 +723,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			() -> createQueryResolvingInternalError("Missing resolver for constraint type `" + parameterDescriptor.constraintType() + "`.")
 		);
 
-		return resolver.get().resolve(
-			new ConstraintResolveContext(resolveContext.dataLocator()),
-			parameterDescriptor.name(),
-			argument
-		);
+		return resolver.get().resolve(resolveContext, parameterDescriptor.name(), argument);
 	}
 
 	/**

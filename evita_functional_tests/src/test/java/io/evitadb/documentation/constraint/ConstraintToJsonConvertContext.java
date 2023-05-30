@@ -21,40 +21,43 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.builder.constraint;
+package io.evitadb.documentation.constraint;
 
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintTraverseContext;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Local context for constraint building. It is passed down the constraint tree. Each node can create new
- * context for its children if received context from parent is not relevant
+ * Local context for constraint conversion. It is passed down the constraint tree. Each node can create new
+ * context for its children.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Builder(access = AccessLevel.PRIVATE, toBuilder = true)
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @ToString
 @EqualsAndHashCode
-public class ConstraintBuildContext implements ConstraintTraverseContext<ConstraintBuildContext> {
+class ConstraintToJsonConvertContext implements ConstraintTraverseContext<ConstraintToJsonConvertContext> {
 
 	@Nullable private final DataLocator parentDataLocator;
 	@Nonnull private final DataLocator dataLocator;
 
-	public ConstraintBuildContext(@Nonnull DataLocator dataLocator) {
+	public ConstraintToJsonConvertContext(@Nonnull DataLocator dataLocator) {
 		this(null, dataLocator);
 	}
 
+	public ConstraintToJsonConvertContext(@Nonnull DataLocator parentDataLocator, @Nonnull DataLocator dataLocator) {
+		this.parentDataLocator = parentDataLocator;
+		this.dataLocator = dataLocator;
+	}
+
 	@Nonnull
-	public ConstraintBuildContext switchToChildContext(@Nonnull DataLocator childDataLocator) {
+	public ConstraintToJsonConvertContext switchToChildContext(@Nonnull DataLocator childDataLocator) {
 		return toBuilder()
 			.parentDataLocator(dataLocator())
 			.dataLocator(childDataLocator)

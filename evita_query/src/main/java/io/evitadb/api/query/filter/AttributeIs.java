@@ -71,8 +71,8 @@ public class AttributeIs extends AbstractAttributeFilterConstraintLeaf implement
 
 	@Creator
 	public AttributeIs(@Nonnull @Classifier String attributeName,
-	                   @Nonnull @Value AttributeSpecialValue specialValue) {
-		super(attributeName, specialValue);
+	                   @Nonnull @Value AttributeSpecialValue attributeSpecialValue) {
+		super(attributeName, attributeSpecialValue);
 	}
 
 	/**

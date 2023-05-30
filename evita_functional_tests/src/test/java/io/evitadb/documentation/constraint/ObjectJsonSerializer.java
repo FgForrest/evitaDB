@@ -21,24 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.resolver.serializer;
+package io.evitadb.documentation.constraint;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
-import io.evitadb.externalApi.rest.exception.RestInternalError;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -64,29 +63,19 @@ public class ObjectJsonSerializer {
 	}
 
 	/**
-	 * Create new empty object node from factory.
-	 */
-	public ObjectNode objectNode() {
-		return jsonNodeFactory.objectNode();
-	}
-
-	/**
-	 * Create new empty array node from factory.
-	 */
-	public ArrayNode arrayNode() {
-		return jsonNodeFactory.arrayNode();
-	}
-
-	/**
 	 * Serialize object into JSON {@link ObjectNode}
 	 *
 	 * @return value in form of JSON node
-	 * @throws RestInternalError when Class ob object is not among supported classes for serialization
+	 * @throws EvitaInternalError when Class ob object is not among supported classes for serialization
 	 */
 	@Nonnull
-	public JsonNode serializeObject(@Nonnull Object value) {
+	public JsonNode serializeObject(@Nullable Object value) {
+		if (value == null) {
+			return jsonNodeFactory.nullNode();
+		}
+
 		if (value instanceof Collection<?> values) return serializeCollection(values);
-		if(value instanceof Object[] values) return serializeArray(values);
+		if (value instanceof Object[] values) return serializeArray(values);
 		if (value.getClass().isArray()) return serializeArray(value);
 		if (value instanceof String string) return jsonNodeFactory.textNode(string);
 		if (value instanceof Character character) return jsonNodeFactory.textNode(character.toString());
@@ -107,7 +96,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof PriceContract price) return serialize(price);
 		if (value.getClass().isEnum()) return serialize((Enum<?>) value);
 
-		throw new RestInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
+		throw new EvitaInternalError("Serialization of value of class: " + value.getClass().getName() + " is not implemented yet.");
 	}
 
 	/**
@@ -115,7 +104,7 @@ public class ObjectJsonSerializer {
 	 *
 	 * @param values list of values
 	 * @return values in form of JsonNode
-	 * @throws RestInternalError when Class ob object is not among supported classes for serialization
+	 * @throws EvitaInternalError when Class ob object is not among supported classes for serialization
 	 */
 	public JsonNode serializeCollection(@Nonnull Collection<?> values) {
 		final ArrayNode arrayNode = new ArrayNode(jsonNodeFactory, values.size());
@@ -130,7 +119,7 @@ public class ObjectJsonSerializer {
 	 *
 	 * @param values array of values
 	 * @return values in form of JsonNode
-	 * @throws RestInternalError when Class ob object is not among supported classes for serialization
+	 * @throws EvitaInternalError when Class ob object is not among supported classes for serialization
 	 */
 	public JsonNode serializeArray(@Nonnull Object[] values) {
 		final ArrayNode arrayNode = new ArrayNode(jsonNodeFactory, values.length);
@@ -148,7 +137,7 @@ public class ObjectJsonSerializer {
 
 		final int arraySize = Array.getLength(values);
 		for (int i = 0; i < arraySize; i++) {
-			final Object item = Array.get(values, 0);
+			final Object item = Array.get(values, i);
 			arrayNode.add(serializeObject(item));
 		}
 

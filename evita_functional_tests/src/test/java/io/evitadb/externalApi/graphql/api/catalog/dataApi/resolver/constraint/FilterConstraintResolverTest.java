@@ -123,7 +123,7 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 					.e("ofParent", map()
 						.e("entityPrimaryKeyInSet", List.of(1)))
 					.e("with", map()
-						.e("hierarchyDirectRelation", true))
+						.e("directRelation", true))
 					.build()
 			)
 		);

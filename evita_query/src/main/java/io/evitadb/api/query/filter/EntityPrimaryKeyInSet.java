@@ -66,8 +66,8 @@ public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf implemen
 	}
 
 	@Creator(implicitClassifier = "primaryKey")
-	public EntityPrimaryKeyInSet(@Nonnull @Value Integer... primaryKey) {
-		super(primaryKey);
+	public EntityPrimaryKeyInSet(@Nonnull @Value Integer... primaryKeys) {
+		super(primaryKeys);
 	}
 
 	/**
