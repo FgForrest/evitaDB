@@ -55,10 +55,12 @@ import java.util.Locale;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ObjectJsonSerializer {
+
 	@Getter private final ObjectMapper objectMapper;
 	private final JsonNodeFactory jsonNodeFactory;
-	public ObjectJsonSerializer(@Nonnull ObjectMapper objectMapper) {
-		this.objectMapper = objectMapper;
+
+	public ObjectJsonSerializer() {
+		this.objectMapper = new ObjectMapper();
 		this.jsonNodeFactory = new JsonNodeFactory(true);
 	}
 

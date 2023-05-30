@@ -51,8 +51,8 @@ public class HierarchyHaving extends AbstractFilterConstraintContainer implement
 	private static final String CONSTRAINT_NAME = "having";
 
 	@Creator
-	public HierarchyHaving(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filterConstraint) {
-		super(CONSTRAINT_NAME, NO_ARGS, filterConstraint);
+	public HierarchyHaving(@Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filtering) {
+		super(CONSTRAINT_NAME, NO_ARGS, filtering);
 	}
 
 	/**

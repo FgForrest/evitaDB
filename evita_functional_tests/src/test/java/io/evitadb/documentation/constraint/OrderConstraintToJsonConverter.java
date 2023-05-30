@@ -23,6 +23,7 @@
 
 package io.evitadb.documentation.constraint;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
@@ -30,6 +31,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 
 import javax.annotation.Nonnull;
+import java.util.function.Predicate;
 
 /**
  * Constraint to JSON converter for {@link io.evitadb.api.query.OrderConstraint}s.
@@ -40,6 +42,11 @@ public class OrderConstraintToJsonConverter extends ConstraintToJsonConverter {
 
 	public OrderConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema) {
 		super(catalogSchema);
+	}
+
+	public OrderConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                                      @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate) {
+		super(catalogSchema, constraintPredicate);
 	}
 
 	@Nonnull

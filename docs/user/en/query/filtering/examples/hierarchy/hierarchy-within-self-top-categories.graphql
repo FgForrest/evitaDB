@@ -1,10 +1,8 @@
 {
   queryCategory(
     filterBy: {
-      hierarchyWithinSelf: {
-        ofParent: {
-          attributeCodeEquals: "accessories"
-        }
+      hierarchyWithinRootSelf: {
+        directRelation: true
       }
     }
   ) {

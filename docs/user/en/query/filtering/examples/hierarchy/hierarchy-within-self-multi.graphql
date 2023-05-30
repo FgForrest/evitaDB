@@ -3,7 +3,7 @@
     filterBy: {
       hierarchyWithinSelf: {
         ofParent: {
-          attributeCodeEquals: "accessories"
+          attributeCodeStartsWith: "wire"
         }
       }
     }

@@ -4,6 +4,9 @@
       hierarchyWithinSelf: {
         ofParent: {
           attributeCodeEquals: "accessories"
+        },
+        with: {
+          directRelation: true
         }
       }
     }

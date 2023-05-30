@@ -304,6 +304,14 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldBeAbleToRunParallelClients(EvitaClient evitaClient) {
+		final EvitaClient anotherParallelClient = new EvitaClient(evitaClient.getConfiguration());
+		shouldListCatalogNames(anotherParallelClient);
+		shouldListCatalogNames(evitaClient);
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldListCatalogNames(EvitaClient evitaClient) {
 		final Set<String> catalogNames = evitaClient.getCatalogNames();
 		assertEquals(1, catalogNames.size());

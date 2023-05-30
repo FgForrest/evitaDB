@@ -23,23 +23,39 @@
 
 package io.evitadb.documentation.graphql;
 
-import io.evitadb.api.query.Query;
-import io.evitadb.api.query.filter.FilterBy;
+import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * TODO lho docs
+ * Tests for {@link GraphQLOutputFieldsBuilder}.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class GraphQLQueryBuilder {
+class GraphQLOutputFieldsBuilderTest {
 
-	@Nonnull
-	public String builder(@Nonnull Query query) {
-		final FilterBy filterBy = query.getFilterBy();
-		return null;
+	@Test
+	void shouldRenderFieldsCorrectly() {
+		final String expectedFields = """
+			  primaryKey
+			  type
+			  store {
+			    referencedPrimaryKey
+			    referencedEntity {
+			      primaryKey
+			    }
+			  }
+			""".stripTrailing();
+		assertEquals(
+			expectedFields,
+			new GraphQLOutputFieldsBuilder(0)
+				.addPrimitiveField("primaryKey")
+				.addPrimitiveField("type")
+				.addObjectField("store", b1 -> b1
+					.addPrimitiveField("referencedPrimaryKey")
+					.addObjectField("referencedEntity", b2 -> b2
+						.addPrimitiveField("primaryKey")))
+				.build()
+		);
 	}
-
-//	private
 }

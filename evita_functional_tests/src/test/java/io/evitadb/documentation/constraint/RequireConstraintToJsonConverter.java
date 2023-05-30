@@ -23,12 +23,14 @@
 
 package io.evitadb.documentation.constraint;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 
 import javax.annotation.Nonnull;
+import java.util.function.Predicate;
 
 /**
  * Constraint to JSON converter for {@link io.evitadb.api.query.RequireConstraint}s.
@@ -39,6 +41,11 @@ public class RequireConstraintToJsonConverter extends ConstraintToJsonConverter 
 
 	public RequireConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema) {
 		super(catalogSchema);
+	}
+
+	public RequireConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                                        @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate) {
+		super(catalogSchema, constraintPredicate);
 	}
 
 	@Nonnull

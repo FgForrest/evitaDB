@@ -1,11 +1,7 @@
 {
-  queryCategory(
+  queryProduct(
     filterBy: {
-      hierarchyWithinSelf: {
-        ofParent: {
-          attributeCodeEquals: "accessories"
-        }
-      }
+      hierarchyCategoriesWithinRoot: { }
     }
   ) {
     recordPage {

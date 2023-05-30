@@ -119,10 +119,6 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	 */
 	private final static List<String> JAVA_CODE_TEMPLATE;
 	/**
-	 * Contents of the GraphQL code template that is used to generate GraphQL examples from EvitaQL queries.
-	 */
-	private final static List<String> GRAPHQL_CODE_TEMPLATE;
-	/**
 	 * Regex pattern for replacing a placeholder in the Java template.
 	 */
 	private static final Pattern THE_QUERY_REPLACEMENT = Pattern.compile("^(\\s*)#QUERY#.*$", Pattern.DOTALL);
@@ -160,11 +156,6 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 
 		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.java");) {
 			JAVA_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
-		} catch (IOException e) {
-			throw new IllegalStateException(e);
-		}
-		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.graphql");) {
-			GRAPHQL_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			throw new IllegalStateException(e);
 		}
@@ -245,27 +236,11 @@ public class EvitaQLExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
-	 * Generates the Java code snippet for the given query.
+	 * Generates the GraphQL code snippet for the given query.
 	 */
 	@Nonnull
-	private static String generateGraphQLSnippet(@Nonnull Query theQuery) {
-		return GRAPHQL_CODE_TEMPLATE
-			.stream()
-			.map(theLine -> {
-				final Matcher replacementMatcher = THE_QUERY_REPLACEMENT.matcher(theLine);
-				if (replacementMatcher.matches()) {
-					// todo lho generate graphql query here
-//					"""
-//                        queryCategory(...) {
-//                            ...
-//                        }
-//						"""
-					return "this is not graphql";
-				} else {
-					return theLine;
-				}
-			})
-			.collect(Collectors.joining("\n"));
+	private String generateGraphQLSnippet(@Nonnull Query theQuery) {
+		return testContextAccessor.get().getGraphQLQueryConverter().convert(theQuery);
 	}
 
 	/**
