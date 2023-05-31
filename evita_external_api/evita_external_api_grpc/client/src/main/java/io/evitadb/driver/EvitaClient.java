@@ -250,6 +250,8 @@ public class EvitaClient implements EvitaContract {
 		}
 		final EvitaClientSession evitaClientSession = new EvitaClientSession(
 			this.reflectionLookup,
+			// todo jno tady se mohou míchat sessiony v lambdě getEntitySchema uvnitř catalog schema
+//			new EvitaEntitySchemaCache(traits.catalogName()),
 			this.entitySchemaCache.computeIfAbsent(
 				traits.catalogName(),
 				EvitaEntitySchemaCache::new

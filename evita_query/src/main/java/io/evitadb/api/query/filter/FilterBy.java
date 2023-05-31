@@ -67,13 +67,6 @@ public class FilterBy extends AbstractFilterConstraintContainer implements Gener
 		super();
 	}
 
-	// todo lho/jno: what was the problem with array of children? I would like to revert it
-//	@Creator
-	public FilterBy(@Nonnull @Child FilterConstraint child) {
-		super(child);
-	}
-
-	// todo lho/jno: what about the unique children? do we want that?
 	@Creator
 	public FilterBy(@Nonnull @Child(uniqueChildren = true) FilterConstraint... children) {
 		super(children);
@@ -83,15 +76,6 @@ public class FilterBy extends AbstractFilterConstraintContainer implements Gener
 	public boolean isNecessary() {
 		return isApplicable();
 	}
-
-	// todo lho
-//	@Nonnull
-//	private FilterConstraint getChild() {
-//		if (getChildrenCount() > 1) {
-//			return new And(getChildren());
-//		}
-//		return getChildren()[0];
-//	}
 
 	@Nonnull
 	@Override

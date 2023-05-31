@@ -63,7 +63,6 @@ import java.util.stream.Stream;
  */
 public abstract class ConstraintToJsonConverter {
 
-	@Nonnull private final CatalogSchemaContract catalogSchema;
 	@Nonnull private final Predicate<Class<? extends Constraint<?>>> constraintPredicate;
 
 	@Nonnull private final JsonNodeFactory jsonNodeFactory;
@@ -80,7 +79,6 @@ public abstract class ConstraintToJsonConverter {
 
 	protected ConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
 	                                    @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate) {
-		this.catalogSchema = catalogSchema;
 		this.constraintPredicate = constraintPredicate;
 
 		this.jsonNodeFactory = new JsonNodeFactory(true);

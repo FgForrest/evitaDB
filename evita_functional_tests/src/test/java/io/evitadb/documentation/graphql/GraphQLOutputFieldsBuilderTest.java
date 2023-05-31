@@ -23,6 +23,8 @@
 
 package io.evitadb.documentation.graphql;
 
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,12 +51,12 @@ class GraphQLOutputFieldsBuilderTest {
 		assertEquals(
 			expectedFields,
 			new GraphQLOutputFieldsBuilder(0)
-				.addPrimitiveField("primaryKey")
-				.addPrimitiveField("type")
+				.addPrimitiveField(EntityDescriptor.PRIMARY_KEY)
+				.addPrimitiveField(EntityDescriptor.TYPE)
 				.addObjectField("store", b1 -> b1
-					.addPrimitiveField("referencedPrimaryKey")
-					.addObjectField("referencedEntity", b2 -> b2
-						.addPrimitiveField("primaryKey")))
+					.addPrimitiveField(ReferenceDescriptor.REFERENCED_PRIMARY_KEY)
+					.addObjectField(ReferenceDescriptor.REFERENCED_ENTITY, b2 -> b2
+						.addPrimitiveField(EntityDescriptor.PRIMARY_KEY)))
 				.build()
 		);
 	}

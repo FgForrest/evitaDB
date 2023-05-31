@@ -221,6 +221,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public SealedCatalogSchema getCatalogSchema() {
 		assertActive();
+		// todo jno lambda uvnitř getentityschema už se nevolá přes proxy kde se setuje session holder, takže pokud se
+		//  getEntitySchema nezavolá napřímo přes proxy tak se nezacachuje a fetchuje se tedy a tam už pak chybí na serveru
+		//  session
 		return schemaCache.getLatestCatalogSchema(this::fetchCatalogSchema);
 	}
 
