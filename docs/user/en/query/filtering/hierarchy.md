@@ -72,7 +72,7 @@ The most straightforward usage is filtering the hierarchical entities themselves
 
 To list all nested categories of *Accessories* category issue this query:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Transitive category listing](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.evitaql)
 </SourceCodeTabs>
 
