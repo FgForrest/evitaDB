@@ -982,7 +982,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		final var expectedBody = entities.stream()
 			.map(entity -> {
 				final ReferenceContract reference = entity.getReferences(Entities.BRAND).iterator().next();
-				final SealedEntity referencedEntity = evita.queryCatalog(
+				evita.queryCatalog(
 					TEST_CATALOG,
 					session -> {
 						return session.getEntity(Entities.BRAND, reference.getReferencedPrimaryKey(), attributeContent(ATTRIBUTE_CODE));
@@ -1012,9 +1012,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 						"require": {
 						    "entityFetch": {
 						        "referenceBrandContent": {
-						             "entityFetch": {
-						                "attributeContent": ["marketShare"]
-						            }
+						             "entityFetch": {}
 						        }
 					        }
 					    }
