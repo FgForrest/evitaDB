@@ -150,7 +150,7 @@ The final evaluation of the reseach is [available here](../evaluation/evaluation
 
 ### Entities
 
-Our performance tests will run o (proofreaders note: did you mean big O?) datasets that will be similar to those:
+Our performance tests are run on data sets that are similar to these:
 
 | Entity                                                              | Senesi.cz | Signal-nabytek.cz | Fjallraven CZ | Rako CZ | Kili CZ |
 |---------------------------------------------------------------------|-----------|-------------------|---------------|---------|---------|
@@ -293,7 +293,7 @@ The goal is:
 ## Data model
 
 <Note type="info">
-See a more detailed [API schema (proofreader's note, correct me if this is a name in the code)](/updating/schema_api), describing the data model manipulation.
+See a more detailed [API schema(updating/schema_api), describing the data model manipulation.
 </Note>
 
 The minimal entity definition consists of: [Entity type](#entity-type) and [Primary key](#primary-key) (even this is optional
