@@ -46,6 +46,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.StreamSupport;
@@ -69,63 +70,65 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		final QueryContext queryContext = filterByVisitor.getQueryContext();
-		return queryContext.computeOnlyOnce(
-			hierarchyWithin,
-			() -> {
-				final Optional<String> referenceName = hierarchyWithin.getReferenceName();
+		final Optional<String> referenceName = hierarchyWithin.getReferenceName();
 
-				final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
-				final ReferenceSchemaContract referenceSchema = referenceName
-					.map(entitySchema::getReferenceOrThrowException)
-					.orElse(null);
-				final EntitySchemaContract targetEntitySchema = ofNullable(referenceSchema)
-					.map(it -> filterByVisitor.getSchema(it.getReferencedEntityType()))
-					.orElse(entitySchema);
+		final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
+		final ReferenceSchemaContract referenceSchema = referenceName
+			.map(entitySchema::getReferenceOrThrowException)
+			.orElse(null);
+		final EntitySchemaContract targetEntitySchema = ofNullable(referenceSchema)
+			.map(it -> filterByVisitor.getSchema(it.getReferencedEntityType()))
+			.orElse(entitySchema);
 
-				Assert.isTrue(
-					targetEntitySchema.isWithHierarchy(),
-					() -> new TargetEntityIsNotHierarchicalException(
-						ofNullable(referenceSchema).map(ReferenceSchemaContract::getName).orElse(null),
-						targetEntitySchema.getName()
-					)
-				);
-
-				final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
-				final Formula hierarchyParentFormula = createFormulaForTheFilter(
-					queryContext,
-					createFilter(queryContext, parentFilter),
-					targetEntitySchema.getName(),
-					() -> "Finding hierarchy parent node: " + parentFilter
-				);
-				queryContext.setRootHierarchyNodesFormula(hierarchyParentFormula);
-
-				return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
-					.map(index -> FormulaFactory.or(
-						StreamSupport.stream(hierarchyParentFormula.compute().spliterator(), false)
-							.map(
-								nodeId -> createFormulaFromHierarchyIndex(
-									nodeId,
-									createAndStoreHavingPredicate(
-										queryContext,
-										of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
-											.filter(ConstraintContainer::isApplicable)
-											.orElse(null),
-										of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
-											.filter(ConstraintContainer::isApplicable)
-											.orElse(null),
-										referenceSchema
-									),
-									hierarchyWithin.isDirectRelation(),
-									hierarchyWithin.isExcludingRoot(),
-									index,
-									queryContext
-								)
+		return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
+			.map(
+				targetEntityIndex -> queryContext.computeOnlyOnce(
+					Collections.singletonList(targetEntityIndex),
+					hierarchyWithin,
+					() -> {
+						Assert.isTrue(
+							targetEntitySchema.isWithHierarchy(),
+							() -> new TargetEntityIsNotHierarchicalException(
+								ofNullable(referenceSchema).map(ReferenceSchemaContract::getName).orElse(null),
+								targetEntitySchema.getName()
 							)
-							.toArray(Formula[]::new)
-					))
-					.orElse(EmptyFormula.INSTANCE);
-			}
-		);
+						);
+
+						final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
+						final Formula hierarchyParentFormula = createFormulaForTheFilter(
+							queryContext,
+							createFilter(queryContext, parentFilter),
+							targetEntitySchema.getName(),
+							() -> "Finding hierarchy parent node: " + parentFilter
+						);
+						queryContext.setRootHierarchyNodesFormula(hierarchyParentFormula);
+
+						return FormulaFactory.or(
+							StreamSupport.stream(hierarchyParentFormula.compute().spliterator(), false)
+								.map(
+									nodeId -> createFormulaFromHierarchyIndex(
+										nodeId,
+										createAndStoreHavingPredicate(
+											queryContext,
+											of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
+												.filter(ConstraintContainer::isApplicable)
+												.orElse(null),
+											of(new FilterBy(hierarchyWithin.getExcludedChildrenFilter()))
+												.filter(ConstraintContainer::isApplicable)
+												.orElse(null),
+											referenceSchema
+										),
+										hierarchyWithin.isDirectRelation(),
+										hierarchyWithin.isExcludingRoot(),
+										targetEntityIndex,
+										queryContext
+									)
+								)
+								.toArray(Formula[]::new)
+						);
+					}
+				))
+			.orElse(EmptyFormula.INSTANCE);
 	}
 
 	@Nonnull

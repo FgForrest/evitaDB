@@ -220,10 +220,10 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	}
 
 	/**
-	 * Returns names of entity types or external entities which references should be loaded along with entity.
+	 * Returns names of references which should be loaded along with entity.
 	 */
 	@Nonnull
-	public String[] getReferencedEntityTypes() {
+	public String[] getReferenceNames() {
 		return Arrays.stream(getArguments())
 			.map(String.class::cast)
 			.toArray(String[]::new);
@@ -365,7 +365,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 		if (additionalChildren.length > 2 || (additionalChildren.length == 2 && !FilterConstraint.class.isAssignableFrom(additionalChildren[0].getType()) && !OrderConstraint.class.isAssignableFrom(additionalChildren[1].getType()))) {
 			throw new IllegalArgumentException("Expected single or no additional filter and order child query.");
 		}
-		return new ReferenceContent(getReferencedEntityTypes(), children, additionalChildren);
+		return new ReferenceContent(getReferenceNames(), children, additionalChildren);
 	}
 
 	@Nonnull

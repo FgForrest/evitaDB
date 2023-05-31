@@ -23,12 +23,13 @@
 
 package io.evitadb.core.query.extraResult.translator.reference;
 
-import io.evitadb.api.exception.ReferenceContentMisplacedException;
-import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.exception.AttributeContentMisplacedException;
+import io.evitadb.api.exception.AttributeNotFoundException;
+import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
@@ -36,59 +37,50 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Optional;
-
-import static java.util.Optional.of;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} adds only a requirement for prefetching references when
- * {@link ReferenceContent} requirement is encountered. This requirement signalizes that we would need to use
+ * {@link AttributeContent} requirement is encountered. This requirement signalizes that we would need to use
  * the {@link ReferenceFetcher} implementation to fetch referenced entities, and we'd need the information about entity
  * references already present at that moment.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReferenceContentTranslator implements RequireConstraintTranslator<ReferenceContent>, SelfTraversingTranslator {
+public class AttributeContentTranslator implements RequireConstraintTranslator<AttributeContent> {
 
 	@Nullable
 	@Override
-	public ExtraResultProducer apply(ReferenceContent referenceContent, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer apply(AttributeContent attributeContent, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
+			final Optional<ReferenceSchemaContract> referenceSchema = extraResultPlanningVisitor.getCurrentReferenceSchema();
 			final Optional<EntitySchemaContract> entitySchema = extraResultPlanningVisitor.getCurrentEntitySchema();
+			final AttributeSchemaProvider<?> schema = referenceSchema
+				.map(AttributeSchemaProvider.class::cast)
+				.orElseGet(() -> entitySchema.orElse(null));
 
-			Assert.isTrue(
-				entitySchema.isPresent(),
-				() -> new ReferenceContentMisplacedException(
-					extraResultPlanningVisitor.getEntityContentRequireChain(referenceContent)
+			Assert.notNull(
+				schema,
+				() -> new AttributeContentMisplacedException(
+					extraResultPlanningVisitor.getEntityContentRequireChain(attributeContent)
 				)
 			);
-			final EntitySchemaContract schema = entitySchema.get();
 
-			of(referenceContent.getReferenceNames())
-				.filter(it -> !ArrayUtils.isEmpty(it))
-				.map(Arrays::stream)
-				.map(it -> it.map(schema::getReferenceOrThrowException))
-				.orElseGet(() -> schema.getReferences().values().stream())
-				.forEach(referenceSchema -> {
-					extraResultPlanningVisitor.executeInContext(
-						referenceContent,
-						() -> referenceSchema,
-						() -> schema,
-						() -> {
-							for (RequireConstraint innerConstraint : referenceContent.getChildren()) {
-								innerConstraint.accept(extraResultPlanningVisitor);
-							}
-							return null;
-						}
+			final String[] attributeNames = attributeContent.getAttributeNames();
+			if (!ArrayUtils.isEmpty(attributeNames)) {
+				for (String attributeName : attributeNames) {
+					Assert.isTrue(
+						schema.getAttribute(attributeName).isPresent(),
+						() -> referenceSchema
+							.map(referenceSchemaContract -> new AttributeNotFoundException(attributeName, referenceSchemaContract, entitySchema.get()))
+							.orElseGet(() -> new AttributeNotFoundException(attributeName, entitySchema.get()))
 					);
-				});
+				}
+			}
 		}
-
-		if (extraResultPlanningVisitor.isScopeEmpty() && (referenceContent.getFilterBy() != null || referenceContent.getOrderBy() != null)) {
-			extraResultPlanningVisitor.addRequirementToPrefetch(ReferenceContent.ALL_REFERENCES);
+		if (extraResultPlanningVisitor.isScopeEmpty()) {
+			extraResultPlanningVisitor.addRequirementToPrefetch(attributeContent);
 		}
-
 		return null;
 	}
 

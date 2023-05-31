@@ -122,7 +122,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 */
 	public void setFilteredEntities(@Nullable int[] filteredEntities) {
 		final int[] sortedEntities;
-		if (filteredEntities == null) {
+		if (ArrayUtils.isEmpty(filteredEntities)) {
 			sortedEntities = new int[0];
 		} else {
 			sortedEntities = sorter == null ?

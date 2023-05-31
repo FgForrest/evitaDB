@@ -23,15 +23,17 @@
 
 package io.evitadb.core.query.extraResult.translator.reference;
 
+import io.evitadb.api.exception.HierarchyContentMisplacedException;
 import io.evitadb.api.query.require.HierarchyContent;
-import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
-import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} adds only a requirement for prefetching references when
@@ -41,13 +43,22 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HierarchyContentTranslator implements RequireConstraintTranslator<ReferenceContent>, SelfTraversingTranslator {
+public class HierarchyContentTranslator implements RequireConstraintTranslator<HierarchyContent> {
 
 	@Nullable
 	@Override
-	public ExtraResultProducer apply(ReferenceContent referenceContent, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
-		if (referenceContent.getFilterBy() != null || referenceContent.getOrderBy() != null) {
-			extraResultPlanningVisitor.addRequirementToPrefetch(ReferenceContent.ALL_REFERENCES);
+	public ExtraResultProducer apply(HierarchyContent hierarchyContent, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
+			final Optional<EntitySchemaContract> entitySchema = extraResultPlanningVisitor.getCurrentEntitySchema();
+			Assert.isTrue(
+				entitySchema.isPresent(),
+				() -> new HierarchyContentMisplacedException(
+					extraResultPlanningVisitor.getEntityContentRequireChain(hierarchyContent)
+				)
+			);
+		}
+		if (extraResultPlanningVisitor.isScopeEmpty()) {
+			extraResultPlanningVisitor.addRequirementToPrefetch(hierarchyContent);
 		}
 		return null;
 	}

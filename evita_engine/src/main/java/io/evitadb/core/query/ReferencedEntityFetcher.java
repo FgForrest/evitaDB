@@ -30,10 +30,8 @@ import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.And;
-import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
@@ -41,7 +39,6 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ReferenceContent;
-import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
@@ -74,7 +71,6 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -427,35 +423,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			// we may allow all referenced entity ids
 			validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
 			return allReferencedEntityIds;
-		} else if (isAttributeConstraintPresent(filterBy)) {
-			/*
-			   if the filter contains only constraints on attributes on references only,
-			   we work with referencedEntityTypeIndex here - this index contains referenced entity primary keys as records
-			   this means we can directly filter against `allReferencedEntityIds` and apply the filter constraint
-			 */
-			final FilterBy filterByToUse = new FilterBy(
-				ArrayUtils.mergeArrays(
-					filterBy.getChildren(),
-					new FilterConstraint[]{
-						new EntityPrimaryKeyInSet(
-							Arrays.stream(allReferencedEntityIds).boxed().toArray(Integer[]::new)
-						)
-					}
-				)
-			);
-
-			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
-			final EntitySchemaContract entitySchema = theFilterByVisitor.getSchema();
-			final ReferencedTypeEntityIndex referencedEntityTypeIndex = theFilterByVisitor.getReferencedEntityTypeIndex(entitySchema, referenceSchema);
-			final Formula resultFormula = computeResultWithPassedIndex(
-				referencedEntityTypeIndex, referenceSchema, theFilterByVisitor, filterByToUse,
-				null, entityNestedQueryComparator
-			);
-
-			// we've resolved directly the referenced entity ids
-			final Bitmap result = resultFormula.compute();
-			validityMappingOptional.ifPresent(it -> it.restrictTo(result));
-			return result.getArray();
 		} else {
 			final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
 			final List<EntityIndex> referencedEntityIndexes = theFilterByVisitor.getReferencedRecordEntityIndexes(
@@ -500,19 +467,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				return referencedPrimaryKeys.toArray();
 			}
 		}
-	}
-
-	/**
-	 * Returns true if there is at least one attribute related constraint present in the passed `filterBy` constraint
-	 * container excluding the constraint placed inside {@link EntityHaving} parent containers (which relate to
-	 * attributes of the related entity and not the attributes on relation itself).
-	 */
-	private static boolean isAttributeConstraintPresent(@Nonnull FilterBy filterBy) {
-		return FinderVisitor.findConstraints(
-			filterBy,
-			it -> it instanceof AttributeConstraint<?>,
-			it -> it instanceof EntityHaving
-		).isEmpty();
 	}
 
 	/**

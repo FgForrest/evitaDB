@@ -53,6 +53,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -120,11 +121,12 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 					final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
 					final Function<FilterConstraint, FilterConstraint> enricher = processingScope.getNestedQueryFormulaEnricher();
 					final FilterBy combinedFilterBy = new FilterBy(enricher.apply(filterConstraint));
-					final Supplier<String> nestedQueryDescription = () ->"Reference `" + referenceSchema.getName() + "`, " +
+					final Supplier<String> nestedQueryDescription = () -> "Reference `" + referenceSchema.getName() + "`, " +
 						"entity `" + referencedEntityType + "`: " +
 						Arrays.stream(combinedFilterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
 
 					final Formula nestedQueryFormula = filterByVisitor.computeOnlyOnce(
+						Collections.singletonList(entityIndex),
 						combinedFilterBy,
 						() -> {
 							try {
@@ -157,6 +159,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 						);
 					}
 					return filterByVisitor.computeOnlyOnce(
+						Collections.singletonList(entityIndex),
 						entityHaving,
 						() -> {
 							final QueryContext queryContext = filterByVisitor.getQueryContext();
