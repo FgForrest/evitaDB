@@ -52,7 +52,7 @@ The `attributeEquals` compares filterable or unique entity [attribute](../../use
 for strict equality with the passed value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-equals.evitaql)
+[Product with `code` attribute equal to `apple-iphone-13-pro-3`](/docs/user/en/query/filtering/examples/comparable/attribute-equals.evitaql)
 </SourceCodeTabs>
 
 Returns exactly one product with *code* equal to *apple-iphone-13-pro-3*.
@@ -94,7 +94,7 @@ The `attributeGreaterThan` compares the filterable or unique entity [attribute](
 with the value in the second argument and is satisfied only if the entity attribute is greater than the value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than.evitaql)
+[Products with `battery-life` attribute greater than 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than.evitaql)
 </SourceCodeTabs>
 
 Returns exactly several products with *battery-life* greater than *40* hours.
@@ -137,7 +137,7 @@ with the value in the second argument and is satisfied only if the entity attrib
 the value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.evitaql)
+[Products with `battery-life` attribute greater than or equal to 40 hours](/docs/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.evitaql)
 </SourceCodeTabs>
 
 Returns exactly several products with *battery-life* greater than or equal to *40* hours.
@@ -179,7 +179,7 @@ The `attributeLessThan` compares the filterable or unique entity [attribute](../
 with the value in the second argument and is satisfied only if the entity attribute is less than the value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-less-than.evitaql)
+[Products with `battery-life` attribute less than 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than.evitaql)
 </SourceCodeTabs>
 
 Returns exactly several products with *battery-capacity* less than *125* mWH.
@@ -221,7 +221,7 @@ The `attributeLessThanEquals` compares the filterable or unique entity [attribut
 with the value in the second argument and is satisfied only if the entity attribute is less than or equal to the value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-less-than-equals.evitaql)
+[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-less-than-equals.evitaql)
 </SourceCodeTabs>
 
 Returns exactly several products with *battery-capacity* less than or equal to *125* mWH.
@@ -270,7 +270,7 @@ and is satisfied only if the entity attribute is less than or equal to the first
 than or equal to the second argument of the constraint.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-between.evitaql)
+[Products with `battery-life` attribute less than or equal to 125 mWH](/docs/user/en/query/filtering/examples/comparable/attribute-between.evitaql)
 </SourceCodeTabs>
 
 Returns exactly several products with *battery-capacity* between *125* and *160* mWH.
@@ -311,7 +311,7 @@ The `attributeInSet` compares filterable or unique entity [attribute](../../use/
 for strict equality with any of the passed values.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-in-set.evitaql)
+[Product found by a `code` attribute in given set](/docs/user/en/query/filtering/examples/comparable/attribute-in-set.evitaql)
 </SourceCodeTabs>
 
 Returns exactly three product with *code* matching one of the arguments. Last of the products was not found 
@@ -349,7 +349,7 @@ The `attributeIs` can be used to test for the existence of an entity
 [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) of a given name.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-is-not-null.evitaql)
+[Product with `catalogNumber` attribute present](/docs/user/en/query/filtering/examples/comparable/attribute-is-not-null.evitaql)
 </SourceCodeTabs>
 
 Returns hundreds of products with the *catalogNumber* attribute set.
@@ -368,7 +368,7 @@ Returns hundreds of products with the *catalogNumber* attribute set.
 When you try to list products without such attribute:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
-[Transitive category listing](/docs/user/en/query/filtering/examples/comparable/attribute-is-null.evitaql)
+[Product with `catalog-number` attribute missing](/docs/user/en/query/filtering/examples/comparable/attribute-is-null.evitaql)
 </SourceCodeTabs>
 
 ... you will get a single one:
