@@ -49,7 +49,7 @@ Returns a few products having a string *epix* in the attribute *code*.
 ##### Products having a `epix` string in the `code` attribute
 </NoteTitle>
 
-<MDInclude>[Products having a `epix` string in the `code` attribute](/docs/user/en/query/filtering/examples/comparable/attribute-contains.evitaql.md)</MDInclude>
+<MDInclude>[Products having a `epix` string in the `code` attribute](/docs/user/en/query/filtering/examples/string/attribute-contains.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -93,7 +93,7 @@ Returns a few pages of products that start with a *garmin* string in the *code* 
 ##### Products having a `garmin` string at the beginning of the `code` attribute
 </NoteTitle>
 
-<MDInclude>[Products having a `garmin` string at the beginning of the `code` attribute](/docs/user/en/query/filtering/examples/comparable/attribute-starts-with.evitaql.md)</MDInclude>
+<MDInclude>[Products having a `garmin` string at the beginning of the `code` attribute](/docs/user/en/query/filtering/examples/string/attribute-starts-with.evitaql.md)</MDInclude>
 
 </Note>
 
@@ -137,6 +137,6 @@ Returns a few products that end with a *solar* string in the *code* attribute.
 ##### Products having a `solar` string at the end of the `code` attribute
 </NoteTitle>
 
-<MDInclude>[Products having a `solar` string at the end of the `code` attribute](/docs/user/en/query/filtering/examples/comparable/attribute-ends-with.evitaql.md)</MDInclude>
+<MDInclude>[Products having a `solar` string at the end of the `code` attribute](/docs/user/en/query/filtering/examples/string/attribute-ends-with.evitaql.md)</MDInclude>
 
 </Note>
