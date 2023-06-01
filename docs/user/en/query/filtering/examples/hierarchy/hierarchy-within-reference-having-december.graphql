@@ -1,0 +1,32 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "accessories"
+        },
+        with: {
+          having: [
+            {
+              or: [
+                {
+                  attributeValidityIs: NULL,
+                  attributeValidityInRange: "2023-12-02T01:00:00-01:00"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

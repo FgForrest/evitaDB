@@ -649,7 +649,17 @@ You can see that Christmas products like *Retlux Blue christmas lightning*, *Ret
 ##### List of all *Accessories* products valid in October 2023
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Accessories category product listing with validity constraint](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Accessories category product listing with validity constraint](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 

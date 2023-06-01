@@ -79,6 +79,7 @@ import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.DelegatingEntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.mutation.EntityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLocalCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -224,7 +225,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 		// todo jno lambda uvnitř getentityschema už se nevolá přes proxy kde se setuje session holder, takže pokud se
 		//  getEntitySchema nezavolá napřímo přes proxy tak se nezacachuje a fetchuje se tedy a tam už pak chybí na serveru
 		//  session
-		return schemaCache.getLatestCatalogSchema(this::fetchCatalogSchema);
+		// todo lho/jno jedině udělat wrapper kolem vraceného schema (jak nové tak zacachované s vlastním fetcherem entity
+		//  schemat  podle aktualní session
+		return schemaCache.getLatestCatalogSchema(this::fetchCatalogSchema, this::getEntitySchemaOrThrow);
 	}
 
 	@Nonnull
@@ -646,10 +649,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 				evitaSessionService.updateAndFetchCatalogSchema(request)
 			);
 
-			final CatalogSchema updatedCatalogSchema = CatalogSchemaConverter.convert(
-				this::getEntitySchemaOrThrow, response.getCatalogSchema()
-			);
-			final SealedCatalogSchema updatedSchema = new CatalogSchemaDecorator(updatedCatalogSchema);
+			final CatalogSchema updatedCatalogSchema = CatalogSchemaConverter.convert(response.getCatalogSchema());
+			final SealedCatalogSchema updatedSchema = new ClientCatalogSchemaDecorator(updatedCatalogSchema, this::getEntitySchemaOrThrow);
 			schemaCache.analyzeMutations(schemaMutation);
 			schemaCache.setLatestCatalogSchema(updatedCatalogSchema);
 			return updatedSchema;
@@ -1127,7 +1128,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			evitaSessionService.getCatalogSchema(Empty.getDefaultInstance())
 		);
 		return CatalogSchemaConverter.convert(
-			this::getEntitySchemaOrThrow, grpcResponse.getCatalogSchema()
+			/*this::getEntitySchemaOrThrow, */grpcResponse.getCatalogSchema()
 		);
 	}
 

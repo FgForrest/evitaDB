@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.externalApi.grpc.requestResponse.schema.ClientCatalogSchemaDecorator;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -111,7 +112,8 @@ class EvitaEntitySchemaCache {
 	 */
 	@Nonnull
 	public SealedCatalogSchema getLatestCatalogSchema(
-		@Nonnull Supplier<CatalogSchema> schemaAccessor
+		@Nonnull Supplier<CatalogSchema> schemaAccessor,
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
 	) {
 		final long now = System.currentTimeMillis();
 		// each minute apply obsolete check
@@ -131,11 +133,11 @@ class EvitaEntitySchemaCache {
 				LatestCatalogSchema.INSTANCE,
 				newCachedValue
 			);
-			return new CatalogSchemaDecorator(schemaRelevantToSession);
+			return new ClientCatalogSchemaDecorator(schemaRelevantToSession, entitySchemaAccessor);
 		} else {
 			// if found in cache, update last used timestamp
 			schemaWrapper.used();
-			return new CatalogSchemaDecorator(schemaWrapper.getCatalogSchema());
+			return new ClientCatalogSchemaDecorator(schemaWrapper.getCatalogSchema(), entitySchemaAccessor);
 		}
 	}
 
