@@ -141,33 +141,35 @@ public class GraphQLQueryConverter implements AutoCloseable {
 
 		final String entityType = query.getCollection().getEntityType();
 		final Require require = query.getRequire();
-		Assert.isPremiseValid(
-			require != null,
-			"Missing require container to build output fields from."
-		);
 
 		final GraphQLOutputFieldsBuilder fieldsBuilder = new GraphQLOutputFieldsBuilder(1);
-
-		// build main entity fields
-		Optional.ofNullable(QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class))
-			.ifPresent(entityFetch -> fieldsBuilder
+		if (require == null) {
+			fieldsBuilder
 				.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
 					.addObjectField(DataChunkDescriptor.DATA, b2 ->
-						entityFetchConverter.convert(catalogSchema, b2, entityType, entityFetch))));
+						entityFetchConverter.convert(catalogSchema, b2, entityType, null)));
+		} else {
+			// build main entity fields
+			Optional.ofNullable(QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class))
+				.ifPresent(entityFetch -> fieldsBuilder
+					.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
+						.addObjectField(DataChunkDescriptor.DATA, b2 ->
+							entityFetchConverter.convert(catalogSchema, b2, entityType, entityFetch))));
 
-		// build extra results
-		final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
-		if (!extraResultConstraints.isEmpty()) {
-			fieldsBuilder.addObjectField(ResponseDescriptor.EXTRA_RESULTS, extraResultsBuilder -> {
-				hierarchyOfConverter.convert(
-					extraResultsBuilder,
-					entityType,
-					QueryUtils.findConstraint(require, HierarchyOfSelf.class),
-					QueryUtils.findConstraint(require, HierarchyOfReference.class)
-				);
+			// build extra results
+			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
+			if (!extraResultConstraints.isEmpty()) {
+				fieldsBuilder.addObjectField(ResponseDescriptor.EXTRA_RESULTS, extraResultsBuilder -> {
+					hierarchyOfConverter.convert(
+						extraResultsBuilder,
+						entityType,
+						QueryUtils.findConstraint(require, HierarchyOfSelf.class),
+						QueryUtils.findConstraint(require, HierarchyOfReference.class)
+					);
 
-				// todo lho add another extra results support
-			});
+					// todo lho add another extra results support
+				});
+			}
 		}
 
 		return fieldsBuilder.build();

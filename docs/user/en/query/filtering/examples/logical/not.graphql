@@ -1,0 +1,19 @@
+{
+  queryProduct(
+    filterBy: {
+      not: {
+        entityPrimaryKeyInSet: [
+          110066,
+          106742,
+          110513
+        ]
+      }
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+      }
+    }
+  }
+}

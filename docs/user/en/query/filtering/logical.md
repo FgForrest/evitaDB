@@ -76,7 +76,17 @@ The following query:
 ##### List of all products matching conjunction filter
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Logical conjunction example result](/docs/user/en/query/filtering/examples/logical/and.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Logical conjunction example result](/docs/user/en/query/filtering/examples/logical/and.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -120,7 +130,17 @@ The following query:
 ##### List of all products matching disjunction filter
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Logical disjunction example result](/docs/user/en/query/filtering/examples/logical/or.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Logical disjunction example result](/docs/user/en/query/filtering/examples/logical/or.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -162,7 +182,17 @@ The following query:
 ##### List of all products matching negation filter
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Logical negation example result](/docs/user/en/query/filtering/examples/logical/not.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Logical negation example result](/docs/user/en/query/filtering/examples/logical/not.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
@@ -181,6 +211,16 @@ Because this situation is hard to visualize - let's narrow our super set to only
 ##### List of all products matching negation filter (narrowed)
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Logical negation example result (narrowed)](/docs/user/en/query/filtering/examples/logical/not-narrowed.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Logical negation example result (narrowed)](/docs/user/en/query/filtering/examples/logical/not-narrowed.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
