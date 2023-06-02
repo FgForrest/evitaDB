@@ -19,15 +19,9 @@ To make the query language more concise, we omit logical binding in container-ty
 a logical conjunctive relation "and at the same time" ([`and`](#and)) unless an explicit binding is set.
 For example, you can issue the following query:
 
-```evitaql
-query(
-    collection('Product'),
-    filterBy(
-        entityPrimaryKeyInSet(110066, 106742),
-        attributeEquals('code', 'lenovo-thinkpad-t495-2')
-    )
-)
-```
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+[Implicit binding example](/docs/user/en/query/filtering/examples/logical/implicit-binding.evitaql)
+</SourceCodeTabs>
 
 As you can see - there is no logical binding between `entityPrimaryKeyInSet` and `attributeEquals` constraints, and for 
 this case the logical conjunction will be applied, which will result in a single returned product with *code* 
