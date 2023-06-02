@@ -62,7 +62,7 @@ demonstrated on following table:
 
 The following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Logical conjunction example](/docs/user/en/query/filtering/examples/logical/and.evitaql)
 </SourceCodeTabs>
 
@@ -117,7 +117,7 @@ demonstrated on following table:
 
 The following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Logical disjunction example](/docs/user/en/query/filtering/examples/logical/or.evitaql)
 </SourceCodeTabs>
 
@@ -169,7 +169,7 @@ demonstrated on following table:
 
 The following query:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Logical negation example](/docs/user/en/query/filtering/examples/logical/not.evitaql)
 </SourceCodeTabs>
 
@@ -198,7 +198,7 @@ The following query:
 
 Because this situation is hard to visualize - let's narrow our super set to only a few entities:
 
-<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Logical conjunction example](/docs/user/en/query/filtering/examples/logical/not-narrowed.evitaql)
 </SourceCodeTabs>
 

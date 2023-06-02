@@ -26,7 +26,7 @@ entityPrimaryKeyInSet(
 
 The constraint limits the list of returned entities by exactly specifying their entity primary keys. 
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 [Transitive category listing](/docs/user/en/query/filtering/examples/constant/entity-primary-key-in-set.evitaql)
 </SourceCodeTabs>
 
