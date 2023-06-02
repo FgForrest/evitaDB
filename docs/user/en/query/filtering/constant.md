@@ -48,6 +48,16 @@ ordering constraint.
 ##### List of products filtered by entity primary key
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java">
+
 <MDInclude>[Entities filtered by the primary keys](/docs/user/en/query/filtering/examples/constant/entity-primary-key-in-set.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Entities filtered by the primary keys](/docs/user/en/query/filtering/examples/constant/entity-primary-key-in-set.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
