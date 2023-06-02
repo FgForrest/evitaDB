@@ -83,7 +83,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for <SourceCodeTabs> blocks.
 	 */
 	private static final Pattern SOURCE_CODE_TABS_PATTERN = Pattern.compile(
-		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
+		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?(\\s+langSpecificTabOnly)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -396,7 +396,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
 		while (sourceCodeTabsMatcher.find()) {
-			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(3));
+			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(4));
 			final String referencedFileExtension = getFileNameExtension(referencedFile);
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))

@@ -139,8 +139,12 @@ public class GraphQLOutputFieldsBuilder {
 
 	@Nonnull
 	public GraphQLOutputFieldsBuilder addFieldArgument(@Nonnull PropertyDescriptor argumentDescriptor,
-	                                                   @Nonnull Function<Integer, String> value) {
-		lines.add(getCurrentIndentation() + argumentDescriptor.name() + ": " + value.apply(offset + level));
+	                                                   @Nonnull Function<Integer, String> valueSupplier) {
+		final String value = valueSupplier.apply(offset + level);
+		if (value == null) {
+			return this;
+		}
+		lines.add(getCurrentIndentation() + argumentDescriptor.name() + ": " + value);
 		return this;
 	}
 

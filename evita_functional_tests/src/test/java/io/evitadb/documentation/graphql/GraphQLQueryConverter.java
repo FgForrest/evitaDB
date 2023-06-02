@@ -23,19 +23,12 @@
 
 package io.evitadb.documentation.graphql;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.require.EntityFetch;
-import io.evitadb.api.query.require.FacetGroupsConjunction;
-import io.evitadb.api.query.require.FacetGroupsDisjunction;
-import io.evitadb.api.query.require.FacetGroupsNegation;
-import io.evitadb.api.query.require.PriceType;
-import io.evitadb.api.query.require.Require;
-import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
+import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.documentation.constraint.FilterConstraintToJsonConverter;
 import io.evitadb.documentation.constraint.JsonConstraint;
@@ -47,20 +40,25 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * TODO lho docs
+ * Converts {@link Query} into GraphQL equivalent query string.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@RequiredArgsConstructor
 public class GraphQLQueryConverter implements AutoCloseable {
+
+	private static final String CATALOG_NAME = "evita";
 
 	@Nonnull private final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
 		FacetGroupsConjunction.class,
@@ -68,55 +66,25 @@ public class GraphQLQueryConverter implements AutoCloseable {
 		FacetGroupsNegation.class,
 		PriceType.class
 	);
+	@Nonnull private final GraphQLInputJsonPrinter inputJsonPrinter = new GraphQLInputJsonPrinter();
 
 	@Nonnull private final EvitaContract evita;
-	@Nonnull private final GraphQLInputJsonPrinter inputJsonPrinter;
-//	@Nonnull private final FilterConstraintToJsonConverter filterConstraintToJsonConverter;
-//	@Nonnull private final OrderConstraintToJsonConverter orderConstraintToJsonConverter;
-//	@Nonnull private final RequireConstraintToJsonConverter requireConstraintToJsonConverter;
-
-	public GraphQLQueryConverter(@Nonnull EvitaContract evita) {
-		this.inputJsonPrinter = new GraphQLInputJsonPrinter();
-
-		this.evita = evita;
-		/*this.evita = new EvitaClient(
-			EvitaClientConfiguration.builder()
-				.host("demo.evitadb.io")
-				.port(5556)
-				// demo server provides Let's encrypt trusted certificate
-				.useGeneratedCertificate(false)
-				// the client will not be mutually verified by the server side
-				.mtlsEnabled(false)
-				.build()
-		);*/
-	}
 
 	@Nonnull
 	public String convert(@Nonnull Query query) {
 		// we need active session to fetch entity schemas from catalog schema when converting constraints
-		try (final EvitaSessionContract session = evita.createReadOnlySession("evita")) {
+		try (final EvitaSessionContract session = evita.createReadOnlySession(CATALOG_NAME)) {
 			final CatalogSchemaContract catalogSchema = session.getCatalogSchema();
 
-			final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
-			final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
-			final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
-				catalogSchema,
-				allowedRequireConstraints::contains
-			);
+			// prepare common converters and builders
+			final EntityFetchConverter entityFetchConverter = new EntityFetchConverter();
 
+			// convert query parts
 			final String collection = query.getCollection().getEntityType();
-			final String header = convertHeader(filterConstraintToJsonConverter,
-				orderConstraintToJsonConverter,
-				requireConstraintToJsonConverter,query, collection);
-			final String output = convertOutputFields(query);
+			final String header = convertHeader(catalogSchema, query, collection);
+			final String outputFields = convertOutputFields(catalogSchema, entityFetchConverter, query);
 
-			return "{\n" +
-				"  query" + StringUtils.toPascalCase(collection) + "(\n" +
-				header + "\n" +
-				"  ) {\n" +
-				output + "\n" +
-				"  }\n" +
-				"}";
+			return constructQuery(collection, header, outputFields);
 		}
 	}
 
@@ -126,11 +94,14 @@ public class GraphQLQueryConverter implements AutoCloseable {
 	}
 
 	@Nonnull
-	private String convertHeader(FilterConstraintToJsonConverter filterConstraintToJsonConverter,
-	                             OrderConstraintToJsonConverter orderConstraintToJsonConverter,
-	                             RequireConstraintToJsonConverter requireConstraintToJsonConverter,
-	                             @Nonnull Query query,
-	                             @Nonnull String entityType) {
+	private String convertHeader(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull Query query, @Nonnull String entityType) {
+		final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
+		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
+		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
+			catalogSchema,
+			allowedRequireConstraints::contains
+		);
+
 		final List<JsonConstraint> rootConstraints = new ArrayList<>(3);
 		if (query.getFilterBy() != null) {
 			rootConstraints.add(
@@ -163,7 +134,12 @@ public class GraphQLQueryConverter implements AutoCloseable {
 	}
 
 	@Nonnull
-	private String convertOutputFields(@Nonnull Query query) {
+	private String convertOutputFields(@Nonnull CatalogSchemaContract catalogSchema,
+	                                   @Nonnull EntityFetchConverter entityFetchConverter,
+	                                   @Nonnull Query query) {
+		final HierarchyOfConverter hierarchyOfConverter = new HierarchyOfConverter(catalogSchema, inputJsonPrinter);
+
+		final String entityType = query.getCollection().getEntityType();
 		final Require require = query.getRequire();
 		Assert.isPremiseValid(
 			require != null,
@@ -173,19 +149,38 @@ public class GraphQLQueryConverter implements AutoCloseable {
 		final GraphQLOutputFieldsBuilder fieldsBuilder = new GraphQLOutputFieldsBuilder(1);
 
 		// build main entity fields
-		fieldsBuilder
-			.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
-				.addObjectField(DataChunkDescriptor.DATA, b2 ->
-					new EntityFetchGraphQLFieldsBuilder().build(
-						b2,
-						QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class)
-					)));
+		Optional.ofNullable(QueryUtils.findConstraint(require, EntityFetch.class, SeparateEntityContentRequireContainer.class))
+			.ifPresent(entityFetch -> fieldsBuilder
+				.addObjectField(ResponseDescriptor.RECORD_PAGE, b1 -> b1
+					.addObjectField(DataChunkDescriptor.DATA, b2 ->
+						entityFetchConverter.convert(catalogSchema, b2, entityType, entityFetch))));
 
 		// build extra results
-		// todo lho implement
+		final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
+		if (!extraResultConstraints.isEmpty()) {
+			fieldsBuilder.addObjectField(ResponseDescriptor.EXTRA_RESULTS, extraResultsBuilder -> {
+				hierarchyOfConverter.convert(
+					extraResultsBuilder,
+					entityType,
+					QueryUtils.findConstraint(require, HierarchyOfSelf.class),
+					QueryUtils.findConstraint(require, HierarchyOfReference.class)
+				);
+
+				// todo lho add another extra results support
+			});
+		}
 
 		return fieldsBuilder.build();
 	}
 
-
+	@Nonnull
+	private String constructQuery(@Nonnull String collection, @Nonnull String header, @Nonnull String outputFields) {
+		return "{\n" +
+			"  query" + StringUtils.toPascalCase(collection) + "(\n" +
+			header + "\n" +
+			"  ) {\n" +
+			outputFields + "\n" +
+			"  }\n" +
+			"}";
+	}
 }

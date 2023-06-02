@@ -35,6 +35,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import javax.annotation.Nonnull;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * TODO lho docs
@@ -43,7 +44,8 @@ import java.util.regex.Pattern;
  */
 public class GraphQLInputJsonPrinter {
 
-	private final Pattern enumPattern = Pattern.compile("\"([A-Z]+('_'[A-Z]+)*)\"");
+	private final static String INDENTATION = "  ";
+	private final static Pattern ENUM_PATTERN = Pattern.compile("\"([A-Z]+('_'[A-Z]+)*)\"");
 
 	@Nonnull private final ObjectWriter constraintWriter;
 
@@ -56,22 +58,36 @@ public class GraphQLInputJsonPrinter {
 
 	@Nonnull
 	public String print(@Nonnull JsonNode node) {
+		return print(0, node);
+	}
+
+	@Nonnull
+	public String print(int offset, @Nonnull JsonNode node) {
 		String graphQLJson;
 		try {
 			graphQLJson = constraintWriter.writeValueAsString(node);
 		} catch (JsonProcessingException e) {
 			throw new IllegalStateException(e);
 		}
-
 		graphQLJson = correctEnumValues(graphQLJson);
-
+		graphQLJson = offsetJson(offset, graphQLJson);
 		return graphQLJson;
 	}
 
 	@Nonnull
 	private String correctEnumValues(@Nonnull String graphQLJson) {
-		final Matcher enumMatcher = enumPattern.matcher(graphQLJson);
+		final Matcher enumMatcher = ENUM_PATTERN.matcher(graphQLJson);
 		return enumMatcher.replaceAll(mr -> mr.group(1));
+	}
+
+	@Nonnull
+	private String offsetJson(int offset, @Nonnull String graphQLJson) {
+		if (offset > 0) {
+			return graphQLJson.lines()
+				.map(it -> INDENTATION.repeat(offset) + it)
+				.collect(Collectors.joining("\n"));
+		}
+		return graphQLJson;
 	}
 
 	private class CustomPrettyPrinter extends DefaultPrettyPrinter {

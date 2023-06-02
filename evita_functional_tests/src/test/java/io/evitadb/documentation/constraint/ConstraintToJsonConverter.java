@@ -34,6 +34,7 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescripto
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.documentation.constraint.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
@@ -268,7 +269,8 @@ public abstract class ConstraintToJsonConverter {
 					.distinct()
 					.count();
 
-				if (distinctChildren == convertedChildren.size()) {
+				if (distinctChildren == convertedChildren.size() &&
+					!parsedConstraintDescriptor.constraintDescriptor().constraintClass().equals(Or.class)) {
 					// we can use single wrapper container as each child has unique key
 					final ObjectNode wrapperContainer = jsonNodeFactory.objectNode();
 					convertedChildren.forEach(child -> wrapperContainer.putIfAbsent(child.key(), child.value()));

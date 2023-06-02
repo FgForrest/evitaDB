@@ -26,7 +26,9 @@ package io.evitadb.documentation.graphql;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
@@ -34,19 +36,23 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * TODO lho docs
+ * Converts {@link EntityFetch} require constraint from {@link io.evitadb.api.query.Query} into
+ * GraphQL output fields for query.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class EntityFetchGraphQLFieldsBuilder {
+public class EntityFetchConverter {
 
-	public void build(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder, @Nullable EntityFetch entityFetch) {
-		if (entityFetch == null) {
-			return;
+	public void convert(@Nonnull CatalogSchemaContract catalogSchema,
+	                    @Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
+	                    @Nonnull String entityType,
+	                    @Nullable EntityFetch entityFetch) {
+		fieldsBuilder.addPrimitiveField(EntityDescriptor.PRIMARY_KEY);
+		if (catalogSchema.getEntitySchemaOrThrowException(entityType).isWithHierarchy()) {
+			fieldsBuilder.addPrimitiveField(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY);
 		}
 
-		fieldsBuilder.addPrimitiveField(EntityDescriptor.PRIMARY_KEY);
-		if (entityFetch.getChildrenCount() == 0) {
+		if (entityFetch == null || entityFetch.getChildrenCount() == 0) {
 			return;
 		}
 
@@ -55,11 +61,12 @@ public class EntityFetchGraphQLFieldsBuilder {
 		if (attributeContent != null) {
 			final String[] attributeNames = attributeContent.getAttributeNames();
 			Assert.isPremiseValid(attributeNames.length > 0, "Fetching all attributes is not supported by GraphQL.");
+
 			fieldsBuilder.addObjectField(
 				EntityDescriptor.ATTRIBUTES,
-				builder -> {
+				attributesBuilder -> {
 					for (String attributeName : attributeNames) {
-						builder.addPrimitiveField(StringUtils.toCamelCase(attributeName));
+						attributesBuilder.addPrimitiveField(StringUtils.toCamelCase(attributeName));
 					}
 				}
 			);

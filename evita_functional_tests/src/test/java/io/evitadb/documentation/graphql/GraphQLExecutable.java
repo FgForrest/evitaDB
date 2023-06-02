@@ -43,6 +43,8 @@ import io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker;
 import io.evitadb.documentation.evitaql.EntityDocumentationJsonSerializer;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.client.GraphQLClient;
+import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
 import net.steppschuh.markdowngenerator.text.code.CodeBlock;
@@ -205,6 +207,10 @@ public class GraphQLExecutable implements Executable, EvitaTestSupport {
 			final String[] sourceVariableParts = sourceVariable.split("\\.");
 			theValue = extractValueFrom(response, sourceVariableParts);
 		}
+		Assert.isPremiseValid(
+			theValue != null,
+			"Result value is null for sourceVariable `" + sourceVariable + "`. This is strange."
+		);
 		final String json = ofNullable(theValue)
 			.map(it -> {
 				try {
