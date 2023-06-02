@@ -4,6 +4,9 @@
 
 FROM ubuntu:jammy
 
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Prague
+
 USER root
 
 RUN apt-get update && apt-get install -y \ 
@@ -15,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-RUN ln -fs /usr/share/zoneinfo/Europe/Prague /etc/localtime && \
+RUN ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata
 
 WORKDIR /evita_performance_tests
