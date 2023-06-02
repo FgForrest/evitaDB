@@ -428,7 +428,7 @@ The computed result *subcategories* looks like this:
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="graphql">
 
 <MDInclude>[Example of using `children` requirement](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-children.graphql.json.md)</MDInclude>
 
@@ -767,7 +767,7 @@ That returns simply:
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="graphql">
 
 <MDInclude>[Direct parent](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-parent.graphql.json.md)</MDInclude>
 
@@ -841,7 +841,7 @@ category up to level two.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="graphql">
 
 <MDInclude>[Parents up to level 2](/docs/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.graphql.json.md)</MDInclude>
 

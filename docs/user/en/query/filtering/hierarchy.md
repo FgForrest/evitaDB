@@ -332,7 +332,7 @@ The query returns the first page of a total of 212 pages of items:
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="graphql">
 
 <MDInclude>[Product listing assigned to a category](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-reference-simple.graphql.json.md)</MDInclude>
 
@@ -536,7 +536,7 @@ assigned to *Exotic keyboards*:
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="graphql">
 
 <MDInclude>[Products in subcategories of Keyboard category](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-excluding-root.graphql.json.md)</MDInclude>
 
@@ -617,7 +617,7 @@ validity restrictions).
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="graphql">
 
 <MDInclude>[Accessories category listing with validity constraint](/docs/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-having.graphql.json.md)</MDInclude>
 
