@@ -25,7 +25,6 @@ package io.evitadb.driver;
 
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -36,7 +35,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.externalApi.grpc.requestResponse.schema.ClientCatalogSchemaDecorator;
+import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
