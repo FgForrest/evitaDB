@@ -25,8 +25,9 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -36,14 +37,14 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ParentPrimaryKeyDataFetcher implements DataFetcher<Integer> {
+public class NonHierarchicalParentPrimaryKeyDataFetcher implements DataFetcher<Integer> {
 
 	@Nullable
 	@Override
 	public Integer get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final SealedEntity entity = environment.getSource();
-		return entity.getParent().isPresent()
-			? entity.getParent().getAsInt()
-			: null;
+		final EntityClassifierWithParent entity = environment.getSource();
+		return entity.getParentEntity()
+			.map(EntityClassifier::getPrimaryKey)
+			.orElse(null);
 	}
 }
