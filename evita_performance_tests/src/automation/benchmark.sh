@@ -43,6 +43,8 @@ SHARED_GIST='abc12461f21d1cc66a541417edcb6ba7'
 RESULT_JSON=latest-performance-results.json
 # DO_CLUSTER_NODE_SLUG="mock"
 
+PROCESSOR=$(lscpu | awk -F': +' '/Model name/ {model=$2} /Core\(s\) per socket/ {core=$2} /Thread\(s\) per core/ {thread=$2} /^CPU\(s\)/ {cpu=$2} /Architecture/ {arch=$2} END {printf "Processor: %s (%s * %s = %s CPU), architecture: %s\n", model, core, thread, cpu, arch}')
+
 ## https://gitlab.fg.cz/hv/evita/-/issues/32#note_233553
 [ -n "$JMH_ARGS" ] || JMH_ARGS="-i 2 -wi 1 -f 1"
 
@@ -79,7 +81,7 @@ java \
         -jvmArgs "$EXTRA_JAVA_OPTS $BENCHMARK_JAVA_OPTS -DdataFolder=/data -DevitaData=/evita-data/data"
 
 ## public gist
-gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG)" --public $RESULT_JSON
+gh gist create -d "Evita performance results: $BENCHMARK_SELECTOR - $now (node: $DO_CLUSTER_NODE_SLUG)($PROCESSOR)" --public $RESULT_JSON
 
 ## shared gist
 rm -rf "$SHARED_GIST"
