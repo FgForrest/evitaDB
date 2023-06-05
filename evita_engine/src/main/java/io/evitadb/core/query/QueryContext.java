@@ -215,9 +215,9 @@ public class QueryContext {
 	/**
 	 * Internal cache currently server sor caching the computed formulas of nested queries.
 	 *
-	 * @see #computeOnlyOnce(FilterConstraint, Supplier) for more details
+	 * @see #computeOnlyOnce(List, FilterConstraint, Supplier)  for more details
 	 */
-	private Map<Constraint<?>, Formula> internalCache;
+	private Map<InternalCacheKey, Formula> internalCache;
 	/**
 	 * Contains reference to the {@link HierarchyFilteringPredicate} that keeps information about all hierarchy nodes
 	 * that should be included/excluded from traversal.
@@ -240,6 +240,10 @@ public class QueryContext {
 	 * Internal flag that singalizes the query context is already within {@link #computingOnce} scope.
 	 */
 	private boolean computingOnce;
+	/**
+	 * Cached version of {@link EntitySchemaContract} for {@link #entityType}.
+	 */
+	private EntitySchemaContract entitySchema;
 
 	public <S extends IndexKey, T extends Index<S>> QueryContext(
 		@Nonnull Catalog catalog,
@@ -731,7 +735,10 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public EntitySchemaContract getSchema() {
-		return getEntityCollectionOrThrowException(entityType, "access entity schema").getSchema();
+		if (entitySchema == null) {
+			entitySchema = getEntityCollectionOrThrowException(entityType, "access entity schema").getSchema();
+		}
+		return entitySchema;
 	}
 
 	/**
@@ -947,6 +954,7 @@ public class QueryContext {
 	 */
 	@Nonnull
 	public Formula computeOnlyOnce(
+		@Nonnull List<EntityIndex> entityIndexes,
 		@Nonnull FilterConstraint constraint,
 		@Nonnull Supplier<Formula> formulaSupplier
 	) {
@@ -960,11 +968,15 @@ public class QueryContext {
 						internalCache = new HashMap<>();
 					}
 					return internalCache.computeIfAbsent(
-						constraint, cnt -> formulaSupplier.get()
+						new InternalCacheKey(
+							entityIndexes.stream().mapToLong(EntityIndex::getId).toArray(),
+							constraint
+						),
+						cnt -> formulaSupplier.get()
 					);
 				} else {
 					return parentContext.computeOnlyOnce(
-						constraint, formulaSupplier
+						entityIndexes, constraint, formulaSupplier
 					);
 				}
 			} finally {
@@ -1279,6 +1291,34 @@ public class QueryContext {
 	 */
 	private enum FacetRelation {
 		CONJUNCTION, DISJUNCTION, NEGATION
+	}
+
+	/**
+	 * The internal caching key.
+	 *
+	 * @param indexKeys array of {@link EntityIndex#getId()} that were used for result calculation
+	 * @param constraint the constraint that has been evaluated on those indexes
+	 */
+	private record InternalCacheKey(
+		@Nonnull long[] indexKeys,
+		@Nonnull Constraint<?> constraint
+	) {
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+			InternalCacheKey that = (InternalCacheKey) o;
+			return Arrays.equals(indexKeys, that.indexKeys) && Objects.equals(constraint, that.constraint);
+		}
+
+		@Override
+		public int hashCode() {
+			int result = Objects.hash(constraint);
+			result = 31 * result + Arrays.hashCode(indexKeys);
+			return result;
+		}
+
 	}
 
 }

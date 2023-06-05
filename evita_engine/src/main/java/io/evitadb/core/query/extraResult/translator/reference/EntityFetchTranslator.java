@@ -23,73 +23,64 @@
 
 package io.evitadb.core.query.extraResult.translator.reference;
 
-import io.evitadb.api.exception.ReferenceContentMisplacedException;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.query.require.AssociatedDataContent;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
+import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
-import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.Assert;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Optional;
-
-import static java.util.Optional.of;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} adds only a requirement for prefetching references when
- * {@link ReferenceContent} requirement is encountered. This requirement signalizes that we would need to use
+ * {@link AssociatedDataContent} requirement is encountered. This requirement signalizes that we would need to use
  * the {@link ReferenceFetcher} implementation to fetch referenced entities, and we'd need the information about entity
  * references already present at that moment.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReferenceContentTranslator implements RequireConstraintTranslator<ReferenceContent>, SelfTraversingTranslator {
+public class EntityFetchTranslator implements RequireConstraintTranslator<EntityFetch>, SelfTraversingTranslator {
 
 	@Nullable
 	@Override
-	public ExtraResultProducer apply(ReferenceContent referenceContent, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	public ExtraResultProducer apply(EntityFetch entityGroupFetch, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
-			final Optional<EntitySchemaContract> entitySchema = extraResultPlanningVisitor.getCurrentEntitySchema();
+			final EntitySchemaContract schema = extraResultPlanningVisitor.isScopeEmpty() ?
+				extraResultPlanningVisitor.getSchema() :
+				getReferencedSchema(extraResultPlanningVisitor)
+					.orElseGet(() -> extraResultPlanningVisitor.getCurrentEntitySchema()
+						.orElseThrow(() -> new EvitaInvalidUsageException("EntityFetch constraint is probably incorrectly nested in require part of the query.")));
 
-			Assert.isTrue(
-				entitySchema.isPresent(),
-				() -> new ReferenceContentMisplacedException(
-					extraResultPlanningVisitor.getEntityContentRequireChain(referenceContent)
-				)
+			extraResultPlanningVisitor.executeInContext(
+				entityGroupFetch,
+				() -> null,
+				() -> schema,
+				() -> {
+					for (RequireConstraint innerConstraint : entityGroupFetch.getChildren()) {
+						innerConstraint.accept(extraResultPlanningVisitor);
+					}
+					return null;
+				}
 			);
-			final EntitySchemaContract schema = entitySchema.get();
-
-			of(referenceContent.getReferenceNames())
-				.filter(it -> !ArrayUtils.isEmpty(it))
-				.map(Arrays::stream)
-				.map(it -> it.map(schema::getReferenceOrThrowException))
-				.orElseGet(() -> schema.getReferences().values().stream())
-				.forEach(referenceSchema -> {
-					extraResultPlanningVisitor.executeInContext(
-						referenceContent,
-						() -> referenceSchema,
-						() -> schema,
-						() -> {
-							for (RequireConstraint innerConstraint : referenceContent.getChildren()) {
-								innerConstraint.accept(extraResultPlanningVisitor);
-							}
-							return null;
-						}
-					);
-				});
 		}
-
-		if (extraResultPlanningVisitor.isScopeEmpty() && (referenceContent.getFilterBy() != null || referenceContent.getOrderBy() != null)) {
-			extraResultPlanningVisitor.addRequirementToPrefetch(ReferenceContent.ALL_REFERENCES);
-		}
-
 		return null;
+	}
+
+	@Nullable
+	private Optional<EntitySchemaContract> getReferencedSchema(ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+		final ProcessingScope processingScope = extraResultPlanningVisitor.getProcessingScope();
+		final Optional<ReferenceSchemaContract> referenceSchema = processingScope.getReferenceSchema();
+		return referenceSchema
+			.filter(ReferenceSchemaContract::isReferencedEntityTypeManaged)
+			.map(schema -> extraResultPlanningVisitor.getSchema(schema.getReferencedEntityType()));
 	}
 
 }

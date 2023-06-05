@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.filter.translator.reference;
 
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
@@ -30,7 +31,6 @@ import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.exception.ReferenceNotFoundException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -78,6 +78,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			return EmptyFormula.INSTANCE;
 		} else {
 			return filterByVisitor.computeOnlyOnce(
+				referencedEntityIndexes,
 				referenceHaving,
 				() -> applySearchOnIndexes(
 					referenceHaving, filterByVisitor, entitySchema, referenceSchema, referencedEntityIndexes

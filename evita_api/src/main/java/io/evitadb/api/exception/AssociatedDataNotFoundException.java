@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.exception;
+package io.evitadb.api.exception;
 
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -30,15 +30,16 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when there is attempt to filter by a non-existing reference.
+ * Exception is thrown when there is attempt to fetch a non-existing associated data.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReferenceNotFoundException extends EvitaInvalidUsageException {
-	@Serial private static final long serialVersionUID = -8969284548331815445L;
+public class AssociatedDataNotFoundException extends EvitaInvalidUsageException {
 
-	public ReferenceNotFoundException(@Nonnull String referenceName, EntitySchemaContract entitySchema) {
-		super("Reference with name `" + referenceName + "` is not present in schema of `" + entitySchema.getName() + "` entity.");
+	@Serial private static final long serialVersionUID = 4499637767749821410L;
+
+	public AssociatedDataNotFoundException(@Nonnull String associatedDataName, @Nonnull EntitySchemaContract entitySchema) {
+		super("Associated data with name `" + associatedDataName + "` is not present in schema of `" + entitySchema.getName() + "` entity.");
 	}
 
 }

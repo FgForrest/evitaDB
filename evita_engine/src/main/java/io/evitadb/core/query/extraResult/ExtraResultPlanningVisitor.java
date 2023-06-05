@@ -41,6 +41,7 @@ import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.PrefetchRequirementCollector;
@@ -64,7 +65,12 @@ import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.Hierarch
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchySiblingsTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.AttributeHistogramTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.PriceHistogramTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.AssociatedDataContentTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.AttributeContentTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.EntityGroupFetchTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.HierarchyContentTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.PriceContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.DeferredSorter;
@@ -79,18 +85,18 @@ import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -118,8 +124,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(HierarchyParents.class, new HierarchyParentsTranslator());
 		TRANSLATORS.put(HierarchyChildren.class, new HierarchyChildrenTranslator());
 		TRANSLATORS.put(HierarchySiblings.class, new HierarchySiblingsTranslator());
+		TRANSLATORS.put(EntityFetch.class, new EntityFetchTranslator());
+		TRANSLATORS.put(EntityGroupFetch.class, new EntityGroupFetchTranslator());
 		TRANSLATORS.put(HierarchyContent.class, new HierarchyContentTranslator());
 		TRANSLATORS.put(ReferenceContent.class, new ReferenceContentTranslator());
+		TRANSLATORS.put(PriceContent.class, new PriceContentTranslator());
+		TRANSLATORS.put(AttributeContent.class, new AttributeContentTranslator());
+		TRANSLATORS.put(AssociatedDataContent.class, new AssociatedDataContentTranslator());
 	}
 
 	/**
@@ -178,6 +189,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * times.
 	 */
 	private Set<Formula> userFilterFormula;
+	/**
+	 * Contemporary stack for auxiliary data resolved for each level of the query.
+	 */
+	private final Deque<ProcessingScope> scope = new LinkedList<>();
 
 	public ExtraResultPlanningVisitor(
 		@Nonnull QueryContext queryContext,
@@ -269,12 +284,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
 									if (ArrayUtils.isEmpty(havingChildrenFilter)) {
 										return null;
-									} else if (havingChildrenFilter.length == 1){
+									} else if (havingChildrenFilter.length == 1) {
 										return wrapper.apply(havingChildrenFilter[0]);
 									} else {
 										return wrapper.apply(and(havingChildrenFilter));
 									}
-								} else if (excludedChildrenFilter.length == 1){
+								} else if (excludedChildrenFilter.length == 1) {
 									return wrapper.apply(not(excludedChildrenFilter[0]));
 								} else {
 									return wrapper.apply(not(and(excludedChildrenFilter)));
@@ -313,12 +328,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 								if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
 									if (ArrayUtils.isEmpty(havingChildrenFilter)) {
 										return null;
-									} else if (havingChildrenFilter.length == 1){
+									} else if (havingChildrenFilter.length == 1) {
 										return wrapper.apply(havingChildrenFilter[0]);
 									} else {
 										return wrapper.apply(and(havingChildrenFilter));
 									}
-								} else if (excludedChildrenFilter.length == 1){
+								} else if (excludedChildrenFilter.length == 1) {
 									return wrapper.apply(not(excludedChildrenFilter[0]));
 								} else {
 									return wrapper.apply(not(and(excludedChildrenFilter)));
@@ -433,10 +448,19 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				// sanity check only
 				throw new EvitaInternalError("Should never happen");
 			}
-		} else if (requireConstraint instanceof ConstraintContainer) {
-			@SuppressWarnings("unchecked") final ConstraintContainer<RequireConstraint> container = (ConstraintContainer<RequireConstraint>) requireConstraint;
-			for (RequireConstraint child : container) {
-				child.accept(this);
+		} else {
+			@SuppressWarnings("unchecked") final RequireConstraintTranslator<RequireConstraint> translator =
+				(RequireConstraintTranslator<RequireConstraint>) TRANSLATORS.get(requireConstraint.getClass());
+
+			if (translator != null) {
+				translator.apply(requireConstraint, this);
+			}
+
+			if (requireConstraint instanceof ConstraintContainer && !(translator instanceof SelfTraversingTranslator)) {
+				@SuppressWarnings("unchecked") final ConstraintContainer<RequireConstraint> container = (ConstraintContainer<RequireConstraint>) requireConstraint;
+				for (RequireConstraint child : container) {
+					child.accept(this);
+				}
 			}
 		}
 	}
@@ -446,6 +470,151 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	public void registerProducer(@Nullable ExtraResultProducer extraResultProducer) {
 		ofNullable(extraResultProducer).ifPresent(extraResultProducers::add);
+	}
+
+	/**
+	 * Sets different {@link EntityIndex} to be used in scope of lambda.
+	 */
+	public final <T> T executeInContext(
+		@Nonnull RequireConstraint requirement,
+		@Nonnull Supplier<ReferenceSchemaContract> referenceSchemaSupplier,
+		@Nonnull Supplier<EntitySchemaContract> entitySchemaSupplier,
+		@Nonnull Supplier<T> lambda
+	) {
+		try {
+			this.scope.push(
+				new ProcessingScope(
+					requirement,
+					referenceSchemaSupplier,
+					entitySchemaSupplier
+				)
+			);
+			return lambda.get();
+		} finally {
+			this.scope.pop();
+		}
+	}
+
+	/**
+	 * Returns current processing scope.
+	 */
+	@Nonnull
+	public ProcessingScope getProcessingScope() {
+		if (isScopeEmpty()) {
+			throw new EvitaInternalError("Scope should never be empty");
+		} else {
+			return scope.peek();
+		}
+	}
+
+	/**
+	 * Return the {@link ReferenceSchemaContract} valid for current context or null.
+	 */
+	@Nonnull
+	public Stream<RequireConstraint> getEntityContentRequireChain(@Nonnull EntityContentRequire current) {
+		if (isScopeEmpty()) {
+			return Stream.of(current);
+		} else {
+			return Stream.concat(
+				StreamSupport.stream(
+					Spliterators.spliteratorUnknownSize(this.scope.descendingIterator(), Spliterator.ORDERED),
+					false
+				).map(ProcessingScope::requirement),
+				Stream.of(current)
+			);
+		}
+	}
+
+	/**
+	 * Return the {@link ReferenceSchemaContract} valid for current context or null.
+	 */
+	@Nonnull
+	public Optional<ReferenceSchemaContract> getCurrentReferenceSchema() {
+		if (isScopeEmpty()) {
+			return Optional.empty();
+		} else {
+			final ProcessingScope scope = this.scope.peek();
+			return scope.getReferenceSchema();
+		}
+	}
+
+	/**
+	 * Return the {@link EntitySchemaContract} valid for current context.
+	 */
+	@Nonnull
+	public Optional<EntitySchemaContract> getCurrentEntitySchema() {
+		if (isScopeEmpty()) {
+			return empty();
+		} else {
+			final ProcessingScope scope = this.scope.peek();
+			return scope.getEntitySchema();
+		}
+	}
+
+	/**
+	 * Returns true if no context switch occurred in the visitor yet.
+	 */
+	public boolean isScopeEmpty() {
+		return scope.isEmpty();
+	}
+
+	/**
+	 * Returns nearest entity schema from the {@link #scope} or throws an exception.
+	 */
+	@Nonnull
+	public EntitySchemaContract findNearestEntitySchema() {
+		final Iterator<ProcessingScope> it = scope.descendingIterator();
+		while (it.hasNext()) {
+			final Optional<EntitySchemaContract> entitySchema = it.next().getEntitySchema();
+			if (entitySchema.isPresent()) {
+				return entitySchema.get();
+			}
+		}
+		throw new IllegalStateException("No reference schema found!");
+	}
+
+	/**
+	 * Returns nearest reference schema from the {@link #scope} or throws an exception.
+	 */
+	@Nonnull
+	public ReferenceSchemaContract findNearestReferenceSchema() {
+		final Iterator<ProcessingScope> it = scope.descendingIterator();
+		while (it.hasNext()) {
+			final Optional<ReferenceSchemaContract> referenceSchema = it.next().getReferenceSchema();
+			if (referenceSchema.isPresent()) {
+				return referenceSchema.get();
+			}
+		}
+		throw new IllegalStateException("No reference schema found!");
+	}
+
+	/**
+	 * Processing scope contains contextual information that could be overridden in {@link RequireConstraintTranslator}
+	 * implementations to exchange schema that is being used, suppressing certain query evaluation or accessing
+	 * attribute schema information.
+	 */
+	public record ProcessingScope(
+		@Nonnull RequireConstraint requirement,
+		@Nonnull Supplier<ReferenceSchemaContract> referenceSchemaAccessor,
+		@Nonnull Supplier<EntitySchemaContract> entitySchemaAccessor
+	) {
+
+		/**
+		 * Returns reference schema if any.
+		 */
+		@Nullable
+		public Optional<ReferenceSchemaContract> getReferenceSchema() {
+			return ofNullable(referenceSchemaAccessor.get());
+		}
+
+		/**
+		 * Returns entity schema.
+		 */
+		@Nonnull
+		public Optional<EntitySchemaContract> getEntitySchema() {
+			return ofNullable(entitySchemaAccessor.get());
+		}
+
 	}
 
 }

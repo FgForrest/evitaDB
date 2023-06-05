@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.core.Transaction;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.facet.FacetGroupIndex.FacetGroupIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
@@ -43,7 +44,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -171,8 +171,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	public Bitmap[] getFacetIdIndexesAsArray(Bitmap facetPrimaryKeys) {
 		return StreamSupport.stream(facetPrimaryKeys.spliterator(), false)
 			.map(this.facetIdIndexes::get)
-			.filter(Objects::nonNull)
-			.map(FacetIdIndex::getRecords)
+			.map(it -> it == null ? EmptyBitmap.INSTANCE : it.getRecords())
 			.toArray(Bitmap[]::new);
 	}
 

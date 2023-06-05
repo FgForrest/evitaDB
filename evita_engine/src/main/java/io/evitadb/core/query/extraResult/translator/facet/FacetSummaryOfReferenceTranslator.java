@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.facet;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
@@ -33,7 +34,6 @@ import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
-import io.evitadb.core.exception.ReferenceNotFoundException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;

@@ -42,7 +42,7 @@ import java.util.function.Function;
 public class FormulaWrapper implements BitmapSupplier {
 	private final Formula formula;
 	private final Function<Formula, Bitmap> firstInvocation;
-	private boolean computed;
+	private Bitmap computed;
 
 	@Override
 	public int getEstimatedCardinality() {
@@ -87,11 +87,9 @@ public class FormulaWrapper implements BitmapSupplier {
 
 	@Override
 	public Bitmap get() {
-		if (computed) {
-			return formula.compute();
-		} else {
-			computed = true;
-			return firstInvocation.apply(formula);
+		if (computed == null) {
+			computed = firstInvocation.apply(formula);
 		}
+		return computed;
 	}
 }

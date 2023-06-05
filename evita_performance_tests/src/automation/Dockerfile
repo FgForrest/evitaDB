@@ -4,16 +4,24 @@
 
 FROM ubuntu:jammy
 
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Europe/Prague
+
 USER root
 
-RUN apt-get update && \
-    apt-get install -y openjdk-17-jdk-headless
-RUN apt-get install -y wget
-RUN apt-get install -y gh
-RUN apt-get install -y unzip
-RUN apt-get install -y git
+RUN apt-get update && apt-get install -y \ 
+    openjdk-17-jdk-headless \
+    wget \
+    gh \
+    unzip \
+    git \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR evita_performance_tests
+RUN ln -fs /usr/share/zoneinfo/$TZ /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata
+
+WORKDIR /evita_performance_tests
 
 ENV data_folder="/data"
 ENV shared_gist="abc12461f21d1cc66a541417edcb6ba7"

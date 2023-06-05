@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query;
 
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -30,7 +31,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.AttributeNotFilterableException;
-import io.evitadb.core.exception.AttributeNotFoundException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.exception.EvitaInvalidUsageException;
