@@ -101,7 +101,7 @@ public class FacetHaving extends AbstractFilterConstraintContainer implements Fa
 
 	@Creator
 	public FacetHaving(@Nonnull @Classifier String referenceName,
-	                   @Nonnull @Child(domain = ConstraintDomain.ENTITY) FilterConstraint... filter) {
+	                   @Nonnull @Child(domain = ConstraintDomain.REFERENCE) FilterConstraint... filter) {
 		super(new Serializable[]{referenceName}, filter);
 	}
 
