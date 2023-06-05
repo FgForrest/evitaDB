@@ -1,0 +1,16 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeEndsWith: "solar"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

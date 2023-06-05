@@ -331,7 +331,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
 			getRootDirectory().resolve("docs/user/en/query/filtering/string.md"),
-			CreateSnippets.MARKDOWN, CreateSnippets.JAVA
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL
 		).stream();
 	}
 

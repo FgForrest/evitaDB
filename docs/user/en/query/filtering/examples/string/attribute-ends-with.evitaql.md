@@ -8,4 +8,4 @@
 | 108358           | 'garmin-fenix-7x-sapphire-solar' |
 | 108360           | 'garmin-fenix-7x-solar'          |
 
-###### **Total number of results:** 7
+###### **Page** 1/1 **(Total number of results: 7)**
