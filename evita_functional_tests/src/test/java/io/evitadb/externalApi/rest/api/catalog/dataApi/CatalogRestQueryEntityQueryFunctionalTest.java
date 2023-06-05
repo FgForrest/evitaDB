@@ -1565,6 +1565,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price histogram")
+	// todo jno: price histogram is slightly different everytime
 	void shouldReturnPriceHistogram(Evita evita, RestTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
@@ -2612,7 +2613,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		final PriceHistogram priceHistogram = response.getExtraResult(PriceHistogram.class);
 
 		return map()
+			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())
 			.e(HistogramDescriptor.MAX.name(), priceHistogram.getMax().toString())
+			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
 				.map(bucket -> map()
 					.e(BucketDescriptor.INDEX.name(), bucket.getIndex())

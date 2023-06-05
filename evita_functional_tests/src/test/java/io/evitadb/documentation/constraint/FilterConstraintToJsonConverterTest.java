@@ -62,7 +62,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 			converter.convert(
 				new EntityDataLocator(Entities.PRODUCT),
 				attributeEquals("CODE", 123)
-			)
+			).get()
 		);
 	}
 
@@ -82,7 +82,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					attributeEquals("CODE", "123"),
 					attributeIs("AGE", AttributeSpecialValue.NULL)
 				)
-			)
+			).get()
 		);
 
 		final ArrayNode and2 = jsonNodeFactory.arrayNode();
@@ -101,7 +101,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					attributeEquals("CODE", "123"),
 					attributeEquals("CODE", 321)
 				)
-			)
+			).get()
 		);
 	}
 
@@ -129,7 +129,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					entityPrimaryKeyInSet(1),
 					directRelation()
 				)
-			)
+			).get()
 		);
 	}
 
@@ -148,7 +148,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					1,
 					2
 				)
-			)
+			).get()
 		);
 
 		final ArrayNode between2 = jsonNodeFactory.arrayNode();
@@ -164,7 +164,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					null,
 					2
 				)
-			)
+			).get()
 		);
 
 		final ArrayNode between3 = jsonNodeFactory.arrayNode();
@@ -180,7 +180,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					1,
 					null
 				)
-			)
+			).get()
 		);
 	}
 
@@ -191,12 +191,15 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		filterBy.putIfAbsent("attributeCodeEquals", jsonNodeFactory.textNode("123"));
 
 		final ArrayNode or = jsonNodeFactory.arrayNode();
-		final ObjectNode orWrapperContainer = jsonNodeFactory.objectNode();
 
-		orWrapperContainer.putIfAbsent("attributeAgeIs", jsonNodeFactory.textNode("NULL"));
+		final ObjectNode orWrapperContainer1 = jsonNodeFactory.objectNode();
+		orWrapperContainer1.putIfAbsent("attributeAgeIs", jsonNodeFactory.textNode("NULL"));
+		or.add(orWrapperContainer1);
 
 		final ArrayNode and = jsonNodeFactory.arrayNode();
 		final ObjectNode andWrapperContainer = jsonNodeFactory.objectNode();
+
+		final ObjectNode orWrapperContainer2 = jsonNodeFactory.objectNode();
 
 		final ArrayNode priceBetween = jsonNodeFactory.arrayNode();
 		priceBetween.add(jsonNodeFactory.textNode("10"));
@@ -214,9 +217,10 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		andWrapperContainer.putIfAbsent("facetBrandHaving", facetHaving);
 
 		and.add(andWrapperContainer);
-		orWrapperContainer.putIfAbsent("and", and);
+		orWrapperContainer2.putIfAbsent("and", and);
 
-		or.add(orWrapperContainer);
+		or.add(orWrapperContainer2);
+
 		filterBy.putIfAbsent("or", or);
 
 		final ArrayNode referenceHaving = jsonNodeFactory.arrayNode();
@@ -277,7 +281,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 						)
 					)
 				)
-			)
+			).get()
 		);
 	}
 }

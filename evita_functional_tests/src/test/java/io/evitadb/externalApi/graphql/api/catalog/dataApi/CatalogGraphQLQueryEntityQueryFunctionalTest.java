@@ -2785,6 +2785,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price histogram")
+	// todo jno: price histogram is slightly different everytime
 	void shouldReturnPriceHistogram(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,
@@ -2861,6 +2862,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return multiple same price histograms")
+	// todo jno: price histogram is slightly different everytime
 	void shouldReturnMultipleSamePriceHistograms(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
 			TEST_CATALOG,

@@ -67,7 +67,7 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 			converter.convert(
 				new EntityDataLocator(Entities.PRODUCT),
 				facetGroupsConjunction(Entities.BRAND, filterBy(entityPrimaryKeyInSet(1, 2)))
-			)
+			).get()
 		);
 	}
 
@@ -100,7 +100,7 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 						)
 					)
 				)
-			)
+			).get()
 		);
 	}
 }

@@ -55,7 +55,7 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 			converter.convert(
 				new GenericDataLocator(Entities.PRODUCT),
 				attributeNatural("CODE", OrderDirection.ASC)
-			)
+			).get()
 		);
 	}
 
@@ -74,7 +74,7 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 					attributeNatural("CODE", OrderDirection.ASC),
 					random()
 				)
-			)
+			).get()
 		);
 	}
 
@@ -102,7 +102,7 @@ class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 						random()
 					)
 				)
-			)
+			).get()
 		);
 	}
 }
