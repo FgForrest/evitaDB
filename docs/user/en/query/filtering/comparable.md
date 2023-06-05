@@ -390,7 +390,7 @@ in the database and is missing in the result.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="graphql">
 
 <MDInclude>[Product found by a `code` attribute in given set](/docs/user/en/query/filtering/examples/comparable/attribute-in-set.graphql.json.md)</MDInclude>
 
