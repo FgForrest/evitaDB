@@ -1,3 +1,4 @@
+# Runs performance benchmarks on Digital Ocean Kubernetes cluster
 name: Kubernetes-benchmark
 
 on:
@@ -22,13 +23,12 @@ env:
 
   KUBECTL_VER: "v1.26.3"
   IMAGES: "evitadb/evitadb:benchmark"
-  
-  BENCHMARK_SELECTOR: ""
-  JMH_ARGS: ""
+
+  BENCHMARK_SELECTOR: ""                            # use if you want limit running only sub set of the benchmarks
+  JMH_ARGS: ""                                      # use if you want to configure JMH tool arguments
   
   BENCHMARK_K8S_LIMIT_CPU: "4"
   BENCHMARK_JAVA_OPTS: "-Xmx9g"
-
 
 jobs:
   do-benchmark:

@@ -1039,9 +1039,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						"require": {
 						    "entityFetch": {
 						        "referenceBrandContent": {
-					                "entityFetch": {
-						                "attributeContent": ["marketShare"]
-						            }
+					                "entityFetch": {}
 						        }
 						    }
 					    }
@@ -1088,9 +1086,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						"require": {
 						    "entityFetch": {
 						        "referenceStoreContent": {
-					                "entityFetch": {
-						                "attributeContent": ["marketShare"]
-						            }
+					                "entityFetch": {}
 						        }
 						    }
 					    }

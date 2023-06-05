@@ -42,6 +42,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.Optional;
 
 import static java.util.Optional.of;
@@ -60,30 +61,31 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		final QueryContext queryContext = filterByVisitor.getQueryContext();
-		return queryContext.computeOnlyOnce(
-			hierarchyWithinRoot,
-			() -> {
-				final Optional<String> referenceName = hierarchyWithinRoot.getReferenceName();
 
-				final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
-				final ReferenceSchemaContract referenceSchema = referenceName
-					.map(entitySchema::getReferenceOrThrowException)
-					.orElse(null);
-				final EntitySchemaContract targetEntitySchema = ofNullable(referenceSchema)
-					.map(it -> filterByVisitor.getSchema(it.getReferencedEntityType()))
-					.orElse(entitySchema);
+		final Optional<String> referenceName = hierarchyWithinRoot.getReferenceName();
 
-				Assert.isTrue(
-					targetEntitySchema.isWithHierarchy(),
-					() -> new TargetEntityIsNotHierarchicalException(
-						ofNullable(referenceSchema).map(ReferenceSchemaContract::getName).orElse(null),
-						targetEntitySchema.getName()
-					)
-				);
+		final EntitySchemaContract entitySchema = filterByVisitor.getSchema();
+		final ReferenceSchemaContract referenceSchema = referenceName
+			.map(entitySchema::getReferenceOrThrowException)
+			.orElse(null);
+		final EntitySchemaContract targetEntitySchema = ofNullable(referenceSchema)
+			.map(it -> filterByVisitor.getSchema(it.getReferencedEntityType()))
+			.orElse(entitySchema);
+		Assert.isTrue(
+			targetEntitySchema.isWithHierarchy(),
+			() -> new TargetEntityIsNotHierarchicalException(
+				ofNullable(referenceSchema).map(ReferenceSchemaContract::getName).orElse(null),
+				targetEntitySchema.getName()
+			)
+		);
 
-				return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
-					.map(
-						index -> createFormulaFromHierarchyIndex(
+		return queryContext.getGlobalEntityIndexIfExists(targetEntitySchema.getName())
+			.map(
+				targetEntityIndex ->
+					queryContext.computeOnlyOnce(
+						Collections.singletonList(targetEntityIndex),
+						hierarchyWithinRoot,
+						() -> createFormulaFromHierarchyIndex(
 							createAndStoreHavingPredicate(
 								queryContext,
 								of(new FilterBy(hierarchyWithinRoot.getHavingChildrenFilter()))
@@ -95,13 +97,11 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 								referenceSchema
 							),
 							hierarchyWithinRoot.isDirectRelation(),
-							index
+							targetEntityIndex
 						)
 					)
-					.orElse(EmptyFormula.INSTANCE);
-
-			}
-		);
+			)
+			.orElse(EmptyFormula.INSTANCE);
 	}
 
 	@Nonnull

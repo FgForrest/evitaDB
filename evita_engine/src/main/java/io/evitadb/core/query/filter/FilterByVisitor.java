@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter;
 
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
@@ -42,7 +43,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.exception.ReferenceNotFoundException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;

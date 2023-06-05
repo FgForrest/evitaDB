@@ -25,7 +25,16 @@ package io.evitadb.api;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.exception.AssociatedDataContentMisplacedException;
+import io.evitadb.api.exception.AssociatedDataNotFoundException;
+import io.evitadb.api.exception.AttributeContentMisplacedException;
+import io.evitadb.api.exception.AttributeNotFoundException;
+import io.evitadb.api.exception.HierarchyContentMisplacedException;
+import io.evitadb.api.exception.PriceContentMisplacedException;
+import io.evitadb.api.exception.ReferenceContentMisplacedException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -92,6 +101,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *                also write test for ordering by multiple attributes within reference attributes or entity attributes
  *                also write test for ordering by combination of reference attribute, entity attribute, reference attribute, entity attribute
  * TOBEDONE JNO - write test to verify the error message when multiple entityHaving constraints are used withing single reference filter constraint
+ * TOBEDONE JNO - write test that deeply fetches attributes / associated data / references by using their names to verify the requirement schema validation
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -311,6 +321,15 @@ public class EntityFetchingFunctionalTest {
 										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, whichIs -> whichIs.filterable())
 								)
 								.withReferenceToEntity(Entities.PRICE_LIST, Entities.PRICE_LIST, Cardinality.ZERO_OR_MORE)
+								.withReferenceToEntity(
+									Entities.BRAND,
+									Entities.BRAND,
+									Cardinality.ZERO_OR_ONE,
+									whichIs -> whichIs.
+										filterable()
+										.faceted()
+										.withGroupTypeRelatedToEntity(Entities.STORE)
+								)
 								.updateVia(session);
 							return builder.toInstance();
 						}
@@ -396,6 +415,204 @@ public class EntityFetchingFunctionalTest {
 				);
 				assertTrue(productByPk.isEmpty());
 				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception for price outside entityFetch")
+	@Test
+	void shouldThrowExceptionWhenPriceContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					PriceContentMisplacedException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(1)
+							),
+							require(
+								priceContent(PriceContentMode.ALL)
+							)
+						)
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception for hierarchy outside entityFetch")
+	@Test
+	void shouldThrowExceptionWhenHierarchyContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					HierarchyContentMisplacedException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(1)
+							),
+							require(
+								hierarchyContent()
+							)
+						)
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception for non-existing attribute")
+	@Test
+	void shouldThrowExceptionWhenNonExistingAttributeIsAttemptedToBeFetched(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					AttributeNotFoundException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(1)
+							),
+							require(
+								entityFetch(
+									attributeContent("nonExisting")
+								)
+							)
+						)
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception for attribute outside entityFetch")
+	@Test
+	void shouldThrowExceptionWhenAttributeContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					AttributeContentMisplacedException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(1)
+							),
+							require(
+								attributeContent()
+							)
+						)
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception for non-existing associated data")
+	@Test
+	void shouldThrowExceptionWhenNonExistingAssociatedDataIsAttemptedToBeFetched(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					AssociatedDataNotFoundException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(1)
+							),
+							require(
+								entityFetch(
+									associatedDataContent("nonExisting")
+								)
+							)
+						)
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception for associated data outside entityFetch")
+	@Test
+	void shouldThrowExceptionWhenAssociatedDataContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					AssociatedDataContentMisplacedException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(1)
+							),
+							require(
+								associatedDataContent()
+							)
+						)
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception for non-existing reference")
+	@Test
+	void shouldThrowExceptionWhenNonExistingReferenceIsAttemptedToBeFetched(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					ReferenceNotFoundException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(1)
+							),
+							require(
+								entityFetch(
+									referenceContent("nonExisting")
+								)
+							)
+						)
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception for reference outside entityFetch")
+	@Test
+	void shouldThrowExceptionWhenReferenceContentIsOutsideEntityFetch(@UseDataSet(FIFTY_PRODUCTS) Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					ReferenceContentMisplacedException.class,
+					() -> session.querySealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(1)
+							),
+							require(
+								referenceContent()
+							)
+						)
+					)
+				);
 			}
 		);
 	}
@@ -973,6 +1190,7 @@ public class EntityFetchingFunctionalTest {
 							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
 						),
 						require(
+							page(1, Integer.MAX_VALUE),
 							entityFetch(
 								associatedDataContent(ASSOCIATED_DATA_LABELS),
 								dataInLocales(LOCALE_CZECH, Locale.ENGLISH)
@@ -1641,17 +1859,19 @@ public class EntityFetchingFunctionalTest {
 	@UseDataSet(FIFTY_PRODUCTS)
 	@Test
 	void shouldLazyLoadFilteredPrices(Evita evita, List<SealedEntity> originalProducts) {
-		final OffsetDateTime theMoment = OffsetDateTime.of(2013, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
-			originalProducts,
-			it -> it.getPrices()
-				.stream()
-				.filter(PriceContract::isSellable)
-				.anyMatch(
-					price -> Objects.equals(CURRENCY_USD, price.getCurrency()) &&
-						Objects.equals(PRICE_LIST_VIP, price.getPriceList()) &&
-						(price.getValidity() != null && price.getValidity().isValidFor(theMoment)))
-		);
+		final SealedEntity product = originalProducts
+			.stream()
+			.filter(it -> it.getAllPricesForSale().stream().anyMatch(price -> price.getValidity() != null))
+			.findFirst()
+			.orElseThrow();
+		final PriceContract thePrice = product.getAllPricesForSale()
+			.stream()
+			.filter(it -> it.getValidity() != null)
+			.findFirst()
+			.orElseThrow();
+		final OffsetDateTime theMoment = thePrice.getValidity()
+			.getPreciseFrom()
+			.plusMinutes(1);
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -1661,25 +1881,24 @@ public class EntityFetchingFunctionalTest {
 						collection(Entities.PRODUCT),
 						filterBy(
 							and(
-								entityPrimaryKeyInSet(entitiesMatchingTheRequirements[0]),
-								priceInCurrency(CURRENCY_USD),
-								priceInPriceLists(PRICE_LIST_VIP),
+								entityPrimaryKeyInSet(product.getPrimaryKey()),
+								priceInCurrency(thePrice.getCurrency()),
+								priceInPriceLists(thePrice.getPriceList()),
 								priceValidIn(theMoment)
 							)
 						),
 						require(
-							entityFetch(),
-							page(1, Integer.MAX_VALUE)
+							entityFetch()
 						)
 					)
 				);
-				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
-				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+				assertEquals(1, productByPk.getRecordData().size());
+				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
-				assertTrue(product.getPrices().isEmpty());
+				final SealedEntity returnedProduct = productByPk.getRecordData().get(0);
+				assertTrue(returnedProduct.getPrices().isEmpty());
 
-				final SealedEntity enrichedProduct = session.enrichEntity(product, priceContentRespectingFilter());
+				final SealedEntity enrichedProduct = session.enrichEntity(returnedProduct, priceContentRespectingFilter());
 				assertHasPriceInCurrency(enrichedProduct, CURRENCY_USD);
 				assertHasPriceInPriceList(enrichedProduct, PRICE_LIST_VIP);
 				return null;
@@ -1805,7 +2024,7 @@ public class EntityFetchingFunctionalTest {
 						collection(Entities.PRODUCT),
 						filterBy(
 							and(
-								priceInPriceLists(PRICE_LIST_SELLOUT),
+								priceInPriceLists(PRICE_LIST_INTRODUCTION),
 								priceInCurrency(CURRENCY_CZK)
 							)
 						),
@@ -2172,6 +2391,7 @@ public class EntityFetchingFunctionalTest {
 				assertEquals(productsWithLotsOfStores.size(), productByPk.getRecordData().size());
 				assertEquals(productsWithLotsOfStores.size(), productByPk.getTotalRecordCount());
 
+				final LocalizedStringComparator czechComparator = new LocalizedStringComparator(Collator.getInstance(CZECH_LOCALE));
 				for (final SealedEntity product : productByPk.getRecordData()) {
 					final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
 
@@ -2188,7 +2408,9 @@ public class EntityFetchingFunctionalTest {
 						.map(it -> it.getAttribute(ATTRIBUTE_NAME, String.class))
 						.toArray(String[]::new);
 					assertArrayEquals(
-						Arrays.stream(receivedOrderedNames).sorted(Comparator.reverseOrder()).toArray(String[]::new),
+						Arrays.stream(receivedOrderedNames)
+							.sorted((o1, o2) -> czechComparator.compare(o1, o2) * -1)
+							.toArray(String[]::new),
 						receivedOrderedNames
 					);
 

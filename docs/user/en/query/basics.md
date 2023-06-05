@@ -228,6 +228,40 @@ followed by a word that captures the essence of the constraint.
 3. If the constraint only makes sense in the context of some parent constraint, it must not be usable anywhere else, 
 and might relax rule #2 (since the context will be apparent from the parent constraint).
 
+## Generic query rules
+
+### Data type conversion
+
+If the value to be compared in the constraint argument doesn't match the attribute data type, evitaDB tries to
+automatically convert it into the correct type before the comparison. Therefore, you can also provide *string* values
+for comparison with number types. Of course, it's better to provide evitaDB with the correct types and avoid
+the automatic conversion.
+
+### Array types targeted by the constraint
+
+If the constraint targets an attribute that is of array type, the constraint automatically matches an entity in case
+**any** of the attribute array items satisfies it. 
+
+For example let's have a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) 
+array attribute named `oneDayDeliveryCountries` with the following values: `GB`, `FR`, `CZ`. The filtering constraint
+[`attributeEquals`](filtering/comparable.md#attribute-equals) worded as follows: `attributeEquals('oneDayDeliveryCountries', 'GB')`
+will match the entity, because the *GB* is one of the array values.
+
+Let's look at a more complicated, but more useful example. Let's have a [`DateTimeRange`](../use/data-types.md#datetimerange) 
+array attribute called `validity` that contains multiple time periods when the entity can be used:
+
+```plain
+[2023-01-01T00:00:00+01:00,2023-02-01T00:00:00+01:00]
+[2023-06-01T00:00:00+01:00,2022-07-01T00:00:00+01:00]
+[2023-12-01T00:00:00+01:00,2024-01-01T00:00:00+01:00]
+```
+
+In short, the entity is only valid in January, June, and December 2023. If we want to know if it's possible to access 
+(e.g. buy a product) in May using the constraint `attributeInRange('validity', '2023-05-05T00:00:00+01:00')`, the result 
+will be empty because none of the `validity` array ranges matches that date and time. Of course, if we ask for an entity 
+that is valid in June using `attributeInRange('validity', '2023-06-05T00:00:00+01:00')`, the entity will be returned 
+because there is a single date/time range in the array that satisfies this constraint.
+
 ## Header
 
 Only a `collection` constraint is allowed in this part of the query. It defines the entity type that the query will 
@@ -274,10 +308,7 @@ the resulting output to only include values that satisfy the constraint.
 - [attribute less than, equals](filtering/comparable.md#attribute-less-than-equals)
 - [attribute between](filtering/comparable.md#attribute-between)
 - [attribute in set](filtering/comparable.md#attribute-in-set)
-- [attribute is true](filtering/comparable.md#attribute-is-true)
-- [attribute is false](filtering/comparable.md#attribute-is-false)
-- [attribute is null](filtering/comparable.md#attribute-is-null)
-- [attribute is not null](filtering/comparable.md#attribute-is-not-null)
+- [attribute is](filtering/comparable.md#attribute-is)
 
 ### String constraints
 

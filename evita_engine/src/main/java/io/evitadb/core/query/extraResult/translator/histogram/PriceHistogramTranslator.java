@@ -23,7 +23,9 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram;
 
+import io.evitadb.api.exception.TargetEntityHasNoPricesException;
 import io.evitadb.api.query.require.PriceHistogram;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
@@ -32,6 +34,7 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
 import io.evitadb.core.query.sort.price.FilteredPricesSorter;
+import io.evitadb.utils.Assert;
 
 import java.util.Collection;
 import java.util.List;
@@ -52,6 +55,11 @@ public class PriceHistogramTranslator implements RequireConstraintTranslator<Pri
 
 	@Override
 	public ExtraResultProducer apply(PriceHistogram priceHistogram, ExtraResultPlanningVisitor extraResultPlanner) {
+		final EntitySchemaContract schema = extraResultPlanner.getSchema();
+		Assert.isTrue(
+			schema.isWithPrice(),
+			() -> new TargetEntityHasNoPricesException(schema.getName())
+		);
 		// collect all FilteredPriceRecordAccessor formulas in filtering formula tree
 		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
 			extraResultPlanner.getFilteringFormula(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW

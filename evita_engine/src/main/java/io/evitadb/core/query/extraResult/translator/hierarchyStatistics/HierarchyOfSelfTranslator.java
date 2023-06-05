@@ -47,6 +47,7 @@ import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredi
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -110,6 +111,7 @@ public class HierarchyOfSelfTranslator
 					return childrenExceptSelfFormula;
 				} else {
 					final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+						Collections.singletonList(globalIndex),
 						filter,
 						() -> createFilterFormula(
 							extraResultPlanner.getQueryContext(),
@@ -131,6 +133,7 @@ public class HierarchyOfSelfTranslator
 					return HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
 				} else {
 					final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+						Collections.singletonList(globalIndex),
 						filter,
 						() -> createFilterFormula(
 							extraResultPlanner.getQueryContext(),

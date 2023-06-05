@@ -23,12 +23,14 @@
 
 package io.evitadb.core.query.filter.translator.price;
 
+import io.evitadb.api.exception.TargetEntityHasNoPricesException;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -42,6 +44,7 @@ import io.evitadb.core.query.filter.translator.price.alternative.SellingPriceAva
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -61,6 +64,14 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull PriceInPriceLists priceInPriceLists, @Nonnull FilterByVisitor filterByVisitor) {
+		if (filterByVisitor.isEntityTypeKnown()) {
+			final EntitySchemaContract schema = filterByVisitor.getSchema();
+			Assert.isTrue(
+				schema.isWithPrice(),
+				() -> new TargetEntityHasNoPricesException(schema.getName())
+			);
+		}
+
 		// if there are any more specific constraints - skip itself
 		//noinspection unchecked
 		if (filterByVisitor.isParentConstraint(And.class) && filterByVisitor.isAnySiblingConstraintPresent(PriceValidIn.class, PriceBetween.class)) {

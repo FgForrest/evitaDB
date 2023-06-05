@@ -23,12 +23,12 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram;
 
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.exception.AttributeNotFilterableException;
-import io.evitadb.core.exception.AttributeNotFoundException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;

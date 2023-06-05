@@ -864,10 +864,10 @@ class EvitaSessionServiceFunctionalTest {
 					page(?, ?),
 					entityFetch(
 						attributeContentAll(),
+						associatedDataContentAll(),
 						priceContentRespectingFilter(),
-						referenceContent(?, ?)
-					),
-					associatedDataContentAll(),
+						referenceContent(?, ?)			
+					),				
 					facetSummary(?),
 					priceType(?)
 				)

@@ -23,8 +23,10 @@
 
 package io.evitadb.core.query.sort.price.translator;
 
+import io.evitadb.api.exception.TargetEntityHasNoPricesException;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.query.require.PriceContent;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
@@ -33,6 +35,7 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.price.FilteredPricesSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
@@ -47,6 +50,14 @@ public class PriceNaturalTranslator implements OrderingConstraintTranslator<Pric
 	@Nonnull
 	@Override
 	public Sorter createSorter(@Nonnull PriceNatural priceNatural, @Nonnull OrderByVisitor orderByVisitor) {
+		if (orderByVisitor.isEntityTypeKnown()) {
+			final EntitySchemaContract schema = orderByVisitor.getSchema();
+			Assert.isTrue(
+				schema.isWithPrice(),
+				() -> new TargetEntityHasNoPricesException(schema.getName())
+			);
+		}
+
 		// if prefetch happens we need to prefetch prices so that the attribute comparator can work
 		orderByVisitor.addRequirementToPrefetch(PriceContent.respectingFilter());
 		// are filtered prices used in the filtering?

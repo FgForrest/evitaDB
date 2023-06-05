@@ -1,0 +1,11 @@
+query(
+    collection('Product'),
+    filterBy(
+        attributeEndsWith('code', 'solar')
+    ),
+    require(
+       entityFetch(
+           attributeContent('code')
+       )
+    )
+)

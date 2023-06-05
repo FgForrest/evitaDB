@@ -24,12 +24,14 @@
 package io.evitadb.core.query.filter.translator.price;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.TargetEntityHasNoPricesException;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
@@ -38,6 +40,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.price.alternative.SellingPriceAvailableBitmapFilter;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import net.openhft.hashing.LongHashFunction;
 
@@ -59,6 +62,14 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull PriceBetween priceBetween, @Nonnull FilterByVisitor filterByVisitor) {
+		if (filterByVisitor.isEntityTypeKnown()) {
+			final EntitySchemaContract schema = filterByVisitor.getSchema();
+			Assert.isTrue(
+				schema.isWithPrice(),
+				() -> new TargetEntityHasNoPricesException(schema.getName())
+			);
+		}
+
 		final int indexedPricePlaces = filterByVisitor.getSchema().getIndexedPricePlaces();
 		final int from = ofNullable(priceBetween.getFrom())
 			.map(it -> NumberUtils.convertToInt(it, indexedPricePlaces))

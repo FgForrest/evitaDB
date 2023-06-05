@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.exception;
+package io.evitadb.api.exception;
 
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;

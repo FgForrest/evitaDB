@@ -42,7 +42,7 @@ public class ReferenceContentSerializer extends Serializer<ReferenceContent> {
 
 	@Override
 	public void write(Kryo kryo, Output output, ReferenceContent object) {
-		final String[] referencedEntityType = object.getReferencedEntityTypes();
+		final String[] referencedEntityType = object.getReferenceNames();
 		output.writeVarInt(referencedEntityType.length, true);
 		for (String refEntityType : referencedEntityType) {
 			output.writeString(refEntityType);

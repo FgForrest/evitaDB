@@ -76,4 +76,50 @@ While it's technically possible to implement support for these tasks in evitaDB,
 were more important scenarios to handle.
 </Note>
 
-To select the products that 
+To test the locale specific query, we need to focus on the *Vouchers for shareholders* category in our 
+[demo dataset](/documentation/get-started/query-our-dataset). We know that there are products that have only English 
+(*en_US*) localization. To select the products with English localization, we can issue this query:
+
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Listing product with English locale](/docs/user/en/query/filtering/examples/locale/locale.evitaql)
+</SourceCodeTabs>
+
+... and we will get a list with the number of them.
+
+<Note type="info">
+
+<NoteTitle toggles="false">
+
+##### List of all products with English localization in category
+</NoteTitle>
+
+<MDInclude>[List of all products with English localization](/docs/user/en/query/filtering/examples/locale/locale.evitaql.md)</MDInclude>
+
+You will notice that the output contains two columns: *code* and *name*. The *code* is not a localized attribute, while 
+the *name* is. The names listed in the response reflect the English locale that is part of the filter constraint. 
+
+If you use `entityLocaleEquals` in your filter, all returned localized data (both 
+[attributes](../../use/data-model.md#localized-attributes) and [associated data](../../use/data-model.md#localized-associated-data)) 
+will respect the filtered locale. If you need data for locales other than the one used in the filter constraint, 
+you can use the require constraint [`data-in-locale`](../requirements/fetching.md#data-in-locale).
+
+</Note>
+
+But when we request products in Czech locale:
+
+<SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+[Listing product with English locale](/docs/user/en/query/filtering/examples/locale/locale_missing.evitaql)
+</SourceCodeTabs>
+
+... the query returns none of them, even though we know there are products in this category.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of all products with Czech localization in category
+</NoteTitle>
+
+<MDInclude>[List of all products with Czech localization](/docs/user/en/query/filtering/examples/locale/locale_missing.evitaql.md)</MDInclude>
+
+</Note>

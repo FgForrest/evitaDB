@@ -511,7 +511,7 @@ public class EvitaRequest {
 					Collections.emptySet() :
 					requiresReference
 						.stream()
-						.flatMap(it -> Arrays.stream(it.getReferencedEntityTypes()))
+						.flatMap(it -> Arrays.stream(it.getReferenceNames()))
 						.collect(Collectors.toSet());
 			}
 		}
@@ -731,7 +731,7 @@ public class EvitaRequest {
 					.stream()
 					.flatMap(it ->
 						Arrays
-							.stream(it.getReferencedEntityTypes())
+							.stream(it.getReferenceNames())
 							.map(entityType -> new SimpleEntry<>(
 									entityType,
 									new RequirementContext(
