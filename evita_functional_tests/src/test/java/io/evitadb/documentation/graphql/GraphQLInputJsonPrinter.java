@@ -38,9 +38,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * TODO lho docs
+ * Prints GraphQL input JSONs correctly formatted to spec.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class GraphQLInputJsonPrinter {
 

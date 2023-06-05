@@ -41,8 +41,6 @@ public class GraphQLTestContext implements TestContext {
 	private final GraphQLClient graphQLClient;
 
 	public GraphQLTestContext() {
-		// todo lho revert
-//		this.graphQLClient = new GraphQLClient("https://demo.evitadb.io:5555/gql/evita");
-		this.graphQLClient = new GraphQLClient("https://localhost:5555/gql/evita", false);
+		this.graphQLClient = new GraphQLClient("https://demo.evitadb.io:5555/gql/evita");
 	}
 }

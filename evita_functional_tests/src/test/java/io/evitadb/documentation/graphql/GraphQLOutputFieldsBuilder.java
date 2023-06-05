@@ -34,9 +34,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * TODO lho docs
+ * Builds output fields in GraphQL query format with proper indentation.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrst a.s. (c) 2023
  */
 public class GraphQLOutputFieldsBuilder {
 
